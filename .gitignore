@@ -10,10 +10,6 @@ target
 # ignore eclipse configuration
 .project
 
-# ignore maven related files
-dependency-reduced-pom.xml
-# ignore emacs configuation
-.meghanada
 # Compiled class file
 *.class
 
@@ -39,23 +35,3 @@ hs_err_pid*
 
 # ignore Mac files
 .DS_Store
-
-# ignore gradle
-.gradle
-
-metastore_db/
-.java-version
-
-# ignore gradle
-.gradle
-build/
-out/
-
-# Cache of project
-.gradletasknamecache
-
-# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
-!gradle-wrapper.jar
-
-# # Work around https://youtrack.jetbrains.com/issue/IDEA-116898
-# gradle/wrapper/gradle-wrapper.properties
