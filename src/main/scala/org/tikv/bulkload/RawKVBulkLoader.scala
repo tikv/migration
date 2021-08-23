@@ -48,7 +48,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
 
   @transient private var tiSession: TiSession = _
 
-  private var partitioner: TiRegionSplitPartitionerV2 = _
+  private var partitioner: RegionPartitioner = _
 
   // region split
   val optionsSplitRegionBackoffMS: Int = sparkConf.get(SPLIT_REGION_BACKOFF_MS, "120000").toInt
@@ -102,7 +102,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     logger.info("orderedRegions size = " + orderedRegions.size)
 
     //8  repartition rdd according region
-    partitioner = new TiRegionSplitPartitionerV2(orderedRegions)
+    partitioner = new RegionPartitioner(orderedRegions)
     val rdd3 = rdd2.partitionBy(partitioner).persist(StorageLevel.MEMORY_AND_DISK)
     logger.info("rdd3.getNumPartitions = " + rdd3.getNumPartitions)
 
@@ -115,7 +115,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     tiSession.close()
   }
 
-  private def writeAndIngest(iterator: Iterator[(Array[Byte], Array[Byte])], partitioner: TiRegionSplitPartitionerV2): Unit = {
+  private def writeAndIngest(iterator: Iterator[(Array[Byte], Array[Byte])], partitioner: RegionPartitioner): Unit = {
     val (itor1, tiro2) = iterator.duplicate
 
     var minKey: Key = Key.MAX
@@ -144,12 +144,12 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
         val uuid = genUUID()
 
         logger.info(s"start to ingest this partition ${util.Arrays.toString(uuid)}")
-        val pairsIterator = tiro2.map { keyValue => new Pair[ByteString, ByteString](ByteString.copyFrom(keyValue._1), ByteString.copyFrom(keyValue._2))
-
-        }.asJava
+        val pairsIterator = tiro2.map { keyValue =>
+          new Pair[ByteString, ByteString](ByteString.copyFrom(keyValue._1), ByteString.copyFrom(keyValue._2))
+        }.toList.sortWith((a, b) => Key.toRawKey(a.first).compareTo(Key.toRawKey(b.first)) < 0).toIterator.asJava
         val tiSession = TiSession.create(tiConf)
         val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
-        importerClient.rawWrite(pairsIterator)
+        importerClient.write(pairsIterator)
         logger.info(s"finish to ingest this partition ${util.Arrays.toString(uuid)}")
         tiSession.close()
       }

@@ -20,7 +20,7 @@ import org.apache.spark.Partitioner
 import org.tikv.common.key.Key
 import org.tikv.common.region.TiRegion
 
-class TiRegionSplitPartitionerV2(orderedRegions: List[TiRegion])
+class RegionPartitioner(orderedRegions: List[TiRegion])
   extends Partitioner {
   override def getPartition(key: Any): Int = {
     val serializableKey = key.asInstanceOf[SerializableKey]

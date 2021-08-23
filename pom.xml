@@ -20,7 +20,7 @@
     <artifactId>migration</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Migration Project</name>
+    <name>TiKV: Migration</name>
     <url>http://github.com/tikv/migration</url>
 
     <licenses>
