@@ -23,10 +23,27 @@ import org.tikv.bulkload.RawKVBulkLoader
 object BulkLoadExample {
 
   var pdaddr: String = "127.0.0.1:2379"
+  var prefix: String = "test_"
+  var size: Long = 1000
+  var partition: Int = 10
+
   def main(args: Array[String]): Unit = {
     if (args.length > 0) {
       pdaddr = args(0)
     }
+
+    if (args.length > 1) {
+      prefix = args(1)
+    }
+
+    if (args.length > 2) {
+      size = args(2).toLong
+    }
+
+    if (args.length > 3) {
+      partition = args(3).toInt
+    }
+
     val sparkConf = new SparkConf()
       .setIfMissing("spark.master", "local[*]")
       .setIfMissing("spark.app.name", getClass.getName)
@@ -34,30 +51,39 @@ object BulkLoadExample {
     val spark = SparkSession.builder.config(sparkConf).getOrCreate()
     val value = genValue(64)
 
-    val rdd = spark.sparkContext.parallelize(1 to 1000).map { i =>
-      val key = s"test_${genKey(i)}"
-      println(key)
+    val rdd = spark.sparkContext.parallelize(1L to size, partition).map { i =>
+      val key = s"${prefix}${genKey(i)}"
       (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
     }
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
   }
 
-  private def genKey(i: Int): String = {
+  private def genKey(i: Long): String = {
     var s = ""
 
     if(i < 10) {
-      s = s + "0000000"
+      s = s + "00000000000"
     } else if(i < 100) {
-      s = s + "000000"
+      s = s + "0000000000"
     } else if(i < 1000) {
-      s = s + "00000"
+      s = s + "000000000"
     } else if(i < 10000) {
-      s = s + "0000"
+      s = s + "00000000"
     } else if(i < 100000) {
-      s = s + "000"
+      s = s + "0000000"
     } else if(i < 1000000) {
-      s = s + "00"
+      s = s + "000000"
     }else if(i < 10000000) {
+      s = s + "00000"
+    }else if(i < 100000000) {
+      s = s + "0000"
+    }else if(i < 1000000000) {
+      s = s + "000"
+    }
+    else if(i < 10000000000L) {
+      s = s + "00"
+    }
+    else if(i < 100000000000L) {
       s = s + "0"
     }
     s + i
