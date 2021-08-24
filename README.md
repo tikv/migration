@@ -4,12 +4,31 @@ Migration tools for TiKV, e.g. online bulk load.
 ## Build
 
 ```
-mvn clean package
+cd online-bulk-load
+mvn clean install
 ```
 
 ## Quick Start
 ```
-spark-submit --jars tikv-client-java-3.2.0-SNAPSHOT.jar --class org.tikv.bulkload.example.BulkLoadExample migration-0.0.1-SNAPSHOT.jar <pdaddr>
+spark-submit --jars tikv-client-java-3.2.0-SNAPSHOT.jar --class org.tikv.bulkload.example.BulkLoadExample migration-0.0.1-SNAPSHOT.jar <pdaddr> <key_prefix> <data_size> <partition_nums>
+```
+Also we can write a self-contained application to read parquet files
+
+Suppose the schema of parquet file is `key` | `value` which type is `String`
+```scala
+  def main(args: Array[String]): Unit = {
+    val filePath = "YOUR_PARQUET_FILE_PATH"
+    val pdaddr = "YOUR_PD_ADDRESS"
+    val sparkConf = new SparkConf()
+      .setIfMissing("spark.master", "local[*]")
+      .setIfMissing("spark.app.name", getClass.getName)
+
+    val spark = SparkSession.builder.config(sparkConf).getOrCreate()
+    val value = spark.read.parquet(filePath).rdd.map(row => {
+      (row.getString(0).toArray.map(_.toByte), row.getString(1).toArray.map(_.toByte))
+    })
+    new RawKVBulkLoader(pdaddr).bulkLoad(value)
+  }
 ```
 
 ## Configuration

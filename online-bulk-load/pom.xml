@@ -133,7 +133,7 @@
     <build>
         <resources>
             <resource>
-                <directory>src/main/resources</directory>
+                <directory>online-bulk-load/src/main/resources</directory>
                 <filtering>true</filtering>
             </resource>
         </resources>
@@ -272,36 +272,6 @@
                         <param>${project.basedir}/src/test/scala</param>
                     </testSourceDirectories>
                 </configuration>
-            </plugin>
-            <!-- Scalatest runs all Scala tests -->
-            <plugin>
-                <groupId>org.scalatest</groupId>
-                <artifactId>scalatest-maven-plugin</artifactId>
-                <version>2.0.0</version>
-                <!-- Note config is repeated in surefire config -->
-                <configuration>
-                    <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
-                    <junitxml>.</junitxml>
-                    <filereports>SparkTestSuite.txt</filereports>
-                    <argLine>-ea -Xmx6g -Xss4m -XX:ReservedCodeCacheSize=${CodeCacheSize} -Dfile.encoding=UTF-8 -Duser.timezone=GMT+8 -Dio.netty.leakDetection.level=paranoid -Dio.netty.tryReflectionSetAccessible=true</argLine>
-                    <stderr/>
-                    <environmentVariables>
-                        <JAVA_HOME>${test.java.home}</JAVA_HOME>
-                    </environmentVariables>
-                    <systemProperties>
-                        <log4j.configuration>file:src/test/resources/log4j.properties</log4j.configuration>
-                    </systemProperties>
-                    <tagsToExclude>${test.exclude.tags}</tagsToExclude>
-                    <tagsToInclude>${test.include.tags}</tagsToInclude>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>test</id>
-                        <goals>
-                            <goal>test</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
