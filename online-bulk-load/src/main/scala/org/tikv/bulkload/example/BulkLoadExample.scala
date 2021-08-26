@@ -60,12 +60,6 @@ object BulkLoadExample {
 
   private def genKey(i: Long): String = f"$i%012d"
 
-  private def genValue(valueLength: Int): String = {
-    var s = ""
-    (1 to valueLength).foreach { i =>
-      s = s + "A"
-    }
-    s
-  }
+  private def genValue(valueLength: Int): String = Vector.fill(valueLength)('A').mkString("")
 
 }
