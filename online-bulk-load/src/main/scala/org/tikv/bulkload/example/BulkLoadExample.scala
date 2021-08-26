@@ -58,43 +58,8 @@ object BulkLoadExample {
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
   }
 
-  private def genKey(i: Long): String = {
-    var s = ""
+  private def genKey(i: Long): String = f"$i%012d"
 
-    if(i < 10) {
-      s = s + "00000000000"
-    } else if(i < 100) {
-      s = s + "0000000000"
-    } else if(i < 1000) {
-      s = s + "000000000"
-    } else if(i < 10000) {
-      s = s + "00000000"
-    } else if(i < 100000) {
-      s = s + "0000000"
-    } else if(i < 1000000) {
-      s = s + "000000"
-    }else if(i < 10000000) {
-      s = s + "00000"
-    }else if(i < 100000000) {
-      s = s + "0000"
-    }else if(i < 1000000000) {
-      s = s + "000"
-    }
-    else if(i < 10000000000L) {
-      s = s + "00"
-    }
-    else if(i < 100000000000L) {
-      s = s + "0"
-    }
-    s + i
-  }
-
-  private def genValue(valueLength: Int): String = {
-    var s = ""
-    (1 to valueLength).foreach { i =>
-      s = s + "A"
-    }
-    s
-  }
+  private def genValue(valueLength: Int): String = "A" * valueLength
 
 }
