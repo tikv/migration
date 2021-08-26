@@ -60,6 +60,6 @@ object BulkLoadExample {
 
   private def genKey(i: Long): String = f"$i%012d"
 
-  private def genValue(valueLength: Int): String = Vector.fill(valueLength)('A').mkString("")
+  private def genValue(valueLength: Int): String = "A" * valueLength
 
 }
