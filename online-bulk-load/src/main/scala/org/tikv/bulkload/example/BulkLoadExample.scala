@@ -59,34 +59,7 @@ object BulkLoadExample {
   }
 
   private def genKey(i: Long): String = {
-    var s = ""
-
-    if(i < 10) {
-      s = s + "00000000000"
-    } else if(i < 100) {
-      s = s + "0000000000"
-    } else if(i < 1000) {
-      s = s + "000000000"
-    } else if(i < 10000) {
-      s = s + "00000000"
-    } else if(i < 100000) {
-      s = s + "0000000"
-    } else if(i < 1000000) {
-      s = s + "000000"
-    }else if(i < 10000000) {
-      s = s + "00000"
-    }else if(i < 100000000) {
-      s = s + "0000"
-    }else if(i < 1000000000) {
-      s = s + "000"
-    }
-    else if(i < 10000000000L) {
-      s = s + "00"
-    }
-    else if(i < 100000000000L) {
-      s = s + "0"
-    }
-    s + i
+    "%012d".format(i)
   }
 
   private def genValue(valueLength: Int): String = {
