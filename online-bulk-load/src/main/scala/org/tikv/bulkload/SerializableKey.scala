@@ -59,10 +59,10 @@ object LogDesensitization {
    */
   private def getLogDesensitization: Boolean = {
     val tiSparkLogDesensitizationLevel = "TiSparkLogDesensitizationLevel"
-    var tmp = System.getenv(tiSparkLogDesensitizationLevel)
-    if (tmp != null && !("" == tmp)) return !("1" == tmp)
-    tmp = System.getProperty(tiSparkLogDesensitizationLevel)
-    if (tmp != null && !("" == tmp)) return !("1" == tmp)
-    true
+    sys.env.get(tiSparkLogDesensitizationLevel)
+      .orElse(sys.props.get(tiSparkLogDesensitizationLevel)) match {
+      case Some(str) => "1" != str
+      case None => true
+    }
   }
 }
