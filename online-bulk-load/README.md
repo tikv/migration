@@ -1,17 +1,36 @@
-## Build
-
-```
-cd online-bulk-load
-mvn clean install
-```
-
 ## Quick Start
-```
-spark-submit --jars tikv-client-java-3.2.0-SNAPSHOT.jar --class org.tikv.bulkload.example.BulkLoadExample migration-0.0.1-SNAPSHOT.jar <pdaddr> <key_prefix> <data_size> <partition_nums>
-```
-Also we can write a self-contained application to read parquet files
 
-Suppose the schema of parquet file is `key` | `value` which type is `String`
+### Install tikv-client-java
+
+```
+git clone git@github.com:tikv/client-java.git
+mvn --file client-java/pom.xml clean install -DskipTests
+```
+
+### Build online-bulk-load
+
+```
+git clone git@github.com:tikv/migration.git
+mvn --file migration/online-bulk-load/pom.xml clean package -DskipTests
+```
+
+### Run BulkLoadExample
+
+```
+spark-submit \
+--master local[*] \
+--jars /path/to/tikv-client-java-3.2.0-SNAPSHOT.jar \
+--class org.tikv.bulkload.example.BulkLoadExample \
+migration/online-bulk-load/target/migration-0.0.1-SNAPSHOT.jar \
+<pdaddr> <key_prefix> <data_size> <partition_nums>
+```
+
+### Call RawKVBulkLoader
+
+Also we can write a self-contained application to read parquet files.
+
+Suppose the schema of parquet file is `key` | `value` which type is `String`.
+
 ```scala
   def main(args: Array[String]): Unit = {
     val filePath = "YOUR_PARQUET_FILE_PATH"
@@ -21,11 +40,19 @@ Suppose the schema of parquet file is `key` | `value` which type is `String`
       .setIfMissing("spark.app.name", getClass.getName)
 
     val spark = SparkSession.builder.config(sparkConf).getOrCreate()
-    val value = spark.read.parquet(filePath).rdd.map(row => {
+    val rdd = spark.read.parquet(filePath).rdd.map(row => {
       (row.getString(0).toArray.map(_.toByte), row.getString(1).toArray.map(_.toByte))
     })
-    new RawKVBulkLoader(pdaddr).bulkLoad(value)
+    new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
   }
+```
+
+## Spark Version
+
+Default Spark version is 3.0.2. If you want to use other Spark version, please compile with the following command:
+
+```
+mvn --file migration/online-bulk-load/pom.xml clean package -DskipTests -Dspark.version.compile=3.1.1
 ```
 
 ## Configuration
@@ -44,3 +71,7 @@ The configurations in the table below can be put together with `spark-defaults.c
 | `spark.tikv.bulkload.regionSplitUsingSize` |  `true` | whether using size to split region |
 | `spark.tikv.bulkload.bytesPerRegion` | `100663296` | Size in bytes per region.This requires `spark.tikv.bulkload.regionSplitUsingSize` to be set true. |
 | `spark.tikv.bulkload.ttl` |  `-1` | The data's time to live |
+
+## Documents
+
+- [RFC: Online Bulk Load for RawKV](https://github.com/tikv/rfcs/blob/master/text/0072-online-bulk-load-for-rawkv.md)
