@@ -1,18 +1,17 @@
-## Build
-
-```
-cd online-bulk-load
-mvn clean package -DskipTests
-```
-
 ## Quick Start
 
-### Compile tikv-client-java
+### Install tikv-client-java
 
 ```
 git clone git@github.com:tikv/client-java.git
-cd client-java
-mvn clean install -DskipTests
+mvn --file client-java/pom.xml clean install -DskipTests
+```
+
+### Build online-bulk-load
+
+```
+git clone git@github.com:tikv/migration.git
+mvn --file migration/online-bulk-load/pom.xml clean package -DskipTests
 ```
 
 ### Run BulkLoadExample
@@ -22,7 +21,7 @@ spark-submit \
 --master local[*] \
 --jars /path/to/tikv-client-java-3.2.0-SNAPSHOT.jar \
 --class org.tikv.bulkload.example.BulkLoadExample \
-target/migration-0.0.1-SNAPSHOT.jar \
+migration/online-bulk-load/target/migration-0.0.1-SNAPSHOT.jar \
 <pdaddr> <key_prefix> <data_size> <partition_nums>
 ```
 
@@ -53,7 +52,7 @@ Suppose the schema of parquet file is `key` | `value` which type is `String`.
 Default Spark version is 3.0.2. If you want to use other Spark version, please compile with the following command:
 
 ```
-mvn clean package -DskipTests -Dspark.version.compile=3.1.1
+mvn --file migration/online-bulk-load/pom.xml clean package -DskipTests -Dspark.version.compile=3.1.1
 ```
 
 ## Configuration
