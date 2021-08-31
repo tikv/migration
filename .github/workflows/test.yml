@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Build Bulk Load 
+name: Test Bulk Load 
 
 on:
   push:
@@ -21,11 +21,14 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: Install TiUP
+        run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
 
       - name: Set up JDK 8
         uses: actions/setup-java@v2
@@ -43,6 +46,12 @@ jobs:
       - name: Build Client Java
         run: mvn --file client-java/pom.xml clean install -DskipTests
 
-      - name: Build Online Bulk Load
-        run: mvn --file online-bulk-load/pom.xml clean package -DskipTests
+      - name: Deploy TiKV Cluster
+        run: /home/runner/.tiup/bin/tiup playground nightly --mode tikv-slim --kv 3 --monitor=false &
+
+      - name: Wait for TiKV Cluster
+        run: sleep 60
+
+      - name: Test Online Bulk Load
+        run: mvn --file online-bulk-load/pom.xml test
 
