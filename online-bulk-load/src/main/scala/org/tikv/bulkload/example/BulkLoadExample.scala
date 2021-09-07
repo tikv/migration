@@ -18,16 +18,22 @@ package org.tikv.bulkload.example
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
+import org.slf4j.LoggerFactory
 import org.tikv.bulkload.RawKVBulkLoader
 
 object BulkLoadExample {
 
-  var pdaddr: String = "127.0.0.1:2379"
-  var prefix: String = "test_"
-  var size: Long = 1000
-  var partition: Int = 10
+  private final val logger = LoggerFactory.getLogger(getClass.getName)
 
   def main(args: Array[String]): Unit = {
+    var pdaddr: String = "127.0.0.1:2379"
+    var prefix: String = "test_"
+    var size: Long = 1000
+    var partition: Int = 10
+    var exit: Boolean = true
+
+    val value = "A" * 64
+
     if (args.length > 0) {
       pdaddr = args(0)
     }
@@ -44,22 +50,37 @@ object BulkLoadExample {
       partition = args(3).toInt
     }
 
+    if(args.length > 4) {
+      exit = args(4).toBoolean
+    }
+
+    logger.info(
+      s"""
+         |*****************
+         |pdaddr=$pdaddr
+         |prefix=$prefix
+         |size=$size
+         |partition=$partition
+         |exit=$exit
+         |*****************
+         |""".stripMargin)
+
     val sparkConf = new SparkConf()
       .setIfMissing("spark.master", "local[*]")
       .setIfMissing("spark.app.name", getClass.getName)
 
     val spark = SparkSession.builder.config(sparkConf).getOrCreate()
-    val value = genValue(64)
 
     val rdd = spark.sparkContext.parallelize(1L to size, partition).map { i =>
-      val key = s"${prefix}${genKey(i)}"
+      val key = s"$prefix${genKey(i)}"
       (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
     }
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
+
+    while(!exit) {
+      Thread.sleep(1000)
+    }
   }
 
   private def genKey(i: Long): String = f"$i%012d"
-
-  private def genValue(valueLength: Int): String = "A" * valueLength
-
 }
