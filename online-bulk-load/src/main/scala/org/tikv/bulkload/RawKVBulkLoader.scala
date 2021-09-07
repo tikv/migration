@@ -27,7 +27,7 @@ import org.tikv.bulkload.BulkLoadConstant._
 import org.tikv.common.importer.{ImporterClient, SwitchTiKVModeClient}
 import org.tikv.common.key.Key
 import org.tikv.common.region.TiRegion
-import org.tikv.common.util.Pair
+import org.tikv.common.util.{BackOffFunction, ConcreteBackOffer, Pair}
 import org.tikv.common.{TiConfiguration, TiSession}
 import org.tikv.shade.com.google.protobuf.ByteString
 
@@ -60,7 +60,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
   private val optionsRegionSplitNum = sparkConf.get(REGION_SPLIT_NUM, "0").toInt
   private val optionsMinRegionSplitNum = sparkConf.get(MIN_REGION_SPLIT_NUM, "1").toInt
   private val optionsRegionSplitKeys = sparkConf.get(REGION_SPLIT_KEYS, "960000").toInt
-  private val optionsMaxRegionSplitNum = sparkConf.get(MAX_REGION_SPLIT_NUM, "64").toInt
+  private val optionsMaxRegionSplitNum = sparkConf.get(MAX_REGION_SPLIT_NUM, "1024").toInt
   private val optionsSampleSplitFrac = sparkConf.get(SAMPLE_SPLIT_FRAC, "1000").toInt
   private val optionsRegionSplitUsingSize = sparkConf.get(REGION_SPLIT_USING_SIZE, "true").toBoolean
   private val optionsBytesPerRegion = sparkConf.get(BYTES_PER_REGION, "100663296").toInt
@@ -143,12 +143,15 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
         val uuid = genUUID()
 
         logger.info(s"start to ingest this partition ${util.Arrays.toString(uuid)}")
+        val backOffer = ConcreteBackOffer.newCustomBackOff(10000)
         var tiSession: TiSession = null
         while(tiSession == null) {
           try {
             tiSession = TiSession.create(tiConf)
           } catch {
-            case e: Throwable => logger.warn("create tiSession failed!", e)
+            case e: Throwable =>
+              logger.warn("create tiSession failed!", e)
+              backOffer.doBackOff(BackOffFunction.BackOffFuncType.BoServerBusy, new Exception(e))
           }
         }
 
@@ -193,6 +196,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
 
   private def getRegionSplitPoints(rdd: RDD[(SerializableKey, Array[Byte])]): List[SerializableKey] = {
     val count = rdd.count()
+    logger.info(s"total data count=$count")
 
     val regionSplitPointNum = if (optionsRegionSplitNum > 0) {
       optionsRegionSplitNum

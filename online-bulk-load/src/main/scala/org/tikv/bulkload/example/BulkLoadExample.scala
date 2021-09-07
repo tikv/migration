@@ -65,6 +65,8 @@ object BulkLoadExample {
          |*****************
          |""".stripMargin)
 
+    val start = System.currentTimeMillis()
+
     val sparkConf = new SparkConf()
       .setIfMissing("spark.master", "local[*]")
       .setIfMissing("spark.app.name", getClass.getName)
@@ -76,6 +78,10 @@ object BulkLoadExample {
       (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
     }
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
+
+    val end = System.currentTimeMillis()
+
+    logger.info(s"total time: ${(end - start) / 1000}s")
 
     while(!exit) {
       Thread.sleep(1000)
