@@ -76,7 +76,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     // 2 sort
     val rdd2 = rdd.map { pair =>
       (SerializableKey(pair._1), pair._2)
-    }.persist(StorageLevel.DISK_ONLY)
+    }
 
     // 3 calculate regionSplitPoints
     val orderedSplitPoints = getRegionSplitPoints(rdd2)
@@ -116,12 +116,15 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
   }
 
   private def writeAndIngest(iterator: Iterator[(Array[Byte], Array[Byte])], partitioner: RegionPartitioner): Unit = {
+    val t0 = System.currentTimeMillis()
     val sortedList = new util.ArrayList[Pair[ByteString, ByteString]](iterator.toList.map(pair => Pair.create(ByteString.copyFrom(pair._1), ByteString.copyFrom(pair._2))).asJava)
+    val t1 = System.currentTimeMillis()
     sortedList.sort(new Comparator[Pair[ByteString, ByteString]]() {
       override def compare(o1: Pair[ByteString, ByteString], o2: Pair[ByteString, ByteString]): Int = {
         Key.toRawKey(o1.first).compareTo(Key.toRawKey(o2.first))
       }
     })
+    val t2 = System.currentTimeMillis()
 
     val dataSize = sortedList.size()
     if (dataSize > 0) {
@@ -135,6 +138,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
            |minKey=${minKey.toByteString.toStringUtf8}
            |maxKey=${maxKey.toByteString.toStringUtf8}
            |region=$region
+           |read data cost: ${(t1 - t0) / 1000}s
+           |sort data cost: ${(t2 - t1) / 1000}s
            |""".stripMargin)
 
       if (region == null) {
@@ -157,6 +162,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
 
         val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
         importerClient.write(sortedList.iterator())
+        val t3 = System.currentTimeMillis()
+        logger.info(s"ingest cost: ${(t3 - t2) / 1000}s")
         logger.info(s"finish to ingest this partition ${util.Arrays.toString(uuid)}")
         tiSession.close()
       }
@@ -178,7 +185,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     out
   }
 
-  private def getRegionInfo(min: Key, max: Key): List[TiRegion] = {
+  private def getRegionInfo(min: Key, max: Key): Array[TiRegion] = {
     val regions = new mutable.ArrayBuffer[TiRegion]()
 
     tiSession.getRegionManager.invalidateAll()
@@ -191,7 +198,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
       current = Key.toRawKey(region.getEndKey)
     }
 
-    regions.toList
+    regions.toArray
   }
 
   private def getRegionSplitPoints(rdd: RDD[(SerializableKey, Array[Byte])]): List[SerializableKey] = {
