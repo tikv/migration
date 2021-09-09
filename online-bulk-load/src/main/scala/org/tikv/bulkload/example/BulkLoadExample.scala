@@ -18,6 +18,7 @@ package org.tikv.bulkload.example
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.storage.StorageLevel
 import org.slf4j.LoggerFactory
 import org.tikv.bulkload.RawKVBulkLoader
 
@@ -76,7 +77,8 @@ object BulkLoadExample {
     val rdd = spark.sparkContext.parallelize(1L to size, partition).map { i =>
       val key = s"$prefix${genKey(i)}"
       (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
-    }
+    }.persist(StorageLevel.DISK_ONLY)
+
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
 
     val end = System.currentTimeMillis()

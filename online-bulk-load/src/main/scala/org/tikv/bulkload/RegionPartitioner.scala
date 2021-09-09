@@ -20,28 +20,40 @@ import org.apache.spark.Partitioner
 import org.tikv.common.key.Key
 import org.tikv.common.region.TiRegion
 
-class RegionPartitioner(orderedRegions: List[TiRegion])
+class RegionPartitioner(orderedRegions: Array[TiRegion])
   extends Partitioner {
   override def getPartition(key: Any): Int = {
     val serializableKey = key.asInstanceOf[SerializableKey]
     val rawKey = Key.toRawKey(serializableKey.bytes)
 
     if (orderedRegions.isEmpty) {
-      0
+      throw new PartitionNotFound("regions are empty")
+    }
+
+    val firstRegion = orderedRegions.head
+    val lastRegion = orderedRegions.last
+    if (rawKey.compareTo(getRowStartKey(firstRegion)) < 0) {
+      throw new PartitionNotFound(s"key < fist region")
+    } else if (rawKey.compareTo(getRowEndKey(lastRegion)) >= 0) {
+      throw new PartitionNotFound("key > last region")
     } else {
-      val firstRegion = orderedRegions.head
-      if (rawKey.compareTo(getRowStartKey(firstRegion)) < 0) {
-        0
+      binarySearch(rawKey)
+    }
+  }
+
+  private def binarySearch(key: Key): Int = {
+    var l = 0
+    var r = orderedRegions.length
+    while (l < r) {
+      val mid = l + (r - l) / 2
+      val endKey = orderedRegions(mid).getEndKey
+      if (Key.toRawKey(endKey).compareTo(key) <= 0) {
+        l = mid + 1
       } else {
-        orderedRegions.indices.foreach { i =>
-          val region = orderedRegions(i)
-          if (rawKey.compareTo(getRowStartKey(region)) >= 0 && rawKey.compareTo(getRowEndKey(region)) < 0) {
-            return i + 1
-          }
-        }
-        orderedRegions.size + 1
+        r = mid
       }
     }
+    l
   }
 
   def getRegion(key: Key): TiRegion = {
@@ -60,11 +72,11 @@ class RegionPartitioner(orderedRegions: List[TiRegion])
   }
 
   private def getRowEndKey(region: TiRegion): Key = {
-    Key.toRawKey(region.getEndKey())
+    Key.toRawKey(region.getEndKey)
   }
 
   override def numPartitions: Int = {
-    orderedRegions.size + 2
+    orderedRegions.length
   }
 }
 
