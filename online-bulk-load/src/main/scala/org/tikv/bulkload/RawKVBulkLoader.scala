@@ -16,14 +16,13 @@
 
 package org.tikv.bulkload
 
-
 import java.util
-import java.util.{Collections, Comparator, UUID}
-import org.apache.spark.{SPARK_BRANCH, SparkConf}
+import java.util.{Comparator, UUID}
+import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
 import org.slf4j.LoggerFactory
 import org.tikv.bulkload.BulkLoadConstant._
+import org.tikv.common.exception.GrpcException
 import org.tikv.common.importer.{ImporterClient, SwitchTiKVModeClient}
 import org.tikv.common.key.Key
 import org.tikv.common.region.TiRegion
@@ -130,7 +129,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     if (dataSize > 0) {
       val minKey: Key = Key.toRawKey(sortedList.get(0).first)
       val maxKey: Key = Key.toRawKey(sortedList.get(sortedList.size() - 1).first)
-      val region: TiRegion = partitioner.getRegion(minKey)
+      var region: TiRegion = partitioner.getRegion(minKey)
 
       logger.info(
         s"""
@@ -145,9 +144,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
       if (region == null) {
         throw new Exception("region == null")
       } else {
-        val uuid = genUUID()
-
-        logger.info(s"start to ingest this partition ${util.Arrays.toString(uuid)}")
+        var uuid = genUUID()
         val backOffer = ConcreteBackOffer.newCustomBackOff(10000)
         var tiSession: TiSession = null
         while(tiSession == null) {
@@ -160,8 +157,21 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
           }
         }
 
-        val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
-        importerClient.write(sortedList.iterator())
+        try {
+          logger.info(s"start to ingest this partition, uuid=${util.Arrays.toString(uuid)}")
+          val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
+          importerClient.write(sortedList.iterator())
+        } catch {
+          case e: GrpcException if e.getMessage.contains("peer is not leader") =>
+            logger.warn(s"ingest failed, uuid=${util.Arrays.toString(uuid)}", e)
+            logger.info(s"retry to ingest this partition, uuid=${util.Arrays.toString(uuid)}")
+            uuid = genUUID()
+            tiSession.getRegionManager.invalidateRegion(region)
+            region = tiSession.getRegionManager.getRegionByKey(region.getStartKey)
+            val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
+            importerClient.write(sortedList.iterator())
+        }
+
         val t3 = System.currentTimeMillis()
         logger.info(s"ingest cost: ${(t3 - t2) / 1000}s")
         logger.info(s"finish to ingest this partition ${util.Arrays.toString(uuid)}")
