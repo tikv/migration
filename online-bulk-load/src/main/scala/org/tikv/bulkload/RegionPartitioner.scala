@@ -23,8 +23,8 @@ import org.tikv.common.region.TiRegion
 class RegionPartitioner(orderedRegions: Array[TiRegion])
   extends Partitioner {
   override def getPartition(key: Any): Int = {
-    val serializableKey = key.asInstanceOf[SerializableKey]
-    val rawKey = Key.toRawKey(serializableKey.bytes)
+    val bytes = key.asInstanceOf[Array[Byte]]
+    val rawKey = Key.toRawKey(bytes)
 
     if (orderedRegions.isEmpty) {
       throw new PartitionNotFound("regions are empty")
