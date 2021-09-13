@@ -81,13 +81,20 @@ object BulkLoadExample {
 
     val rdd = spark.sparkContext.makeRDD(0L until partition, partition).flatMap { partitionIndex =>
       val partitionSize = (size / partition).toInt
-      val data = new Array[(Array[Byte], Array[Byte])](partitionSize)
-      (0 until partitionSize).foreach { i =>
-        val key = s"$prefix${genKey(i.toLong + partitionIndex * partitionSize)}"
-        data(i) = (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
+      val random = new Random(partitionIndex)
+      new Iterator[(Array[Byte], Array[Byte])]() {
+        var i = 0
+
+        override def hasNext: Boolean = i < partitionSize
+
+        override def next(): (Array[Byte], Array[Byte]) = {
+          i = i + 1
+          val index = random.nextLong() % 10000000000000L
+          val key = s"$prefix${genKey(index)}"
+          (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
+        }
       }
-      Random.shuffle(data.toSeq)
-    }.coalesce(partition, true)
+    }.coalesce(partition, shuffle = true)
 
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
 
@@ -100,5 +107,5 @@ object BulkLoadExample {
     }
   }
 
-  private def genKey(i: Long): String = f"$i%012d"
+  private def genKey(i: Long): String = f"$i%016d"
 }
