@@ -66,7 +66,7 @@ The configurations in the table below can be put together with `spark-defaults.c
 | `spark.tikv.bulkload.regionSplitNum` |  `0` | The number of split regions |
 | `spark.tikv.bulkload.minRegionSplitNum` |  `1` | The minimum number of split regions |
 | `spark.tikv.bulkload.regionSplitKeys` |  `960000` | The number of keys per region |
-| `spark.tikv.bulkload.maxRegionSplitNum` |  `64` | The maximum number of split regions |
+| `spark.tikv.bulkload.maxRegionSplitNum` |  `10240` | The maximum number of split regions |
 | `spark.tikv.bulkload.sampleSplitFrac` |  `1000` | Fraction of sample split |
 | `spark.tikv.bulkload.regionSplitUsingSize` |  `true` | whether using size to split region |
 | `spark.tikv.bulkload.bytesPerRegion` | `100663296` | Size in bytes per region.This requires `spark.tikv.bulkload.regionSplitUsingSize` to be set true. |

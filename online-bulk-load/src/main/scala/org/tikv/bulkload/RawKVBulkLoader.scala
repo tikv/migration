@@ -26,7 +26,7 @@ import org.tikv.common.exception.GrpcException
 import org.tikv.common.importer.{ImporterClient, SwitchTiKVModeClient}
 import org.tikv.common.key.Key
 import org.tikv.common.region.TiRegion
-import org.tikv.common.util.{BackOffFunction, ConcreteBackOffer, Pair}
+import org.tikv.common.util.{BackOffFunction, ConcreteBackOffer, FastByteComparisons, Pair}
 import org.tikv.common.{TiConfiguration, TiSession}
 import org.tikv.shade.com.google.protobuf.ByteString
 
@@ -59,7 +59,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
   private val optionsRegionSplitNum = sparkConf.get(REGION_SPLIT_NUM, "0").toInt
   private val optionsMinRegionSplitNum = sparkConf.get(MIN_REGION_SPLIT_NUM, "1").toInt
   private val optionsRegionSplitKeys = sparkConf.get(REGION_SPLIT_KEYS, "960000").toInt
-  private val optionsMaxRegionSplitNum = sparkConf.get(MAX_REGION_SPLIT_NUM, "1024").toInt
+  private val optionsMaxRegionSplitNum = sparkConf.get(MAX_REGION_SPLIT_NUM, "10240").toInt
   private val optionsSampleSplitFrac = sparkConf.get(SAMPLE_SPLIT_FRAC, "1000").toInt
   private val optionsRegionSplitUsingSize = sparkConf.get(REGION_SPLIT_USING_SIZE, "true").toBoolean
   private val optionsBytesPerRegion = sparkConf.get(BYTES_PER_REGION, "100663296").toInt
@@ -72,46 +72,72 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
 
     tiSession = TiSession.create(tiConf)
 
-    // 2 sort
-    val rdd2 = rdd.map { pair =>
-      (SerializableKey(pair._1), pair._2)
-    }
+    // calculate regionSplitPoints
+    val orderedSplitPoints = getRegionSplitPoints(rdd)
 
-    // 3 calculate regionSplitPoints
-    val orderedSplitPoints = getRegionSplitPoints(rdd2)
-
-    // 4 switch to normal mode
+    // switch to normal mode
     val switchTiKVModeClient = new SwitchTiKVModeClient(tiSession.getPDClient, tiSession.getImporterRegionStoreClientBuilder)
     switchTiKVModeClient.switchTiKVToNormalMode()
 
-    // 5 call region split and scatter
+    // call region split and scatter
     tiSession.splitRegionAndScatter(
-      orderedSplitPoints.map(_.bytes).asJava,
+      orderedSplitPoints.asJava,
       optionsSplitRegionBackoffMS,
       optionsScatterRegionBackoffMS,
       optionsScatterWaitMS)
 
-    // 6 switch to import mode
+    // switch to import mode
     switchTiKVModeClient.keepTiKVToImportMode()
 
-    // 7 refetch region info
-    val minKey = rdd2.map(p => p._1).min().getRowKey
-    val maxKey = rdd2.map(p => p._1).max().getRowKey
+    // refetch region info
+    val (minKey, maxKey) = getMinMax(rdd)
+
     val orderedRegions = getRegionInfo(minKey, maxKey)
-    logger.info("orderedRegions size = " + orderedRegions.size)
+    logger.info("orderedRegions size = " + orderedRegions.length)
 
-    //8  repartition rdd according region
+    // repartition rdd according region
     partitioner = new RegionPartitioner(orderedRegions)
-    val rdd3 = rdd2.partitionBy(partitioner)
-    logger.info("final partition number = " + rdd3.getNumPartitions)
+    val finalRDD = rdd.partitionBy(partitioner)
+    logger.info("final partition number = " + finalRDD.getNumPartitions)
 
-    rdd3.foreachPartition { itor =>
-      writeAndIngest(itor.map(pair => (pair._1.bytes, pair._2)), partitioner)
+    finalRDD.foreachPartition { itor =>
+      writeAndIngest(itor.map(pair => (pair._1, pair._2)), partitioner)
     }
     switchTiKVModeClient.stopKeepTiKVToImportMode()
     switchTiKVModeClient.switchTiKVToNormalMode()
     logger.info("finish to load data.")
     tiSession.close()
+  }
+
+  private def getMinMax(rdd: RDD[(Array[Byte], Array[Byte])]): (Key, Key) = {
+    rdd.aggregate((Key.MAX, Key.MIN))(
+      (minMax, data) => {
+        val key = Key.toRawKey(data._1)
+        val min = if (key.compareTo(minMax._1) < 0) {
+          key
+        } else {
+          minMax._1
+        }
+        val max = if (key.compareTo(minMax._2) > 0) {
+          key
+        } else {
+          minMax._2
+        }
+        (min, max)
+      },
+      (minMax1, minMax2) => {
+        val min = if (minMax1._1.compareTo(minMax2._1) < 0) {
+          minMax1._1
+        } else {
+          minMax2._1
+        }
+        val max = if (minMax1._2.compareTo(minMax2._2) > 0) {
+          minMax1._2
+        } else {
+          minMax2._2
+        }
+        (min, max)
+      })
   }
 
   private def writeAndIngest(iterator: Iterator[(Array[Byte], Array[Byte])], partitioner: RegionPartitioner): Unit = {
@@ -149,7 +175,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
         var tiSession: TiSession = null
         while(tiSession == null) {
           try {
-            tiSession = TiSession.create(tiConf)
+            tiSession = TiSession.getInstance(tiConf)
           } catch {
             case e: Throwable =>
               logger.warn("create tiSession failed!", e)
@@ -175,7 +201,6 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
         val t3 = System.currentTimeMillis()
         logger.info(s"ingest cost: ${(t3 - t2) / 1000}s")
         logger.info(s"finish to ingest this partition ${util.Arrays.toString(uuid)}")
-        tiSession.close()
       }
     }
   }
@@ -211,7 +236,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     regions.toArray
   }
 
-  private def getRegionSplitPoints(rdd: RDD[(SerializableKey, Array[Byte])]): List[SerializableKey] = {
+  private def getRegionSplitPoints(rdd: RDD[(Array[Byte], Array[Byte])]): List[Array[Byte]] = {
     val count = rdd.count()
     logger.info(s"total data count=$count")
 
@@ -258,10 +283,10 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
 
     val sortedSampleData = sampleData
       .map(_._1)
-      .sorted((x: SerializableKey, y: SerializableKey) => {
-        x.compareTo(y)
+      .sorted((x: Array[Byte], y: Array[Byte]) => {
+        FastByteComparisons.compareTo(x, y)
       })
-    val orderedSplitPoints = new Array[SerializableKey](finalRegionSplitPointNum)
+    val orderedSplitPoints = new Array[Array[Byte]](finalRegionSplitPointNum)
     val step = Math.floor(sortedSampleData.length.toDouble / (finalRegionSplitPointNum + 1)).toInt
     for (i <- 0 until finalRegionSplitPointNum) {
       orderedSplitPoints(i) = sortedSampleData((i + 1) * step)
@@ -271,11 +296,11 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     orderedSplitPoints.toList
   }
 
-  private def getAverageSizeInBytes(keyValues: Array[(SerializableKey, Array[Byte])]): Int = {
+  private def getAverageSizeInBytes(keyValues: Array[(Array[Byte], Array[Byte])]): Int = {
     var avg: Double = 0
     var t: Int = 1
     keyValues.foreach { keyValue =>
-      val keySize: Double = keyValue._1.bytes.length + keyValue._2.length
+      val keySize: Double = keyValue._1.length + keyValue._2.length
       avg = avg + (keySize - avg) / t
       t = t + 1
     }
