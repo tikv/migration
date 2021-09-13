@@ -18,9 +18,10 @@ package org.tikv.bulkload.example
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.storage.StorageLevel
 import org.slf4j.LoggerFactory
 import org.tikv.bulkload.RawKVBulkLoader
+
+import scala.util.Random
 
 object BulkLoadExample {
 
@@ -66,6 +67,10 @@ object BulkLoadExample {
          |*****************
          |""".stripMargin)
 
+    if(size / partition > Int.MaxValue) {
+      throw new Exception("size / partition > Int.MaxValue")
+    }
+
     val start = System.currentTimeMillis()
 
     val sparkConf = new SparkConf()
@@ -74,10 +79,15 @@ object BulkLoadExample {
 
     val spark = SparkSession.builder.config(sparkConf).getOrCreate()
 
-    val rdd = spark.sparkContext.parallelize(1L to size, partition).map { i =>
-      val key = s"$prefix${genKey(i)}"
-      (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
-    }.persist(StorageLevel.DISK_ONLY)
+    val rdd = spark.sparkContext.makeRDD(0L until partition, partition).flatMap { partitionIndex =>
+      val partitionSize = (size / partition).toInt
+      val data = new Array[(Array[Byte], Array[Byte])](partitionSize)
+      (0 until partitionSize).foreach { i =>
+        val key = s"$prefix${genKey(i.toLong + partitionIndex * partitionSize)}"
+        data(i) = (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
+      }
+      Random.shuffle(data.toSeq)
+    }.coalesce(partition, true)
 
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
 
