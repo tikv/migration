@@ -31,7 +31,7 @@ class RawKVBulkLoaderSuite extends FunSuiteLike {
   val partitionSize = 10
 
 
-  test("insert and update") {
+  test("insert and update with duplicate key") {
     val keyPrefix = "k_"
 
     val sparkConf = new SparkConf()
@@ -43,8 +43,9 @@ class RawKVBulkLoaderSuite extends FunSuiteLike {
     val rawKVBulkLoader = new RawKVBulkLoader(tiConf, sparkConf)
 
     // insert
-    val rdd = spark.sparkContext.parallelize(startKey to endKey, partitionSize).map { i =>
-      (s"$keyPrefix$i".toArray.map(_.toByte), s"v1_$i".toArray.map(_.toByte))
+    val rdd = spark.sparkContext.parallelize(startKey to endKey, partitionSize).flatMap { i =>
+      val item = (s"$keyPrefix$i".toArray.map(_.toByte), s"v1_$i".toArray.map(_.toByte))
+      item :: item :: Nil
     }
     rawKVBulkLoader.bulkLoad(rdd)
 

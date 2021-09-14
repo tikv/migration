@@ -80,11 +80,15 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     switchTiKVModeClient.switchTiKVToNormalMode()
 
     // call region split and scatter
-    tiSession.splitRegionAndScatter(
-      orderedSplitPoints.asJava,
-      optionsSplitRegionBackoffMS,
-      optionsScatterRegionBackoffMS,
-      optionsScatterWaitMS)
+    try {
+      tiSession.splitRegionAndScatter(
+        orderedSplitPoints.asJava,
+        optionsSplitRegionBackoffMS,
+        optionsScatterRegionBackoffMS,
+        optionsScatterWaitMS)
+    } catch {
+      case e: Throwable => logger.warn("error during splitRegionAndScatter!", e)
+    }
 
     // switch to import mode
     switchTiKVModeClient.keepTiKVToImportMode()
@@ -186,6 +190,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
         try {
           logger.info(s"start to ingest this partition, uuid=${util.Arrays.toString(uuid)}")
           val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
+          importerClient.setDeduplicate(true)
           importerClient.write(sortedList.iterator())
         } catch {
           case e: GrpcException if e.getMessage.contains("peer is not leader") =>
@@ -195,6 +200,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
             tiSession.getRegionManager.invalidateRegion(region)
             region = tiSession.getRegionManager.getRegionByKey(region.getStartKey)
             val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
+            importerClient.setDeduplicate(true)
             importerClient.write(sortedList.iterator())
         }
 
