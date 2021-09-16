@@ -22,11 +22,10 @@ import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.slf4j.LoggerFactory
 import org.tikv.bulkload.BulkLoadConstant._
-import org.tikv.common.exception.GrpcException
 import org.tikv.common.importer.{ImporterClient, SwitchTiKVModeClient}
 import org.tikv.common.key.Key
-import org.tikv.common.region.TiRegion
-import org.tikv.common.util.{BackOffFunction, ConcreteBackOffer, FastByteComparisons, Pair}
+import org.tikv.common.region.{RegionManager, TiRegion}
+import org.tikv.common.util.{BackOffFunction, BackOffer, ConcreteBackOffer, FastByteComparisons, Pair}
 import org.tikv.common.{TiConfiguration, TiSession}
 import org.tikv.shade.com.google.protobuf.ByteString
 
@@ -96,7 +95,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     // refetch region info
     val (minKey, maxKey) = getMinMax(rdd)
 
-    val orderedRegions = getRegionInfo(minKey, maxKey)
+    val orderedRegions = getRegionInfo(minKey, maxKey, tiSession.getRegionManager)
     logger.info("orderedRegions size = " + orderedRegions.length)
 
     // repartition rdd according region
@@ -159,8 +158,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     if (dataSize > 0) {
       val minKey: Key = Key.toRawKey(sortedList.get(0).first)
       val maxKey: Key = Key.toRawKey(sortedList.get(sortedList.size() - 1).first)
-      var region: TiRegion = partitioner.getRegion(minKey)
-
+      val region: TiRegion = partitioner.getRegion(minKey)
       logger.info(
         s"""
            |dataSize=$dataSize
@@ -174,40 +172,73 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
       if (region == null) {
         throw new Exception("region == null")
       } else {
-        var uuid = genUUID()
-        val backOffer = ConcreteBackOffer.newCustomBackOff(10000)
-        var tiSession: TiSession = null
-        while(tiSession == null) {
-          try {
-            tiSession = TiSession.getInstance(tiConf)
-          } catch {
-            case e: Throwable =>
-              logger.warn("create tiSession failed!", e)
-              backOffer.doBackOff(BackOffFunction.BackOffFuncType.BoServerBusy, new Exception(e))
-          }
-        }
-
-        try {
-          logger.info(s"start to ingest this partition, uuid=${util.Arrays.toString(uuid)}")
-          val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
-          importerClient.setDeduplicate(true)
-          importerClient.write(sortedList.iterator())
-        } catch {
-          case e: GrpcException if e.getMessage.contains("peer is not leader") =>
-            logger.warn(s"ingest failed, uuid=${util.Arrays.toString(uuid)}", e)
-            logger.info(s"retry to ingest this partition, uuid=${util.Arrays.toString(uuid)}")
-            uuid = genUUID()
-            tiSession.getRegionManager.invalidateRegion(region)
-            region = tiSession.getRegionManager.getRegionByKey(region.getStartKey)
-            val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
-            importerClient.setDeduplicate(true)
-            importerClient.write(sortedList.iterator())
-        }
-
+        val tiSession = createTiSessionWithRetry(ConcreteBackOffer.newCustomBackOff(10000))
+        ingestWithRetry(tiSession, region, minKey, maxKey, sortedList, ConcreteBackOffer.newCustomBackOff(60000))
         val t3 = System.currentTimeMillis()
         logger.info(s"ingest cost: ${(t3 - t2) / 1000}s")
-        logger.info(s"finish to ingest this partition ${util.Arrays.toString(uuid)}")
       }
+    }
+  }
+
+  private def createTiSessionWithRetry(backOffer: BackOffer): TiSession = {
+    var tiSession: TiSession = null
+    while(tiSession == null) {
+      try {
+        tiSession = TiSession.getInstance(tiConf)
+      } catch {
+        case e: Throwable =>
+          logger.warn("create tiSession failed!", e)
+          backOffer.doBackOff(BackOffFunction.BackOffFuncType.BoServerBusy, new Exception(e))
+      }
+    }
+    tiSession
+  }
+
+  private def ingestWithRetry(tiSession: TiSession, region: TiRegion, minKey: Key, maxKey: Key, sortedList: util.ArrayList[Pair[ByteString, ByteString]], backOffer: BackOffer): Unit = {
+    val uuid = genUUID()
+    logger.info(s"start to ingest this partition, region=$region, uuid=${util.Arrays.toString(uuid)}")
+
+    try {
+      val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
+      importerClient.setDeduplicate(true)
+      importerClient.write(sortedList.iterator())
+      logger.info(s"finish to ingest this partition, region=$region, uuid=${util.Arrays.toString(uuid)}")
+    } catch {
+      case e: Exception =>
+        logger.warn(s"ingest failed, region=$region, uuid=${util.Arrays.toString(uuid)}", e)
+        tiSession.getRegionManager.invalidateRegion(region)
+        backOffer.doBackOff(BackOffFunction.BackOffFuncType.BoServerBusy, e)
+
+        // get region info
+        val orderedRegions = getRegionInfo(minKey, maxKey, tiSession.getRegionManager)
+        logger.info("retry orderedRegions size = " + orderedRegions.length)
+
+        // retry
+        orderedRegions.foreach { newRegion =>
+          val startKey = Key.toRawKey(newRegion.getStartKey)
+          val endKey = Key.toRawKey(newRegion.getEndKey)
+
+          val subSortedList = new util.ArrayList[Pair[ByteString, ByteString]]()
+          var i = 0
+          var skip = false
+          while(i < sortedList.size() && !skip) {
+            val pair = sortedList.get(i)
+            val key = Key.toRawKey(pair.first)
+            if(key.compareTo(startKey) >= 0) {
+              if(key.compareTo(endKey) < 0) {
+                subSortedList.add(pair)
+              } else {
+                skip = true
+              }
+            }
+            i = i + 1
+          }
+          if(!subSortedList.isEmpty) {
+            val subMinKey = Key.toRawKey(subSortedList.get(0).first)
+            val subMaxKey = Key.toRawKey(subSortedList.get(subSortedList.size() - 1).first)
+            ingestWithRetry(tiSession, newRegion, subMinKey, subMaxKey, subSortedList, backOffer)
+          }
+        }
     }
   }
 
@@ -226,15 +257,15 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     out
   }
 
-  private def getRegionInfo(min: Key, max: Key): Array[TiRegion] = {
+  private def getRegionInfo(min: Key, max: Key, regionManager: RegionManager): Array[TiRegion] = {
     val regions = new mutable.ArrayBuffer[TiRegion]()
 
-    tiSession.getRegionManager.invalidateAll()
+    regionManager.invalidateAll()
 
     var current = min
 
     while (current.compareTo(max) <= 0) {
-      val region = tiSession.getRegionManager.getRegionByKey(current.toByteString)
+      val region = regionManager.getRegionByKey(current.toByteString)
       regions.append(region)
       current = Key.toRawKey(region.getEndKey)
     }
