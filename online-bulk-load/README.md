@@ -72,6 +72,10 @@ The configurations in the table below can be put together with `spark-defaults.c
 | `spark.tikv.bulkload.bytesPerRegion` | `100663296` | Size in bytes per region.This requires `spark.tikv.bulkload.regionSplitUsingSize` to be set true. |
 | `spark.tikv.bulkload.ttl` |  `-1` | The data's time to live |
 
+## Develop
+
+To format the code, please run `mvn mvn-scalafmt_2.12:format` or `mvn clean package -DskipTests`.
+
 ## Documents
 
 - [RFC: Online Bulk Load for RawKV](https://github.com/tikv/rfcs/blob/master/text/0072-online-bulk-load-for-rawkv.md)

@@ -38,7 +38,6 @@
         <gpg.keyname>fake gpg keyname</gpg.keyname>
         <gpg.skip>true</gpg.skip>
         <javadoc.skip>true</javadoc.skip>
-        <scalafmt.skip>true</scalafmt.skip>
         <CodeCacheSize>1g</CodeCacheSize>
         <spark.version.compile>3.0.2</spark.version.compile>
         <scalatest.version>3.0.8</scalatest.version>
@@ -271,15 +270,16 @@
                 <artifactId>mvn-scalafmt_${scala.binary.version}</artifactId>
                 <version>1.0.3</version>
                 <configuration>
-                    <skipSources>${scalafmt.skip}</skipSources>
-                    <skipTestSources>${scalafmt.skip}</skipTestSources>
-                    <sourceDirectories> <!-- (Optional) Paths to source-directories. Overrides ${project.build.sourceDirectory} -->
-                        <sourceDirectory>${project.basedir}/src/main/scala</sourceDirectory>
-                    </sourceDirectories>
-                    <testSourceDirectories> <!-- (Optional) Paths to test-source-directories. Overrides ${project.build.testSourceDirectory} -->
-                        <param>${project.basedir}/src/test/scala</param>
-                    </testSourceDirectories>
+                    <configLocation>.scalafmt.conf</configLocation>
                 </configuration>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>format</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <!-- Scalatest runs all Scala tests -->
             <plugin>

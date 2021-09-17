@@ -30,7 +30,6 @@ class RawKVBulkLoaderSuite extends FunSuiteLike {
   val endKey = 100
   val partitionSize = 10
 
-
   test("insert and update with duplicate key") {
     val keyPrefix = "k_"
 
@@ -68,7 +67,7 @@ class RawKVBulkLoaderSuite extends FunSuiteLike {
     rawKVBulkLoader.bulkLoad(rdd2)
     (startKey to endKey).foreach { i =>
       val key = s"$keyPrefix$i"
-      val value = if(i <= middleKey) s"v2_$i" else s"v1_$i"
+      val value = if (i <= middleKey) s"v2_$i" else s"v1_$i"
       val result = rawKVClient.get(ByteString.copyFromUtf8(key))
       assert(result.isPresent)
       assertResult(value)(result.get().toStringUtf8)
