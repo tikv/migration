@@ -27,7 +27,7 @@ import org.tikv.common.importer.{ImporterClient, SwitchTiKVModeClient}
 import org.tikv.common.key.Key
 import org.tikv.common.region.TiRegion
 import org.tikv.common.util.{BackOffFunction, ConcreteBackOffer, FastByteComparisons, Pair}
-import org.tikv.common.{TiConfiguration, TiSession}
+import org.tikv.common.{PDChecker, TiConfiguration, TiSession}
 import org.tikv.shade.com.google.protobuf.ByteString
 
 import scala.collection.JavaConverters._
@@ -76,7 +76,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     val orderedSplitPoints = getRegionSplitPoints(rdd)
 
     // switch to normal mode
-    val switchTiKVModeClient = new SwitchTiKVModeClient(tiSession.getPDClient, tiSession.getImporterRegionStoreClientBuilder)
+    val pdClient = tiSession.getPDClient
+    val switchTiKVModeClient = new SwitchTiKVModeClient(pdClient, tiSession.getImporterRegionStoreClientBuilder)
     switchTiKVModeClient.switchTiKVToNormalMode()
 
     // call region split and scatter
@@ -90,7 +91,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
       case e: Throwable => logger.warn("error during splitRegionAndScatter!", e)
     }
 
-    // switch to import mode
+    // pause merge and switch to import mode
+    pdClient.keepPauseChecker(PDChecker.Merge)
     switchTiKVModeClient.keepTiKVToImportMode()
 
     // refetch region info
@@ -107,6 +109,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     finalRDD.foreachPartition { itor =>
       writeAndIngest(itor.map(pair => (pair._1, pair._2)), partitioner)
     }
+    pdClient.stopKeepPauseChecker(PDChecker.Merge)
+    pdClient.resumeChecker(PDChecker.Merge)
     switchTiKVModeClient.stopKeepTiKVToImportMode()
     switchTiKVModeClient.switchTiKVToNormalMode()
     logger.info("finish to load data.")
