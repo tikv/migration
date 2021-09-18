@@ -20,8 +20,7 @@ import org.apache.spark.Partitioner
 import org.tikv.common.key.Key
 import org.tikv.common.region.TiRegion
 
-class RegionPartitioner(orderedRegions: Array[TiRegion])
-  extends Partitioner {
+class RegionPartitioner(orderedRegions: Array[TiRegion]) extends Partitioner {
   override def getPartition(key: Any): Int = {
     val bytes = key.asInstanceOf[Array[Byte]]
     val rawKey = Key.toRawKey(bytes)
@@ -79,4 +78,3 @@ class RegionPartitioner(orderedRegions: Array[TiRegion])
     orderedRegions.length
   }
 }
-

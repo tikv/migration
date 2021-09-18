@@ -25,7 +25,13 @@ import org.tikv.bulkload.BulkLoadConstant._
 import org.tikv.common.importer.{ImporterClient, SwitchTiKVModeClient}
 import org.tikv.common.key.Key
 import org.tikv.common.region.{RegionManager, TiRegion}
-import org.tikv.common.util.{BackOffFunction, BackOffer, ConcreteBackOffer, FastByteComparisons, Pair}
+import org.tikv.common.util.{
+  BackOffFunction,
+  BackOffer,
+  ConcreteBackOffer,
+  FastByteComparisons,
+  Pair
+}
 import org.tikv.common.{TiConfiguration, TiSession}
 import org.tikv.shade.com.google.protobuf.ByteString
 
@@ -60,7 +66,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
   private val optionsRegionSplitKeys = sparkConf.get(REGION_SPLIT_KEYS, "960000").toInt
   private val optionsMaxRegionSplitNum = sparkConf.get(MAX_REGION_SPLIT_NUM, "10240").toInt
   private val optionsSampleSplitFrac = sparkConf.get(SAMPLE_SPLIT_FRAC, "1000").toInt
-  private val optionsRegionSplitUsingSize = sparkConf.get(REGION_SPLIT_USING_SIZE, "true").toBoolean
+  private val optionsRegionSplitUsingSize =
+    sparkConf.get(REGION_SPLIT_USING_SIZE, "true").toBoolean
   private val optionsBytesPerRegion = sparkConf.get(BYTES_PER_REGION, "100663296").toInt
 
   //ttl
@@ -75,7 +82,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     val orderedSplitPoints = getRegionSplitPoints(rdd)
 
     // switch to normal mode
-    val switchTiKVModeClient = new SwitchTiKVModeClient(tiSession.getPDClient, tiSession.getImporterRegionStoreClientBuilder)
+    val switchTiKVModeClient =
+      new SwitchTiKVModeClient(tiSession.getPDClient, tiSession.getImporterRegionStoreClientBuilder)
     switchTiKVModeClient.switchTiKVToNormalMode()
 
     // call region split and scatter
@@ -143,12 +151,19 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
       })
   }
 
-  private def writeAndIngest(iterator: Iterator[(Array[Byte], Array[Byte])], partitioner: RegionPartitioner): Unit = {
+  private def writeAndIngest(
+      iterator: Iterator[(Array[Byte], Array[Byte])],
+      partitioner: RegionPartitioner): Unit = {
     val t0 = System.currentTimeMillis()
-    val sortedList = new util.ArrayList[Pair[ByteString, ByteString]](iterator.toList.map(pair => Pair.create(ByteString.copyFrom(pair._1), ByteString.copyFrom(pair._2))).asJava)
+    val sortedList = new util.ArrayList[Pair[ByteString, ByteString]](
+      iterator.toList
+        .map(pair => Pair.create(ByteString.copyFrom(pair._1), ByteString.copyFrom(pair._2)))
+        .asJava)
     val t1 = System.currentTimeMillis()
     sortedList.sort(new Comparator[Pair[ByteString, ByteString]]() {
-      override def compare(o1: Pair[ByteString, ByteString], o2: Pair[ByteString, ByteString]): Int = {
+      override def compare(
+          o1: Pair[ByteString, ByteString],
+          o2: Pair[ByteString, ByteString]): Int = {
         Key.toRawKey(o1.first).compareTo(Key.toRawKey(o2.first))
       }
     })
@@ -159,8 +174,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
       val minKey: Key = Key.toRawKey(sortedList.get(0).first)
       val maxKey: Key = Key.toRawKey(sortedList.get(sortedList.size() - 1).first)
       val region: TiRegion = partitioner.getRegion(minKey)
-      logger.info(
-        s"""
+      logger.info(s"""
            |dataSize=$dataSize
            |minKey=${minKey.toByteString.toStringUtf8}
            |maxKey=${maxKey.toByteString.toStringUtf8}
@@ -173,7 +187,13 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
         throw new Exception("region == null")
       } else {
         val tiSession = createTiSessionWithRetry(ConcreteBackOffer.newCustomBackOff(10000))
-        ingestWithRetry(tiSession, region, minKey, maxKey, sortedList, ConcreteBackOffer.newCustomBackOff(60000))
+        ingestWithRetry(
+          tiSession,
+          region,
+          minKey,
+          maxKey,
+          sortedList,
+          ConcreteBackOffer.newCustomBackOff(60000))
         val t3 = System.currentTimeMillis()
         logger.info(s"ingest cost: ${(t3 - t2) / 1000}s")
       }
@@ -182,7 +202,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
 
   private def createTiSessionWithRetry(backOffer: BackOffer): TiSession = {
     var tiSession: TiSession = null
-    while(tiSession == null) {
+    while (tiSession == null) {
       try {
         tiSession = TiSession.getInstance(tiConf)
       } catch {
@@ -194,15 +214,24 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     tiSession
   }
 
-  private def ingestWithRetry(tiSession: TiSession, region: TiRegion, minKey: Key, maxKey: Key, sortedList: util.ArrayList[Pair[ByteString, ByteString]], backOffer: BackOffer): Unit = {
+  private def ingestWithRetry(
+      tiSession: TiSession,
+      region: TiRegion,
+      minKey: Key,
+      maxKey: Key,
+      sortedList: util.ArrayList[Pair[ByteString, ByteString]],
+      backOffer: BackOffer): Unit = {
     val uuid = genUUID()
-    logger.info(s"start to ingest this partition, region=$region, uuid=${util.Arrays.toString(uuid)}")
+    logger.info(
+      s"start to ingest this partition, region=$region, uuid=${util.Arrays.toString(uuid)}")
 
     try {
-      val importerClient = new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
+      val importerClient =
+        new ImporterClient(tiSession, ByteString.copyFrom(uuid), minKey, maxKey, region, ttl)
       importerClient.setDeduplicate(true)
       importerClient.write(sortedList.iterator())
-      logger.info(s"finish to ingest this partition, region=$region, uuid=${util.Arrays.toString(uuid)}")
+      logger.info(
+        s"finish to ingest this partition, region=$region, uuid=${util.Arrays.toString(uuid)}")
     } catch {
       case e: Exception =>
         logger.warn(s"ingest failed, region=$region, uuid=${util.Arrays.toString(uuid)}", e)
@@ -221,11 +250,11 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
           val subSortedList = new util.ArrayList[Pair[ByteString, ByteString]]()
           var i = 0
           var skip = false
-          while(i < sortedList.size() && !skip) {
+          while (i < sortedList.size() && !skip) {
             val pair = sortedList.get(i)
             val key = Key.toRawKey(pair.first)
-            if(key.compareTo(startKey) >= 0) {
-              if(key.compareTo(endKey) < 0) {
+            if (key.compareTo(startKey) >= 0) {
+              if (key.compareTo(endKey) < 0) {
                 subSortedList.add(pair)
               } else {
                 skip = true
@@ -233,7 +262,7 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
             }
             i = i + 1
           }
-          if(!subSortedList.isEmpty) {
+          if (!subSortedList.isEmpty) {
             val subMinKey = Key.toRawKey(subSortedList.get(0).first)
             val subMaxKey = Key.toRawKey(subSortedList.get(subSortedList.size() - 1).first)
             ingestWithRetry(tiSession, newRegion, subMinKey, subMaxKey, subSortedList, backOffer)
@@ -281,9 +310,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
       optionsRegionSplitNum
     } else {
       Math.min(
-        Math.max(
-          optionsMinRegionSplitNum,
-          Math.ceil(count.toDouble / optionsRegionSplitKeys).toInt),
+        Math
+          .max(optionsMinRegionSplitNum, Math.ceil(count.toDouble / optionsRegionSplitKeys).toInt),
         optionsMaxRegionSplitNum)
     }
     logger.info(s"regionSplitPointNum=$regionSplitPointNum")
@@ -313,9 +341,8 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     }
     logger.info(s"splitPointNumUsingSize=$splitPointNumUsingSize")
 
-    val finalRegionSplitPointNum = Math.min(
-      Math.max(optionsMinRegionSplitNum, splitPointNumUsingSize),
-      optionsMaxRegionSplitNum)
+    val finalRegionSplitPointNum =
+      Math.min(Math.max(optionsMinRegionSplitNum, splitPointNumUsingSize), optionsMaxRegionSplitNum)
     logger.info(s"finalRegionSplitPointNum=$finalRegionSplitPointNum")
 
     val sortedSampleData = sampleData
@@ -344,4 +371,3 @@ class RawKVBulkLoader(tiConf: TiConfiguration, sparkConf: SparkConf) extends Ser
     Math.ceil(avg).toInt
   }
 }
-

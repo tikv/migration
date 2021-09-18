@@ -44,5 +44,10 @@ jobs:
         run: mvn --file client-java/pom.xml clean install -DskipTests
 
       - name: Build Online Bulk Load
-        run: mvn --file online-bulk-load/pom.xml clean package -DskipTests
+        run: cd online-bulk-load; mvn clean package -DskipTests
+
+      - run: git diff HEAD
+
+      - name: Check code format
+        run: git diff --quiet HEAD
 

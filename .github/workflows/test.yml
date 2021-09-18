@@ -53,5 +53,5 @@ jobs:
         run: sleep 60
 
       - name: Test Online Bulk Load
-        run: mvn --file online-bulk-load/pom.xml test
+        run: cd online-bulk-load; mvn test
 
