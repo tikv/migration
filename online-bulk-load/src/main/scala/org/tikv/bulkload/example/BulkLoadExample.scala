@@ -52,12 +52,11 @@ object BulkLoadExample {
       partition = args(3).toInt
     }
 
-    if(args.length > 4) {
+    if (args.length > 4) {
       exit = args(4).toBoolean
     }
 
-    logger.info(
-      s"""
+    logger.info(s"""
          |*****************
          |pdaddr=$pdaddr
          |prefix=$prefix
@@ -67,7 +66,7 @@ object BulkLoadExample {
          |*****************
          |""".stripMargin)
 
-    if(size / partition > Int.MaxValue) {
+    if (size / partition > Int.MaxValue) {
       throw new Exception("size / partition > Int.MaxValue")
     }
 
@@ -79,22 +78,25 @@ object BulkLoadExample {
 
     val spark = SparkSession.builder.config(sparkConf).getOrCreate()
 
-    val rdd = spark.sparkContext.makeRDD(0L until partition, partition).flatMap { partitionIndex =>
-      val partitionSize = (size / partition).toInt
-      val random = new Random(partitionIndex)
-      new Iterator[(Array[Byte], Array[Byte])]() {
-        var i = 0
+    val rdd = spark.sparkContext
+      .makeRDD(0L until partition, partition)
+      .flatMap { partitionIndex =>
+        val partitionSize = (size / partition).toInt
+        val random = new Random(partitionIndex)
+        new Iterator[(Array[Byte], Array[Byte])]() {
+          var i = 0
 
-        override def hasNext: Boolean = i < partitionSize
+          override def hasNext: Boolean = i < partitionSize
 
-        override def next(): (Array[Byte], Array[Byte]) = {
-          i = i + 1
-          val index = random.nextLong() % 10000000000000L
-          val key = s"$prefix${genKey(index)}"
-          (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
+          override def next(): (Array[Byte], Array[Byte]) = {
+            i = i + 1
+            val index = random.nextLong() % 10000000000000L
+            val key = s"$prefix${genKey(index)}"
+            (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
+          }
         }
       }
-    }.coalesce(partition, shuffle = true)
+      .coalesce(partition, shuffle = true)
 
     new RawKVBulkLoader(pdaddr).bulkLoad(rdd)
 
@@ -102,7 +104,7 @@ object BulkLoadExample {
 
     logger.info(s"total time: ${(end - start) / 1000}s")
 
-    while(!exit) {
+    while (!exit) {
       Thread.sleep(1000)
     }
   }

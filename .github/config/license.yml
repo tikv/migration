@@ -20,4 +20,5 @@ header:
     - .gitignore
     - LICENSE
     - README.md
+    - .scalafmt.conf
   comment: on-failure

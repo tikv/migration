@@ -16,6 +16,4 @@
 
 package org.tikv.bulkload
 
-class PartitionNotFound(msg: String) extends Exception(msg) {
-
-}
+class PartitionNotFound(msg: String) extends Exception(msg) {}
