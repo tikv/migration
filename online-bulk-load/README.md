@@ -11,7 +11,8 @@ mvn --file client-java/pom.xml clean install -DskipTests
 
 ```
 git clone git@github.com:tikv/migration.git
-mvn --file migration/online-bulk-load/pom.xml clean package -DskipTests
+cd migration/online-bulk-load
+mvn clean package -DskipTests
 ```
 
 ### Run BulkLoadExample
