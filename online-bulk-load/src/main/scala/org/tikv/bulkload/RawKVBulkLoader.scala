@@ -16,8 +16,6 @@
 
 package org.tikv.bulkload
 
-import java.util
-import java.util.{Comparator, UUID}
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.slf4j.LoggerFactory
@@ -35,6 +33,8 @@ import org.tikv.common.util.{
 import org.tikv.common.{PDChecker, TiConfiguration, TiSession}
 import org.tikv.shade.com.google.protobuf.ByteString
 
+import java.util
+import java.util.{Comparator, UUID}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 

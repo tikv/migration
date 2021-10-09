@@ -1,5 +1,7 @@
 ## Quick Start
 
+Online bulk load enables users to ingest a large amount of data to a TiKV cluster with limited impact on the online services.
+
 ### Install tikv-client-java
 
 ```
@@ -7,12 +9,12 @@ git clone git@github.com:tikv/client-java.git
 mvn --file client-java/pom.xml clean install -DskipTests
 ```
 
-### Build online-bulk-load
+### Build online-bulk-load project
 
 ```
 git clone git@github.com:tikv/migration.git
-cd migration/online-bulk-load
-mvn --file pom.xml clean package -DskipTests
+cd migration
+mvn clean package -DskipTests -am -pl online-bulk-load
 ```
 
 ### Run BulkLoadExample
@@ -22,7 +24,7 @@ spark-submit \
 --master local[*] \
 --jars /path/to/tikv-client-java-3.2.0-SNAPSHOT.jar \
 --class org.tikv.bulkload.example.BulkLoadExample \
-migration/online-bulk-load/target/migration-0.0.1-SNAPSHOT.jar \
+online-bulk-load/target/online-bulk-load-0.0.1-SNAPSHOT.jar \
 <pdaddr> <key_prefix> <data_size> <partition_nums>
 ```
 
@@ -53,7 +55,7 @@ Suppose the schema of parquet file is `key` | `value` which type is `String`.
 Default Spark version is 3.0.2. If you want to use other Spark version, please compile with the following command:
 
 ```
-mvn --file migration/online-bulk-load/pom.xml clean package -DskipTests -Dspark.version.compile=3.1.1
+mvn clean package -DskipTests -Dspark.version.compile=3.1.1
 ```
 
 ## Configuration

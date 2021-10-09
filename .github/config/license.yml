@@ -21,4 +21,5 @@ header:
     - LICENSE
     - README.md
     - .scalafmt.conf
+    - org.apache.spark.sql.sources.DataSourceRegister
   comment: on-failure
