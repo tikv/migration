@@ -23,9 +23,9 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>online-bulk-load</artifactId>
+    <artifactId>sst-data-source</artifactId>
     <packaging>jar</packaging>
-    <name>Online Bulk Load</name>
+    <name>Spark SST Data Source</name>
 
     <build>
         <extensions>

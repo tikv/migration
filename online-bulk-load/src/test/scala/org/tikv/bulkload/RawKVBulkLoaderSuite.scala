@@ -22,24 +22,32 @@ import org.scalatest._
 import org.tikv.common.{TiConfiguration, TiSession}
 import org.tikv.shade.com.google.protobuf.ByteString
 
-class RawKVBulkLoaderSuite extends FunSuiteLike {
-
+class RawKVBulkLoaderSuite extends FunSuiteLike with BeforeAndAfterAll {
   val pdAddr = "127.0.0.1:2379"
   val startKey = 1
   val middleKey = 50
   val endKey = 100
   val partitionSize = 10
 
-  test("insert and update with duplicate key") {
-    val keyPrefix = "k_"
+  private var spark: SparkSession = _
 
+  override def beforeAll(): Unit = {
     val sparkConf = new SparkConf()
       .setIfMissing("spark.master", "local[*]")
       .setIfMissing("spark.app.name", getClass.getName)
 
-    val spark = SparkSession.builder.config(sparkConf).getOrCreate()
+    spark = SparkSession.builder.config(sparkConf).getOrCreate()
+  }
+
+  override def afterAll(): Unit = {
+    spark.close()
+  }
+
+  test("insert and update with duplicate key") {
+    val keyPrefix = "k_"
+
     val tiConf = TiConfiguration.createDefault(pdAddr)
-    val rawKVBulkLoader = new RawKVBulkLoader(tiConf, sparkConf)
+    val rawKVBulkLoader = new RawKVBulkLoader(tiConf, spark.sparkContext.getConf)
 
     // insert
     val rdd = spark.sparkContext.parallelize(startKey to endKey, partitionSize).flatMap { i =>
