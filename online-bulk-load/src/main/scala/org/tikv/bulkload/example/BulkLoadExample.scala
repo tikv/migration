@@ -33,6 +33,7 @@ object BulkLoadExample {
     var size: Long = 1000
     var partition: Int = 10
     var exit: Boolean = true
+    var exact: Boolean = false
 
     val value = "A" * 64
 
@@ -56,6 +57,10 @@ object BulkLoadExample {
       exit = args(4).toBoolean
     }
 
+    if (args.length > 5) {
+      exact = args(5).toBoolean
+    }
+
     logger.info(s"""
          |*****************
          |pdaddr=$pdaddr
@@ -63,6 +68,7 @@ object BulkLoadExample {
          |size=$size
          |partition=$partition
          |exit=$exit
+         |exact=$exact
          |*****************
          |""".stripMargin)
 
@@ -90,7 +96,11 @@ object BulkLoadExample {
 
           override def next(): (Array[Byte], Array[Byte]) = {
             i = i + 1
-            val index = random.nextLong() % 10000000000000L
+            val index = if (exact) {
+              i + partitionIndex * partitionSize
+            } else {
+              random.nextLong() % 10000000000000L
+            }
             val key = s"$prefix${genKey(index)}"
             (key.toArray.map(_.toByte), value.toArray.map(_.toByte))
           }
