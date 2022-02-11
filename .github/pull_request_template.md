@@ -1,4 +1,4 @@
-<!-- Thank you for contributing to TiKV Java Client!
+<!-- Thank you for contributing to TiKV Migration Toolset!
 
 PR Title Format: "[close/to/fix #issue_number] summary" -->
 
