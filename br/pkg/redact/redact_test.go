@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/pingcap/tidb/br/pkg/redact"
+	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )

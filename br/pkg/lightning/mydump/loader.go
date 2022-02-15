@@ -22,9 +22,9 @@ import (
 	"github.com/pingcap/errors"
 	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
 	router "github.com/pingcap/tidb-tools/pkg/table-router"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/storage"
 	"go.uber.org/zap"
 )
 

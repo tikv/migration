@@ -19,8 +19,8 @@ import (
 	"testing"
 
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/lightning/verification"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/verification"
 )
 
 type testKVChcksumSuite struct{}

@@ -19,7 +19,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/pingcap/tidb/br/pkg/mock"
+	"github.com/tikv/migration/br/pkg/mock"
 	"github.com/pingcap/tidb/util/testbridge"
 	"go.uber.org/goleak"
 )

@@ -25,12 +25,12 @@ import (
 	. "github.com/pingcap/check"
 	"github.com/pingcap/failpoint"
 
-	"github.com/pingcap/tidb/br/pkg/lightning/checkpoints"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	"github.com/pingcap/tidb/br/pkg/lightning/glue"
-	"github.com/pingcap/tidb/br/pkg/lightning/mydump"
-	"github.com/pingcap/tidb/br/pkg/lightning/worker"
-	"github.com/pingcap/tidb/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/lightning/checkpoints"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/glue"
+	"github.com/tikv/migration/br/pkg/lightning/mydump"
+	"github.com/tikv/migration/br/pkg/lightning/worker"
+	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/pingcap/tidb/ddl"
 	"github.com/pingcap/tidb/parser"
 	"github.com/pingcap/tidb/parser/ast"
@@ -548,10 +548,10 @@ func (s *checkInfoSuite) TestLocalResource(c *C) {
 	mockStore, err := storage.NewLocalStorage(dir)
 	c.Assert(err, IsNil)
 
-	err = failpoint.Enable("github.com/pingcap/tidb/br/pkg/lightning/common/GetStorageSize", "return(2048)")
+	err = failpoint.Enable("github.com/tikv/migration/br/pkg/lightning/common/GetStorageSize", "return(2048)")
 	c.Assert(err, IsNil)
 	defer func() {
-		_ = failpoint.Disable("github.com/pingcap/tidb/br/pkg/lightning/common/GetStorageSize")
+		_ = failpoint.Disable("github.com/tikv/migration/br/pkg/lightning/common/GetStorageSize")
 	}()
 
 	cfg := config.NewConfig()

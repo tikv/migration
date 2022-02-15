@@ -24,8 +24,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/carlmjohnson/flagext"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/version/build"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/version/build"
 )
 
 type GlobalLightning struct {

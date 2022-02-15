@@ -26,10 +26,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/pingcap/errors"
 	kvpb "github.com/pingcap/kvproto/pkg/import_kvpb"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend/kv"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/mock"
+	"github.com/tikv/migration/br/pkg/lightning/backend"
+	"github.com/tikv/migration/br/pkg/lightning/backend/kv"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/mock"
 	"github.com/stretchr/testify/require"
 )
 

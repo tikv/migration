@@ -28,8 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	"github.com/pingcap/tidb/br/pkg/utils"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/utils"
 )
 
 func TestInit(t *testing.T) {

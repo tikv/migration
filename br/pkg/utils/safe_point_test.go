@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pingcap/tidb/br/pkg/utils"
+	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/stretchr/testify/require"
 	pd "github.com/tikv/pd/client"
 )

@@ -13,7 +13,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	. "github.com/pingcap/check"
 	"github.com/pingcap/errors"
-	. "github.com/pingcap/tidb/br/pkg/lightning/checkpoints"
+	. "github.com/tikv/migration/br/pkg/lightning/checkpoints"
 	"github.com/pingcap/tidb/ddl"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser"

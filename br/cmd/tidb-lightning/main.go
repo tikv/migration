@@ -22,10 +22,10 @@ import (
 	"runtime/debug"
 	"syscall"
 
-	"github.com/pingcap/tidb/br/pkg/lightning"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/lightning"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/log"
 	"go.uber.org/zap"
 )
 

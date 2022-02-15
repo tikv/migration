@@ -9,10 +9,10 @@ import (
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/log"
-	berrors "github.com/pingcap/tidb/br/pkg/errors"
-	"github.com/pingcap/tidb/br/pkg/metautil"
-	"github.com/pingcap/tidb/br/pkg/storage"
-	"github.com/pingcap/tidb/br/pkg/summary"
+	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/metautil"
+	"github.com/tikv/migration/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/summary"
 	"go.uber.org/zap"
 )
 

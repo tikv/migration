@@ -7,11 +7,11 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	berrors "github.com/pingcap/tidb/br/pkg/errors"
-	"github.com/pingcap/tidb/br/pkg/glue"
-	"github.com/pingcap/tidb/br/pkg/metautil"
-	"github.com/pingcap/tidb/br/pkg/restore"
-	"github.com/pingcap/tidb/br/pkg/summary"
+	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/glue"
+	"github.com/tikv/migration/br/pkg/metautil"
+	"github.com/tikv/migration/br/pkg/restore"
+	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )

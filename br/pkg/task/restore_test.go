@@ -5,7 +5,7 @@ package task
 import (
 	"testing"
 
-	"github.com/pingcap/tidb/br/pkg/restore"
+	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/stretchr/testify/require"
 )
 

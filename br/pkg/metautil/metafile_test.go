@@ -10,7 +10,7 @@ import (
 	"github.com/golang/mock/gomock"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
-	mockstorage "github.com/pingcap/tidb/br/pkg/mock/storage"
+	mockstorage "github.com/tikv/migration/br/pkg/mock/storage"
 	"github.com/stretchr/testify/require"
 )
 

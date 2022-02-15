@@ -19,7 +19,7 @@ import (
 	"sync"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/lightning/log"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )

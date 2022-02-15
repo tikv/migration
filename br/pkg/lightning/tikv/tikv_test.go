@@ -13,8 +13,8 @@ import (
 	"github.com/coreos/go-semver/semver"
 	. "github.com/pingcap/check"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	kv "github.com/pingcap/tidb/br/pkg/lightning/tikv"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	kv "github.com/tikv/migration/br/pkg/lightning/tikv"
 )
 
 type tikvSuite struct{}

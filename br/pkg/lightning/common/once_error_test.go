@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/common"
 )
 
 func TestCommon(t *testing.T) {

@@ -29,11 +29,11 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/redact"
-	"github.com/pingcap/tidb/br/pkg/utils"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/redact"
+	"github.com/tikv/migration/br/pkg/utils"
 )
 
 const (

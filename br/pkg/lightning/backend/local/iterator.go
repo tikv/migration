@@ -21,9 +21,9 @@ import (
 
 	"github.com/cockroachdb/pebble"
 	sst "github.com/pingcap/kvproto/pkg/import_sstpb"
-	"github.com/pingcap/tidb/br/pkg/kv"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/logutil"
+	"github.com/tikv/migration/br/pkg/kv"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/logutil"
 	"go.uber.org/multierr"
 )
 

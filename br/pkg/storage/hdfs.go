@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/pingcap/errors"
-	berrors "github.com/pingcap/tidb/br/pkg/errors"
+	berrors "github.com/tikv/migration/br/pkg/errors"
 )
 
 // HDFSStorage represents HDFS storage.

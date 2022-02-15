@@ -25,8 +25,8 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	. "github.com/pingcap/check"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/log"
 )
 
 type utilSuite struct{}

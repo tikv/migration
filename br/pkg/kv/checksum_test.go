@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/pingcap/tidb/br/pkg/kv"
+	"github.com/tikv/migration/br/pkg/kv"
 	"github.com/stretchr/testify/require"
 )
 

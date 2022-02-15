@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/br/pkg/lightning/worker"
+	"github.com/tikv/migration/br/pkg/lightning/worker"
 )
 
 type testWorkerPool struct{}

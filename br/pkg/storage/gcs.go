@@ -13,7 +13,7 @@ import (
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/log"
-	berrors "github.com/pingcap/tidb/br/pkg/errors"
+	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2/google"

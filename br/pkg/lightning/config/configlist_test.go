@@ -19,7 +19,7 @@ import (
 	"time"
 
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/config"
 )
 
 var _ = Suite(&configListTestSuite{})

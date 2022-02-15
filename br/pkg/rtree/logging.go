@@ -5,8 +5,8 @@ package rtree
 import (
 	"fmt"
 
-	"github.com/pingcap/tidb/br/pkg/logutil"
-	"github.com/pingcap/tidb/br/pkg/redact"
+	"github.com/tikv/migration/br/pkg/logutil"
+	"github.com/tikv/migration/br/pkg/redact"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

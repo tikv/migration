@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/pingcap/tidb/br/pkg/kv"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/kv"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/log"
 	"github.com/stretchr/testify/require"
 )
 

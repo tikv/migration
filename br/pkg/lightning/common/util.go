@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/utils"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/pingcap/tidb/parser/model"
 	"go.uber.org/zap"
 )

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/pingcap/tidb/types"
 	"github.com/xitongsys/parquet-go/parquet"
 	preader "github.com/xitongsys/parquet-go/reader"

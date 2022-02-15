@@ -38,25 +38,25 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_kvpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend/importer"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend/kv"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend/noop"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend/tidb"
-	"github.com/pingcap/tidb/br/pkg/lightning/checkpoints"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	"github.com/pingcap/tidb/br/pkg/lightning/errormanager"
-	"github.com/pingcap/tidb/br/pkg/lightning/glue"
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/lightning/metric"
-	"github.com/pingcap/tidb/br/pkg/lightning/mydump"
-	"github.com/pingcap/tidb/br/pkg/lightning/verification"
-	"github.com/pingcap/tidb/br/pkg/lightning/web"
-	"github.com/pingcap/tidb/br/pkg/lightning/worker"
-	"github.com/pingcap/tidb/br/pkg/mock"
-	"github.com/pingcap/tidb/br/pkg/storage"
-	"github.com/pingcap/tidb/br/pkg/version/build"
+	"github.com/tikv/migration/br/pkg/lightning/backend"
+	"github.com/tikv/migration/br/pkg/lightning/backend/importer"
+	"github.com/tikv/migration/br/pkg/lightning/backend/kv"
+	"github.com/tikv/migration/br/pkg/lightning/backend/noop"
+	"github.com/tikv/migration/br/pkg/lightning/backend/tidb"
+	"github.com/tikv/migration/br/pkg/lightning/checkpoints"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/errormanager"
+	"github.com/tikv/migration/br/pkg/lightning/glue"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/lightning/metric"
+	"github.com/tikv/migration/br/pkg/lightning/mydump"
+	"github.com/tikv/migration/br/pkg/lightning/verification"
+	"github.com/tikv/migration/br/pkg/lightning/web"
+	"github.com/tikv/migration/br/pkg/lightning/worker"
+	"github.com/tikv/migration/br/pkg/mock"
+	"github.com/tikv/migration/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/version/build"
 	"github.com/pingcap/tidb/ddl"
 	"github.com/pingcap/tidb/parser"
 	"github.com/pingcap/tidb/parser/ast"
@@ -469,9 +469,9 @@ func (s *tableRestoreSuiteBase) SetUpTest(c *C) {
 }
 
 func (s *tableRestoreSuite) TestPopulateChunks(c *C) {
-	_ = failpoint.Enable("github.com/pingcap/tidb/br/pkg/lightning/restore/PopulateChunkTimestamp", "return(1234567897)")
+	_ = failpoint.Enable("github.com/tikv/migration/br/pkg/lightning/restore/PopulateChunkTimestamp", "return(1234567897)")
 	defer func() {
-		_ = failpoint.Disable("github.com/pingcap/tidb/br/pkg/lightning/restore/PopulateChunkTimestamp")
+		_ = failpoint.Disable("github.com/tikv/migration/br/pkg/lightning/restore/PopulateChunkTimestamp")
 	}()
 
 	cp := &checkpoints.TableCheckpoint{
@@ -717,9 +717,9 @@ func (s *tableRestoreSuite) TestPopulateChunksCSVHeader(c *C) {
 		DataFiles:  fakeDataFiles,
 	}
 
-	_ = failpoint.Enable("github.com/pingcap/tidb/br/pkg/lightning/restore/PopulateChunkTimestamp", "return(1234567897)")
+	_ = failpoint.Enable("github.com/tikv/migration/br/pkg/lightning/restore/PopulateChunkTimestamp", "return(1234567897)")
 	defer func() {
-		_ = failpoint.Disable("github.com/pingcap/tidb/br/pkg/lightning/restore/PopulateChunkTimestamp")
+		_ = failpoint.Disable("github.com/tikv/migration/br/pkg/lightning/restore/PopulateChunkTimestamp")
 	}()
 
 	cp := &checkpoints.TableCheckpoint{
@@ -1247,9 +1247,9 @@ func (s *tableRestoreSuite) TestTableRestoreMetrics(c *C) {
 }
 
 func (s *tableRestoreSuite) TestSaveStatusCheckpoint(c *C) {
-	_ = failpoint.Enable("github.com/pingcap/tidb/br/pkg/lightning/restore/SlowDownCheckpointUpdate", "sleep(100)")
+	_ = failpoint.Enable("github.com/tikv/migration/br/pkg/lightning/restore/SlowDownCheckpointUpdate", "sleep(100)")
 	defer func() {
-		_ = failpoint.Disable("github.com/pingcap/tidb/br/pkg/lightning/restore/SlowDownCheckpointUpdate")
+		_ = failpoint.Disable("github.com/tikv/migration/br/pkg/lightning/restore/SlowDownCheckpointUpdate")
 	}()
 
 	web.BroadcastInitProgress([]*mydump.MDDatabaseMeta{{
@@ -1547,8 +1547,8 @@ func (s *chunkRestoreSuite) TestEncodeLoopDeliverLimit(c *C) {
 
 	rc := &Controller{pauser: DeliverPauser, cfg: cfg}
 	c.Assert(failpoint.Enable(
-		"github.com/pingcap/tidb/br/pkg/lightning/restore/mock-kv-size", "return(110000000)"), IsNil)
-	defer failpoint.Disable("github.com/pingcap/tidb/br/pkg/lightning/restore/mock-kv-size")
+		"github.com/tikv/migration/br/pkg/lightning/restore/mock-kv-size", "return(110000000)"), IsNil)
+	defer failpoint.Disable("github.com/tikv/migration/br/pkg/lightning/restore/mock-kv-size")
 	_, _, err = s.cr.encodeLoop(ctx, kvsCh, s.tr, s.tr.logger, kvEncoder, deliverCompleteCh, rc)
 	c.Assert(err, IsNil)
 

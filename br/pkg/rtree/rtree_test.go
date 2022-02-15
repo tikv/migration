@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/pingcap/tidb/br/pkg/rtree"
+	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/stretchr/testify/require"
 )
 

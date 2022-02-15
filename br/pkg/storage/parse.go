@@ -11,7 +11,7 @@ import (
 
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
-	berrors "github.com/pingcap/tidb/br/pkg/errors"
+	berrors "github.com/tikv/migration/br/pkg/errors"
 )
 
 // BackendOptions further configures the storage backend not expressed by the

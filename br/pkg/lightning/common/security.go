@@ -24,7 +24,7 @@ import (
 	"os"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/br/pkg/httputil"
+	"github.com/tikv/migration/br/pkg/httputil"
 	"github.com/tikv/client-go/v2/config"
 	pd "github.com/tikv/pd/client"
 	"google.golang.org/grpc"

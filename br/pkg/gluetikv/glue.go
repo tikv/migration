@@ -5,10 +5,10 @@ package gluetikv
 import (
 	"context"
 
-	"github.com/pingcap/tidb/br/pkg/glue"
-	"github.com/pingcap/tidb/br/pkg/summary"
-	"github.com/pingcap/tidb/br/pkg/utils"
-	"github.com/pingcap/tidb/br/pkg/version/build"
+	"github.com/tikv/migration/br/pkg/glue"
+	"github.com/tikv/migration/br/pkg/summary"
+	"github.com/tikv/migration/br/pkg/utils"
+	"github.com/tikv/migration/br/pkg/version/build"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/kv"

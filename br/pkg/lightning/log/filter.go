@@ -19,7 +19,7 @@ type FilterCore struct {
 
 // NewFilterCore returns a FilterCore, only logs under allowPackages will be written.
 //
-// Example, only write br's log and ignore any other, `NewFilterCore(core, "github.com/pingcap/tidb/br/")`.
+// Example, only write br's log and ignore any other, `NewFilterCore(core, "github.com/tikv/migration/br/")`.
 // Note, must set AddCaller() to the logger.
 func NewFilterCore(core zapcore.Core, allowPackages ...string) *FilterCore {
 	return &FilterCore{

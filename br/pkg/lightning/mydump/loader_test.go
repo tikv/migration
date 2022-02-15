@@ -23,9 +23,9 @@ import (
 	. "github.com/pingcap/check"
 	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
 	router "github.com/pingcap/tidb-tools/pkg/table-router"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	md "github.com/pingcap/tidb/br/pkg/lightning/mydump"
-	"github.com/pingcap/tidb/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	md "github.com/tikv/migration/br/pkg/lightning/mydump"
+	"github.com/tikv/migration/br/pkg/storage"
 )
 
 var _ = Suite(&testMydumpLoaderSuite{})

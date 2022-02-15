@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/pingcap/failpoint"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,9 +57,9 @@ func createSuite(t *testing.T) (s *lightningServerSuite, clean func()) {
 	s.lightning.ctx = context.WithValue(s.lightning.ctx, taskCfgRecorderKey, s.taskCfgCh)
 	_ = s.lightning.GoServe()
 
-	require.NoError(t, failpoint.Enable("github.com/pingcap/tidb/br/pkg/lightning/SkipRunTask", "return"))
+	require.NoError(t, failpoint.Enable("github.com/tikv/migration/br/pkg/lightning/SkipRunTask", "return"))
 	clean = func() {
-		require.NoError(t, failpoint.Disable("github.com/pingcap/tidb/br/pkg/lightning/SkipRunTask"))
+		require.NoError(t, failpoint.Disable("github.com/tikv/migration/br/pkg/lightning/SkipRunTask"))
 		s.lightning.Stop()
 	}
 

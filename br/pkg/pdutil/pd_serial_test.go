@@ -171,9 +171,9 @@ func TestPDVersion(t *testing.T) {
 func TestPDRequestRetry(t *testing.T) {
 	ctx := context.Background()
 
-	require.NoError(t, failpoint.Enable("github.com/pingcap/tidb/br/pkg/pdutil/FastRetry", "return(true)"))
+	require.NoError(t, failpoint.Enable("github.com/tikv/migration/br/pkg/pdutil/FastRetry", "return(true)"))
 	defer func() {
-		require.NoError(t, failpoint.Disable("github.com/pingcap/tidb/br/pkg/pdutil/FastRetry"))
+		require.NoError(t, failpoint.Disable("github.com/tikv/migration/br/pkg/pdutil/FastRetry"))
 	}()
 
 	count := 0

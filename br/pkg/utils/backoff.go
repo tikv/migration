@@ -10,7 +10,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	berrors "github.com/pingcap/tidb/br/pkg/errors"
+	berrors "github.com/tikv/migration/br/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

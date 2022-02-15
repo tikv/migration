@@ -9,7 +9,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/pingcap/tidb/br/pkg/pdutil"
+	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/stretchr/testify/require"
 	pd "github.com/tikv/pd/client"
 	"google.golang.org/grpc/codes"
@@ -26,9 +26,9 @@ func (c fakePDClient) GetAllStores(context.Context, ...pd.GetStoreOption) ([]*me
 }
 
 func TestGetAllTiKVStoresWithRetryCancel(t *testing.T) {
-	_ = failpoint.Enable("github.com/pingcap/tidb/br/pkg/conn/hint-GetAllTiKVStores-cancel", "return(true)")
+	_ = failpoint.Enable("github.com/tikv/migration/br/pkg/conn/hint-GetAllTiKVStores-cancel", "return(true)")
 	defer func() {
-		_ = failpoint.Disable("github.com/pingcap/tidb/br/pkg/conn/hint-GetAllTiKVStores-cancel")
+		_ = failpoint.Disable("github.com/tikv/migration/br/pkg/conn/hint-GetAllTiKVStores-cancel")
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -66,9 +66,9 @@ func TestGetAllTiKVStoresWithRetryCancel(t *testing.T) {
 }
 
 func TestGetAllTiKVStoresWithUnknown(t *testing.T) {
-	_ = failpoint.Enable("github.com/pingcap/tidb/br/pkg/conn/hint-GetAllTiKVStores-error", "return(true)")
+	_ = failpoint.Enable("github.com/tikv/migration/br/pkg/conn/hint-GetAllTiKVStores-error", "return(true)")
 	defer func() {
-		_ = failpoint.Disable("github.com/pingcap/tidb/br/pkg/conn/hint-GetAllTiKVStores-error")
+		_ = failpoint.Disable("github.com/tikv/migration/br/pkg/conn/hint-GetAllTiKVStores-error")
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

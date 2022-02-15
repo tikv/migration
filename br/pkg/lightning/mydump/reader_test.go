@@ -22,9 +22,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	. "github.com/pingcap/check"
-	. "github.com/pingcap/tidb/br/pkg/lightning/mydump"
-	mockstorage "github.com/pingcap/tidb/br/pkg/mock/storage"
-	"github.com/pingcap/tidb/br/pkg/storage"
+	. "github.com/tikv/migration/br/pkg/lightning/mydump"
+	mockstorage "github.com/tikv/migration/br/pkg/mock/storage"
+	"github.com/tikv/migration/br/pkg/storage"
 )
 
 var _ = Suite(&testMydumpReaderSuite{})

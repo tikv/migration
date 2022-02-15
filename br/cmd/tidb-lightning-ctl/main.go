@@ -22,15 +22,15 @@ import (
 	"path/filepath"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/br/pkg/lightning"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend/importer"
-	"github.com/pingcap/tidb/br/pkg/lightning/backend/local"
-	"github.com/pingcap/tidb/br/pkg/lightning/checkpoints"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
-	"github.com/pingcap/tidb/br/pkg/lightning/restore"
-	"github.com/pingcap/tidb/br/pkg/lightning/tikv"
+	"github.com/tikv/migration/br/pkg/lightning"
+	"github.com/tikv/migration/br/pkg/lightning/backend"
+	"github.com/tikv/migration/br/pkg/lightning/backend/importer"
+	"github.com/tikv/migration/br/pkg/lightning/backend/local"
+	"github.com/tikv/migration/br/pkg/lightning/checkpoints"
+	"github.com/tikv/migration/br/pkg/lightning/common"
+	"github.com/tikv/migration/br/pkg/lightning/config"
+	"github.com/tikv/migration/br/pkg/lightning/restore"
+	"github.com/tikv/migration/br/pkg/lightning/tikv"
 )
 
 func main() {

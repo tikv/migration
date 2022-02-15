@@ -3,8 +3,8 @@
 package kv
 
 import (
-	"github.com/pingcap/tidb/br/pkg/lightning/log"
-	"github.com/pingcap/tidb/br/pkg/lightning/verification"
+	"github.com/tikv/migration/br/pkg/lightning/log"
+	"github.com/tikv/migration/br/pkg/lightning/verification"
 	"github.com/pingcap/tidb/types"
 )
 

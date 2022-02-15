@@ -8,8 +8,6 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/br/pkg/glue"
-	"github.com/pingcap/tidb/br/pkg/gluetikv"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/ddl"
 	"github.com/pingcap/tidb/domain"
@@ -20,6 +18,8 @@ import (
 	"github.com/pingcap/tidb/parser/mysql"
 	"github.com/pingcap/tidb/session"
 	"github.com/pingcap/tidb/sessionctx"
+	"github.com/tikv/migration/br/pkg/glue"
+	"github.com/tikv/migration/br/pkg/gluetikv"
 	pd "github.com/tikv/pd/client"
 )
 
@@ -125,7 +125,7 @@ func (gs *tidbSession) CreateDatabase(ctx context.Context, schema *model.DBInfo)
 	if len(schema.Charset) == 0 {
 		schema.Charset = mysql.DefaultCharset
 	}
-	return d.CreateSchemaWithInfo(gs.se, schema, ddl.OnExistIgnore)
+	return d.CreateSchemaWithInfo(gs.se, schema, ddl.OnExistIgnore, true)
 }
 
 // CreateTable implements glue.Session.
@@ -143,7 +143,7 @@ func (gs *tidbSession) CreateTable(ctx context.Context, dbName model.CIStr, tabl
 		newPartition.Definitions = append([]model.PartitionDefinition{}, table.Partition.Definitions...)
 		table.Partition = &newPartition
 	}
-	return d.CreateTableWithInfo(gs.se, dbName, table, ddl.OnExistIgnore)
+	return d.CreateTableWithInfo(gs.se, dbName, table, ddl.OnExistIgnore, true)
 }
 
 // Close implements glue.Session.
