@@ -1,6 +1,5 @@
 codecov:
-  notify:
-    require_ci_to_pass: yes
+  require_ci_to_pass: yes
 
 coverage:
   precision: 4
@@ -9,7 +8,11 @@ coverage:
   status:
     project:
       default:
-        threshold: 3 #Allow the coverage to drop by threshold%, and posting a success status.
+        target: 85%
+        threshold: 3% #Allow the coverage to drop by threshold%, and posting a success status.
+        branches:
+          - master
+
     patch:
       default:
         target: 0%
@@ -24,9 +27,13 @@ parsers:
       macro: no
 
 comment:
-  layout: "header, flags, diff"
+  layout: "reach, diff, flags, files"
   behavior: default
-  require_changes: no
+  require_changes: false
+  require_base: no
+  require_head: yes
+  branches:
+    - "master"
 
 ignore:
   - "LICENSES"
@@ -43,7 +50,12 @@ flags:
   cdc:
     carryforward: true
     paths:
-      - "cdc/"
-      - "cmd/"
-      - "pkg/"
+      - "cdc/cdc"
+      - "cdc/cmd"
+      - "cdc/pkg"
+  br:
+    carryforward: true
+    paths:
+      - "br/cmd"
+      - "br/pkg"
 

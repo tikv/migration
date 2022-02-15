@@ -22,6 +22,8 @@ linters:
     - makezero
 
 linters-settings:
+  gocyclo:
+    min-complexity: 40
   revive:
     ignore-generated-header: false
     severity: error
