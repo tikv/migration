@@ -129,9 +129,33 @@ tidy:
 	@echo "go mod tidy"
 	./tools/check/check-tidy.sh
 
+check-copyright:
+	@echo "check-copyright"
+	@./scripts/check-copyright.sh
+
 # TODO: Unified cdc and dm config.
 check-static: tools/bin/golangci-lint
 	tools/bin/golangci-lint run --timeout 10m0s --skip-files kv_gen --skip-dirs tests
+
+fmt: tools/bin/gofumports tools/bin/shfmt
+	@echo "gofmt (simplify)"
+	tools/bin/gofumports -l -w $(FILES) 2>&1 | $(FAIL_ON_STDOUT)
+	@echo "run shfmt"
+	tools/bin/shfmt -d -w .
+
+errdoc: tools/bin/errdoc-gen
+	@echo "generator errors.toml"
+	./tools/check/check-errdoc.sh
+
+check-leaktest-added: tools/bin/gofumports
+	@echo "check leak test added in all unit tests"
+	./scripts/add-leaktest.sh $(TEST_FILES)
+
+check-merge-conflicts:
+	@echo "check-merge-conflicts"
+	@./scripts/check-merge-conflicts.sh
+
+check: check-copyright fmt check-static tidy errdoc check-leaktest-added check-merge-conflicts
 
 unit_test_coverage:
 	grep -vE ".*.pb.go|$(CDC_PKG)/testing_utils/.*|$(CDC_PKG)/cdc/kv/testing.go|$(CDC_PKG)/cdc/sink/simple_mysql_tester.go|.*.__failpoint_binding__.go" "$(TEST_DIR)/cov.unit.out" > "$(TEST_DIR)/unit_cov.out"

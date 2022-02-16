@@ -17,5 +17,5 @@ set -euo pipefail
 cd -P .
 
 cp errors.toml /tmp/errors.toml.before
-./tools/bin/errdoc-gen --source . --module github.com/migration/cdc/cdc --output errors.toml --ignore proto,dm
+./tools/bin/errdoc-gen --source . --module github.com/migration/cdc/cdc --output errors.toml --ignore proto
 diff -q errors.toml /tmp/errors.toml.before

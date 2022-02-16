@@ -59,7 +59,7 @@ TEST_DIR          := /tmp/backup_restore_test
 
 TEST_COVERAGE_DIR := "test_coverage"
 
-.PHONY: build_br clean unit_test
+.PHONY: build_br clean unit_test check-static
 
 default: build_br
 
@@ -96,7 +96,7 @@ unit_test_in_verify_ci: tools/bin/gotestsum
 	@make failpoint-disable
 
 check-static: tools/bin/golangci-lint
-	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(BR_PACKAGE_DIRECTORIES)) --config .golangci.yml
+	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(BR_PACKAGE_DIRECTORIES)) --config ../.golangci.yml
 
 tools/bin/golangci-lint:
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b ./tools/bin v1.41.1
