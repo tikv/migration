@@ -1,7 +1,5 @@
 ### Makefile for ticdc
-.PHONY: build test check clean fmt cdc kafka_consumer coverage \
-	integration_test_build integration_test integration_test_mysql integration_test_kafka bank \
-	dm dm-master dm-worker dmctl dm-portal dm-syncer dm_coverage
+.PHONY: build uint_test lint
 
 PROJECT=migration/cdc
 P=3
@@ -15,7 +13,6 @@ export PATH := $(CURDIR)/bin:$(path_to_add):$(PATH)
 SHELL := /usr/bin/env bash
 
 TEST_DIR := /tmp/tidb_cdc_test
-DM_TEST_DIR := /tmp/dm_test
 
 GO       := GO111MODULE=on go
 ifeq (${CDC_ENABLE_VENDOR}, 1)
@@ -31,16 +28,10 @@ ARCH  := "$(shell uname -s)"
 LINUX := "Linux"
 MAC   := "Darwin"
 CDC_PKG := github.com/tikv/migration/cdc
-DM_PKG := github.com/tikv/migration/cdc/dm
 PACKAGE_LIST := go list ./... | grep -vE 'vendor|proto|cdc\/tests|integration|testing_utils|pb|pbmock'
-PACKAGE_LIST_WITHOUT_DM := $(PACKAGE_LIST) | grep -vE 'github.com/tikv/migration/cdc/dm'
-DM_PACKAGE_LIST := go list github.com/tikv/migration/cdc/dm/... | grep -vE 'pb|pbmock|dm/cmd'
 PACKAGES := $$($(PACKAGE_LIST))
-PACKAGES_WITHOUT_DM := $$($(PACKAGE_LIST_WITHOUT_DM))
-DM_PACKAGES := $$($(DM_PACKAGE_LIST))
 FILES := $$(find . -name '*.go' -type f | grep -vE 'vendor|kv_gen|proto|pb\.go|pb\.gw\.go')
 TEST_FILES := $$(find . -name '*_test.go' -type f | grep -vE 'vendor|kv_gen|integration|testing_utils')
-TEST_FILES_WITHOUT_DM := $$(find . -name '*_test.go' -type f | grep -vE 'vendor|kv_gen|integration|testing_utils|^\./dm')
 FAILPOINT_DIR := $$(for p in $(PACKAGES); do echo $${p\#"github.com/tikv/migration/cdc/"}|grep -v "github.com/pingcap/migration/cdc/"; done)
 FAILPOINT := tools/bin/failpoint-ctl
 
@@ -75,13 +66,6 @@ LDFLAGS += -X "$(CDC_PKG)/pkg/version.GitHash=$(GITHASH)"
 LDFLAGS += -X "$(CDC_PKG)/pkg/version.GitBranch=$(GITBRANCH)"
 LDFLAGS += -X "$(CDC_PKG)/pkg/version.GoVersion=$(GOVERSION)"
 
-# DM LDFLAGS.
-LDFLAGS += -X "$(DM_PKG)/pkg/utils.ReleaseVersion=$(RELEASE_VERSION)"
-LDFLAGS += -X "$(DM_PKG)/pkg/utils.BuildTS=$(BUILDTS)"
-LDFLAGS += -X "$(DM_PKG)/pkg/utils.GitHash=$(GITHASH)"
-LDFLAGS += -X "$(DM_PKG)/pkg/utils.GitBranch=$(GITBRANCH)"
-LDFLAGS += -X "$(DM_PKG)/pkg/utils.GoVersion=$(GOVERSION)"
-
 default: build buildsucc
 
 buildsucc:
@@ -91,7 +75,7 @@ all: dev install
 
 dev: check test
 
-test: unit_test dm_unit_test
+test: unit_test
 
 build: cdc
 
@@ -116,7 +100,7 @@ unit_test: check_failpoint_ctl
 	mkdir -p "$(TEST_DIR)"
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
-	$(GOTEST) -cover -covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES_WITHOUT_DM) \
+	$(GOTEST) -cover -covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES) \
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	$(FAILPOINT_DISABLE)
 
@@ -125,7 +109,7 @@ unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum tools/bin/gocov 
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
 	CGO_ENABLED=1 tools/bin/gotestsum --junitfile cdc-junit-report.xml -- -v -timeout 5m -p $(P) --race \
-	-covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES_WITHOUT_DM) \
+	-covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES) \
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	tools/bin/gocov convert "$(TEST_DIR)/cov.unit.out" | tools/bin/gocov-xml > cdc-coverage.xml
 	$(FAILPOINT_DISABLE)
@@ -134,68 +118,8 @@ unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum tools/bin/gocov 
 leak_test: check_failpoint_ctl
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
-	$(GOTEST) -count=1 --tags leak $(PACKAGES_WITHOUT_DM) || { $(FAILPOINT_DISABLE); exit 1; }
+	$(GOTEST) -count=1 --tags leak $(PACKAGES) || { $(FAILPOINT_DISABLE); exit 1; }
 	$(FAILPOINT_DISABLE)
-
-check_third_party_binary:
-	@which bin/tidb-server
-	@which bin/tikv-server
-	@which bin/pd-server
-	@which bin/tiflash
-	@which bin/pd-ctl
-	@which bin/sync_diff_inspector
-	@which bin/go-ycsb
-	@which bin/etcdctl
-	@which bin/jq
-	@which bin/minio
-
-integration_test_build: check_failpoint_ctl
-	$(FAILPOINT_ENABLE)
-	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
-		-coverpkg=github.com/tikv/migration/cdc... \
-		-o bin/cdc.test github.com/tikv/migration/cdc/cmd/cdc \
-	|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc ./cmd/cdc/main.go \
-	|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(FAILPOINT_DISABLE)
-
-integration_test: integration_test_mysql
-
-integration_test_mysql:
-	tests/integration_tests/run.sh mysql "$(CASE)"
-
-integration_test_kafka: check_third_party_binary
-	tests/integration_tests/run.sh kafka "$(CASE)"
-
-fmt: tools/bin/gofumports tools/bin/shfmt
-	@echo "gofmt (simplify)"
-	tools/bin/gofumports -l -w $(FILES) 2>&1 | $(FAIL_ON_STDOUT)
-	@echo "run shfmt"
-	tools/bin/shfmt -d -w .
-
-errdoc: tools/bin/errdoc-gen
-	@echo "generator errors.toml"
-	# check-errdoc will skip DM directory.
-	./tools/check/check-errdoc.sh
-
-# terror_check is only used for DM errors.
-# TODO: unified the error framework of CDC and DM.
-terror_check:
-	@echo "check terror conflict"
-	@cd dm && _utils/terror_gen/check.sh
-
-check-copyright:
-	@echo "check-copyright"
-	@./scripts/check-copyright.sh
-
-check-merge-conflicts:
-	@echo "check-merge-conflicts"
-	@./scripts/check-merge-conflicts.sh
-
-check-leaktest-added: tools/bin/gofumports
-	@echo "check leak test added in all unit tests"
-	# TODO: enable leaktest for DM tests.
-	./scripts/add-leaktest.sh $(TEST_FILES_WITHOUT_DM)
 
 vet:
 	@echo "vet"
@@ -207,19 +131,7 @@ tidy:
 
 # TODO: Unified cdc and dm config.
 check-static: tools/bin/golangci-lint
-	tools/bin/golangci-lint run --timeout 10m0s --skip-files kv_gen --skip-dirs dm,tests
-	cd dm && ../tools/bin/golangci-lint run --timeout 10m0s
-
-check: check-copyright fmt check-static tidy terror_check errdoc check-leaktest-added check-merge-conflicts
-
-integration_test_coverage: tools/bin/gocovmerge tools/bin/goveralls
-	tools/bin/gocovmerge "$(TEST_DIR)"/cov.* | grep -vE ".*.pb.go|$(CDC_PKG)/testing_utils/.*|$(CDC_PKG)/cdc/kv/testing.go|$(CDC_PKG)/cdc/entry/schema_test_helper.go|$(CDC_PKG)/cdc/sink/simple_mysql_tester.go|.*.__failpoint_binding__.go" > "$(TEST_DIR)/all_cov.out"
-ifeq ("$(JenkinsCI)", "1")
-	GO111MODULE=off go get github.com/mattn/goveralls
-	tools/bin/goveralls -coverprofile=$(TEST_DIR)/all_cov.out -service=jenkins-ci -repotoken $(COVERALLS_TOKEN)
-else
-	go tool cover -html "$(TEST_DIR)/all_cov.out" -o "$(TEST_DIR)/all_cov.html"
-endif
+	tools/bin/golangci-lint run --timeout 10m0s --skip-files kv_gen --skip-dirs tests
 
 unit_test_coverage:
 	grep -vE ".*.pb.go|$(CDC_PKG)/testing_utils/.*|$(CDC_PKG)/cdc/kv/testing.go|$(CDC_PKG)/cdc/sink/simple_mysql_tester.go|.*.__failpoint_binding__.go" "$(TEST_DIR)/cov.unit.out" > "$(TEST_DIR)/unit_cov.out"
@@ -235,136 +147,9 @@ clean:
 	rm -rf bin
 	rm -rf tools/bin
 
-dm: dm-master dm-worker dmctl dm-portal dm-syncer
-
-dm-master:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/dm-master ./dm/cmd/dm-master
-
-dm-master-with-webui:
-	@echo "build webui first"
-	cd dm/ui && yarn && yarn build
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -tags dm_webui -o bin/dm-master ./dm/cmd/dm-master
-
-dm-worker:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/dm-worker ./dm/cmd/dm-worker
-
-dmctl:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/dmctl ./dm/cmd/dm-ctl
-
-dm-portal:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/dm-portal ./dm/cmd/dm-portal
-
-dm-syncer:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/dm-syncer ./dm/cmd/dm-syncer
-
-dm-chaos-case:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/dm-chaos-case ./dm/chaos/cases
-
-dm_debug-tools:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/binlog-event-blackhole ./dm/debug-tools/binlog-event-blackhole
-
-dm_generate_proto: tools/bin/protoc-gen-gogofaster tools/bin/protoc-gen-grpc-gateway
-	./dm/generate-dm.sh
-
-dm_generate_mock: tools/bin/mockgen
-	./dm/tests/generate-mock.sh
-
-dm_generate_openapi: tools/bin/oapi-codegen
-	@echo "generate_openapi"
-	cd dm && ../tools/bin/oapi-codegen --config=openapi/spec/server-gen-cfg.yaml openapi/spec/dm.yaml
-	cd dm && ../tools/bin/oapi-codegen --config=openapi/spec/types-gen-cfg.yaml openapi/spec/dm.yaml
-	cd dm && ../tools/bin/oapi-codegen --config=openapi/spec/client-gen-cfg.yaml openapi/spec/dm.yaml
-
-dm_unit_test: check_failpoint_ctl
-	mkdir -p $(DM_TEST_DIR)
-	$(FAILPOINT_ENABLE)
-	@export log_level=error; \
-	$(GOTEST) -timeout 5m -covermode=atomic -coverprofile="$(DM_TEST_DIR)/cov.unit_test.out" $(DM_PACKAGES) \
-	|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(FAILPOINT_DISABLE)
-
-dm_unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum tools/bin/gocov tools/bin/gocov-xml
-	mkdir -p $(DM_TEST_DIR)
-	$(FAILPOINT_ENABLE)
-	@export log_level=error; \
-	CGO_ENABLED=1 tools/bin/gotestsum --junitfile dm-junit-report.xml -- -v -timeout 5m -p $(P) --race \
-	-covermode=atomic -coverprofile="$(DM_TEST_DIR)/cov.unit_test.out" $(DM_PACKAGES) \
-	|| { $(FAILPOINT_DISABLE); exit 1; }
-	tools/bin/gocov convert "$(DM_TEST_DIR)/cov.unit_test.out" | tools/bin/gocov-xml > dm-coverage.xml
-	$(FAILPOINT_DISABLE)
-	@bash <(curl -s https://codecov.io/bash) -F dm -f $(DM_TEST_DIR)/cov.unit_test.out -t $(TICDC_CODECOV_TOKEN)
-
-dm_integration_test_build: check_failpoint_ctl
-	$(FAILPOINT_ENABLE)
-	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
-		-coverpkg=github.com/tikv/migration/cdc/dm/... \
-		-o bin/dm-worker.test github.com/tikv/migration/cdc/dm/cmd/dm-worker \
-		|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
-		-coverpkg=github.com/tikv/migration/cdc/dm/... \
-		-o bin/dm-master.test github.com/tikv/migration/cdc/dm/cmd/dm-master \
-		|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(GOTESTNORACE) -ldflags '$(LDFLAGS)' -c -cover -covermode=count \
-		-coverpkg=github.com/tikv/migration/cdc/dm/... \
-		-o bin/dmctl.test github.com/tikv/migration/cdc/dm/cmd/dm-ctl \
-		|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
-		-coverpkg=github.com/tikv/migration/cdc/dm/... \
-		-o bin/dm-syncer.test github.com/tikv/migration/cdc/dm/cmd/dm-syncer \
-		|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(FAILPOINT_DISABLE)
-	./dm/tests/prepare_tools.sh
-
-dm_integration_test_build_worker: check_failpoint_ctl
-	$(FAILPOINT_ENABLE)
-	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
-		-coverpkg=github.com/tikv/migration/cdc/dm/... \
-		-o bin/dm-worker.test github.com/tikv/migration/cdc/dm/cmd/dm-worker \
-		|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(FAILPOINT_DISABLE)
-	./dm/tests/prepare_tools.sh
-
-dm_integration_test_build_master: check_failpoint_ctl
-	$(FAILPOINT_ENABLE)
-	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
-		-coverpkg=github.com/tikv/migration/cdc/dm/... \
-		-o bin/dm-master.test github.com/tikv/migration/cdc/dm/cmd/dm-master \
-		|| { $(FAILPOINT_DISABLE); exit 1; }
-	$(FAILPOINT_DISABLE)
-	./dm/tests/prepare_tools.sh
-
 install_test_python_dep:
 	@echo "install python requirments for test"
 	pip install --user -q -r ./dm/tests/requirements.txt
-
-check_third_party_binary_for_dm:
-	@which bin/tidb-server
-	@which bin/sync_diff_inspector
-	@which mysql
-
-dm_integration_test: check_third_party_binary_for_dm install_test_python_dep
-	@which bin/dm-master.test
-	@which bin/dm-worker.test
-	@which bin/dm-syncer.test
-	cd dm && ln -sf ../bin .
-	cd dm && ./tests/run.sh $(CASE)
-
-dm_compatibility_test: check_third_party_binary_for_dm
-	@which bin/dm-master.test.current
-	@which bin/dm-worker.test.current
-	@which bin/dm-master.test.previous
-	@which bin/dm-worker.test.previous
-	cd dm && ln -sf ../bin .
-	cd dm && ./tests/compatibility_run.sh ${CASE}
-
-dm_coverage: tools/bin/gocovmerge tools/bin/goveralls
-	# unify cover mode in coverage files, more details refer to dm/tests/_utils/run_dm_ctl
-	find "$(DM_TEST_DIR)" -type f -name "cov.*.dmctl.*.out" -exec sed -i "s/mode: count/mode: atomic/g" {} \;
-	tools/bin/gocovmerge "$(DM_TEST_DIR)"/cov.* | grep -vE ".*.pb.go|.*.pb.gw.go|.*.__failpoint_binding__.go|.*debug-tools.*|.*portal.*|.*chaos.*" > "$(DM_TEST_DIR)/all_cov.out"
-	tools/bin/gocovmerge "$(DM_TEST_DIR)"/cov.unit_test*.out | grep -vE ".*.pb.go|.*.pb.gw.go|.*.__failpoint_binding__.go|.*debug-tools.*|.*portal.*|.*chaos.*" > $(DM_TEST_DIR)/unit_test.out
-	go tool cover -html "$(DM_TEST_DIR)/all_cov.out" -o "$(DM_TEST_DIR)/all_cov.html"
-	go tool cover -html "$(DM_TEST_DIR)/unit_test.out" -o "$(DM_TEST_DIR)/unit_test_cov.html"
-
 
 tools/bin/failpoint-ctl: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
