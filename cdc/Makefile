@@ -1,5 +1,5 @@
 ### Makefile for ticdc
-.PHONY: test check clean fmt cdc
+.PHONY: build test check clean fmt cdc
 
 PROJECT=migration/cdc
 P=3
