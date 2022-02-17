@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sorter/encoding"
 	"github.com/tikv/migration/cdc/cdc/sorter/leveldb/message"
@@ -28,7 +29,6 @@ import (
 	actormsg "github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
-	"github.com/stretchr/testify/require"
 )
 
 func makeCleanTask(uid uint32, tableID uint64) []actormsg.Message {

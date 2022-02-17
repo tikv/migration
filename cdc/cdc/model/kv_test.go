@@ -16,8 +16,8 @@ package model
 import (
 	"testing"
 
-	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 )
 
 func TestRegionFeedEvent(t *testing.T) {

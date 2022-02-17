@@ -24,12 +24,12 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/stretchr/testify/require"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/storage"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/tikv/migration/cdc/pkg/config"
 )
 
 func TestDB(t *testing.T) {

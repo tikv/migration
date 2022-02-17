@@ -19,9 +19,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSplitResolvedTxn(test *testing.T) {

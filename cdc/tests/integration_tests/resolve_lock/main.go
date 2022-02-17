@@ -35,10 +35,10 @@ import (
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/store/driver"
 	"github.com/pingcap/tidb/tablecodec"
-	"github.com/tikv/migration/cdc/tests/integration_tests/util"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/tikvrpc"
+	"github.com/tikv/migration/cdc/tests/integration_tests/util"
 	pd "github.com/tikv/pd/client"
 )
 

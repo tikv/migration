@@ -16,8 +16,8 @@ package rest
 import (
 	"testing"
 
-	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/security"
 )
 
 func TestCDCRESTClientCommonConfigs(t *testing.T) {

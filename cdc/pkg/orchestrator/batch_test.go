@@ -17,8 +17,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/tikv/migration/cdc/pkg/orchestrator/util"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/orchestrator/util"
 )
 
 func TestGetBatchChangeState(t *testing.T) {

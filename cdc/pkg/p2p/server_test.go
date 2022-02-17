@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/phayes/freeport"
-	"github.com/tikv/migration/cdc/proto/p2p"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/proto/p2p"
 	"google.golang.org/grpc"
 )
 

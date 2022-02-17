@@ -23,6 +23,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/spf13/cobra"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sink"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
@@ -37,8 +39,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	ticdcutil "github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/spf13/cobra"
-	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 )

@@ -17,8 +17,8 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/tikv/migration/cdc/proto/p2p"
 	"github.com/stretchr/testify/mock"
+	"github.com/tikv/migration/cdc/proto/p2p"
 	"google.golang.org/grpc"
 )
 

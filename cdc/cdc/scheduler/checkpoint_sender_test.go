@@ -18,10 +18,10 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/pkg/context"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/model"
+	"github.com/tikv/migration/cdc/pkg/context"
 	"go.uber.org/zap"
 )
 

@@ -17,8 +17,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/stretchr/testify/require"
+	cerror "github.com/tikv/migration/cdc/pkg/errors"
 )
 
 func TestChangefeedCommonInfoMarshalJSON(t *testing.T) {

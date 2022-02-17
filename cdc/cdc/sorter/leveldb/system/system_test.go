@@ -17,8 +17,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/config"
 )
 
 func TestSystemStartStop(t *testing.T) {

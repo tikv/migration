@@ -14,9 +14,9 @@
 package redo
 
 import (
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/applier"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
-	"github.com/spf13/cobra"
 )
 
 // applyRedoOptions defines flags for the `redo apply` command.

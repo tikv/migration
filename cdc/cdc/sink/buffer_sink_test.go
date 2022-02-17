@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/model"
 )
 
 func TestTableIsNotFlushed(t *testing.T) {

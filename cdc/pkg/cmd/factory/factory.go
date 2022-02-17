@@ -17,10 +17,10 @@ import (
 	"crypto/tls"
 
 	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/spf13/cobra"
 	pd "github.com/tikv/pd/client"
 	"google.golang.org/grpc"
 )

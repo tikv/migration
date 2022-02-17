@@ -22,8 +22,8 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	dmysql "github.com/go-sql-driver/mysql"
-	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
 func TestSinkParamsClone(t *testing.T) {
