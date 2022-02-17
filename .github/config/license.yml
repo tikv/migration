@@ -22,4 +22,5 @@ header:
     - README.md
     - .scalafmt.conf
     - org.apache.spark.sql.sources.DataSourceRegister
+    - .dockerignore
   comment: on-failure
