@@ -17,9 +17,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUnifiedSorterTryAddEntry(t *testing.T) {

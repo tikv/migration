@@ -17,8 +17,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tikv/migration/cdc/pkg/p2p"
 )
 
 // Asserts that SyncMessage implements Serializable, so that

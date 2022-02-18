@@ -17,13 +17,13 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/cdc"
 	"github.com/tikv/migration/cdc/cdc/model"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/spf13/cobra"
 	pd "github.com/tikv/pd/client"
 )
 

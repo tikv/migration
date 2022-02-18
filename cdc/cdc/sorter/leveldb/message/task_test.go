@@ -16,9 +16,9 @@ package message
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sorter/encoding"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPrint(t *testing.T) {

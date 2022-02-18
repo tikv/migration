@@ -23,10 +23,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/capture"
-	"github.com/tikv/migration/cdc/cdc/model"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/tikv/migration/cdc/cdc/capture"
+	"github.com/tikv/migration/cdc/cdc/model"
 	"go.uber.org/zap"
 
 	// use for OpenAPI online docs

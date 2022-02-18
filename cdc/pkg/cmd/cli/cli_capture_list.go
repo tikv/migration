@@ -17,12 +17,12 @@ import (
 	"context"
 
 	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/spf13/cobra"
 	"go.etcd.io/etcd/clientv3/concurrency"
 )
 

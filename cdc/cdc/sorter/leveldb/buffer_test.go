@@ -16,9 +16,9 @@ package leveldb
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sorter/leveldb/message"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOutputBufferMaybeShrink(t *testing.T) {

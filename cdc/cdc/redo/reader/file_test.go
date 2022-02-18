@@ -23,11 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/redo/common"
 	"github.com/tikv/migration/cdc/cdc/redo/writer"
 	"github.com/tikv/migration/cdc/pkg/leakutil"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 )
 

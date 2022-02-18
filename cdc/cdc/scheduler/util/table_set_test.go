@@ -16,8 +16,8 @@ package util
 import (
 	"testing"
 
-	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/model"
 )
 
 func TestTableSetBasics(t *testing.T) {

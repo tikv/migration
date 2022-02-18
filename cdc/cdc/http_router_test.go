@@ -19,8 +19,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tikv/migration/cdc/cdc/capture"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/capture"
 )
 
 func TestPProfPath(t *testing.T) {

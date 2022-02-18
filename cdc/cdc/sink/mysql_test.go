@@ -31,6 +31,7 @@ import (
 	"github.com/pingcap/tidb/infoschema"
 	timodel "github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/parser/mysql"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sink/common"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -38,7 +39,6 @@ import (
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/retry"
-	"github.com/stretchr/testify/require"
 )
 
 func newMySQLSink4Test(ctx context.Context, t *testing.T) *mysqlSink {

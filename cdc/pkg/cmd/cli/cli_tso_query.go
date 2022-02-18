@@ -14,10 +14,10 @@
 package cli
 
 import (
-	"github.com/tikv/migration/cdc/pkg/cmd/context"
-	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/spf13/cobra"
 	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/migration/cdc/pkg/cmd/context"
+	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	pd "github.com/tikv/pd/client"
 )
 

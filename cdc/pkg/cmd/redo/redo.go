@@ -14,9 +14,9 @@
 package redo
 
 import (
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/logutil"
-	"github.com/spf13/cobra"
 )
 
 // options defines flags for the `redo` command.

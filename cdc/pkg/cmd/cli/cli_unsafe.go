@@ -18,8 +18,8 @@ import (
 	"strings"
 
 	"github.com/pingcap/errors"
-	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/spf13/cobra"
+	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 )
 
 // unsafeCommonOptions defines common for the `cli unsafe` command.

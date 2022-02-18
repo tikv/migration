@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConsistentConfig(t *testing.T) {
