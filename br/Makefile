@@ -57,7 +57,7 @@ BR_PACKAGE_DIRECTORIES := $(BR_PACKAGES) | sed 's|github.com/tikv/migration/br/|
 BR_BIN            := bin/br
 TEST_DIR          := /tmp/backup_restore_test
 
-TEST_COVERAGE_DIR := "test_coverage"
+TEST_COVERAGE_DIR := "."
 
 .PHONY: build_br clean unit_test check check-static
 
