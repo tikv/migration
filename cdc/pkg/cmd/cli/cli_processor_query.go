@@ -18,6 +18,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/cdc/model"
 	apiv1client "github.com/tikv/migration/cdc/pkg/api/v1"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
@@ -26,7 +27,6 @@ import (
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 

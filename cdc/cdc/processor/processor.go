@@ -25,6 +25,8 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
@@ -42,8 +44,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/retry"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tikv/client-go/v2/oracle"
 	"go.uber.org/zap"
 )
 

@@ -21,8 +21,8 @@ import (
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
-	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"github.com/tikv/client-go/v2/tikv"
+	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"golang.org/x/sync/errgroup"
 )
 

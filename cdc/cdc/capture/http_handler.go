@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/br/pkg/httputil"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/owner"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -28,7 +29,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/logutil"
 	"github.com/tikv/migration/cdc/pkg/retry"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/tikv/client-go/v2/oracle"
 	"go.uber.org/zap"
 )
 

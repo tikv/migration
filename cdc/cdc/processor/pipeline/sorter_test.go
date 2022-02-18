@@ -18,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/redo"
 	"github.com/tikv/migration/cdc/cdc/sorter"
@@ -26,7 +27,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUnifiedSorterFileLockConflict(t *testing.T) {

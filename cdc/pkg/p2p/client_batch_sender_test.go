@@ -19,9 +19,9 @@ import (
 	"math"
 	"testing"
 
-	proto "github.com/tikv/migration/cdc/proto/p2p"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	proto "github.com/tikv/migration/cdc/proto/p2p"
 )
 
 func TestClientBatchSenderMaxCount(t *testing.T) {

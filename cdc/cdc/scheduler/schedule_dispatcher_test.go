@@ -18,11 +18,11 @@ import (
 	"testing"
 
 	"github.com/pingcap/log"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/scheduler/util"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 

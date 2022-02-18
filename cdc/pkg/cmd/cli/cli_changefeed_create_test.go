@@ -20,9 +20,9 @@ import (
 	"testing"
 
 	"github.com/pingcap/check"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/spf13/cobra"
 )
 
 func TestChangefeedSuite(t *testing.T) { check.TestingT(t) }

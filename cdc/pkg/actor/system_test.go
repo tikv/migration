@@ -23,10 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tikv/migration/cdc/pkg/actor/message"
-	"github.com/tikv/migration/cdc/pkg/leakutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/actor/message"
+	"github.com/tikv/migration/cdc/pkg/leakutil"
 )
 
 func TestMain(m *testing.M) {

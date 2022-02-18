@@ -20,11 +20,11 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 )

@@ -17,9 +17,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/stretchr/testify/require"
 )
 
 func TestValidateSink(t *testing.T) {

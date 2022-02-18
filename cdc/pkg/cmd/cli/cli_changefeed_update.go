@@ -21,14 +21,14 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/r3labs/diff"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/tikv/migration/cdc/cdc/model"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/r3labs/diff"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
 

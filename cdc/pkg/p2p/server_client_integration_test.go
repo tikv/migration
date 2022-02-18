@@ -25,10 +25,10 @@ import (
 	"github.com/phayes/freeport"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
+	"github.com/stretchr/testify/require"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/proto/p2p"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )

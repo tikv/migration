@@ -21,11 +21,11 @@ import (
 
 	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
 	"github.com/pingcap/tidb/parser/model"
+	"github.com/stretchr/testify/require"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/stretchr/testify/require"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 func TestFillV1(t *testing.T) {

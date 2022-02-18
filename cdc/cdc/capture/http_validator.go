@@ -20,6 +20,8 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	tidbkv "github.com/pingcap/tidb/kv"
+	"github.com/r3labs/diff"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
@@ -30,8 +32,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/r3labs/diff"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 // verifyCreateChangefeedConfig verify ChangefeedConfig for create a changefeed

@@ -18,9 +18,9 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/actor"
-	"github.com/stretchr/testify/require"
 )
 
 func TestStartAndStopSystem(t *testing.T) {

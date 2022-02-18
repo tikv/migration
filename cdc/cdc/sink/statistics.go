@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tikv/migration/cdc/pkg/util"
 	"go.uber.org/zap"
 )
 

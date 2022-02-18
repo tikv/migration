@@ -26,12 +26,12 @@ import (
 	"github.com/pingcap/tidb/meta"
 	"github.com/pingcap/tidb/store"
 	"github.com/pingcap/tidb/store/driver"
+	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/flags"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/tikv/client-go/v2/oracle"
-	"github.com/tikv/client-go/v2/tikv"
 	"go.uber.org/zap"
 )
 

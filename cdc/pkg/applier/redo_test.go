@@ -21,11 +21,11 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/phayes/freeport"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/redo"
 	"github.com/tikv/migration/cdc/cdc/redo/reader"
 	"github.com/tikv/migration/cdc/cdc/sink"
-	"github.com/stretchr/testify/require"
 )
 
 // MockReader is a mock redo log reader that implements LogReader interface

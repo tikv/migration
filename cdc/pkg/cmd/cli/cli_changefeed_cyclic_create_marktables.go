@@ -14,13 +14,13 @@
 package cli
 
 import (
+	"github.com/spf13/cobra"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/spf13/cobra"
-	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
 )
 

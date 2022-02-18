@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/security"
 
 	"github.com/pingcap/tidb-tools/pkg/utils"
 )

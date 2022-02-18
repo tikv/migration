@@ -27,9 +27,9 @@ import (
 	"github.com/pingcap/tidb/session"
 	"github.com/pingcap/tidb/store/mockstore"
 	"github.com/pingcap/tidb/util/testkit"
+	"github.com/tikv/client-go/v2/testutils"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/regionspan"
-	"github.com/tikv/client-go/v2/testutils"
 	"go.uber.org/zap"
 )
 

@@ -20,10 +20,10 @@ import (
 
 	"github.com/chzyer/readline"
 	"github.com/mattn/go-shellwords"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/logutil"
-	"github.com/spf13/cobra"
 )
 
 // options defines flags for the `cli` command.

@@ -16,10 +16,10 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/tikv/migration/cdc/cdc/model"
-	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/model"
+	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 )
 
 // read only

@@ -17,9 +17,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/context"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMoveTableManagerBasics(t *testing.T) {

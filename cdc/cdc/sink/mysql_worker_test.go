@@ -22,10 +22,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pingcap/errors"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/notify"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
 
