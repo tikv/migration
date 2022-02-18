@@ -87,12 +87,13 @@ unit_test:
 	$(GOTEST) $(RACE_FLAG) -ldflags '$(LDFLAGS)' -tags leak $(ARGS) -coverprofile=coverage.txt || ( make failpoint-disable && exit 1 )
 	@make failpoint-disable
 unit_test_in_verify_ci: export ARGS=$$($(BR_PACKAGES))
-unit_test_in_verify_ci: tools/bin/gotestsum
+unit_test_in_verify_ci: tools/bin/gotestsum tools/bin/gocov tools/bin/gocov-xml
 	@make failpoint-enable
 	@export TZ='Asia/Shanghai';
 	@mkdir -p $(TEST_COVERAGE_DIR)
 	CGO_ENABLED=1 tools/bin/gotestsum --junitfile "$(TEST_COVERAGE_DIR)/br-junit-report.xml" -- $(RACE_FLAG) -ldflags '$(LDFLAGS)' \
-	-tags leak $(ARGS) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.out" || ( make failpoint-disable && exit 1 )
+	-tags leak $(ARGS) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" || ( make failpoint-disable && exit 1 )
+	tools/bin/gocov convert "$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" | tools/bin/gocov-xml > "$(TEST_COVERAGE_DIR)/br_cov.unit_test.out"
 	@make failpoint-disable
 
 check: check-static
@@ -105,6 +106,12 @@ tools/bin/golangci-lint:
 
 tools/bin/gotestsum: tools/check/go.mod
 	cd tools/check && $(GO) build -o ../bin/gotestsum gotest.tools/gotestsum
+
+tools/bin/gocov: tools/check/go.mod
+	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov  github.com/axw/gocov/gocov
+
+tools/bin/gocov-xml: tools/check/go.mod
+	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
 
 clean:
 	go clean -i ./...

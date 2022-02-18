@@ -1,8 +1,10 @@
 module github.com/pingcap/tidb/_tools
 
 require (
+	github.com/AlekSi/gocov-xml v1.0.0 // indirect
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
+	github.com/axw/gocov v1.0.0 // indirect
 	github.com/chzchzchz/goword v0.0.0-20170907005317-a9744cb52b03
 	github.com/dnephin/govet v0.0.0-20171012192244-4a96d43e39d3
 	github.com/kisielk/errcheck v1.2.0
