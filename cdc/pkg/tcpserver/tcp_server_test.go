@@ -27,9 +27,9 @@ import (
 	grpcTestingProto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
 	"github.com/integralist/go-findroot/find"
 	"github.com/phayes/freeport"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/httputil"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
 
@@ -182,7 +182,7 @@ func makeCredential4Testing(t *testing.T) *security.Credential {
 	stat, err := find.Repo()
 	require.NoError(t, err)
 
-	tlsPath := fmt.Sprintf("%s/tests/integration_tests/_certificates/", stat.Path)
+	tlsPath := fmt.Sprintf("%s/cdc/tests/integration_tests/_certificates/", stat.Path)
 	return &security.Credential{
 		CAPath:        path.Join(tlsPath, "ca.pem"),
 		CertPath:      path.Join(tlsPath, "server.pem"),
