@@ -14,8 +14,8 @@
 package cli
 
 import (
-	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/spf13/cobra"
+	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 )
 
 // newCmdCyclicChangefeed creates the `cli changefeed cyclic` command.

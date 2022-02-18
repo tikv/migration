@@ -17,9 +17,9 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFilterAndReduceTxns(t *testing.T) {

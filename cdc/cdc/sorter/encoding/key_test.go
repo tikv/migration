@@ -17,8 +17,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/model"
 )
 
 func TestEncodeKey(t *testing.T) {

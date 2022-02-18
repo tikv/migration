@@ -19,12 +19,12 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/processor/pipeline/system"
 	"github.com/tikv/migration/cdc/pkg/actor"
 	"github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
-	"github.com/stretchr/testify/require"
 )
 
 func TestContext(t *testing.T) {

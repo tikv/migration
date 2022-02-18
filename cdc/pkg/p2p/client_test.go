@@ -22,10 +22,10 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/tikv/migration/cdc/proto/p2p"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/security"
+	"github.com/tikv/migration/cdc/proto/p2p"
 	"google.golang.org/grpc"
 )
 

@@ -22,9 +22,9 @@ import (
 	"time"
 
 	ticonfig "github.com/pingcap/tidb/config"
-	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/config"
 )
 
 func TestPatchTiDBConf(t *testing.T) {

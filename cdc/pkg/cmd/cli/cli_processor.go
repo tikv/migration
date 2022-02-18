@@ -14,10 +14,10 @@
 package cli
 
 import (
+	"github.com/spf13/cobra"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
-	"github.com/spf13/cobra"
 )
 
 // processorOptions defines flags for the `cli processor` command.

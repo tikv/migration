@@ -20,8 +20,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/tikv/migration/cdc/pkg/leakutil"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/leakutil"
 )
 
 func TestMain(m *testing.M) {

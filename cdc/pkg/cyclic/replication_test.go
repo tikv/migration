@@ -16,10 +16,10 @@ package cyclic
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCyclicConfig(t *testing.T) {

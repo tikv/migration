@@ -20,8 +20,8 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/pkg/retry"
 	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/migration/cdc/pkg/retry"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 )

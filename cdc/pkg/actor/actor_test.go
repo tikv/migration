@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/actor/message"
-	"github.com/stretchr/testify/require"
 )
 
 // Make sure mailbox implementation follows Mailbox definition.

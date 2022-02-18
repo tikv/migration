@@ -23,6 +23,8 @@ import (
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
 	ticonfig "github.com/pingcap/tidb/config"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/tikv/migration/cdc/cdc"
 	"github.com/tikv/migration/cdc/cdc/sorter/unified"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
@@ -33,8 +35,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/security"
 	ticdcutil "github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
 
