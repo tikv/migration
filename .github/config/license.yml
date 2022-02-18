@@ -23,4 +23,6 @@ header:
     - .scalafmt.conf
     - org.apache.spark.sql.sources.DataSourceRegister
     - .dockerignore
+    - 'cdc/'
+    - 'br/'
   comment: on-failure
