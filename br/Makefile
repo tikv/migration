@@ -103,6 +103,9 @@ check-static: tools/bin/golangci-lint
 tools/bin/golangci-lint:
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b ./tools/bin v1.41.1
 
+tools/bin/gotestsum: tools/check/go.mod
+	cd tools/check && $(GO) build -o ../bin/gotestsum gotest.tools/gotestsum
+
 clean:
 	go clean -i ./...
 	rm -rf *.out
