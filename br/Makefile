@@ -59,7 +59,7 @@ TEST_DIR          := /tmp/backup_restore_test
 
 TEST_COVERAGE_DIR := "test_coverage"
 
-.PHONY: build_br clean unit_test check-static
+.PHONY: build_br clean unit_test check check-static
 
 default: build_br
 
@@ -94,6 +94,8 @@ unit_test_in_verify_ci: tools/bin/gotestsum
 	CGO_ENABLED=1 tools/bin/gotestsum --junitfile "$(TEST_COVERAGE_DIR)/br-junit-report.xml" -- $(RACE_FLAG) -ldflags '$(LDFLAGS)' \
 	-tags leak $(ARGS) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.out" || ( make failpoint-disable && exit 1 )
 	@make failpoint-disable
+
+check: check-static
 
 check-static: tools/bin/golangci-lint
 	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(BR_PACKAGE_DIRECTORIES)) --config ../.golangci.yml

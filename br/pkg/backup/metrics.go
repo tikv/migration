@@ -9,7 +9,7 @@ import (
 var (
 	backupRegionCounters = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "br",
+			Namespace: "tikv_br",
 			Subsystem: "raw",
 			Name:      "backup_region",
 			Help:      "Backup region statistic.",
@@ -17,7 +17,7 @@ var (
 
 	backupRegionHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "br",
+			Namespace: "tikv_br",
 			Subsystem: "raw",
 			Name:      "backup_region_seconds",
 			Help:      "Backup region latency distributions.",
