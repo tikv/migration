@@ -19,11 +19,11 @@ import (
 	"github.com/pingcap/check"
 	timodel "github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/parser/mysql"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 var _ = check.Suite(&schemaSuite{})

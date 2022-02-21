@@ -16,11 +16,11 @@ package cmd
 import (
 	"os"
 
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/cmd/cli"
 	"github.com/tikv/migration/cdc/pkg/cmd/redo"
 	"github.com/tikv/migration/cdc/pkg/cmd/server"
 	"github.com/tikv/migration/cdc/pkg/cmd/version"
-	"github.com/spf13/cobra"
 )
 
 // NewCmd creates the root command.

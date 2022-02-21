@@ -17,9 +17,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	sorter "github.com/tikv/migration/cdc/cdc/sorter/leveldb/message"
 	"github.com/tikv/migration/cdc/pkg/leakutil"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {

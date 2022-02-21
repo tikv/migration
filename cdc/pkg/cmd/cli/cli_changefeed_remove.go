@@ -14,12 +14,12 @@
 package cli
 
 import (
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/spf13/cobra"
 )
 
 // removeChangefeedOptions defines flags for the `cli changefeed remove` command.

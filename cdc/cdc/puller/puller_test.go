@@ -23,6 +23,7 @@ import (
 	"github.com/pingcap/errors"
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/store/mockstore"
+	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
@@ -31,7 +32,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/pkg/txnutil"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
 )
 

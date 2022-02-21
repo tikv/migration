@@ -16,9 +16,9 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/scheduler/util"
-	"github.com/stretchr/testify/require"
 )
 
 // Asserts that BaseSchedulerDispatcher implements InfoProvider interface.

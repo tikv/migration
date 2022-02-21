@@ -18,8 +18,8 @@ import (
 	"path/filepath"
 
 	"github.com/pingcap/check"
-	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"github.com/spf13/cobra"
+	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
 type changefeedHelperSuite struct{}

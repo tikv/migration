@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tikv/migration/cdc/pkg/httputil"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/httputil"
 )
 
 func TestRequestParams(t *testing.T) {

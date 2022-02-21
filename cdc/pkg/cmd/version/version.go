@@ -14,8 +14,8 @@
 package version
 
 import (
-	"github.com/tikv/migration/cdc/pkg/version"
 	"github.com/spf13/cobra"
+	"github.com/tikv/migration/cdc/pkg/version"
 )
 
 // NewCmdVersion creates the `version` command.

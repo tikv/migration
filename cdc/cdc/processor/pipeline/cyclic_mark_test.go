@@ -21,12 +21,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pingcap/tidb/tablecodec"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCyclicMarkNode(t *testing.T) {

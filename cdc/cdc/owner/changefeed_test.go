@@ -24,6 +24,7 @@ import (
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
 	timodel "github.com/pingcap/tidb/parser/model"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -33,7 +34,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 type mockDDLPuller struct {

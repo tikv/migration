@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc"
 	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/kv"
@@ -31,8 +33,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/httputil"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/spf13/cobra"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 const (

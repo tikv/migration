@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/errors"
 )
 
 func TestNotifyHub(t *testing.T) {

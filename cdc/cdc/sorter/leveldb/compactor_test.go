@@ -19,11 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/actor"
 	actormsg "github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
-	"github.com/stretchr/testify/require"
 )
 
 type mockCompactDB struct {

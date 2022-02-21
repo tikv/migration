@@ -15,10 +15,10 @@ package cli
 
 import (
 	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/spf13/cobra"
 )
 
 // unsafeShowMetadataOptions defines flags for the `cli unsafe show-metadata` command.

@@ -21,14 +21,14 @@ import (
 	"strconv"
 
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/sorter"
-	"github.com/tikv/migration/cdc/pkg/config"
-	cerrors "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/tikv/migration/cdc/pkg/retry"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/tikv/migration/cdc/cdc/sorter"
+	"github.com/tikv/migration/cdc/pkg/config"
+	cerrors "github.com/tikv/migration/cdc/pkg/errors"
+	"github.com/tikv/migration/cdc/pkg/retry"
 	"go.uber.org/zap"
 )
 

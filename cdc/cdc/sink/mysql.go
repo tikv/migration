@@ -29,6 +29,7 @@ import (
 	"github.com/pingcap/log"
 	timodel "github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/parser/mysql"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sink/common"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -40,7 +41,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/notify"
 	"github.com/tikv/migration/cdc/pkg/quotes"
 	"github.com/tikv/migration/cdc/pkg/retry"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 

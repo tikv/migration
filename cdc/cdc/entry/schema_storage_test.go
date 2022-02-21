@@ -32,10 +32,10 @@ import (
 	"github.com/pingcap/tidb/store/mockstore"
 	"github.com/pingcap/tidb/testkit"
 	"github.com/pingcap/tidb/types"
-	"github.com/tikv/migration/cdc/cdc/kv"
-	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/migration/cdc/cdc/kv"
+	"github.com/tikv/migration/cdc/cdc/model"
 )
 
 func TestSchema(t *testing.T) {

@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/pingcap/failpoint"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/proto/p2p"
-	"github.com/stretchr/testify/require"
 	"github.com/tikv/pd/pkg/tempurl"
 	"google.golang.org/grpc"
 )

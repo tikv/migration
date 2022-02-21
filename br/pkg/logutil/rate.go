@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/br/pkg/lightning/metric"
+	"github.com/pingcap/tidb/br/pkg/lightning/metric"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -15,7 +15,7 @@ import (
 // MetricTableCreatedCounter counts how many tables created.
 // TODO: when br decided to introduce Prometheus, move this to its metric package.
 var MetricTableCreatedCounter = prometheus.NewCounter(prometheus.CounterOpts{
-	Namespace: "BR",
+	Namespace: "TiKV_BR",
 	Name:      "table_created",
 	Help:      "The count of tables have been created.",
 })

@@ -14,6 +14,7 @@
 package cdc
 
 import (
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/owner"
@@ -31,7 +32,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/p2p"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var registry = prometheus.NewRegistry()

@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/security"
-	"github.com/tikv/client-go/v2/oracle"
 	"go.uber.org/zap"
 )
 

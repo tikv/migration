@@ -28,10 +28,10 @@ import (
 	"github.com/pingcap/tidb/store/mockstore"
 	"github.com/pingcap/tidb/testkit"
 	"github.com/pingcap/tidb/types"
-	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/migration/cdc/cdc/model"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"go.uber.org/zap"
 )
 
