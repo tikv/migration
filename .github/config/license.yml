@@ -18,8 +18,14 @@ header:
     copyright-owner: TiKV Project Authors
   paths-ignore:
     - .gitignore
+    - '.github/'
     - LICENSE
     - README.md
     - .scalafmt.conf
     - org.apache.spark.sql.sources.DataSourceRegister
+    - .dockerignore
+    - .codecov.yml
+    - .golangci.yml
+    - 'cdc/'
+    - 'br/'
   comment: on-failure
