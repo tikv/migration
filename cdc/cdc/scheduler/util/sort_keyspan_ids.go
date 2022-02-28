@@ -19,9 +19,9 @@ import (
 	"github.com/tikv/migration/cdc/cdc/model"
 )
 
-// SortTableIDs sorts a slice of table IDs in ascending order.
-func SortTableIDs(tableIDs []model.TableID) {
-	sort.Slice(tableIDs, func(i, j int) bool {
-		return tableIDs[i] < tableIDs[j]
+// SortKeySpanIDs sorts a slice of keyspan IDs in ascending order.
+func SortKeySpanIDs(keyspanIDs []model.KeySpanID) {
+	sort.Slice(keyspanIDs, func(i, j int) bool {
+		return keyspanIDs[i] < keyspanIDs[j]
 	})
 }

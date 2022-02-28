@@ -26,40 +26,41 @@ import (
 // will be automatically rescheduled, during which the target captures
 // will be chosen so that the workload is the most balanced.
 //
-// The FindTarget method is also used when we need to schedule any table,
+// The FindTarget method is also used when we need to schedule any keyspan,
 // not only when we need to rebalance.
+// TODO: Modify
 type balancer interface {
-	// FindVictims returns a set of possible victim tables.
-	// Removing these tables will make the workload more balanced.
+	// FindVictims returns a set of possible victim keyspans.
+	// Removing these keyspans will make the workload more balanced.
 	FindVictims(
-		tables *util.TableSet,
+		keyspans *util.KeySpanSet,
 		captures map[model.CaptureID]*model.CaptureInfo,
-	) (tablesToRemove []*util.TableRecord)
+	) (keyspansToRemove []*util.KeySpanRecord)
 
-	// FindTarget returns a target capture to add a table to.
+	// FindTarget returns a target capture to add a keyspan to.
 	FindTarget(
-		tables *util.TableSet,
+		keyspans *util.KeySpanSet,
 		captures map[model.CaptureID]*model.CaptureInfo,
 	) (minLoadCapture model.CaptureID, ok bool)
 }
 
-// tableNumberBalancer implements a balance strategy based on the
-// current number of tables replicated by each capture.
+// keyspanNumberBalancer implements a balance strategy based on the
+// current number of keyspans replicated by each capture.
 // TODO: Implement finer-grained balance strategy based on the actual
-// workload of each table.
-type tableNumberBalancer struct {
+// workload of each keyspan.
+type keyspanNumberBalancer struct {
 	logger *zap.Logger
 }
 
-func newTableNumberRebalancer(logger *zap.Logger) balancer {
-	return &tableNumberBalancer{
+func newKeySpanNumberRebalancer(logger *zap.Logger) balancer {
+	return &keyspanNumberBalancer{
 		logger: logger,
 	}
 }
 
-// FindTarget returns the capture with the smallest workload (in table count).
-func (r *tableNumberBalancer) FindTarget(
-	tables *util.TableSet,
+// FindTarget returns the capture with the smallest workload (in keyspan count).
+func (r *keyspanNumberBalancer) FindTarget(
+	keyspans *util.KeySpanSet,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (minLoadCapture model.CaptureID, ok bool) {
 	if len(captures) == 0 {
@@ -71,9 +72,9 @@ func (r *tableNumberBalancer) FindTarget(
 		captureWorkload[captureID] = 0
 	}
 
-	for captureID, tables := range tables.GetAllTablesGroupedByCaptures() {
-		// We use the number of tables as workload
-		captureWorkload[captureID] = len(tables)
+	for captureID, keyspans := range keyspans.GetAllKeySpansGroupedByCaptures() {
+		// We use the number of keyspans as workload
+		captureWorkload[captureID] = len(keyspans)
 	}
 
 	candidate := ""
@@ -95,62 +96,62 @@ func (r *tableNumberBalancer) FindTarget(
 
 // FindVictims returns some victims to remove.
 // Read the comment in the function body on the details of the victim selection.
-func (r *tableNumberBalancer) FindVictims(
-	tables *util.TableSet,
+func (r *keyspanNumberBalancer) FindVictims(
+	keyspans *util.KeySpanSet,
 	captures map[model.CaptureID]*model.CaptureInfo,
-) []*util.TableRecord {
-	// Algorithm overview: We try to remove some tables as the victims so that
-	// no captures are assigned more tables than the average workload measured in table number,
+) []*util.KeySpanRecord {
+	// Algorithm overview: We try to remove some keyspans as the victims so that
+	// no captures are assigned more keyspans than the average workload measured in keyspan number,
 	// modulo the necessary margin due to the fraction part of the average.
 	//
 	// In formula, we try to maintain the invariant:
 	//
-	// num(tables assigned to any capture) < num(tables) / num(captures) + 1
+	// num(keyspans assigned to any capture) < num(keyspans) / num(captures) + 1
 
-	totalTableNum := len(tables.GetAllTables())
+	totalKeySpanNum := len(keyspans.GetAllKeySpans())
 	captureNum := len(captures)
 
 	if captureNum == 0 {
 		return nil
 	}
 
-	upperLimitPerCapture := int(math.Ceil(float64(totalTableNum) / float64(captureNum)))
+	upperLimitPerCapture := int(math.Ceil(float64(totalKeySpanNum) / float64(captureNum)))
 
 	r.logger.Info("Start rebalancing",
-		zap.Int("table-num", totalTableNum),
+		zap.Int("keyspan-num", totalKeySpanNum),
 		zap.Int("capture-num", captureNum),
 		zap.Int("target-limit", upperLimitPerCapture))
 
-	var victims []*util.TableRecord
-	for _, tables := range tables.GetAllTablesGroupedByCaptures() {
-		var tableList []model.TableID
-		for tableID := range tables {
-			tableList = append(tableList, tableID)
+	var victims []*util.KeySpanRecord
+	for _, keyspans := range keyspans.GetAllKeySpansGroupedByCaptures() {
+		var keyspanList []model.KeySpanID
+		for keyspanID := range keyspans {
+			keyspanList = append(keyspanList, keyspanID)
 		}
-		// We sort the tableIDs here so that the result is deterministic,
+		// We sort the keyspanIDs here so that the result is deterministic,
 		// which would aid testing and debugging.
-		util.SortTableIDs(tableList)
+		util.SortKeySpanIDs(keyspanList)
 
-		tableNum2Remove := len(tables) - upperLimitPerCapture
-		if tableNum2Remove <= 0 {
+		keyspanNum2Remove := len(keyspans) - upperLimitPerCapture
+		if keyspanNum2Remove <= 0 {
 			continue
 		}
 
-		// here we pick `tableNum2Remove` tables to delete,
-		for _, tableID := range tableList {
-			if tableNum2Remove <= 0 {
+		// here we pick `keyspanNum2Remove` keyspans to delete,
+		for _, keyspanID := range keyspanList {
+			if keyspanNum2Remove <= 0 {
 				break
 			}
 
-			record := tables[tableID]
+			record := keyspans[keyspanID]
 			if record == nil {
 				panic("unreachable")
 			}
 
-			r.logger.Info("Rebalance: find victim table",
-				zap.Any("table-record", record))
+			r.logger.Info("Rebalance: find victim keyspan",
+				zap.Any("keyspan-record", record))
 			victims = append(victims, record)
-			tableNum2Remove--
+			keyspanNum2Remove--
 		}
 	}
 	return victims

@@ -33,28 +33,28 @@ func (s *BaseScheduleDispatcher) GetTaskStatuses() (map[model.CaptureID]*model.T
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tablesPerCapture := s.tables.GetAllTablesGroupedByCaptures()
-	ret := make(map[model.CaptureID]*model.TaskStatus, len(tablesPerCapture))
-	for captureID, tables := range tablesPerCapture {
+	keyspansPerCapture := s.keyspans.GetAllKeySpansGroupedByCaptures()
+	ret := make(map[model.CaptureID]*model.TaskStatus, len(keyspansPerCapture))
+	for captureID, keyspans := range keyspansPerCapture {
 		ret[captureID] = &model.TaskStatus{
-			Tables:    make(map[model.TableID]*model.TableReplicaInfo),
-			Operation: make(map[model.TableID]*model.TableOperation),
+			KeySpans:  make(map[model.KeySpanID]*model.KeySpanReplicaInfo),
+			Operation: make(map[model.KeySpanID]*model.KeySpanOperation),
 		}
-		for tableID, record := range tables {
-			ret[captureID].Tables[tableID] = &model.TableReplicaInfo{
+		for keyspanID, record := range keyspans {
+			ret[captureID].KeySpans[keyspanID] = &model.KeySpanReplicaInfo{
 				StartTs: 0, // We no longer maintain this information
 			}
 			switch record.Status {
-			case util.RunningTable:
+			case util.RunningKeySpan:
 				continue
-			case util.AddingTable:
-				ret[captureID].Operation[tableID] = &model.TableOperation{
+			case util.AddingKeySpan:
+				ret[captureID].Operation[keyspanID] = &model.KeySpanOperation{
 					Delete:     false,
 					Status:     model.OperDispatched,
 					BoundaryTs: 0, // We no longer maintain this information
 				}
-			case util.RemovingTable:
-				ret[captureID].Operation[tableID] = &model.TableOperation{
+			case util.RemovingKeySpan:
+				ret[captureID].Operation[keyspanID] = &model.KeySpanOperation{
 					Delete:     true,
 					Status:     model.OperDispatched,
 					BoundaryTs: 0, // We no longer maintain this information

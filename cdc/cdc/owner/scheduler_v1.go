@@ -30,56 +30,56 @@ import (
 type schedulerJobType string
 
 const (
-	schedulerJobTypeAddTable    schedulerJobType = "ADD"
-	schedulerJobTypeRemoveTable schedulerJobType = "REMOVE"
+	schedulerJobTypeAddKeySpan    schedulerJobType = "ADD"
+	schedulerJobTypeRemoveKeySpan schedulerJobType = "REMOVE"
 )
 
 type schedulerJob struct {
-	Tp      schedulerJobType
-	TableID model.TableID
+	Tp        schedulerJobType
+	KeySpanID model.KeySpanID
 	// if the operation is a delete operation, boundaryTs is checkpoint ts
 	// if the operation is an add operation, boundaryTs is start ts
 	BoundaryTs    uint64
 	TargetCapture model.CaptureID
 }
 
-type moveTableJob struct {
-	tableID model.TableID
-	target  model.CaptureID
+type moveKeySpanJob struct {
+	keyspanID model.KeySpanID
+	target    model.CaptureID
 }
 
 type oldScheduler struct {
-	state         *orchestrator.ChangefeedReactorState
-	currentTables []model.TableID
-	captures      map[model.CaptureID]*model.CaptureInfo
+	state           *orchestrator.ChangefeedReactorState
+	currentKeySpans []model.KeySpanID
+	captures        map[model.CaptureID]*model.CaptureInfo
 
-	moveTableTargets      map[model.TableID]model.CaptureID
-	moveTableJobQueue     []*moveTableJob
+	moveKeySpanTargets    map[model.KeySpanID]model.CaptureID
+	moveKeySpanJobQueue   []*moveKeySpanJob
 	needRebalanceNextTick bool
 	lastTickCaptureCount  int
 }
 
 func newSchedulerV1() scheduler {
 	return &schedulerV1CompatWrapper{&oldScheduler{
-		moveTableTargets: make(map[model.TableID]model.CaptureID),
+		moveKeySpanTargets: make(map[model.KeySpanID]model.CaptureID),
 	}}
 }
 
-// Tick is the main function of scheduler. It dispatches tables to captures and handles move-table and rebalance events.
+// Tick is the main function of scheduler. It dispatches keyspans to captures and handles move-keyspan and rebalance events.
 // Tick returns a bool representing whether the changefeed's state can be updated in this tick.
-// The state can be updated only if all the tables which should be listened to have been dispatched to captures and no operations have been sent to captures in this tick.
+// The state can be updated only if all the keyspans which should be listened to have been dispatched to captures and no operations have been sent to captures in this tick.
 func (s *oldScheduler) Tick(
 	state *orchestrator.ChangefeedReactorState,
-	currentTables []model.TableID,
+	currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (shouldUpdateState bool, err error) {
 
 	s.state = state
-	s.currentTables = currentTables
+	s.currentKeySpans = currentKeySpans
 	s.captures = captures
 
 	s.cleanUpFinishedOperations()
-	pendingJob, err := s.syncTablesWithCurrentTables()
+	pendingJob, err := s.syncKeySpansWithCurrentKeySpans()
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -89,60 +89,60 @@ func (s *oldScheduler) Tick(
 	}
 	s.handleJobs(pendingJob)
 
-	// only if the pending job list is empty and no table is being rebalanced or moved,
+	// only if the pending job list is empty and no keyspan is being rebalanced or moved,
 	// can the global resolved ts and checkpoint ts be updated
 	shouldUpdateState = len(pendingJob) == 0
 	shouldUpdateState = s.rebalance() && shouldUpdateState
-	shouldUpdateStateInMoveTable, err := s.handleMoveTableJob()
+	shouldUpdateStateInMoveKeySpan, err := s.handleMoveKeySpanJob()
 	if err != nil {
 		return false, errors.Trace(err)
 	}
-	shouldUpdateState = shouldUpdateStateInMoveTable && shouldUpdateState
+	shouldUpdateState = shouldUpdateStateInMoveKeySpan && shouldUpdateState
 	s.lastTickCaptureCount = len(captures)
 	return shouldUpdateState, nil
 }
 
-func (s *oldScheduler) MoveTable(tableID model.TableID, target model.CaptureID) {
-	s.moveTableJobQueue = append(s.moveTableJobQueue, &moveTableJob{
-		tableID: tableID,
-		target:  target,
+func (s *oldScheduler) MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID) {
+	s.moveKeySpanJobQueue = append(s.moveKeySpanJobQueue, &moveKeySpanJob{
+		keyspanID: keyspanID,
+		target:    target,
 	})
 }
 
-// handleMoveTableJob handles the move table job add be MoveTable function
-func (s *oldScheduler) handleMoveTableJob() (shouldUpdateState bool, err error) {
+// handleMoveKeySpanJob handles the move keyspan job add be MoveKeySpan function
+func (s *oldScheduler) handleMoveKeySpanJob() (shouldUpdateState bool, err error) {
 	shouldUpdateState = true
-	if len(s.moveTableJobQueue) == 0 {
+	if len(s.moveKeySpanJobQueue) == 0 {
 		return
 	}
-	table2CaptureIndex, err := s.table2CaptureIndex()
+	keyspan2CaptureIndex, err := s.keyspan2CaptureIndex()
 	if err != nil {
 		return false, errors.Trace(err)
 	}
-	for _, job := range s.moveTableJobQueue {
-		source, exist := table2CaptureIndex[job.tableID]
+	for _, job := range s.moveKeySpanJobQueue {
+		source, exist := keyspan2CaptureIndex[job.keyspanID]
 		if !exist {
 			return
 		}
-		s.moveTableTargets[job.tableID] = job.target
+		s.moveKeySpanTargets[job.keyspanID] = job.target
 		job := job
 		shouldUpdateState = false
-		// for all move table job, here just remove the table from the source capture.
-		// and the table removed by this function will be added to target capture by syncTablesWithCurrentTables in the next tick.
+		// for all move keyspan job, here just remove the keyspan from the source capture.
+		// and the keyspan removed by this function will be added to target capture by syncKeySpansWithCurrentKeySpans in the next tick.
 		s.state.PatchTaskStatus(source, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 			if status == nil {
-				// the capture may be down, just skip remove this table
+				// the capture may be down, just skip remove this keyspan
 				return status, false, nil
 			}
-			if status.Operation != nil && status.Operation[job.tableID] != nil {
-				// skip removing this table to avoid the remove operation created by the rebalance function interfering with the operation created by another function
+			if status.Operation != nil && status.Operation[job.keyspanID] != nil {
+				// skip removing this keyspan to avoid the remove operation created by the rebalance function interfering with the operation created by another function
 				return status, false, nil
 			}
-			status.RemoveTable(job.tableID, s.state.Status.CheckpointTs, false)
+			status.RemoveKeySpan(job.keyspanID, s.state.Status.CheckpointTs, false)
 			return status, true, nil
 		})
 	}
-	s.moveTableJobQueue = nil
+	s.moveKeySpanJobQueue = nil
 	return
 }
 
@@ -150,27 +150,27 @@ func (s *oldScheduler) Rebalance() {
 	s.needRebalanceNextTick = true
 }
 
-func (s *oldScheduler) table2CaptureIndex() (map[model.TableID]model.CaptureID, error) {
-	table2CaptureIndex := make(map[model.TableID]model.CaptureID)
+func (s *oldScheduler) keyspan2CaptureIndex() (map[model.KeySpanID]model.CaptureID, error) {
+	keyspan2CaptureIndex := make(map[model.KeySpanID]model.CaptureID)
 	for captureID, taskStatus := range s.state.TaskStatuses {
-		for tableID := range taskStatus.Tables {
-			if preCaptureID, exist := table2CaptureIndex[tableID]; exist && preCaptureID != captureID {
-				return nil, cerror.ErrTableListenReplicated.GenWithStackByArgs(tableID, preCaptureID, captureID)
+		for keyspanID := range taskStatus.KeySpans {
+			if preCaptureID, exist := keyspan2CaptureIndex[keyspanID]; exist && preCaptureID != captureID {
+				return nil, cerror.ErrTableListenReplicated.GenWithStackByArgs(keyspanID, preCaptureID, captureID)
 			}
-			table2CaptureIndex[tableID] = captureID
+			keyspan2CaptureIndex[keyspanID] = captureID
 		}
-		for tableID := range taskStatus.Operation {
-			if preCaptureID, exist := table2CaptureIndex[tableID]; exist && preCaptureID != captureID {
-				return nil, cerror.ErrTableListenReplicated.GenWithStackByArgs(tableID, preCaptureID, captureID)
+		for keyspanID := range taskStatus.Operation {
+			if preCaptureID, exist := keyspan2CaptureIndex[keyspanID]; exist && preCaptureID != captureID {
+				return nil, cerror.ErrTableListenReplicated.GenWithStackByArgs(keyspanID, preCaptureID, captureID)
 			}
-			table2CaptureIndex[tableID] = captureID
+			keyspan2CaptureIndex[keyspanID] = captureID
 		}
 	}
-	return table2CaptureIndex, nil
+	return keyspan2CaptureIndex, nil
 }
 
 // dispatchToTargetCaptures sets the TargetCapture of scheduler jobs
-// If the TargetCapture of a job is not set, it chooses a capture with the minimum workload(minimum number of tables)
+// If the TargetCapture of a job is not set, it chooses a capture with the minimum workload(minimum number of keyspans)
 // and sets the TargetCapture to the capture.
 func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 	workloads := make(map[model.CaptureID]uint64)
@@ -188,18 +188,18 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 
 	for _, pendingJob := range pendingJobs {
 		if pendingJob.TargetCapture == "" {
-			target, exist := s.moveTableTargets[pendingJob.TableID]
+			target, exist := s.moveKeySpanTargets[pendingJob.KeySpanID]
 			if !exist {
 				continue
 			}
 			pendingJob.TargetCapture = target
-			delete(s.moveTableTargets, pendingJob.TableID)
+			delete(s.moveKeySpanTargets, pendingJob.KeySpanID)
 			continue
 		}
 		switch pendingJob.Tp {
-		case schedulerJobTypeAddTable:
+		case schedulerJobTypeAddKeySpan:
 			workloads[pendingJob.TargetCapture] += 1
-		case schedulerJobTypeRemoveTable:
+		case schedulerJobTypeRemoveKeySpan:
 			workloads[pendingJob.TargetCapture] -= 1
 		default:
 			log.Panic("Unreachable, please report a bug",
@@ -233,38 +233,38 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 	}
 }
 
-// syncTablesWithCurrentTables iterates all current tables to check whether it should be listened or not.
-// this function will return schedulerJob to make sure all tables will be listened.
-func (s *oldScheduler) syncTablesWithCurrentTables() ([]*schedulerJob, error) {
+// syncKeySpansWithCurrentKeySpans iterates all current keyspans to check whether it should be listened or not.
+// this function will return schedulerJob to make sure all keyspans will be listened.
+func (s *oldScheduler) syncKeySpansWithCurrentKeySpans() ([]*schedulerJob, error) {
 	var pendingJob []*schedulerJob
-	allTableListeningNow, err := s.table2CaptureIndex()
+	allKeySpanListeningNow, err := s.keyspan2CaptureIndex()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	globalCheckpointTs := s.state.Status.CheckpointTs
-	for _, tableID := range s.currentTables {
-		if _, exist := allTableListeningNow[tableID]; exist {
-			delete(allTableListeningNow, tableID)
+	for _, keyspanID := range s.currentKeySpans {
+		if _, exist := allKeySpanListeningNow[keyspanID]; exist {
+			delete(allKeySpanListeningNow, keyspanID)
 			continue
 		}
-		// For each table which should be listened but is not, add an adding-table job to the pending job list
+		// For each keyspan which should be listened but is not, add an adding-keyspan job to the pending job list
 		pendingJob = append(pendingJob, &schedulerJob{
-			Tp:         schedulerJobTypeAddTable,
-			TableID:    tableID,
+			Tp:         schedulerJobTypeAddKeySpan,
+			KeySpanID:  keyspanID,
 			BoundaryTs: globalCheckpointTs,
 		})
 	}
-	// The remaining tables are the tables which should be not listened
-	tablesThatShouldNotBeListened := allTableListeningNow
-	for tableID, captureID := range tablesThatShouldNotBeListened {
+	// The remaining keyspans are the keyspans which should be not listened
+	keyspansThatShouldNotBeListened := allKeySpanListeningNow
+	for keyspanID, captureID := range keyspansThatShouldNotBeListened {
 		opts := s.state.TaskStatuses[captureID].Operation
-		if opts != nil && opts[tableID] != nil && opts[tableID].Delete {
-			// the table is being removed, skip
+		if opts != nil && opts[keyspanID] != nil && opts[keyspanID].Delete {
+			// the keyspan is being removed, skip
 			continue
 		}
 		pendingJob = append(pendingJob, &schedulerJob{
-			Tp:            schedulerJobTypeRemoveTable,
-			TableID:       tableID,
+			Tp:            schedulerJobTypeRemoveKeySpan,
+			KeySpanID:     keyspanID,
 			BoundaryTs:    globalCheckpointTs,
 			TargetCapture: captureID,
 		})
@@ -277,26 +277,26 @@ func (s *oldScheduler) handleJobs(jobs []*schedulerJob) {
 		job := job
 		s.state.PatchTaskStatus(job.TargetCapture, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 			switch job.Tp {
-			case schedulerJobTypeAddTable:
+			case schedulerJobTypeAddKeySpan:
 				if status == nil {
-					// if task status is not found, we can just skip adding the adding-table operation, since this table will be added in the next tick
+					// if task status is not found, we can just skip adding the adding-keyspan operation, since this keyspan will be added in the next tick
 					log.Warn("task status of the capture is not found, may be the capture is already down. specify a new capture and redo the job", zap.Any("job", job))
 					return status, false, nil
 				}
-				status.AddTable(job.TableID, &model.TableReplicaInfo{
-					StartTs:     job.BoundaryTs,
-					MarkTableID: 0, // mark table ID will be set in processors
+				status.AddKeySpan(job.KeySpanID, &model.KeySpanReplicaInfo{
+					StartTs:       job.BoundaryTs,
+					MarkKeySpanID: 0, // mark keyspan ID will be set in processors
 				}, job.BoundaryTs)
-			case schedulerJobTypeRemoveTable:
-				failpoint.Inject("OwnerRemoveTableError", func() {
-					// just skip removing this table
+			case schedulerJobTypeRemoveKeySpan:
+				failpoint.Inject("OwnerRemoveKeySpanError", func() {
+					// just skip removing this keyspan
 					failpoint.Return(status, false, nil)
 				})
 				if status == nil {
 					log.Warn("Task status of the capture is not found. Maybe the capture is already down. Specify a new capture and redo the job", zap.Any("job", job))
 					return status, false, nil
 				}
-				status.RemoveTable(job.TableID, job.BoundaryTs, false)
+				status.RemoveKeySpan(job.KeySpanID, job.BoundaryTs, false)
 			default:
 				log.Panic("Unreachable, please report a bug", zap.Any("job", job))
 			}
@@ -318,9 +318,9 @@ func (s *oldScheduler) cleanUpFinishedOperations() {
 			if status == nil {
 				return nil, changed, nil
 			}
-			for tableID, operation := range status.Operation {
+			for keyspanID, operation := range status.Operation {
 				if operation.Status == model.OperFinished {
-					delete(status.Operation, tableID)
+					delete(status.Operation, keyspanID)
 					changed = true
 				}
 			}
@@ -331,11 +331,11 @@ func (s *oldScheduler) cleanUpFinishedOperations() {
 
 func (s *oldScheduler) rebalance() (shouldUpdateState bool) {
 	if !s.shouldRebalance() {
-		// if no table is rebalanced, we can update the resolved ts and checkpoint ts
+		// if no keyspan is rebalanced, we can update the resolved ts and checkpoint ts
 		return true
 	}
-	// we only support rebalance by table number for now
-	return s.rebalanceByTableNum()
+	// we only support rebalance by keyspan number for now
+	return s.rebalanceByKeySpanNum()
 }
 
 func (s *oldScheduler) shouldRebalance() bool {
@@ -344,7 +344,7 @@ func (s *oldScheduler) shouldRebalance() bool {
 		return true
 	}
 	if s.lastTickCaptureCount != len(s.captures) {
-		// a new capture online and no table distributed to the capture
+		// a new capture online and no keyspan distributed to the capture
 		// or some captures offline
 		return true
 	}
@@ -352,51 +352,51 @@ func (s *oldScheduler) shouldRebalance() bool {
 	return false
 }
 
-// rebalanceByTableNum removes tables from captures replicating an above-average number of tables.
-// the removed table will be dispatched again by syncTablesWithCurrentTables function
-func (s *oldScheduler) rebalanceByTableNum() (shouldUpdateState bool) {
-	totalTableNum := len(s.currentTables)
+// rebalanceByKeySpanNum removes keyspans from captures replicating an above-average number of keyspans.
+// the removed keyspan will be dispatched again by syncKeySpansWithCurrentKeySpans function
+func (s *oldScheduler) rebalanceByKeySpanNum() (shouldUpdateState bool) {
+	totalKeySpanNum := len(s.currentKeySpans)
 	captureNum := len(s.captures)
-	upperLimitPerCapture := int(math.Ceil(float64(totalTableNum) / float64(captureNum)))
+	upperLimitPerCapture := int(math.Ceil(float64(totalKeySpanNum) / float64(captureNum)))
 	shouldUpdateState = true
 
 	log.Info("Start rebalancing",
 		zap.String("changefeed", s.state.ID),
-		zap.Int("table-num", totalTableNum),
+		zap.Int("keyspan-num", totalKeySpanNum),
 		zap.Int("capture-num", captureNum),
 		zap.Int("target-limit", upperLimitPerCapture))
 
 	for captureID, taskStatus := range s.state.TaskStatuses {
-		tableNum2Remove := len(taskStatus.Tables) - upperLimitPerCapture
-		if tableNum2Remove <= 0 {
+		keyspanNum2Remove := len(taskStatus.KeySpans) - upperLimitPerCapture
+		if keyspanNum2Remove <= 0 {
 			continue
 		}
 
-		// here we pick `tableNum2Remove` tables to delete,
-		// and then the removed tables will be dispatched by `syncTablesWithCurrentTables` function in the next tick
-		for tableID := range taskStatus.Tables {
-			tableID := tableID
-			if tableNum2Remove <= 0 {
+		// here we pick `keyspanNum2Remove` keyspans to delete,
+		// and then the removed keyspans will be dispatched by `syncKeySpansWithCurrentKeySpans` function in the next tick
+		for keyspanID := range taskStatus.KeySpans {
+			keyspanID := keyspanID
+			if keyspanNum2Remove <= 0 {
 				break
 			}
 			shouldUpdateState = false
 			s.state.PatchTaskStatus(captureID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 				if status == nil {
-					// the capture may be down, just skip remove this table
+					// the capture may be down, just skip remove this keyspan
 					return status, false, nil
 				}
-				if status.Operation != nil && status.Operation[tableID] != nil {
-					// skip remove this table to avoid the remove operation created by rebalance function to influence the operation created by other function
+				if status.Operation != nil && status.Operation[keyspanID] != nil {
+					// skip remove this keyspan to avoid the remove operation created by rebalance function to influence the operation created by other function
 					return status, false, nil
 				}
-				status.RemoveTable(tableID, s.state.Status.CheckpointTs, false)
-				log.Info("Rebalance: Move table",
-					zap.Int64("table-id", tableID),
+				status.RemoveKeySpan(keyspanID, s.state.Status.CheckpointTs, false)
+				log.Info("Rebalance: Move keyspan",
+					zap.Uint64("keyspan-id", keyspanID),
 					zap.String("capture", captureID),
 					zap.String("changefeed-id", s.state.ID))
 				return status, true, nil
 			})
-			tableNum2Remove--
+			keyspanNum2Remove--
 		}
 	}
 	return
@@ -413,10 +413,10 @@ type schedulerV1CompatWrapper struct {
 func (w *schedulerV1CompatWrapper) Tick(
 	_ cdcContext.Context,
 	state *orchestrator.ChangefeedReactorState,
-	currentTables []model.TableID,
+	currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (newCheckpointTs, newResolvedTs model.Ts, err error) {
-	shouldUpdateState, err := w.inner.Tick(state, currentTables, captures)
+	shouldUpdateState, err := w.inner.Tick(state, currentKeySpans, captures)
 	if err != nil {
 		return schedulerv2.CheckpointCannotProceed, schedulerv2.CheckpointCannotProceed, err
 	}
@@ -429,8 +429,8 @@ func (w *schedulerV1CompatWrapper) Tick(
 	return checkpointTs, resolvedTs, nil
 }
 
-func (w *schedulerV1CompatWrapper) MoveTable(tableID model.TableID, target model.CaptureID) {
-	w.inner.MoveTable(tableID, target)
+func (w *schedulerV1CompatWrapper) MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID) {
+	w.inner.MoveKeySpan(keyspanID, target)
 }
 
 func (w *schedulerV1CompatWrapper) Rebalance() {
