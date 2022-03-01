@@ -106,14 +106,7 @@ func NewOwner(pdClient pd.Client) *Owner {
 }
 
 // NewOwner4Test creates a new Owner for test
-// TODO: modify for tikv cdc
-func NewOwner4Test(
-	/*
-		newDDLPuller func(ctx cdcContext.Context, startTs uint64) (DDLPuller, error),
-		newSink func() DDLSink,
-	*/
-	pdClient pd.Client,
-) *Owner {
+func NewOwner4Test(pdClient pd.Client) *Owner {
 	o := NewOwner(pdClient)
 	// Most tests do not need to test bootstrap.
 	o.bootstrapped = true
