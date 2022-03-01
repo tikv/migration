@@ -1,0 +1,11 @@
+component/br:
+  - br/*
+
+component/cdc:
+  - cdc/*
+
+component/bulk-load:
+  - online-bulk-load/*
+
+component/sst-data-source:
+  - sst-data-source/*
