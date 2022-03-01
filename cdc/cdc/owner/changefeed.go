@@ -197,7 +197,7 @@ func (c *changefeed) tick(ctx cdcContext.Context, state *orchestrator.Changefeed
 		return errors.Trace(err)
 	}
 
-	keyspanIDs := make([]model.KeySpanID, len(regions))
+	keyspanIDs := make([]model.KeySpanID, 0, len(regions))
 	for _, region := range regions {
 		keyspanIDs = append(keyspanIDs, region.Meta.Id)
 	}
