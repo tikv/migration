@@ -13,6 +13,8 @@
 
 package owner
 
+/*
+
 import (
 	"context"
 	"sync/atomic"
@@ -21,13 +23,13 @@ import (
 
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	pscheduler "github.com/tikv/migration/cdc/cdc/scheduler"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -79,7 +81,7 @@ func TestSchedulerBasics(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)
@@ -97,8 +99,8 @@ func TestSchedulerBasics(t *testing.T) {
 		t,
 		mockOwnerNode.ID,
 		mockCluster,
-		model.DispatchTableTopic("cf-1"),
-		&model.DispatchTableMessage{})
+		model.DispatchKeySpanTopic("cf-1"),
+		&model.DispatchKeySpanMessage{})
 
 	for id, ch := range announceCh {
 		var msg interface{}
@@ -134,12 +136,12 @@ func TestSchedulerBasics(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)
 	}
-	log.Info("Tables have been dispatched")
+	log.Info("KeySpans have been dispatched")
 
 	for id, ch := range dispatchCh {
 		var msg interface{}
@@ -149,17 +151,17 @@ func TestSchedulerBasics(t *testing.T) {
 		case msg = <-ch:
 		}
 
-		require.IsType(t, &model.DispatchTableMessage{}, msg)
-		dispatchTableMessage := msg.(*model.DispatchTableMessage)
-		require.Equal(t, int64(1), dispatchTableMessage.OwnerRev)
-		require.False(t, dispatchTableMessage.IsDelete)
-		require.Contains(t, []model.TableID{1, 2, 3}, dispatchTableMessage.ID)
+		require.IsType(t, &model.DispatchKeySpanMessage{}, msg)
+		dispatchKeySpanMessage := msg.(*model.DispatchKeySpanMessage)
+		require.Equal(t, int64(1), dispatchKeySpanMessage.OwnerRev)
+		require.False(t, dispatchKeySpanMessage.IsDelete)
+		require.Contains(t, []model.KeySpanID{1, 2, 3}, dispatchKeySpanMessage.ID)
 
 		_, err := mockCluster.Nodes[id].Router.GetClient(mockOwnerNode.ID).SendMessage(
 			ctx,
-			model.DispatchTableResponseTopic("cf-1"),
-			&model.DispatchTableResponseMessage{
-				ID: dispatchTableMessage.ID,
+			model.DispatchKeySpanResponseTopic("cf-1"),
+			&model.DispatchKeySpanResponseMessage{
+				ID: dispatchKeySpanMessage.ID,
 			})
 		require.NoError(t, err)
 	}
@@ -174,7 +176,7 @@ func TestSchedulerBasics(t *testing.T) {
 			ResolvedTs:   1000,
 			CheckpointTs: 1000,
 		},
-	}, []model.TableID{1, 2, 3}, mockCaptures)
+	}, mockCaptures)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1000), checkpointTs)
 	require.Equal(t, model.Ts(1000), resolvedTs)
@@ -235,7 +237,7 @@ func TestSchedulerNoPeer(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)
@@ -251,7 +253,7 @@ func TestSchedulerNoPeer(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)
@@ -287,3 +289,4 @@ func receiveToChannels(
 	}
 	return channels
 }
+*/

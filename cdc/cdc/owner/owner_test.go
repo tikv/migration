@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/pingcap/check"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
@@ -29,7 +30,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 var _ = check.Suite(&ownerSuite{})
@@ -54,13 +54,7 @@ func createOwner4Test(ctx cdcContext.Context, c *check.C) (*Owner, *orchestrator
 			return safePoint, nil
 		},
 	}
-	owner := NewOwner4Test(func(ctx cdcContext.Context, startTs uint64) (DDLPuller, error) {
-		return &mockDDLPuller{resolvedTs: startTs - 1}, nil
-	}, func() DDLSink {
-		return &mockDDLSink{}
-	},
-		ctx.GlobalVars().PDClient,
-	)
+	owner := NewOwner4Test(ctx.GlobalVars().PDClient)
 	state := orchestrator.NewGlobalState()
 	tester := orchestrator.NewReactorStateTester(c, state, nil)
 
@@ -230,6 +224,7 @@ func (s *ownerSuite) TestFixChangefeedState(c *check.C) {
 	c.Assert(owner.changefeeds[changefeedID].state.Info.State, check.Equals, model.StateStopped)
 }
 
+/*
 func (s *ownerSuite) TestFixChangefeedSinkProtocol(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(false)
@@ -272,6 +267,8 @@ func (s *ownerSuite) TestFixChangefeedSinkProtocol(c *check.C) {
 		check.Equals,
 		"kafka://127.0.0.1:9092/ticdc-test2?protocol=open-protocol")
 }
+
+*/
 
 func (s *ownerSuite) TestCheckClusterVersion(c *check.C) {
 	defer testleak.AfterTest(c)()
@@ -349,7 +346,7 @@ func (s *ownerSuite) TestAdminJob(c *check.C) {
 			tp:              ownerJobTypeManualSchedule,
 			changefeedID:    "test-changefeed3",
 			targetCaptureID: "test-caputre1",
-			tableID:         10,
+			keyspanID:       10,
 		}, {
 			tp:              ownerJobTypeDebugInfo,
 			debugInfoWriter: &buf,

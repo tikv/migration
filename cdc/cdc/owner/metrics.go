@@ -51,12 +51,12 @@ var (
 			Name:      "ownership_counter",
 			Help:      "The counter of ownership increases every 5 seconds on a owner capture",
 		})
-	ownerMaintainTableNumGauge = prometheus.NewGaugeVec(
+	ownerMaintainKeySpanNumGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "ticdc",
 			Subsystem: "owner",
-			Name:      "maintain_table_num",
-			Help:      "number of replicated tables maintained in owner",
+			Name:      "maintain_keyspan_num",
+			Help:      "number of replicated keyspans maintained in owner",
 		}, []string{"changefeed", "capture", "type"})
 	changefeedStatusGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -68,10 +68,10 @@ var (
 )
 
 const (
-	// total tables that have been dispatched to a single processor
-	maintainTableTypeTotal string = "total"
-	// tables that are dispatched to a processor and have not been finished yet
-	maintainTableTypeWip string = "wip"
+	// total keyspans that have been dispatched to a single processor
+	maintainKeySpanTypeTotal string = "total"
+	// keyspans that are dispatched to a processor and have not been finished yet
+	maintainKeySpanTypeWip string = "wip"
 )
 
 // InitMetrics registers all metrics used in owner
@@ -81,6 +81,6 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(changefeedCheckpointTsLagGauge)
 	registry.MustRegister(changefeedResolvedTsLagGauge)
 	registry.MustRegister(ownershipCounter)
-	registry.MustRegister(ownerMaintainTableNumGauge)
+	registry.MustRegister(ownerMaintainKeySpanNumGauge)
 	registry.MustRegister(changefeedStatusGauge)
 }
