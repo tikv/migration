@@ -13,7 +13,22 @@
 
 package owner
 
-/*
+import (
+	"math"
+
+	"github.com/pingcap/errors"
+	"github.com/pingcap/failpoint"
+	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/tikv"
+	"github.com/tikv/migration/cdc/cdc/model"
+	schedulerv2 "github.com/tikv/migration/cdc/cdc/scheduler"
+	cdcContext "github.com/tikv/migration/cdc/pkg/context"
+	cerror "github.com/tikv/migration/cdc/pkg/errors"
+	"github.com/tikv/migration/cdc/pkg/orchestrator"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
+	"go.uber.org/zap"
+)
+
 type schedulerJobType string
 
 const (
@@ -24,6 +39,8 @@ const (
 type schedulerJob struct {
 	Tp        schedulerJobType
 	KeySpanID model.KeySpanID
+	Start     []byte
+	End       []byte
 	// if the operation is a delete operation, boundaryTs is checkpoint ts
 	// if the operation is an add operation, boundaryTs is start ts
 	BoundaryTs    uint64
@@ -36,9 +53,10 @@ type moveKeySpanJob struct {
 }
 
 type oldScheduler struct {
-	state           *orchestrator.ChangefeedReactorState
-	currentKeySpans []model.KeySpanID
-	captures        map[model.CaptureID]*model.CaptureInfo
+	state             *orchestrator.ChangefeedReactorState
+	currentKeySpansID []model.KeySpanID
+	currentKeySpans   map[model.KeySpanID]regionspan.Span
+	captures          map[model.CaptureID]*model.CaptureInfo
 
 	moveKeySpanTargets    map[model.KeySpanID]model.CaptureID
 	moveKeySpanJobQueue   []*moveKeySpanJob
@@ -50,21 +68,23 @@ func newSchedulerV1() scheduler {
 	return &schedulerV1CompatWrapper{&oldScheduler{
 		moveKeySpanTargets: make(map[model.KeySpanID]model.CaptureID),
 	}}
-} */
+}
 
 // Tick is the main function of scheduler. It dispatches keyspans to captures and handles move-keyspan and rebalance events.
 // Tick returns a bool representing whether the changefeed's state can be updated in this tick.
 // The state can be updated only if all the keyspans which should be listened to have been dispatched to captures and no operations have been sent to captures in this tick.
-/*
 func (s *oldScheduler) Tick(
+	ctx cdcContext.Context,
 	state *orchestrator.ChangefeedReactorState,
-	currentKeySpans []model.KeySpanID,
+	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (shouldUpdateState bool, err error) {
 
 	s.state = state
-	s.currentKeySpans = currentKeySpans
-	s.captures = captures
+	s.currentKeySpansID, err = s.updateCurrentKeySpans(ctx)
+	if err != nil {
+		return false, errors.Trace(err)
+	}
 
 	s.cleanUpFinishedOperations()
 	pendingJob, err := s.syncKeySpansWithCurrentKeySpans()
@@ -88,9 +108,8 @@ func (s *oldScheduler) Tick(
 	shouldUpdateState = shouldUpdateStateInMoveKeySpan && shouldUpdateState
 	s.lastTickCaptureCount = len(captures)
 	return shouldUpdateState, nil
-} */
+}
 
-/*
 func (s *oldScheduler) MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID) {
 	s.moveKeySpanJobQueue = append(s.moveKeySpanJobQueue, &moveKeySpanJob{
 		keyspanID: keyspanID,
@@ -231,7 +250,7 @@ func (s *oldScheduler) syncKeySpansWithCurrentKeySpans() ([]*schedulerJob, error
 		return nil, errors.Trace(err)
 	}
 	globalCheckpointTs := s.state.Status.CheckpointTs
-	for _, keyspanID := range s.currentKeySpans {
+	for _, keyspanID := range s.currentKeySpansID {
 		if _, exist := allKeySpanListeningNow[keyspanID]; exist {
 			delete(allKeySpanListeningNow, keyspanID)
 			continue
@@ -240,6 +259,8 @@ func (s *oldScheduler) syncKeySpansWithCurrentKeySpans() ([]*schedulerJob, error
 		pendingJob = append(pendingJob, &schedulerJob{
 			Tp:         schedulerJobTypeAddKeySpan,
 			KeySpanID:  keyspanID,
+			Start:      s.currentKeySpans[keyspanID].Start,
+			End:        s.currentKeySpans[keyspanID].End,
 			BoundaryTs: globalCheckpointTs,
 		})
 	}
@@ -260,9 +281,7 @@ func (s *oldScheduler) syncKeySpansWithCurrentKeySpans() ([]*schedulerJob, error
 	}
 	return pendingJob, nil
 }
-*/
 
-/*
 func (s *oldScheduler) handleJobs(jobs []*schedulerJob) {
 	for _, job := range jobs {
 		job := job
@@ -275,8 +294,9 @@ func (s *oldScheduler) handleJobs(jobs []*schedulerJob) {
 					return status, false, nil
 				}
 				status.AddKeySpan(job.KeySpanID, &model.KeySpanReplicaInfo{
-					StartTs:       job.BoundaryTs,
-					MarkKeySpanID: 0, // mark keyspan ID will be set in processors
+					StartTs: job.BoundaryTs,
+					Start:   job.Start,
+					End:     job.End,
 				}, job.BoundaryTs)
 			case schedulerJobTypeRemoveKeySpan:
 				failpoint.Inject("OwnerRemoveKeySpanError", func() {
@@ -294,9 +314,8 @@ func (s *oldScheduler) handleJobs(jobs []*schedulerJob) {
 			return status, true, nil
 		})
 	}
-} */
+}
 
-/*
 // cleanUpFinishedOperations clean up the finished operations.
 func (s *oldScheduler) cleanUpFinishedOperations() {
 	for captureID := range s.state.TaskStatuses {
@@ -319,9 +338,8 @@ func (s *oldScheduler) cleanUpFinishedOperations() {
 			return status, changed, nil
 		})
 	}
-} */
+}
 
-/*
 func (s *oldScheduler) rebalance() (shouldUpdateState bool) {
 	if !s.shouldRebalance() {
 		// if no keyspan is rebalanced, we can update the resolved ts and checkpoint ts
@@ -395,6 +413,40 @@ func (s *oldScheduler) rebalanceByKeySpanNum() (shouldUpdateState bool) {
 	return
 }
 
+func (s *oldScheduler) updateCurrentKeySpans(ctx cdcContext.Context) ([]model.KeySpanID, error) {
+	limit := -1
+	tikvRequestMaxBackoff := 20000
+	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
+
+	regionCache := ctx.GlobalVars().RegionCache
+	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, []byte{'r'}, []byte{'s'}, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	currentKeySpans := map[model.KeySpanID]regionspan.Span{}
+	currentKeySpansID := []model.KeySpanID{}
+	for i, region := range regions {
+		startKey := region.StartKey()
+		endKey := region.EndKey()
+
+		if i == 0 {
+			startKey = []byte{'r'}
+		}
+		if i == len(regions)-1 {
+			endKey = []byte{'s'}
+		}
+
+		keyspan := regionspan.Span{Start: startKey, End: endKey}
+		id := keyspan.ID()
+		currentKeySpansID = append(currentKeySpansID, id)
+		currentKeySpans[id] = keyspan
+	}
+	s.currentKeySpans = currentKeySpans
+
+	return currentKeySpansID, nil
+}
+
 // schedulerV1CompatWrapper is used to wrap the old scheduler to
 // support the compatibility with the new scheduler.
 // It incorporates watermark calculations into the scheduler, which
@@ -404,12 +456,13 @@ type schedulerV1CompatWrapper struct {
 }
 
 func (w *schedulerV1CompatWrapper) Tick(
-	_ cdcContext.Context,
+	ctx cdcContext.Context,
 	state *orchestrator.ChangefeedReactorState,
-	currentKeySpans []model.KeySpanID,
+	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (newCheckpointTs, newResolvedTs model.Ts, err error) {
-	shouldUpdateState, err := w.inner.Tick(state, currentKeySpans, captures)
+
+	shouldUpdateState, err := w.inner.Tick(ctx, state, captures)
 	if err != nil {
 		return schedulerv2.CheckpointCannotProceed, schedulerv2.CheckpointCannotProceed, err
 	}
@@ -460,4 +513,3 @@ func (w *schedulerV1CompatWrapper) calculateWatermarks(
 
 	return checkpointTs, resolvedTs
 }
-*/

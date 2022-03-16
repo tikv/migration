@@ -14,6 +14,7 @@
 package owner
 
 import (
+	"fmt"
 	"sync/atomic"
 
 	"github.com/pingcap/errors"
@@ -21,6 +22,7 @@ import (
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	pscheduler "github.com/tikv/migration/cdc/cdc/scheduler"
+	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
@@ -41,7 +43,6 @@ type scheduler interface {
 	Tick(
 		ctx context.Context,
 		state *orchestrator.ChangefeedReactorState,
-		//	currentKeySpans []model.KeySpanID,
 		captures map[model.CaptureID]*model.CaptureInfo,
 	) (newCheckpointTs, newResolvedTs model.Ts, err error)
 
@@ -104,14 +105,11 @@ func newSchedulerV2FromCtx(ctx context.Context, startTs uint64) (scheduler, erro
 }
 
 func newScheduler(ctx context.Context, startTs uint64) (scheduler, error) {
-	/*
-		conf := config.GetGlobalServerConfig()
-		if conf.Debug.EnableNewScheduler {
-			return newSchedulerV2FromCtx(ctx, startTs)
-		}
-		return newSchedulerV1(), nil
-	*/
-	return newSchedulerV2FromCtx(ctx, startTs)
+	conf := config.GetGlobalServerConfig()
+	if conf.Debug.EnableNewScheduler {
+		return newSchedulerV2FromCtx(ctx, startTs)
+	}
+	return newSchedulerV1(), nil
 }
 
 func (s *schedulerV2) Tick(
@@ -127,8 +125,7 @@ func (s *schedulerV2) Tick(
 	if err != nil {
 		return pscheduler.CheckpointCannotProceed, pscheduler.CheckpointCannotProceed, errors.Trace(err)
 	}
-	log.Debug("current key spans ID: ", zap.Any("currentKeySpansID", currentKeySpansID))
-
+	log.Debug("current key spans ID", zap.Any("currentKeySpansID", currentKeySpansID))
 	return s.BaseScheduleDispatcher.Tick(ctx, state.Status.CheckpointTs, currentKeySpansID, captures)
 }
 
@@ -149,6 +146,7 @@ func (s *schedulerV2) DispatchKeySpan(
 	if !isDelete {
 		message.Start = s.currentKeySpans[keyspanID].Start
 		message.End = s.currentKeySpans[keyspanID].End
+		fmt.Println(message.Start, message.End)
 	}
 	log.Debug("try to send message",
 		zap.String("topic", topic),
@@ -340,23 +338,30 @@ func (s *schedulerV2) checkForHandlerErrors(ctx context.Context) error {
 }
 
 func (s *schedulerV2) updateCurrentKeySpans(ctx context.Context) ([]model.KeySpanID, error) {
-	limit := 1000
+	limit := -1
 	tikvRequestMaxBackoff := 20000
 	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
 
 	regionCache := ctx.GlobalVars().RegionCache
-	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, nil, nil, limit)
+	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, []byte{'r'}, []byte{'s'}, limit)
 	if err != nil {
 		return nil, err
 	}
 
 	currentKeySpans := map[model.KeySpanID]regionspan.Span{}
 	currentKeySpansID := []model.KeySpanID{}
-	for _, region := range regions {
+	for i, region := range regions {
 		startKey := region.StartKey()
 		endKey := region.EndKey()
-		keyspan := regionspan.Span{Start: startKey, End: endKey}
 
+		if i == 0 {
+			startKey = []byte{'r'}
+		}
+		if i == len(regions)-1 {
+			endKey = []byte{'s'}
+		}
+
+		keyspan := regionspan.Span{Start: startKey, End: endKey}
 		id := keyspan.ID()
 		currentKeySpansID = append(currentKeySpansID, id)
 		currentKeySpans[id] = keyspan
