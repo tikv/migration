@@ -23,15 +23,16 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/tikv/client-go/v2/oracle"
 	"go.uber.org/zap"
 )
 
+// TODO(zeminzhou): Maybe TiKV CDC don't need sort, cyclic
 // SortEngine is the sorter engine
 type SortEngine = string
 
