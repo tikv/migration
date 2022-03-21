@@ -12,11 +12,11 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/parser/model"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/rtree"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 

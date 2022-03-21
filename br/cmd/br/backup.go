@@ -5,15 +5,15 @@ package main
 import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/ddl"
+	"github.com/pingcap/tidb/session"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/gluetikv"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/task"
 	"github.com/tikv/migration/br/pkg/trace"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
-	"github.com/pingcap/tidb/ddl"
-	"github.com/pingcap/tidb/session"
-	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"sourcegraph.com/sourcegraph/appdash"
 )

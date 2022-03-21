@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/utils"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -131,9 +131,8 @@ func TestNewImportSSTBackofferWithSucess(t *testing.T) {
 		defer func() { counter++ }()
 		if counter == 15 {
 			return nil
-		} else {
-			return berrors.ErrKVDownloadFailed
 		}
+		return berrors.ErrKVDownloadFailed
 	}, backoffer)
 	require.Equal(t, 16, counter)
 	require.Nil(t, err)
@@ -146,9 +145,8 @@ func TestNewDownloadSSTBackofferWithCancel(t *testing.T) {
 		defer func() { counter++ }()
 		if counter == 3 {
 			return context.Canceled
-		} else {
-			return berrors.ErrKVIngestFailed
 		}
+		return berrors.ErrKVIngestFailed
 
 	}, backoffer)
 	require.Equal(t, 4, counter)

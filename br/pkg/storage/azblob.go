@@ -38,12 +38,11 @@ type AzblobBackendOptions struct {
 	AccessTier  string `json:"access-tier" toml:"access-tier"`
 }
 
-func (options *AzblobBackendOptions) apply(azblob *backuppb.AzureBlobStorage) error {
+func (options *AzblobBackendOptions) apply(azblob *backuppb.AzureBlobStorage) {
 	azblob.Endpoint = options.Endpoint
 	azblob.StorageClass = options.AccessTier
 	azblob.AccountName = options.AccountName
 	azblob.SharedKey = options.AccountKey
-	return nil
 }
 
 func defineAzblobFlags(flags *pflag.FlagSet) {
@@ -113,7 +112,7 @@ func (b *tokenClientBuilder) GetAccountName() string {
 	return b.accountName
 }
 
-func getAuthorizerFromEnvironment() (clientId, tenantId, clientSecret string) {
+func getAuthorizerFromEnvironment() (clientID, tenantID, clientSecret string) {
 	return os.Getenv("AZURE_CLIENT_ID"),
 		os.Getenv("AZURE_TENANT_ID"),
 		os.Getenv("AZURE_CLIENT_SECRET")
@@ -155,10 +154,10 @@ func getAzureServiceClientBuilder(options *backuppb.AzureBlobStorage, opts *Exte
 		serviceURL = fmt.Sprintf("https://%s.blob.core.windows.net", accountName)
 	}
 
-	if clientId, tenantId, clientSecret := getAuthorizerFromEnvironment(); len(clientId) > 0 && len(tenantId) > 0 && len(clientSecret) > 0 {
-		cred, err := azidentity.NewClientSecretCredential(tenantId, clientId, clientSecret, nil)
+	if clientID, tenantID, clientSecret := getAuthorizerFromEnvironment(); len(clientID) > 0 && len(tenantID) > 0 && len(clientSecret) > 0 {
+		cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
 		if err != nil {
-			log.Warn("Failed to get azure token credential but environment variables exist, try to use shared key.", zap.String("tenantId", tenantId), zap.String("clientId", clientId), zap.String("clientSecret", "?"))
+			log.Warn("Failed to get azure token credential but environment variables exist, try to use shared key.", zap.String("tenantID", tenantID), zap.String("clientID", clientID), zap.String("clientSecret", "?"))
 		} else {
 			// send account-name to TiKV
 			if opts != nil && opts.SendCredentials {
@@ -468,17 +467,17 @@ type azblobUploader struct {
 }
 
 func (u *azblobUploader) Write(ctx context.Context, data []byte) (int, error) {
-	generatedUuid, err := uuid.NewUUID()
+	generatedUUID, err := uuid.NewUUID()
 	if err != nil {
 		return 0, errors.Annotate(err, "Fail to generate uuid")
 	}
-	blockId := base64.StdEncoding.EncodeToString([]byte(generatedUuid.String()))
+	blockID := base64.StdEncoding.EncodeToString([]byte(generatedUUID.String()))
 
-	_, err = u.blobClient.StageBlock(ctx, blockId, newNopCloser(bytes.NewReader(data)), nil)
+	_, err = u.blobClient.StageBlock(ctx, blockID, newNopCloser(bytes.NewReader(data)), nil)
 	if err != nil {
 		return 0, errors.Annotate(err, "Failed to upload block to azure blob")
 	}
-	u.blockIDList = append(u.blockIDList, blockId)
+	u.blockIDList = append(u.blockIDList, blockID)
 
 	return len(data), nil
 }

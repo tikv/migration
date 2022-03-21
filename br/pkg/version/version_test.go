@@ -12,8 +12,8 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/coreos/go-semver/semver"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/tikv/migration/br/pkg/version/build"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/version/build"
 	pd "github.com/tikv/pd/client"
 )
 

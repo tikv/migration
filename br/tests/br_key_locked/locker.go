@@ -33,8 +33,6 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/br/pkg/httputil"
-	"github.com/tikv/migration/br/pkg/task"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser/model"
@@ -43,6 +41,8 @@ import (
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/tikvrpc"
+	"github.com/tikv/migration/br/pkg/httputil"
+	"github.com/tikv/migration/br/pkg/task"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 )

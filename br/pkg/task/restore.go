@@ -11,6 +11,8 @@ import (
 	"github.com/pingcap/failpoint"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/config"
+	"github.com/spf13/pflag"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
@@ -21,8 +23,6 @@ import (
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version"
-	"github.com/pingcap/tidb/config"
-	"github.com/spf13/pflag"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )

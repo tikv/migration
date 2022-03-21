@@ -5,8 +5,8 @@ package task
 import (
 	"testing"
 
-	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/restore"
 )
 
 func TestRestoreConfigAdjust(t *testing.T) {
