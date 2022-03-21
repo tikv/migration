@@ -8,8 +8,8 @@ Run `make br_unit_test` to execute all unit tests for br.
 To run a specific test, pass `ARGS` into `make test` like
 
 ```sh
-make br_unit_test ARGS='github.com/pingcap/tidb/br/pkg/cdclog --test.v --check.v --check.f TestColumn'
-#                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+make br_unit_test ARGS='github.com/tikv/migration/br/pkg/cdclog --test.v --check.v --check.f TestColumn'
+#                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #                       which package to test                  more extra test flags
 ```
 
@@ -18,7 +18,7 @@ You can also run unit tests directly via `go test` like:
 ```sh
 make failpoint-enable
 
-go test github.com/pingcap/tidb/br/pkg/cdclog --test.v --check.v --check.f TestColumn
+go test github.com/tikv/migration/br/pkg/cdclog --test.v --check.v --check.f TestColumn
 
 make failpoint-disable
 ```

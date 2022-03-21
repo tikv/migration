@@ -57,9 +57,9 @@ BR_PACKAGE_DIRECTORIES := $(BR_PACKAGES) | sed 's|github.com/tikv/migration/br/|
 BR_BIN            := bin/br
 TEST_DIR          := /tmp/backup_restore_test
 
-TEST_COVERAGE_DIR := "test_coverage"
+TEST_COVERAGE_DIR := "."
 
-.PHONY: build_br clean unit_test check-static
+.PHONY: build_br clean unit_test check check-static
 
 default: build_br
 
@@ -87,19 +87,31 @@ unit_test:
 	$(GOTEST) $(RACE_FLAG) -ldflags '$(LDFLAGS)' -tags leak $(ARGS) -coverprofile=coverage.txt || ( make failpoint-disable && exit 1 )
 	@make failpoint-disable
 unit_test_in_verify_ci: export ARGS=$$($(BR_PACKAGES))
-unit_test_in_verify_ci: tools/bin/gotestsum
+unit_test_in_verify_ci: tools/bin/gotestsum tools/bin/gocov tools/bin/gocov-xml
 	@make failpoint-enable
 	@export TZ='Asia/Shanghai';
 	@mkdir -p $(TEST_COVERAGE_DIR)
 	CGO_ENABLED=1 tools/bin/gotestsum --junitfile "$(TEST_COVERAGE_DIR)/br-junit-report.xml" -- $(RACE_FLAG) -ldflags '$(LDFLAGS)' \
-	-tags leak $(ARGS) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.out" || ( make failpoint-disable && exit 1 )
+	-tags leak $(ARGS) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" || ( make failpoint-disable && exit 1 )
+	tools/bin/gocov convert "$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" | tools/bin/gocov-xml > "$(TEST_COVERAGE_DIR)/br_cov.unit_test.out"
 	@make failpoint-disable
+
+check: check-static
 
 check-static: tools/bin/golangci-lint
 	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(BR_PACKAGE_DIRECTORIES)) --config ../.golangci.yml
 
 tools/bin/golangci-lint:
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b ./tools/bin v1.41.1
+
+tools/bin/gotestsum: tools/check/go.mod
+	cd tools/check && $(GO) build -o ../bin/gotestsum gotest.tools/gotestsum
+
+tools/bin/gocov: tools/check/go.mod
+	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov  github.com/axw/gocov/gocov
+
+tools/bin/gocov-xml: tools/check/go.mod
+	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
 
 clean:
 	go clean -i ./...
