@@ -4,25 +4,19 @@ package restore_test
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"strconv"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	backuppb "github.com/pingcap/kvproto/pkg/brpb"
-	"github.com/pingcap/kvproto/pkg/encryptionpb"
-	"github.com/tikv/migration/br/pkg/backup"
+	"github.com/pingcap/tidb/meta/autoid"
+	"github.com/pingcap/tidb/parser/model"
+	"github.com/pingcap/tidb/testkit"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/br/pkg/gluetidb"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/mock"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/storage"
-	"github.com/pingcap/tidb/meta/autoid"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/testkit"
-	"github.com/stretchr/testify/require"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 type testRestoreSchemaSuite struct {
@@ -120,133 +114,4 @@ func TestRestoreAutoIncID(t *testing.T) {
 	require.NoErrorf(t, err, "Error query auto inc id: %s", err)
 	require.Equal(t, uint64(globalAutoID+300), autoIncID)
 
-}
-
-func TestFilterDDLJobs(t *testing.T) {
-	s, clean := createRestoreSchemaSuite(t)
-	defer clean()
-	tk := testkit.NewTestKit(t, s.mock.Storage)
-	tk.MustExec("CREATE DATABASE IF NOT EXISTS test_db;")
-	tk.MustExec("CREATE TABLE IF NOT EXISTS test_db.test_table (c1 INT);")
-	lastTS, err := s.mock.GetOracle().GetTimestamp(context.Background(), &oracle.Option{TxnScope: oracle.GlobalTxnScope})
-	require.NoErrorf(t, err, "Error get last ts: %s", err)
-	tk.MustExec("RENAME TABLE test_db.test_table to test_db.test_table1;")
-	tk.MustExec("DROP TABLE test_db.test_table1;")
-	tk.MustExec("DROP DATABASE test_db;")
-	tk.MustExec("CREATE DATABASE test_db;")
-	tk.MustExec("USE test_db;")
-	tk.MustExec("CREATE TABLE test_table1 (c2 CHAR(255));")
-	tk.MustExec("RENAME TABLE test_table1 to test_table;")
-	tk.MustExec("TRUNCATE TABLE test_table;")
-
-	ts, err := s.mock.GetOracle().GetTimestamp(context.Background(), &oracle.Option{TxnScope: oracle.GlobalTxnScope})
-	require.NoErrorf(t, err, "Error get ts: %s", err)
-
-	cipher := backuppb.CipherInfo{
-		CipherType: encryptionpb.EncryptionMethod_PLAINTEXT,
-	}
-
-	metaWriter := metautil.NewMetaWriter(s.storage, metautil.MetaFileSize, false, &cipher)
-	ctx := context.Background()
-	metaWriter.StartWriteMetasAsync(ctx, metautil.AppendDDL)
-	err = backup.WriteBackupDDLJobs(metaWriter, s.mock.Storage, lastTS, ts)
-	require.NoErrorf(t, err, "Error get ddl jobs: %s", err)
-	err = metaWriter.FinishWriteMetas(ctx, metautil.AppendDDL)
-	require.NoErrorf(t, err, "Flush failed", err)
-	err = metaWriter.FlushBackupMeta(ctx)
-	require.NoErrorf(t, err, "Finially flush backupmeta failed", err)
-	infoSchema, err := s.mock.Domain.GetSnapshotInfoSchema(ts)
-	require.NoErrorf(t, err, "Error get snapshot info schema: %s", err)
-	dbInfo, ok := infoSchema.SchemaByName(model.NewCIStr("test_db"))
-	require.Truef(t, ok, "DB info not exist")
-	tableInfo, err := infoSchema.TableByName(model.NewCIStr("test_db"), model.NewCIStr("test_table"))
-	require.NoErrorf(t, err, "Error get table info: %s", err)
-	tables := []*metautil.Table{{
-		DB:   dbInfo,
-		Info: tableInfo.Meta(),
-	}}
-	metaBytes, err := s.storage.ReadFile(ctx, metautil.MetaFile)
-	require.NoError(t, err)
-	mockMeta := &backuppb.BackupMeta{}
-	err = proto.Unmarshal(metaBytes, mockMeta)
-	require.NoError(t, err)
-	// check the schema version
-	require.Equal(t, int32(metautil.MetaV1), mockMeta.Version)
-	metaReader := metautil.NewMetaReader(mockMeta, s.storage, &cipher)
-	allDDLJobsBytes, err := metaReader.ReadDDLs(ctx)
-	require.NoError(t, err)
-	var allDDLJobs []*model.Job
-	err = json.Unmarshal(allDDLJobsBytes, &allDDLJobs)
-	require.NoError(t, err)
-
-	ddlJobs := restore.FilterDDLJobs(allDDLJobs, tables)
-	for _, job := range ddlJobs {
-		t.Logf("get ddl job: %s", job.Query)
-	}
-	require.Equal(t, 7, len(ddlJobs))
-}
-
-func TestFilterDDLJobsV2(t *testing.T) {
-	s, clean := createRestoreSchemaSuite(t)
-	defer clean()
-	tk := testkit.NewTestKit(t, s.mock.Storage)
-	tk.MustExec("CREATE DATABASE IF NOT EXISTS test_db;")
-	tk.MustExec("CREATE TABLE IF NOT EXISTS test_db.test_table (c1 INT);")
-	lastTS, err := s.mock.GetOracle().GetTimestamp(context.Background(), &oracle.Option{TxnScope: oracle.GlobalTxnScope})
-	require.NoErrorf(t, err, "Error get last ts: %s", err)
-	tk.MustExec("RENAME TABLE test_db.test_table to test_db.test_table1;")
-	tk.MustExec("DROP TABLE test_db.test_table1;")
-	tk.MustExec("DROP DATABASE test_db;")
-	tk.MustExec("CREATE DATABASE test_db;")
-	tk.MustExec("USE test_db;")
-	tk.MustExec("CREATE TABLE test_table1 (c2 CHAR(255));")
-	tk.MustExec("RENAME TABLE test_table1 to test_table;")
-	tk.MustExec("TRUNCATE TABLE test_table;")
-
-	ts, err := s.mock.GetOracle().GetTimestamp(context.Background(), &oracle.Option{TxnScope: oracle.GlobalTxnScope})
-	require.NoErrorf(t, err, "Error get ts: %s", err)
-
-	cipher := backuppb.CipherInfo{
-		CipherType: encryptionpb.EncryptionMethod_PLAINTEXT,
-	}
-
-	metaWriter := metautil.NewMetaWriter(s.storage, metautil.MetaFileSize, true, &cipher)
-	ctx := context.Background()
-	metaWriter.StartWriteMetasAsync(ctx, metautil.AppendDDL)
-	err = backup.WriteBackupDDLJobs(metaWriter, s.mock.Storage, lastTS, ts)
-	require.NoErrorf(t, err, "Error get ddl jobs: %s", err)
-	err = metaWriter.FinishWriteMetas(ctx, metautil.AppendDDL)
-	require.NoErrorf(t, err, "Flush failed", err)
-	err = metaWriter.FlushBackupMeta(ctx)
-	require.NoErrorf(t, err, "Flush BackupMeta failed", err)
-
-	infoSchema, err := s.mock.Domain.GetSnapshotInfoSchema(ts)
-	require.NoErrorf(t, err, "Error get snapshot info schema: %s", err)
-	dbInfo, ok := infoSchema.SchemaByName(model.NewCIStr("test_db"))
-	require.Truef(t, ok, "DB info not exist")
-	tableInfo, err := infoSchema.TableByName(model.NewCIStr("test_db"), model.NewCIStr("test_table"))
-	require.NoErrorf(t, err, "Error get table info: %s", err)
-	tables := []*metautil.Table{{
-		DB:   dbInfo,
-		Info: tableInfo.Meta(),
-	}}
-	metaBytes, err := s.storage.ReadFile(ctx, metautil.MetaFile)
-	require.NoError(t, err)
-	mockMeta := &backuppb.BackupMeta{}
-	err = proto.Unmarshal(metaBytes, mockMeta)
-	require.NoError(t, err)
-	// check the schema version
-	require.Equal(t, int32(metautil.MetaV2), mockMeta.Version)
-	metaReader := metautil.NewMetaReader(mockMeta, s.storage, &cipher)
-	allDDLJobsBytes, err := metaReader.ReadDDLs(ctx)
-	require.NoError(t, err)
-	var allDDLJobs []*model.Job
-	err = json.Unmarshal(allDDLJobsBytes, &allDDLJobs)
-	require.NoError(t, err)
-
-	ddlJobs := restore.FilterDDLJobs(allDDLJobs, tables)
-	for _, job := range ddlJobs {
-		t.Logf("get ddl job: %s", job.Query)
-	}
-	require.Equal(t, 7, len(ddlJobs))
 }

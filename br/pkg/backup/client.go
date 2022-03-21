@@ -5,7 +5,6 @@ package backup
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -20,7 +19,10 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
+	"github.com/pingcap/tidb/util/codec"
+	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/client-go/v2/tikv"
+	"github.com/tikv/client-go/v2/txnkv/txnlock"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/logutil"
@@ -30,20 +32,8 @@ import (
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
-	"github.com/pingcap/tidb/distsql"
-	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/meta"
-	"github.com/pingcap/tidb/meta/autoid"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/util"
-	"github.com/pingcap/tidb/util/codec"
-	"github.com/pingcap/tidb/util/ranger"
-	"github.com/tikv/client-go/v2/oracle"
-	"github.com/tikv/client-go/v2/tikv"
-	"github.com/tikv/client-go/v2/txnkv/txnlock"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -214,277 +204,6 @@ func CheckBackupStorageIsLocked(ctx context.Context, s storage.ExternalStorage) 
 		return err
 	}
 	return nil
-}
-
-// BuildTableRanges returns the key ranges encompassing the entire table,
-// and its partitions if exists.
-func BuildTableRanges(tbl *model.TableInfo) ([]kv.KeyRange, error) {
-	pis := tbl.GetPartitionInfo()
-	if pis == nil {
-		// Short path, no partition.
-		return appendRanges(tbl, tbl.ID)
-	}
-
-	ranges := make([]kv.KeyRange, 0, len(pis.Definitions)*(len(tbl.Indices)+1)+1)
-	for _, def := range pis.Definitions {
-		rgs, err := appendRanges(tbl, def.ID)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		ranges = append(ranges, rgs...)
-	}
-	return ranges, nil
-}
-
-func appendRanges(tbl *model.TableInfo, tblID int64) ([]kv.KeyRange, error) {
-	var ranges []*ranger.Range
-	if tbl.IsCommonHandle {
-		ranges = ranger.FullNotNullRange()
-	} else {
-		ranges = ranger.FullIntRange(false)
-	}
-
-	kvRanges, err := distsql.TableHandleRangesToKVRanges(nil, []int64{tblID}, tbl.IsCommonHandle, ranges, nil)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	for _, index := range tbl.Indices {
-		if index.State != model.StatePublic {
-			continue
-		}
-		ranges = ranger.FullRange()
-		idxRanges, err := distsql.IndexRangesToKVRanges(nil, tblID, index.ID, ranges, nil)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		kvRanges = append(kvRanges, idxRanges...)
-	}
-	return kvRanges, nil
-}
-
-// BuildBackupRangeAndSchema gets KV range and schema of tables.
-// KV ranges are separated by Table IDs.
-// Also, KV ranges are separated by Index IDs in the same table.
-func BuildBackupRangeAndSchema(
-	storage kv.Storage,
-	tableFilter filter.Filter,
-	backupTS uint64,
-) ([]rtree.Range, *Schemas, error) {
-	snapshot := storage.GetSnapshot(kv.NewVersion(backupTS))
-	m := meta.NewSnapshotMeta(snapshot)
-
-	ranges := make([]rtree.Range, 0)
-	backupSchemas := newBackupSchemas()
-	dbs, err := m.ListDatabases()
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	for _, dbInfo := range dbs {
-		// skip system databases
-		if !tableFilter.MatchSchema(dbInfo.Name.O) || util.IsMemDB(dbInfo.Name.L) {
-			continue
-		}
-
-		tables, err := m.ListTables(dbInfo.ID)
-		if err != nil {
-			return nil, nil, errors.Trace(err)
-		}
-
-		if len(tables) == 0 {
-			log.Warn("It's not necessary for backing up empty database",
-				zap.Stringer("db", dbInfo.Name))
-			continue
-		}
-
-		for _, tableInfo := range tables {
-			if !tableFilter.MatchTable(dbInfo.Name.O, tableInfo.Name.O) {
-				// Skip tables other than the given table.
-				continue
-			}
-
-			logger := log.With(
-				zap.String("db", dbInfo.Name.O),
-				zap.String("table", tableInfo.Name.O),
-			)
-
-			tblVer := autoid.AllocOptionTableInfoVersion(tableInfo.Version)
-			idAlloc := autoid.NewAllocator(storage, dbInfo.ID, tableInfo.ID, false, autoid.RowIDAllocType, tblVer)
-			seqAlloc := autoid.NewAllocator(storage, dbInfo.ID, tableInfo.ID, false, autoid.SequenceType, tblVer)
-			randAlloc := autoid.NewAllocator(storage, dbInfo.ID, tableInfo.ID, false, autoid.AutoRandomType, tblVer)
-
-			var globalAutoID int64
-			switch {
-			case tableInfo.IsSequence():
-				globalAutoID, err = seqAlloc.NextGlobalAutoID()
-			case tableInfo.IsView() || !utils.NeedAutoID(tableInfo):
-				// no auto ID for views or table without either rowID nor auto_increment ID.
-			default:
-				globalAutoID, err = idAlloc.NextGlobalAutoID()
-			}
-			if err != nil {
-				return nil, nil, errors.Trace(err)
-			}
-			tableInfo.AutoIncID = globalAutoID
-
-			if tableInfo.PKIsHandle && tableInfo.ContainsAutoRandomBits() {
-				// this table has auto_random id, we need backup and rebase in restoration
-				var globalAutoRandID int64
-				globalAutoRandID, err = randAlloc.NextGlobalAutoID()
-				if err != nil {
-					return nil, nil, errors.Trace(err)
-				}
-				tableInfo.AutoRandID = globalAutoRandID
-				logger.Debug("change table AutoRandID",
-					zap.Int64("AutoRandID", globalAutoRandID))
-			}
-			logger.Debug("change table AutoIncID",
-				zap.Int64("AutoIncID", globalAutoID))
-
-			// remove all non-public indices
-			n := 0
-			for _, index := range tableInfo.Indices {
-				if index.State == model.StatePublic {
-					tableInfo.Indices[n] = index
-					n++
-				}
-			}
-			tableInfo.Indices = tableInfo.Indices[:n]
-
-			backupSchemas.addSchema(dbInfo, tableInfo)
-
-			tableRanges, err := BuildTableRanges(tableInfo)
-			if err != nil {
-				return nil, nil, errors.Trace(err)
-			}
-			for _, r := range tableRanges {
-				ranges = append(ranges, rtree.Range{
-					StartKey: r.StartKey,
-					EndKey:   r.EndKey,
-				})
-			}
-		}
-	}
-
-	if backupSchemas.Len() == 0 {
-		log.Info("nothing to backup")
-		return nil, nil, nil
-	}
-	return ranges, backupSchemas, nil
-}
-
-func skipUnsupportedDDLJob(job *model.Job) bool {
-	switch job.Type {
-	// TiDB V5.3.0 supports TableAttributes and TablePartitionAttributes.
-	// Backup guarantees data integrity but region placement, which is out of scope of backup
-	case model.ActionCreatePlacementPolicy,
-		model.ActionAlterPlacementPolicy,
-		model.ActionDropPlacementPolicy,
-		model.ActionAlterTablePartitionPlacement,
-		model.ActionModifySchemaDefaultPlacement,
-		model.ActionAlterTablePlacement,
-		model.ActionAlterTableAttributes,
-		model.ActionAlterTablePartitionAttributes:
-		return true
-	default:
-		return false
-	}
-}
-
-// WriteBackupDDLJobs sends the ddl jobs are done in (lastBackupTS, backupTS] to metaWriter.
-func WriteBackupDDLJobs(metaWriter *metautil.MetaWriter, store kv.Storage, lastBackupTS, backupTS uint64) error {
-	snapshot := store.GetSnapshot(kv.NewVersion(backupTS))
-	snapMeta := meta.NewSnapshotMeta(snapshot)
-	lastSnapshot := store.GetSnapshot(kv.NewVersion(lastBackupTS))
-	lastSnapMeta := meta.NewSnapshotMeta(lastSnapshot)
-	lastSchemaVersion, err := lastSnapMeta.GetSchemaVersion()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	allJobs := make([]*model.Job, 0)
-	defaultJobs, err := snapMeta.GetAllDDLJobsInQueue(meta.DefaultJobListKey)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	log.Debug("get default jobs", zap.Int("jobs", len(defaultJobs)))
-	allJobs = append(allJobs, defaultJobs...)
-	addIndexJobs, err := snapMeta.GetAllDDLJobsInQueue(meta.AddIndexJobListKey)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	log.Debug("get add index jobs", zap.Int("jobs", len(addIndexJobs)))
-	allJobs = append(allJobs, addIndexJobs...)
-	historyJobs, err := snapMeta.GetAllHistoryDDLJobs()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	log.Debug("get history jobs", zap.Int("jobs", len(historyJobs)))
-	allJobs = append(allJobs, historyJobs...)
-
-	count := 0
-	for _, job := range allJobs {
-		if skipUnsupportedDDLJob(job) {
-			continue
-		}
-
-		if (job.State == model.JobStateDone || job.State == model.JobStateSynced) &&
-			(job.BinlogInfo != nil && job.BinlogInfo.SchemaVersion > lastSchemaVersion) {
-			jobBytes, err := json.Marshal(job)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			err = metaWriter.Send(jobBytes, metautil.AppendDDL)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			count++
-		}
-	}
-	log.Debug("get completed jobs", zap.Int("jobs", count))
-	return nil
-}
-
-// BackupRanges make a backup of the given key ranges.
-func (bc *Client) BackupRanges(
-	ctx context.Context,
-	ranges []rtree.Range,
-	req backuppb.BackupRequest,
-	concurrency uint,
-	metaWriter *metautil.MetaWriter,
-	progressCallBack func(ProgressUnit),
-) error {
-	init := time.Now()
-	defer log.Info("Backup Ranges", zap.Duration("take", time.Since(init)))
-
-	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("Client.BackupRanges", opentracing.ChildOf(span.Context()))
-		defer span1.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span1)
-	}
-
-	// we collect all files in a single goroutine to avoid thread safety issues.
-	workerPool := utils.NewWorkerPool(concurrency, "Ranges")
-	eg, ectx := errgroup.WithContext(ctx)
-	for id, r := range ranges {
-		id := id
-		sk, ek := r.StartKey, r.EndKey
-		workerPool.ApplyOnErrorGroup(eg, func() error {
-			elctx := logutil.ContextWithField(ectx, logutil.RedactAny("range-sn", id))
-			err := bc.BackupRange(elctx, sk, ek, req, metaWriter, progressCallBack)
-			if err != nil {
-				// The error due to context cancel, stack trace is meaningless, the stack shall be suspended (also clear)
-				if errors.Cause(err) == context.Canceled {
-					return errors.SuspendStack(err)
-				} else {
-					return errors.Trace(err)
-				}
-
-			}
-			return nil
-		})
-	}
-	return eg.Wait()
 }
 
 // BackupRange make a backup of the given key range.

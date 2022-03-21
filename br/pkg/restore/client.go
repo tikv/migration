@@ -9,10 +9,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -21,7 +19,13 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/br/pkg/checksum"
+	"github.com/pingcap/tidb/domain"
+	"github.com/pingcap/tidb/kv"
+	"github.com/pingcap/tidb/parser/model"
+	"github.com/pingcap/tidb/statistics/handle"
+	"github.com/pingcap/tidb/tablecodec"
+	"github.com/pingcap/tidb/util/codec"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
@@ -32,13 +36,6 @@ import (
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
-	"github.com/pingcap/tidb/domain"
-	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/statistics/handle"
-	"github.com/pingcap/tidb/tablecodec"
-	"github.com/pingcap/tidb/util/codec"
-	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
 	"github.com/tikv/pd/server/schedule/placement"
 	"go.uber.org/zap"
@@ -48,10 +45,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
-
-// defaultChecksumConcurrency is the default number of the concurrent
-// checksum tasks.
-const defaultChecksumConcurrency = 64
 
 // Client sends requests to restore files.
 type Client struct {
@@ -77,7 +70,6 @@ type Client struct {
 	db              *DB
 	rateLimit       uint64
 	isOnline        bool
-	noSchema        bool
 	hasSpeedLimited bool
 
 	restoreStores []uint64
@@ -323,229 +315,6 @@ func (rc *Client) GetPlacementRules(ctx context.Context, pdAddrs []string) ([]pl
 	return placementRules, errors.Trace(errRetry)
 }
 
-// GetDatabases returns all databases.
-func (rc *Client) GetDatabases() []*utils.Database {
-	dbs := make([]*utils.Database, 0, len(rc.databases))
-	for _, db := range rc.databases {
-		dbs = append(dbs, db)
-	}
-	return dbs
-}
-
-// GetDatabase returns a database by name.
-func (rc *Client) GetDatabase(name string) *utils.Database {
-	return rc.databases[name]
-}
-
-// GetDDLJobs returns ddl jobs.
-func (rc *Client) GetDDLJobs() []*model.Job {
-	return rc.ddlJobs
-}
-
-// GetTableSchema returns the schema of a table from TiDB.
-func (rc *Client) GetTableSchema(
-	dom *domain.Domain,
-	dbName model.CIStr,
-	tableName model.CIStr,
-) (*model.TableInfo, error) {
-	info := dom.InfoSchema()
-	table, err := info.TableByName(dbName, tableName)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	return table.Meta(), nil
-}
-
-// CreateDatabase creates a database.
-func (rc *Client) CreateDatabase(ctx context.Context, db *model.DBInfo) error {
-	if rc.IsSkipCreateSQL() {
-		log.Info("skip create database", zap.Stringer("database", db.Name))
-		return nil
-	}
-	return rc.db.CreateDatabase(ctx, db)
-}
-
-// CreateTables creates multiple tables, and returns their rewrite rules.
-func (rc *Client) CreateTables(
-	dom *domain.Domain,
-	tables []*metautil.Table,
-	newTS uint64,
-) (*RewriteRules, []*model.TableInfo, error) {
-	rewriteRules := &RewriteRules{
-		Data: make([]*import_sstpb.RewriteRule, 0),
-	}
-	newTables := make([]*model.TableInfo, 0, len(tables))
-	errCh := make(chan error, 1)
-	tbMapping := map[string]int{}
-	for i, t := range tables {
-		tbMapping[t.Info.Name.String()] = i
-	}
-	dataCh := rc.GoCreateTables(context.TODO(), dom, tables, newTS, nil, errCh)
-	for et := range dataCh {
-		rules := et.RewriteRule
-		rewriteRules.Data = append(rewriteRules.Data, rules.Data...)
-		newTables = append(newTables, et.Table)
-	}
-	// Let's ensure that it won't break the original order.
-	sort.Slice(newTables, func(i, j int) bool {
-		return tbMapping[newTables[i].Name.String()] < tbMapping[newTables[j].Name.String()]
-	})
-
-	select {
-	case err, ok := <-errCh:
-		if ok {
-			return nil, nil, errors.Trace(err)
-		}
-	default:
-	}
-	return rewriteRules, newTables, nil
-}
-
-func (rc *Client) createTable(
-	ctx context.Context,
-	db *DB,
-	dom *domain.Domain,
-	table *metautil.Table,
-	newTS uint64,
-	ddlTables map[UniqueTableName]bool,
-) (CreatedTable, error) {
-	if rc.IsSkipCreateSQL() {
-		log.Info("skip create table and alter autoIncID", zap.Stringer("table", table.Info.Name))
-	} else {
-		err := db.CreateTable(ctx, table, ddlTables)
-		if err != nil {
-			return CreatedTable{}, errors.Trace(err)
-		}
-	}
-	newTableInfo, err := rc.GetTableSchema(dom, table.DB.Name, table.Info.Name)
-	if err != nil {
-		return CreatedTable{}, errors.Trace(err)
-	}
-	if newTableInfo.IsCommonHandle != table.Info.IsCommonHandle {
-		return CreatedTable{}, errors.Annotatef(berrors.ErrRestoreModeMismatch,
-			"Clustered index option mismatch. Restored cluster's @@tidb_enable_clustered_index should be %v (backup table = %v, created table = %v).",
-			transferBoolToValue(table.Info.IsCommonHandle),
-			table.Info.IsCommonHandle,
-			newTableInfo.IsCommonHandle)
-	}
-	rules := GetRewriteRules(newTableInfo, table.Info, newTS)
-	et := CreatedTable{
-		RewriteRule: rules,
-		Table:       newTableInfo,
-		OldTable:    table,
-	}
-	return et, nil
-}
-
-// GoCreateTables create tables, and generate their information.
-// this function will use workers as the same number of sessionPool,
-// leave sessionPool nil to send DDLs sequential.
-func (rc *Client) GoCreateTables(
-	ctx context.Context,
-	dom *domain.Domain,
-	tables []*metautil.Table,
-	newTS uint64,
-	dbPool []*DB,
-	errCh chan<- error,
-) <-chan CreatedTable {
-	// Could we have a smaller size of tables?
-	log.Info("start create tables")
-
-	ddlTables := rc.DDLJobsMap()
-	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("Client.GoCreateTables", opentracing.ChildOf(span.Context()))
-		defer span1.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span1)
-	}
-	outCh := make(chan CreatedTable, len(tables))
-	rater := logutil.TraceRateOver(logutil.MetricTableCreatedCounter)
-	createOneTable := func(c context.Context, db *DB, t *metautil.Table) error {
-		select {
-		case <-c.Done():
-			return c.Err()
-		default:
-		}
-		rt, err := rc.createTable(c, db, dom, t, newTS, ddlTables)
-		if err != nil {
-			log.Error("create table failed",
-				zap.Error(err),
-				zap.Stringer("db", t.DB.Name),
-				zap.Stringer("table", t.Info.Name))
-			return errors.Trace(err)
-		}
-		log.Debug("table created and send to next",
-			zap.Int("output chan size", len(outCh)),
-			zap.Stringer("table", t.Info.Name),
-			zap.Stringer("database", t.DB.Name))
-		outCh <- rt
-		rater.Inc()
-		rater.L().Info("table created",
-			zap.Stringer("table", t.Info.Name),
-			zap.Stringer("database", t.DB.Name))
-		return nil
-	}
-	go func() {
-		defer close(outCh)
-		defer log.Debug("all tables are created")
-		var err error
-		if len(dbPool) > 0 {
-			err = rc.createTablesWithDBPool(ctx, createOneTable, tables, dbPool)
-		} else {
-			err = rc.createTablesWithSoleDB(ctx, createOneTable, tables)
-		}
-		if err != nil {
-			errCh <- err
-		}
-	}()
-	return outCh
-}
-
-func (rc *Client) createTablesWithSoleDB(ctx context.Context,
-	createOneTable func(ctx context.Context, db *DB, t *metautil.Table) error,
-	tables []*metautil.Table) error {
-	for _, t := range tables {
-		if err := createOneTable(ctx, rc.db, t); err != nil {
-			return errors.Trace(err)
-		}
-	}
-	return nil
-}
-
-func (rc *Client) createTablesWithDBPool(ctx context.Context,
-	createOneTable func(ctx context.Context, db *DB, t *metautil.Table) error,
-	tables []*metautil.Table, dbPool []*DB) error {
-	eg, ectx := errgroup.WithContext(ctx)
-	workers := utils.NewWorkerPool(uint(len(dbPool)), "DDL workers")
-	for _, t := range tables {
-		table := t
-		workers.ApplyWithIDInErrorGroup(eg, func(id uint64) error {
-			db := dbPool[id%uint64(len(dbPool))]
-			return createOneTable(ectx, db, table)
-		})
-	}
-	return eg.Wait()
-}
-
-// ExecDDLs executes the queries of the ddl jobs.
-func (rc *Client) ExecDDLs(ctx context.Context, ddlJobs []*model.Job) error {
-	// Sort the ddl jobs by schema version in ascending order.
-	sort.Slice(ddlJobs, func(i, j int) bool {
-		return ddlJobs[i].BinlogInfo.SchemaVersion < ddlJobs[j].BinlogInfo.SchemaVersion
-	})
-
-	for _, job := range ddlJobs {
-		err := rc.db.ExecDDL(ctx, job)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		log.Info("execute ddl query",
-			zap.String("db", job.SchemaName),
-			zap.String("query", job.Query),
-			zap.Int64("historySchemaVersion", job.BinlogInfo.SchemaVersion))
-	}
-	return nil
-}
-
 func (rc *Client) setSpeedLimit(ctx context.Context) error {
 	if !rc.hasSpeedLimited && rc.rateLimit != 0 {
 		stores, err := conn.GetAllTiKVStores(ctx, rc.pdClient, conn.SkipTiFlash)
@@ -780,171 +549,6 @@ func (rc *Client) switchTiKVMode(ctx context.Context, mode import_sstpb.SwitchMo
 	return nil
 }
 
-// GoValidateChecksum forks a goroutine to validate checksum after restore.
-// it returns a channel fires a struct{} when all things get done.
-func (rc *Client) GoValidateChecksum(
-	ctx context.Context,
-	tableStream <-chan CreatedTable,
-	kvClient kv.Client,
-	errCh chan<- error,
-	updateCh glue.Progress,
-	concurrency uint,
-) <-chan struct{} {
-	log.Info("Start to validate checksum")
-	outCh := make(chan struct{}, 1)
-	wg := new(sync.WaitGroup)
-	wg.Add(2)
-	loadStatCh := make(chan *CreatedTable, 1024)
-	// run the stat loader
-	go func() {
-		defer wg.Done()
-		rc.updateMetaAndLoadStats(ctx, loadStatCh)
-	}()
-	workers := utils.NewWorkerPool(defaultChecksumConcurrency, "RestoreChecksum")
-	go func() {
-		eg, ectx := errgroup.WithContext(ctx)
-		defer func() {
-			if err := eg.Wait(); err != nil {
-				errCh <- err
-			}
-			close(loadStatCh)
-			wg.Done()
-		}()
-
-		for {
-			select {
-			// if we use ectx here, maybe canceled will mask real error.
-			case <-ctx.Done():
-				errCh <- ctx.Err()
-			case tbl, ok := <-tableStream:
-				if !ok {
-					return
-				}
-
-				workers.ApplyOnErrorGroup(eg, func() error {
-					start := time.Now()
-					defer func() {
-						elapsed := time.Since(start)
-						summary.CollectSuccessUnit("table checksum", 1, elapsed)
-					}()
-					err := rc.execChecksum(ectx, tbl, kvClient, concurrency, loadStatCh)
-					if err != nil {
-						return errors.Trace(err)
-					}
-					updateCh.Inc()
-					return nil
-				})
-			}
-		}
-	}()
-	go func() {
-		wg.Wait()
-		log.Info("all checksum ended")
-		close(outCh)
-	}()
-	return outCh
-}
-
-func (rc *Client) execChecksum(
-	ctx context.Context,
-	tbl CreatedTable,
-	kvClient kv.Client,
-	concurrency uint,
-	loadStatCh chan<- *CreatedTable,
-) error {
-	logger := log.With(
-		zap.String("db", tbl.OldTable.DB.Name.O),
-		zap.String("table", tbl.OldTable.Info.Name.O),
-	)
-
-	if tbl.OldTable.NoChecksum() {
-		logger.Warn("table has no checksum, skipping checksum")
-		return nil
-	}
-
-	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("Client.execChecksum", opentracing.ChildOf(span.Context()))
-		defer span1.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span1)
-	}
-
-	startTS, err := rc.GetTS(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	exe, err := checksum.NewExecutorBuilder(tbl.Table, startTS).
-		SetOldTable(tbl.OldTable).
-		SetConcurrency(concurrency).
-		Build()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	checksumResp, err := exe.Execute(ctx, kvClient, func() {
-		// TODO: update progress here.
-	})
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	table := tbl.OldTable
-	if checksumResp.Checksum != table.Crc64Xor ||
-		checksumResp.TotalKvs != table.TotalKvs ||
-		checksumResp.TotalBytes != table.TotalBytes {
-		logger.Error("failed in validate checksum",
-			zap.Uint64("origin tidb crc64", table.Crc64Xor),
-			zap.Uint64("calculated crc64", checksumResp.Checksum),
-			zap.Uint64("origin tidb total kvs", table.TotalKvs),
-			zap.Uint64("calculated total kvs", checksumResp.TotalKvs),
-			zap.Uint64("origin tidb total bytes", table.TotalBytes),
-			zap.Uint64("calculated total bytes", checksumResp.TotalBytes),
-		)
-		return errors.Annotate(berrors.ErrRestoreChecksumMismatch, "failed to validate checksum")
-	}
-
-	loadStatCh <- &tbl
-	return nil
-}
-
-func (rc *Client) updateMetaAndLoadStats(ctx context.Context, input <-chan *CreatedTable) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case tbl, ok := <-input:
-			if !ok {
-				return
-			}
-
-			// Not need to return err when failed because of update analysis-meta
-			restoreTS, err := rc.GetTS(ctx)
-			if err != nil {
-				log.Error("getTS failed", zap.Error(err))
-			} else {
-				err = rc.db.UpdateStatsMeta(ctx, tbl.Table.ID, restoreTS, tbl.OldTable.TotalKvs)
-				if err != nil {
-					log.Error("update stats meta failed", zap.Any("table", tbl.Table), zap.Error(err))
-				}
-			}
-
-			table := tbl.OldTable
-			if table.Stats != nil {
-				log.Info("start loads analyze after validate checksum",
-					zap.Int64("old id", tbl.OldTable.Info.ID),
-					zap.Int64("new id", tbl.Table.ID),
-				)
-				start := time.Now()
-				if err := rc.statsHandler.LoadStatsFromJSON(rc.dom.InfoSchema(), table.Stats); err != nil {
-					log.Error("analyze table failed", zap.Any("table", table.Stats), zap.Error(err))
-				}
-				log.Info("restore stat done",
-					zap.String("table", table.Info.Name.L),
-					zap.String("db", table.DB.Name.L),
-					zap.Duration("cost", time.Since(start)))
-			}
-		}
-	}
-}
-
 const (
 	restoreLabelKey   = "exclusive"
 	restoreLabelValue = "restore"
@@ -1101,106 +705,4 @@ func (rc *Client) ResetPlacementRules(ctx context.Context, tables []*model.Table
 
 func (rc *Client) getRuleID(tableID int64) string {
 	return "restore-t" + strconv.FormatInt(tableID, 10)
-}
-
-// IsIncremental returns whether this backup is incremental.
-func (rc *Client) IsIncremental() bool {
-	return !(rc.backupMeta.StartVersion == rc.backupMeta.EndVersion ||
-		rc.backupMeta.StartVersion == 0)
-}
-
-// EnableSkipCreateSQL sets switch of skip create schema and tables.
-func (rc *Client) EnableSkipCreateSQL() {
-	rc.noSchema = true
-}
-
-// IsSkipCreateSQL returns whether we need skip create schema and tables in restore.
-func (rc *Client) IsSkipCreateSQL() bool {
-	return rc.noSchema
-}
-
-// DDLJobsMap returns a map[UniqueTableName]bool about < db table, hasCreate/hasTruncate DDL >.
-// if we execute some DDLs before create table.
-// we may get two situation that need to rebase auto increment/random id.
-// 1. truncate table: truncate will generate new id cache.
-// 2. create table/create and rename table: the first create table will lock down the id cache.
-// because we cannot create onExistReplace table.
-// so the final create DDL with the correct auto increment/random id won't be executed.
-func (rc *Client) DDLJobsMap() map[UniqueTableName]bool {
-	m := make(map[UniqueTableName]bool)
-	for _, job := range rc.ddlJobs {
-		switch job.Type {
-		case model.ActionTruncateTable, model.ActionCreateTable, model.ActionRenameTable:
-			m[UniqueTableName{job.SchemaName, job.BinlogInfo.TableInfo.Name.String()}] = true
-		}
-	}
-	return m
-}
-
-// PreCheckTableTiFlashReplica checks whether TiFlash replica is less than TiFlash node.
-func (rc *Client) PreCheckTableTiFlashReplica(
-	ctx context.Context,
-	tables []*metautil.Table,
-) error {
-	tiFlashStores, err := conn.GetAllTiKVStores(ctx, rc.pdClient, conn.TiFlashOnly)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	tiFlashStoreCount := len(tiFlashStores)
-	for _, table := range tables {
-		if table.Info.TiFlashReplica != nil && table.Info.TiFlashReplica.Count > uint64(tiFlashStoreCount) {
-			// we cannot satisfy TiFlash replica in restore cluster. so we should
-			// set TiFlashReplica to unavailable in tableInfo, to avoid TiDB cannot sense TiFlash and make plan to TiFlash
-			// see details at https://github.com/pingcap/br/issues/931
-			table.Info.TiFlashReplica = nil
-		}
-	}
-	return nil
-}
-
-// PreCheckTableClusterIndex checks whether backup tables and existed tables have different cluster index options。
-func (rc *Client) PreCheckTableClusterIndex(
-	tables []*metautil.Table,
-	ddlJobs []*model.Job,
-	dom *domain.Domain,
-) error {
-	for _, table := range tables {
-		oldTableInfo, err := rc.GetTableSchema(dom, table.DB.Name, table.Info.Name)
-		// table exists in database
-		if err == nil {
-			if table.Info.IsCommonHandle != oldTableInfo.IsCommonHandle {
-				return errors.Annotatef(berrors.ErrRestoreModeMismatch,
-					"Clustered index option mismatch. Restored cluster's @@tidb_enable_clustered_index should be %v (backup table = %v, created table = %v).",
-					transferBoolToValue(table.Info.IsCommonHandle),
-					table.Info.IsCommonHandle,
-					oldTableInfo.IsCommonHandle)
-			}
-		}
-	}
-	for _, job := range ddlJobs {
-		if job.Type == model.ActionCreateTable {
-			tableInfo := job.BinlogInfo.TableInfo
-			if tableInfo != nil {
-				oldTableInfo, err := rc.GetTableSchema(dom, model.NewCIStr(job.SchemaName), tableInfo.Name)
-				// table exists in database
-				if err == nil {
-					if tableInfo.IsCommonHandle != oldTableInfo.IsCommonHandle {
-						return errors.Annotatef(berrors.ErrRestoreModeMismatch,
-							"Clustered index option mismatch. Restored cluster's @@tidb_enable_clustered_index should be %v (backup table = %v, created table = %v).",
-							transferBoolToValue(tableInfo.IsCommonHandle),
-							tableInfo.IsCommonHandle,
-							oldTableInfo.IsCommonHandle)
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func transferBoolToValue(enable bool) string {
-	if enable {
-		return "ON"
-	}
-	return "OFF"
 }

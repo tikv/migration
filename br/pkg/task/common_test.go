@@ -9,7 +9,6 @@ import (
 
 	backup "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
-	"github.com/pingcap/tidb/config"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 )
@@ -36,14 +35,6 @@ func TestUrlNoQuery(t *testing.T) {
 	field := flagToZapField(flag)
 	require.Equal(t, flagStorage, field.Key)
 	require.Equal(t, "s3://some/what", field.Interface.(fmt.Stringer).String())
-}
-
-func TestTiDBConfigUnchanged(t *testing.T) {
-	cfg := config.GetGlobalConfig()
-	restoreConfig := enableTiDBConfig()
-	require.NotEqual(t, config.GetGlobalConfig(), cfg)
-	restoreConfig()
-	require.Equal(t, config.GetGlobalConfig(), cfg)
 }
 
 func TestStripingPDURL(t *testing.T) {

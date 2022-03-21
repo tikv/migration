@@ -14,14 +14,14 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	tidbutils "github.com/pingcap/tidb-tools/pkg/utils"
+	"github.com/pingcap/tidb/util/logutil"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/gluetidb"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/task"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
-	"github.com/pingcap/tidb/util/logutil"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -30,20 +30,6 @@ var (
 	hasLogFile      uint64
 	tidbGlue        = gluetidb.New()
 	envLogToTermKey = "BR_LOG_TO_TERM"
-
-	filterOutSysAndMemTables = []string{
-		"*.*",
-		fmt.Sprintf("!%s.*", utils.TemporaryDBName("*")),
-		"!mysql.*",
-		"!sys.*",
-		"!INFORMATION_SCHEMA.*",
-		"!PERFORMANCE_SCHEMA.*",
-		"!METRICS_SCHEMA.*",
-		"!INSPECTION_SCHEMA.*",
-	}
-	acceptAllTables = []string{
-		"*.*",
-	}
 )
 
 const (

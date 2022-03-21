@@ -5,22 +5,21 @@ package backup
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/kv"
+	"github.com/pingcap/tidb/parser/model"
+	"github.com/pingcap/tidb/statistics/handle"
 	"github.com/tikv/migration/br/pkg/checksum"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
-	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/statistics/handle"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -44,23 +43,6 @@ type schemaInfo struct {
 type Schemas struct {
 	// name -> schema
 	schemas map[string]*schemaInfo
-}
-
-func newBackupSchemas() *Schemas {
-	return &Schemas{
-		schemas: make(map[string]*schemaInfo),
-	}
-}
-
-func (ss *Schemas) addSchema(
-	dbInfo *model.DBInfo, tableInfo *model.TableInfo,
-) {
-	name := fmt.Sprintf("%s.%s",
-		utils.EncloseName(dbInfo.Name.L), utils.EncloseName(tableInfo.Name.L))
-	ss.schemas[name] = &schemaInfo{
-		tableInfo: tableInfo,
-		dbInfo:    dbInfo,
-	}
 }
 
 // BackupSchemas backups table info, including checksum and stats.
