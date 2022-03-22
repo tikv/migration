@@ -8,10 +8,10 @@ import (
 	"github.com/docker/go-units"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
-	berrors "github.com/tikv/migration/br/pkg/errors"
-	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/tablecodec"
+	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/rtree"
 )
 
 const (

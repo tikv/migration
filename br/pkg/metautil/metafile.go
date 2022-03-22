@@ -19,14 +19,14 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
 	"github.com/pingcap/log"
-	berrors "github.com/tikv/migration/br/pkg/errors"
-	"github.com/tikv/migration/br/pkg/logutil"
-	"github.com/tikv/migration/br/pkg/storage"
-	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/statistics/handle"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/encrypt"
+	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/logutil"
+	"github.com/tikv/migration/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/summary"
 	"go.uber.org/zap"
 )
 
@@ -631,7 +631,7 @@ func (writer *MetaWriter) FlushBackupMeta(ctx context.Context) error {
 
 // fillMetasV1 keep the compatibility for old version.
 // for MetaV1, just put in backupMeta
-func (writer *MetaWriter) fillMetasV1(ctx context.Context, op AppendOp) {
+func (writer *MetaWriter) fillMetasV1(_ context.Context, op AppendOp) {
 	switch op {
 	case AppendDataFile:
 		writer.backupMeta.Files = writer.metafiles.root.DataFiles

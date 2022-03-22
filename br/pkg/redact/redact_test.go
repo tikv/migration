@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/redact"
 	"go.uber.org/goleak"
 )
 

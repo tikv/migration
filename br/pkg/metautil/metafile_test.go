@@ -10,8 +10,8 @@ import (
 	"github.com/golang/mock/gomock"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
-	mockstorage "github.com/tikv/migration/br/pkg/mock/storage"
 	"github.com/stretchr/testify/require"
+	mockstorage "github.com/tikv/migration/br/pkg/mock/storage"
 )
 
 func checksum(m *backuppb.MetaFile) []byte {

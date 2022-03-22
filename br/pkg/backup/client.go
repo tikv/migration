@@ -21,15 +21,6 @@ import (
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
 	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
-	"github.com/tikv/migration/br/pkg/conn"
-	berrors "github.com/tikv/migration/br/pkg/errors"
-	"github.com/tikv/migration/br/pkg/logutil"
-	"github.com/tikv/migration/br/pkg/metautil"
-	"github.com/tikv/migration/br/pkg/redact"
-	"github.com/tikv/migration/br/pkg/rtree"
-	"github.com/tikv/migration/br/pkg/storage"
-	"github.com/tikv/migration/br/pkg/summary"
-	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/pingcap/tidb/distsql"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta"
@@ -41,6 +32,15 @@ import (
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
+	"github.com/tikv/migration/br/pkg/conn"
+	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/logutil"
+	"github.com/tikv/migration/br/pkg/metautil"
+	"github.com/tikv/migration/br/pkg/redact"
+	"github.com/tikv/migration/br/pkg/rtree"
+	"github.com/tikv/migration/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/summary"
+	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -476,10 +476,8 @@ func (bc *Client) BackupRanges(
 				// The error due to context cancel, stack trace is meaningless, the stack shall be suspended (also clear)
 				if errors.Cause(err) == context.Canceled {
 					return errors.SuspendStack(err)
-				} else {
-					return errors.Trace(err)
 				}
-
+				return errors.Trace(err)
 			}
 			return nil
 		})
@@ -996,7 +994,7 @@ backupLoop:
 
 // gRPC communication cancelled with connection closing
 const (
-	gRPC_Cancel = "the client connection is closing"
+	gRPCCancel = "the client connection is closing"
 )
 
 // isRetryableError represents whether we should retry reset grpc connection.
@@ -1010,7 +1008,7 @@ func isRetryableError(err error) bool {
 	// one from backup range, another from gRPC, here we retry when gRPC cancel with connection closing
 	if status.Code(err) == codes.Canceled {
 		if s, ok := status.FromError(err); ok {
-			if strings.Contains(s.Message(), gRPC_Cancel) {
+			if strings.Contains(s.Message(), gRPCCancel) {
 				return true
 			}
 		}

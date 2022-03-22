@@ -14,14 +14,14 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
 	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
+	"github.com/pingcap/tidb/sessionctx/variable"
+	"github.com/pingcap/tidb/util/testkit"
+	"github.com/pingcap/tidb/util/testleak"
 	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/mock"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/utils"
-	"github.com/pingcap/tidb/sessionctx/variable"
-	"github.com/pingcap/tidb/util/testkit"
-	"github.com/pingcap/tidb/util/testleak"
 )
 
 var _ = Suite(&testBackupSchemaSuite{})

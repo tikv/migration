@@ -39,7 +39,7 @@ type Cluster struct {
 	*domain.Domain
 	DSN        string
 	PDClient   pd.Client
-	HttpServer *http.Server
+	HTTPServer *http.Server
 }
 
 // NewCluster create a new mock cluster.
@@ -52,8 +52,8 @@ func NewCluster() (*Cluster, error) {
 			_ = pprof.Handler
 			addr := "0.0.0.0:12235"
 			log.Info("start pprof", zap.String("addr", addr))
-			cluster.HttpServer = &http.Server{Addr: addr}
-			if e := cluster.HttpServer.ListenAndServe(); e != nil {
+			cluster.HTTPServer = &http.Server{Addr: addr}
+			if e := cluster.HTTPServer.ListenAndServe(); e != nil {
 				log.Warn("fail to start pprof", zap.String("addr", addr), zap.Error(e))
 			}
 		}()
@@ -128,8 +128,8 @@ func (mock *Cluster) Stop() {
 	if mock.Server != nil {
 		mock.Server.Close()
 	}
-	if mock.HttpServer != nil {
-		_ = mock.HttpServer.Close()
+	if mock.HTTPServer != nil {
+		_ = mock.HTTPServer.Close()
 	}
 }
 

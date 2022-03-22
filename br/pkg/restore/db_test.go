@@ -12,17 +12,17 @@ import (
 	"github.com/golang/protobuf/proto"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
+	"github.com/pingcap/tidb/meta/autoid"
+	"github.com/pingcap/tidb/parser/model"
+	"github.com/pingcap/tidb/testkit"
+	"github.com/stretchr/testify/require"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/gluetidb"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/mock"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/storage"
-	"github.com/pingcap/tidb/meta/autoid"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/testkit"
-	"github.com/stretchr/testify/require"
-	"github.com/tikv/client-go/v2/oracle"
 )
 
 type testRestoreSchemaSuite struct {
@@ -106,6 +106,7 @@ func TestRestoreAutoIncID(t *testing.T) {
 	// try again, failed due to table exists.
 	table.Info.AutoIncID = globalAutoID + 200
 	err = db.CreateTable(context.Background(), &table, uniqueMap)
+	require.NoErrorf(t, err, "Got unexpected error when create table: %v", err)
 	// Check if AutoIncID is not altered.
 	autoIncID, err = strconv.ParseUint(tk.MustQuery("admin show `\"t\"` next_row_id").Rows()[0][3].(string), 10, 64)
 	require.NoErrorf(t, err, "Error query auto inc id: %s", err)
@@ -115,6 +116,7 @@ func TestRestoreAutoIncID(t *testing.T) {
 	table.Info.AutoIncID = globalAutoID + 300
 	uniqueMap[restore.UniqueTableName{"test", "\"t\""}] = true
 	err = db.CreateTable(context.Background(), &table, uniqueMap)
+	require.NoErrorf(t, err, "Error create table: %s", err)
 	// Check if AutoIncID is altered to globalAutoID + 300.
 	autoIncID, err = strconv.ParseUint(tk.MustQuery("admin show `\"t\"` next_row_id").Rows()[0][3].(string), 10, 64)
 	require.NoErrorf(t, err, "Error query auto inc id: %s", err)

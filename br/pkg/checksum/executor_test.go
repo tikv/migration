@@ -7,18 +7,19 @@ import (
 	"math"
 	"testing"
 
-	"github.com/tikv/migration/br/pkg/backup"
-	"github.com/tikv/migration/br/pkg/checksum"
-	"github.com/tikv/migration/br/pkg/metautil"
-	"github.com/tikv/migration/br/pkg/mock"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/testkit"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/backup"
+	"github.com/tikv/migration/br/pkg/checksum"
+	"github.com/tikv/migration/br/pkg/metautil"
+	"github.com/tikv/migration/br/pkg/mock"
 )
 
-func getTableInfo(t *testing.T, mock *mock.Cluster, db, table string) *model.TableInfo {
+func getTestTableInfo(t *testing.T, mock *mock.Cluster, table string) *model.TableInfo {
+	db := "test"
 	info, err := mock.Domain.GetSnapshotInfoSchema(math.MaxUint64)
 	require.NoError(t, err)
 	cDBName := model.NewCIStr(db)
@@ -40,7 +41,7 @@ func TestChecksum(t *testing.T) {
 	tk.MustExec("drop table if exists t1;")
 	tk.MustExec("create table t1 (a int);")
 	tk.MustExec("insert into t1 values (10);")
-	tableInfo1 := getTableInfo(t, mock, "test", "t1")
+	tableInfo1 := getTestTableInfo(t, mock, "t1")
 	exe1, err := checksum.NewExecutorBuilder(tableInfo1, math.MaxUint64).
 		SetConcurrency(variable.DefChecksumTableConcurrency).
 		Build()
@@ -62,7 +63,7 @@ func TestChecksum(t *testing.T) {
 	tk.MustExec("create table t2 (a int);")
 	tk.MustExec("alter table t2 add index i2(a);")
 	tk.MustExec("insert into t2 values (10);")
-	tableInfo2 := getTableInfo(t, mock, "test", "t2")
+	tableInfo2 := getTestTableInfo(t, mock, "t2")
 	exe2, err := checksum.NewExecutorBuilder(tableInfo2, math.MaxUint64).Build()
 	require.NoError(t, err)
 	require.Equalf(t, 2, exe2.Len(), "%v", tableInfo2)
@@ -74,7 +75,7 @@ func TestChecksum(t *testing.T) {
 
 	// Test rewrite rules
 	tk.MustExec("alter table t1 add index i2(a);")
-	tableInfo1 = getTableInfo(t, mock, "test", "t1")
+	tableInfo1 = getTestTableInfo(t, mock, "t1")
 	oldTable := metautil.Table{Info: tableInfo1}
 	exe2, err = checksum.NewExecutorBuilder(tableInfo2, math.MaxUint64).
 		SetOldTable(&oldTable).Build()
@@ -95,7 +96,7 @@ func TestChecksum(t *testing.T) {
 	tk.MustExec("drop table if exists t3;")
 	tk.MustExec("create table t3 (a char(255), b int, primary key(a) CLUSTERED);")
 	tk.MustExec("insert into t3 values ('fffffffff', 1), ('010101010', 2), ('394393fj39efefe', 3);")
-	tableInfo3 := getTableInfo(t, mock, "test", "t3")
+	tableInfo3 := getTestTableInfo(t, mock, "t3")
 	exe3, err := checksum.NewExecutorBuilder(tableInfo3, math.MaxUint64).Build()
 	require.NoError(t, err)
 	first := true

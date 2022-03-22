@@ -18,8 +18,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/tikv/migration/br/pkg/kv"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/kv"
 )
 
 func uint64NotEqual(a uint64, b uint64) bool { return a != b }

@@ -106,9 +106,7 @@ func ParseBackend(rawURL string, options *BackendOptions) (*backuppb.StorageBack
 			options = &BackendOptions{}
 		}
 		ExtractQueryParameters(u, &options.Azblob)
-		if err := options.Azblob.apply(azblob); err != nil {
-			return nil, errors.Trace(err)
-		}
+		options.Azblob.apply(azblob)
 		return &backuppb.StorageBackend{Backend: &backuppb.StorageBackend_AzureBlobStorage{AzureBlobStorage: azblob}}, nil
 	default:
 		return nil, errors.Annotatef(berrors.ErrStorageInvalidConfig, "storage %s not support yet", u.Scheme)

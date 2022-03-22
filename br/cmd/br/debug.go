@@ -16,6 +16,8 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/parser/model"
+	"github.com/spf13/cobra"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/metautil"
@@ -25,8 +27,6 @@ import (
 	"github.com/tikv/migration/br/pkg/task"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 

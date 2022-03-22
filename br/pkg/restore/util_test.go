@@ -10,10 +10,10 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/restore"
 )
 
 func TestParseQuoteName(t *testing.T) {
@@ -224,13 +224,13 @@ func TestPaginateScanRegion(t *testing.T) {
 
 	ctx := context.Background()
 	regionMap := make(map[uint64]*restore.RegionInfo)
-	regions := []*restore.RegionInfo{}
-	batch, err := restore.PaginateScanRegion(ctx, NewTestClient(stores, regionMap, 0), []byte{}, []byte{}, 3)
+	var regions []*restore.RegionInfo
+	_, err := restore.PaginateScanRegion(ctx, NewTestClient(stores, regionMap, 0), []byte{}, []byte{}, 3)
 	require.Error(t, err)
 	require.Regexp(t, ".*scan region return empty result.*", err.Error())
 
 	regionMap, regions = makeRegions(1)
-	batch, err = restore.PaginateScanRegion(ctx, NewTestClient(stores, regionMap, 0), []byte{}, []byte{}, 3)
+	batch, err := restore.PaginateScanRegion(ctx, NewTestClient(stores, regionMap, 0), []byte{}, []byte{}, 3)
 	require.NoError(t, err)
 	require.Equal(t, regions, batch)
 
