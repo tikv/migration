@@ -29,10 +29,8 @@ const (
 	FlagBatchFlushInterval = "batch-flush-interval"
 
 	defaultRestoreConcurrency = 128
-	maxRestoreBatchSizeLimit  = 10240
 	defaultPDConcurrency      = 1
 	defaultBatchFlushInterval = 16 * time.Second
-	defaultDDLConcurrency     = 16
 )
 
 // RestoreCommonConfig is the common configuration for all BR restore tasks.
