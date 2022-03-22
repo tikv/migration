@@ -13,8 +13,6 @@
 
 package owner
 
-/*
-
 import (
 	"context"
 	"sync/atomic"
@@ -29,6 +27,7 @@ import (
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/p2p"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/version"
 )
 
@@ -73,6 +72,14 @@ func TestSchedulerBasics(t *testing.T) {
 		mockOwnerNode.Server,
 		mockOwnerNode.Router)
 	require.NoError(t, err)
+
+	sched.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+		}, nil
+	}
 
 	for atomic.LoadInt64(&sched.stats.AnnounceSentCount) < numNodes {
 		checkpointTs, resolvedTs, err := sched.Tick(ctx, &orchestrator.ChangefeedReactorState{
@@ -229,6 +236,14 @@ func TestSchedulerNoPeer(t *testing.T) {
 		mockOwnerNode.Router)
 	require.NoError(t, err)
 
+	sched.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+		}, nil
+	}
+
 	// Ticks the scheduler 10 times. It should not panic.
 	for i := 0; i < 10; i++ {
 		checkpointTs, resolvedTs, err := sched.Tick(ctx, &orchestrator.ChangefeedReactorState{
@@ -289,4 +304,3 @@ func receiveToChannels(
 	}
 	return channels
 }
-*/

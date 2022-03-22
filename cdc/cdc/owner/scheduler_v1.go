@@ -62,11 +62,14 @@ type oldScheduler struct {
 	moveKeySpanJobQueue   []*moveKeySpanJob
 	needRebalanceNextTick bool
 	lastTickCaptureCount  int
+
+	updateCurrentKeySpans func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
 }
 
 func newSchedulerV1() scheduler {
 	return &schedulerV1CompatWrapper{&oldScheduler{
-		moveKeySpanTargets: make(map[model.KeySpanID]model.CaptureID),
+		moveKeySpanTargets:    make(map[model.KeySpanID]model.CaptureID),
+		updateCurrentKeySpans: ImpUpdateCurrentKeySpans,
 	}}
 }
 
@@ -81,7 +84,7 @@ func (s *oldScheduler) Tick(
 ) (shouldUpdateState bool, err error) {
 
 	s.state = state
-	s.currentKeySpansID, err = s.updateCurrentKeySpans(ctx)
+	s.currentKeySpansID, s.currentKeySpans, err = s.updateCurrentKeySpans(ctx)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -413,7 +416,7 @@ func (s *oldScheduler) rebalanceByKeySpanNum() (shouldUpdateState bool) {
 	return
 }
 
-func (s *oldScheduler) updateCurrentKeySpans(ctx cdcContext.Context) ([]model.KeySpanID, error) {
+func ImpUpdateCurrentKeySpans(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 	limit := -1
 	tikvRequestMaxBackoff := 20000
 	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
@@ -421,7 +424,7 @@ func (s *oldScheduler) updateCurrentKeySpans(ctx cdcContext.Context) ([]model.Ke
 	regionCache := ctx.GlobalVars().RegionCache
 	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, []byte{'r'}, []byte{'s'}, limit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	currentKeySpans := map[model.KeySpanID]regionspan.Span{}
@@ -442,9 +445,8 @@ func (s *oldScheduler) updateCurrentKeySpans(ctx cdcContext.Context) ([]model.Ke
 		currentKeySpansID = append(currentKeySpansID, id)
 		currentKeySpans[id] = keyspan
 	}
-	s.currentKeySpans = currentKeySpans
 
-	return currentKeySpansID, nil
+	return currentKeySpansID, currentKeySpans, nil
 }
 
 // schedulerV1CompatWrapper is used to wrap the old scheduler to

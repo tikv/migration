@@ -13,16 +13,16 @@
 
 package owner
 
-/*
-
 import (
 	"fmt"
 	"math/rand"
 
 	"github.com/pingcap/check"
 	"github.com/tikv/migration/cdc/cdc/model"
+	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
@@ -91,7 +91,11 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	captureID := "test-capture-0"
 	s.addCapture(captureID)
 
-	_, _ = s.scheduler.Tick(s.state, []model.KeySpanID{}, s.captures)
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
+	_, _ = s.scheduler.Tick(ctx, s.state, s.captures)
 
 	// Manually simulate the scenario where the corresponding key was deleted in the etcd
 	key := &etcd.CDCKey{
@@ -107,7 +111,15 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	s.addCapture(captureID)
 
 	// add three keyspans
-	shouldUpdateState, err := s.scheduler.Tick(s.state, []model.KeySpanID{1, 2, 3, 4}, s.captures)
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3, 4}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+			4: {Start: []byte{'4'}, End: []byte{'5'}},
+		}, nil
+	}
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -120,7 +132,9 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 		3: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 	})
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1, 2, 3, 4}, s.captures)
+
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4},
+
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
@@ -128,8 +142,15 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	// two keyspans finish adding operation
 	s.finishKeySpanOperation(captureID, 2, 3)
 
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{3, 4, 5}, map[model.KeySpanID]regionspan.Span{
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+			4: {Start: []byte{'4'}, End: []byte{'5'}},
+			5: {Start: []byte{'5'}, End: []byte{'6'}},
+		}, nil
+	}
 	// remove keyspan 1,2 and add keyspan 4,5
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{3, 4, 5}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -148,7 +169,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	// move keyspans to a non exist capture
 	s.scheduler.MoveKeySpan(3, "fake-capture")
 	s.scheduler.MoveKeySpan(4, "fake-capture")
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{3, 4, 5}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -166,7 +187,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	// finish all operations
 	s.finishKeySpanOperation(captureID, 1, 2, 3, 4, 5)
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{3, 4, 5}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
@@ -177,7 +198,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 
 	// keyspan 3 is missing by expected, because the keyspan was trying to move to a invalid capture
 	// and the move will failed, the keyspan 3 will be add in next tick
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{3, 4, 5}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -186,7 +207,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{3, 4, 5}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -205,8 +226,17 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	captureID2 := "test-capture-2"
 	s.addCapture(captureID1)
 
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
 	// add a keyspan
-	shouldUpdateState, err := s.scheduler.Tick(s.state, []model.KeySpanID{1}, s.captures)
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+		}, nil
+	}
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -218,7 +248,7 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	})
 
 	s.finishKeySpanOperation(captureID1, 1)
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
@@ -226,7 +256,13 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	s.addCapture(captureID2)
 
 	// add a keyspan
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1, 2}, s.captures)
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+		}, nil
+	}
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -244,7 +280,7 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	s.finishKeySpanOperation(captureID2, 2)
 
 	s.scheduler.MoveKeySpan(2, captureID1)
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1, 2}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -259,7 +295,7 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 
 	s.finishKeySpanOperation(captureID2, 2)
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1, 2}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
@@ -270,7 +306,7 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{})
 	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1, 2}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -306,8 +342,22 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 	})
 	s.tester.MustApplyPatches()
 
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
 	// rebalance keyspan
-	shouldUpdateState, err := s.scheduler.Tick(s.state, []model.KeySpanID{1, 2, 3, 4, 5, 6}, s.captures)
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3, 4, 5, 6}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'1'}},
+			2: {Start: []byte{'2'}, End: []byte{'2'}},
+			3: {Start: []byte{'3'}, End: []byte{'3'}},
+			4: {Start: []byte{'4'}, End: []byte{'4'}},
+			5: {Start: []byte{'5'}, End: []byte{'5'}},
+			6: {Start: []byte{'6'}, End: []byte{'6'}},
+		}, nil
+	}
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4, 5, 6},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -333,7 +383,7 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 	s.tester.MustApplyPatches()
 
 	// clean finished operation
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1, 2, 3, 4, 5, 6}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4, 5, 6},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
@@ -341,7 +391,7 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.HasLen, 0)
 
 	// rebalance keyspan
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.KeySpanID{1, 2, 3, 4, 5, 6}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4, 5, 6},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
@@ -357,4 +407,3 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 	}
 	c.Assert(keyspanIDs, check.DeepEquals, map[model.KeySpanID]struct{}{1: {}, 2: {}, 3: {}, 4: {}, 5: {}, 6: {}})
 }
-*/
