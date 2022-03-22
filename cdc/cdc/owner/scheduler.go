@@ -18,21 +18,22 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	pscheduler "github.com/tikv/migration/cdc/cdc/scheduler"
-	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/p2p"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/version"
 	"go.uber.org/zap"
 )
 
-// scheduler is an interface for scheduling tables.
-// Since in our design, we do not record checkpoints per table,
+// scheduler is an interface for scheduling keyspans.
+// Since in our design, we do not record checkpoints per keyspan,
 // how we calculate the global watermarks (checkpoint-ts and resolved-ts)
-// is heavily coupled with how tables are scheduled.
+// is heavily coupled with how keyspans are scheduled.
 // That is why we have a scheduler interface that also reports the global watermarks.
 type scheduler interface {
 	// Tick is called periodically from the owner, and returns
@@ -40,12 +41,12 @@ type scheduler interface {
 	Tick(
 		ctx context.Context,
 		state *orchestrator.ChangefeedReactorState,
-		currentTables []model.TableID,
+		//	currentKeySpans []model.KeySpanID,
 		captures map[model.CaptureID]*model.CaptureInfo,
 	) (newCheckpointTs, newResolvedTs model.Ts, err error)
 
-	// MoveTable is used to trigger manual table moves.
-	MoveTable(tableID model.TableID, target model.CaptureID)
+	// MoveKeySpan is used to trigger manual keyspan moves.
+	MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID)
 
 	// Rebalance is used to trigger manual workload rebalances.
 	Rebalance()
@@ -60,8 +61,9 @@ type schedulerV2 struct {
 	messageServer *p2p.MessageServer
 	messageRouter p2p.MessageRouter
 
-	changeFeedID  model.ChangeFeedID
-	handlerErrChs []<-chan error
+	changeFeedID    model.ChangeFeedID
+	handlerErrChs   []<-chan error
+	currentKeySpans map[model.KeySpanID]regionspan.Span
 
 	stats *schedulerStats
 }
@@ -102,38 +104,55 @@ func newSchedulerV2FromCtx(ctx context.Context, startTs uint64) (scheduler, erro
 }
 
 func newScheduler(ctx context.Context, startTs uint64) (scheduler, error) {
-	conf := config.GetGlobalServerConfig()
-	if conf.Debug.EnableNewScheduler {
-		return newSchedulerV2FromCtx(ctx, startTs)
-	}
-	return newSchedulerV1(), nil
+	/*
+		conf := config.GetGlobalServerConfig()
+		if conf.Debug.EnableNewScheduler {
+			return newSchedulerV2FromCtx(ctx, startTs)
+		}
+		return newSchedulerV1(), nil
+	*/
+	return newSchedulerV2FromCtx(ctx, startTs)
 }
 
 func (s *schedulerV2) Tick(
 	ctx context.Context,
 	state *orchestrator.ChangefeedReactorState,
-	currentTables []model.TableID,
+	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (checkpoint, resolvedTs model.Ts, err error) {
 	if err := s.checkForHandlerErrors(ctx); err != nil {
 		return pscheduler.CheckpointCannotProceed, pscheduler.CheckpointCannotProceed, errors.Trace(err)
 	}
-	return s.BaseScheduleDispatcher.Tick(ctx, state.Status.CheckpointTs, currentTables, captures)
+	currentKeySpansID, err := s.updateCurrentKeySpans(ctx)
+	if err != nil {
+		return pscheduler.CheckpointCannotProceed, pscheduler.CheckpointCannotProceed, errors.Trace(err)
+	}
+	log.Debug("current key spans ID: ", zap.Any("currentKeySpansID", currentKeySpansID))
+
+	return s.BaseScheduleDispatcher.Tick(ctx, state.Status.CheckpointTs, currentKeySpansID, captures)
 }
 
-func (s *schedulerV2) DispatchTable(
+func (s *schedulerV2) DispatchKeySpan(
 	ctx context.Context,
 	changeFeedID model.ChangeFeedID,
-	tableID model.TableID,
+	keyspanID model.KeySpanID,
 	captureID model.CaptureID,
 	isDelete bool,
 ) (done bool, err error) {
-	topic := model.DispatchTableTopic(changeFeedID)
-	message := &model.DispatchTableMessage{
+	topic := model.DispatchKeySpanTopic(changeFeedID)
+	message := &model.DispatchKeySpanMessage{
 		OwnerRev: ctx.GlobalVars().OwnerRevision,
-		ID:       tableID,
+		ID:       keyspanID,
 		IsDelete: isDelete,
 	}
+
+	if !isDelete {
+		message.Start = s.currentKeySpans[keyspanID].Start
+		message.End = s.currentKeySpans[keyspanID].End
+	}
+	log.Debug("try to send message",
+		zap.String("topic", topic),
+		zap.Any("message", message))
 
 	ok, err := s.trySendMessage(ctx, captureID, topic, message)
 	if err != nil {
@@ -234,12 +253,12 @@ func (s *schedulerV2) registerPeerMessageHandlers(ctx context.Context) (ret erro
 
 	errCh, err := s.messageServer.SyncAddHandler(
 		ctx,
-		model.DispatchTableResponseTopic(s.changeFeedID),
-		&model.DispatchTableResponseMessage{},
+		model.DispatchKeySpanResponseTopic(s.changeFeedID),
+		&model.DispatchKeySpanResponseMessage{},
 		func(sender string, messageI interface{}) error {
-			message := messageI.(*model.DispatchTableResponseMessage)
+			message := messageI.(*model.DispatchKeySpanResponseMessage)
 			s.stats.RecordDispatchResponse()
-			s.OnAgentFinishedTableOperation(sender, message.ID)
+			s.OnAgentFinishedKeySpanOperation(sender, message.ID)
 			return nil
 		})
 	if err != nil {
@@ -287,7 +306,7 @@ func (s *schedulerV2) registerPeerMessageHandlers(ctx context.Context) (ret erro
 func (s *schedulerV2) deregisterPeerMessageHandlers(ctx context.Context) {
 	err := s.messageServer.SyncRemoveHandler(
 		ctx,
-		model.DispatchTableResponseTopic(s.changeFeedID))
+		model.DispatchKeySpanResponseTopic(s.changeFeedID))
 	if err != nil {
 		log.Error("failed to remove peer message handler", zap.Error(err))
 	}
@@ -318,6 +337,33 @@ func (s *schedulerV2) checkForHandlerErrors(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (s *schedulerV2) updateCurrentKeySpans(ctx context.Context) ([]model.KeySpanID, error) {
+	limit := 1000
+	tikvRequestMaxBackoff := 20000
+	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
+
+	regionCache := ctx.GlobalVars().RegionCache
+	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, nil, nil, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	currentKeySpans := map[model.KeySpanID]regionspan.Span{}
+	currentKeySpansID := []model.KeySpanID{}
+	for _, region := range regions {
+		startKey := region.StartKey()
+		endKey := region.EndKey()
+		keyspan := regionspan.Span{Start: startKey, End: endKey}
+
+		id := keyspan.ID()
+		currentKeySpansID = append(currentKeySpansID, id)
+		currentKeySpans[id] = keyspan
+	}
+	s.currentKeySpans = currentKeySpans
+
+	return currentKeySpansID, nil
 }
 
 type schedulerStats struct {
