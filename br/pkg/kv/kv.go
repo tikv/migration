@@ -24,8 +24,6 @@ import (
 	"github.com/pingcap/errors"
 	sst "github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/br/pkg/logutil"
-	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta/autoid"
 	"github.com/pingcap/tidb/parser/model"
@@ -34,6 +32,8 @@ import (
 	"github.com/pingcap/tidb/table/tables"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/types"
+	"github.com/tikv/migration/br/pkg/logutil"
+	"github.com/tikv/migration/br/pkg/redact"
 	"go.uber.org/zap"
 )
 

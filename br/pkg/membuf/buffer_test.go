@@ -86,6 +86,6 @@ func TestBufferIsolation(t *testing.T) {
 	_, err := rand.Read(b2)
 	require.NoError(t, err)
 	b3 := append([]byte(nil), b2...)
-	b1 = append(b1, 0, 1, 2, 3)
+	_ = append(b1, 0, 1, 2, 3)
 	require.Equal(t, b3, b2)
 }

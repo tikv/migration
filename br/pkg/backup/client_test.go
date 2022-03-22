@@ -173,10 +173,10 @@ func (r *testBackup) TestSendCreds(c *C) {
 	}
 	_, err = storage.New(r.ctx, backend, opts)
 	c.Assert(err, IsNil)
-	access_key := backend.GetS3().AccessKey
-	c.Assert(access_key, Equals, "ab")
-	secret_access_key := backend.GetS3().SecretAccessKey
-	c.Assert(secret_access_key, Equals, "cd")
+	accessKey = backend.GetS3().AccessKey
+	c.Assert(accessKey, Equals, "ab")
+	secretAccessKey = backend.GetS3().SecretAccessKey
+	c.Assert(secretAccessKey, Equals, "cd")
 
 	backendOpt = storage.BackendOptions{
 		S3: storage.S3BackendOptions{
@@ -191,10 +191,10 @@ func (r *testBackup) TestSendCreds(c *C) {
 	}
 	_, err = storage.New(r.ctx, backend, opts)
 	c.Assert(err, IsNil)
-	access_key = backend.GetS3().AccessKey
-	c.Assert(access_key, Equals, "")
-	secret_access_key = backend.GetS3().SecretAccessKey
-	c.Assert(secret_access_key, Equals, "")
+	accessKey = backend.GetS3().AccessKey
+	c.Assert(accessKey, Equals, "")
+	secretAccessKey = backend.GetS3().SecretAccessKey
+	c.Assert(secretAccessKey, Equals, "")
 }
 
 func (r *testBackup) TestCheckBackupIsLocked(c *C) {

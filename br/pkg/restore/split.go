@@ -297,32 +297,38 @@ func (rs *RegionSplitter) ScatterRegionsWithBackoffer(ctx context.Context, newRe
 		newRegionSet[newRegion.Region.Id] = newRegion
 	}
 
-	if err := utils.WithRetry(ctx, func() error {
-		log.Info("trying to scatter regions...", zap.Int("remain", len(newRegionSet)))
-		var errs error
-		for _, region := range newRegionSet {
-			err := rs.client.ScatterRegion(ctx, region)
-			if err == nil {
-				// it is safe accroding to the Go language spec.
-				delete(newRegionSet, region.Region.Id)
-			} else if !pdErrorCanRetry(err) {
-				log.Warn("scatter meet error cannot be retried, skipping",
-					logutil.ShortError(err),
-					logutil.Region(region.Region),
-				)
-				delete(newRegionSet, region.Region.Id)
+	err := utils.WithRetry(ctx,
+		func() error {
+			log.Info("trying to scatter regions...", zap.Int("remain", len(newRegionSet)))
+			var errs error
+			for _, region := range newRegionSet {
+				err := rs.client.ScatterRegion(ctx, region)
+				if err == nil {
+					// it is safe according to the Go language spec.
+					delete(newRegionSet, region.Region.Id)
+				} else if !pdErrorCanRetry(err) {
+					log.Warn("scatter meet error cannot be retried, skipping",
+						logutil.ShortError(err),
+						logutil.Region(region.Region),
+					)
+					delete(newRegionSet, region.Region.Id)
+				}
+				errs = multierr.Append(errs, err)
 			}
-			errs = multierr.Append(errs, err)
-		}
-		return errs
-	}, backoffer); err != nil {
-		log.Warn("Some regions haven't been scattered because errors.",
+			return errs
+		},
+		backoffer,
+	)
+
+	if err != nil {
+		log.Warn(
+			"Some regions haven't been scattered because errors.",
 			zap.Int("count", len(newRegionSet)),
 			// if all region are failed to scatter, the short error might also be verbose...
 			logutil.ShortError(err),
 			logutil.AbbreviatedArray("failed-regions", newRegionSet, func(i interface{}) []string {
 				m := i.(map[uint64]*RegionInfo)
-				result := make([]string, len(m))
+				result := make([]string, 0, len(m))
 				for id := range m {
 					result = append(result, strconv.Itoa(int(id)))
 				}
@@ -480,7 +486,7 @@ func (b *scanRegionBackoffer) Attempt() int {
 
 // getSplitKeys checks if the regions should be split by the end key of
 // the ranges, groups the split keys by region id.
-func getSplitKeys(rewriteRules *RewriteRules, ranges []rtree.Range, regions []*RegionInfo) map[uint64][][]byte {
+func getSplitKeys(_ *RewriteRules, ranges []rtree.Range, regions []*RegionInfo) map[uint64][][]byte {
 	splitKeyMap := make(map[uint64][][]byte)
 	checkKeys := make([][]byte, 0)
 	for _, rg := range ranges {

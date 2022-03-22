@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
-	"github.com/tikv/migration/br/pkg/restore"
-	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/restore"
+	"github.com/tikv/migration/br/pkg/rtree"
 )
 
 func rangeEquals(t *testing.T, obtained, expected []rtree.Range) {
