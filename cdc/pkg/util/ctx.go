@@ -25,7 +25,7 @@ import (
 type ctxKey string
 
 const (
-	ctxKeyTableID      = ctxKey("tableID")
+	ctxKeyKeySpanID    = ctxKey("keyspanID")
 	ctxKeyCaptureAddr  = ctxKey("captureAddr")
 	ctxKeyChangefeedID = ctxKey("changefeedID")
 	ctxKeyIsOwner      = ctxKey("isOwner")
@@ -58,19 +58,24 @@ func PutKVStorageInCtx(ctx context.Context, store kv.Storage) context.Context {
 	return context.WithValue(ctx, ctxKeyKVStorage, store)
 }
 
-type tableinfo struct {
+type keyspaninfo struct {
 	id   int64
 	name string
 }
 
-// PutTableInfoInCtx returns a new child context with the specified table ID and name stored.
-func PutTableInfoInCtx(ctx context.Context, tableID int64, tableName string) context.Context {
-	return context.WithValue(ctx, ctxKeyTableID, tableinfo{id: tableID, name: tableName})
+// PutKeySpanInfoInCtx returns a new child context with the specified keyspan ID and name stored.
+func PutKeySpanInfoInCtx(ctx context.Context, keyspanID int64, keyspanName string) context.Context {
+	return context.WithValue(ctx, ctxKeyKeySpanID, keyspaninfo{id: keyspanID, name: keyspanName})
 }
 
-// TableIDFromCtx returns a table ID
-func TableIDFromCtx(ctx context.Context) (int64, string) {
-	info, ok := ctx.Value(ctxKeyTableID).(tableinfo)
+// PutKeySpanInfoInCtx returns a new child context with the specified keyspan ID and name stored.
+func PutKeySpanIDInCtx(ctx context.Context, keyspanID uint64) context.Context {
+	return context.WithValue(ctx, ctxKeyKeySpanID, keyspanID)
+}
+
+// KeySpanIDFromCtx returns a kyspan ID
+func KeySpanIDFromCtx(ctx context.Context) (int64, string) {
+	info, ok := ctx.Value(ctxKeyKeySpanID).(keyspaninfo)
 	if !ok {
 		return 0, ""
 	}

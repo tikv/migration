@@ -17,10 +17,10 @@ import (
 	"testing"
 
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/model"
-	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/model"
+	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"go.uber.org/zap"
 )
 
@@ -28,12 +28,12 @@ type MockProcessorMessenger struct {
 	mock.Mock
 }
 
-func (m *MockProcessorMessenger) FinishTableOperation(ctx cdcContext.Context, tableID model.TableID) (bool, error) {
-	args := m.Called(ctx, tableID)
+func (m *MockProcessorMessenger) FinishKeySpanOperation(ctx cdcContext.Context, keyspanID model.KeySpanID) (bool, error) {
+	args := m.Called(ctx, keyspanID)
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *MockProcessorMessenger) SyncTaskStatuses(ctx cdcContext.Context, running, adding, removing []model.TableID) (bool, error) {
+func (m *MockProcessorMessenger) SyncTaskStatuses(ctx cdcContext.Context, running, adding, removing []model.KeySpanID) (bool, error) {
 	args := m.Called(ctx, running, adding, removing)
 	return args.Bool(0), args.Error(1)
 }
@@ -76,72 +76,72 @@ func (s *MockCheckpointSender) LastSentCheckpointTs() model.Ts {
 	return s.lastSentCheckpointTs
 }
 
-type MockTableExecutor struct {
+type MockKeySpanExecutor struct {
 	mock.Mock
 
 	t *testing.T
 
-	Adding, Running, Removing map[model.TableID]struct{}
+	Adding, Running, Removing map[model.KeySpanID]struct{}
 }
 
-func NewMockTableExecutor(t *testing.T) *MockTableExecutor {
-	return &MockTableExecutor{
+func NewMockKeySpanExecutor(t *testing.T) *MockKeySpanExecutor {
+	return &MockKeySpanExecutor{
 		t:        t,
-		Adding:   map[model.TableID]struct{}{},
-		Running:  map[model.TableID]struct{}{},
-		Removing: map[model.TableID]struct{}{},
+		Adding:   map[model.KeySpanID]struct{}{},
+		Running:  map[model.KeySpanID]struct{}{},
+		Removing: map[model.KeySpanID]struct{}{},
 	}
 }
 
-func (e *MockTableExecutor) AddTable(ctx cdcContext.Context, tableID model.TableID) (bool, error) {
-	log.Info("AddTable", zap.Int64("table-id", tableID))
-	require.NotContains(e.t, e.Adding, tableID)
-	require.NotContains(e.t, e.Running, tableID)
-	require.NotContains(e.t, e.Removing, tableID)
-	args := e.Called(ctx, tableID)
+func (e *MockKeySpanExecutor) AddKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID, Start []byte, End []byte) (bool, error) {
+	log.Info("AddKeySpan", zap.Uint64("keyspan-id", keyspanID))
+	require.NotContains(e.t, e.Adding, keyspanID)
+	require.NotContains(e.t, e.Running, keyspanID)
+	require.NotContains(e.t, e.Removing, keyspanID)
+	args := e.Called(ctx, keyspanID)
 	if args.Bool(0) {
-		// If the mock return value indicates a success, then we record the added table.
-		e.Adding[tableID] = struct{}{}
+		// If the mock return value indicates a success, then we record the added keyspan.
+		e.Adding[keyspanID] = struct{}{}
 	}
 	return args.Bool(0), args.Error(1)
 }
 
-func (e *MockTableExecutor) RemoveTable(ctx cdcContext.Context, tableID model.TableID) (bool, error) {
-	log.Info("RemoveTable", zap.Int64("table-id", tableID))
-	args := e.Called(ctx, tableID)
-	require.Contains(e.t, e.Running, tableID)
-	require.NotContains(e.t, e.Removing, tableID)
-	delete(e.Running, tableID)
-	e.Removing[tableID] = struct{}{}
+func (e *MockKeySpanExecutor) RemoveKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID) (bool, error) {
+	log.Info("RemoveKeySpan", zap.Uint64("keyspan-id", keyspanID))
+	args := e.Called(ctx, keyspanID)
+	require.Contains(e.t, e.Running, keyspanID)
+	require.NotContains(e.t, e.Removing, keyspanID)
+	delete(e.Running, keyspanID)
+	e.Removing[keyspanID] = struct{}{}
 	return args.Bool(0), args.Error(1)
 }
 
-func (e *MockTableExecutor) IsAddTableFinished(ctx cdcContext.Context, tableID model.TableID) bool {
-	_, ok := e.Running[tableID]
+func (e *MockKeySpanExecutor) IsAddKeySpanFinished(ctx cdcContext.Context, keyspanID model.KeySpanID) bool {
+	_, ok := e.Running[keyspanID]
 	return ok
 }
 
-func (e *MockTableExecutor) IsRemoveTableFinished(ctx cdcContext.Context, tableID model.TableID) bool {
-	_, ok := e.Removing[tableID]
+func (e *MockKeySpanExecutor) IsRemoveKeySpanFinished(ctx cdcContext.Context, keyspanID model.KeySpanID) bool {
+	_, ok := e.Removing[keyspanID]
 	return !ok
 }
 
-func (e *MockTableExecutor) GetAllCurrentTables() []model.TableID {
-	var ret []model.TableID
-	for tableID := range e.Adding {
-		ret = append(ret, tableID)
+func (e *MockKeySpanExecutor) GetAllCurrentKeySpans() []model.KeySpanID {
+	var ret []model.KeySpanID
+	for keyspanID := range e.Adding {
+		ret = append(ret, keyspanID)
 	}
-	for tableID := range e.Running {
-		ret = append(ret, tableID)
+	for keyspanID := range e.Running {
+		ret = append(ret, keyspanID)
 	}
-	for tableID := range e.Removing {
-		ret = append(ret, tableID)
+	for keyspanID := range e.Removing {
+		ret = append(ret, keyspanID)
 	}
 
 	return ret
 }
 
-func (e *MockTableExecutor) GetCheckpoint() (checkpointTs, resolvedTs model.Ts) {
+func (e *MockKeySpanExecutor) GetCheckpoint() (checkpointTs, resolvedTs model.Ts) {
 	args := e.Called()
 	return args.Get(0).(model.Ts), args.Get(1).(model.Ts)
 }

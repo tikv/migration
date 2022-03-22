@@ -26,7 +26,6 @@ import (
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/sorter"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/retry"
 	"go.uber.org/zap"
@@ -169,10 +168,12 @@ func (p *pebbleDB) CollectMetrics(captureAddr string, i int) {
 	for i := range stats.Levels {
 		sum += int(stats.Levels[i].Size)
 	}
-	sorter.OnDiskDataSizeGauge.
-		WithLabelValues(captureAddr, id).Set(float64(stats.DiskSpaceUsage()))
-	sorter.InMemoryDataSizeGauge.
-		WithLabelValues(captureAddr, id).Set(float64(stats.BlockCache.Size))
+	/*
+		sorter.OnDiskDataSizeGauge.
+			WithLabelValues(captureAddr, id).Set(float64(stats.DiskSpaceUsage()))
+		sorter.InMemoryDataSizeGauge.
+			WithLabelValues(captureAddr, id).Set(float64(stats.BlockCache.Size))
+	*/
 	dbIteratorGauge.
 		WithLabelValues(captureAddr, id).Set(float64(stats.TableIters))
 	dbWriteDelayCount.

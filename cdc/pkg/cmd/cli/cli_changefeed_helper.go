@@ -21,18 +21,14 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/tikv/migration/cdc/cdc"
-	"github.com/tikv/migration/cdc/cdc/entry"
-	"github.com/tikv/migration/cdc/cdc/kv"
-	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/pkg/cmd/util"
-	"github.com/tikv/migration/cdc/pkg/config"
-	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/filter"
-	"github.com/tikv/migration/cdc/pkg/httputil"
-	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/spf13/cobra"
 	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/migration/cdc/cdc"
+	"github.com/tikv/migration/cdc/cdc/model"
+	"github.com/tikv/migration/cdc/pkg/cmd/util"
+	"github.com/tikv/migration/cdc/pkg/etcd"
+	"github.com/tikv/migration/cdc/pkg/httputil"
+	"github.com/tikv/migration/cdc/pkg/security"
 )
 
 const (
@@ -63,6 +59,7 @@ func confirmLargeDataGap(cmd *cobra.Command, currentPhysical int64, startTs uint
 	return nil
 }
 
+/*
 // confirmIgnoreIneligibleTables confirm if user need to ignore ineligible tables.
 func confirmIgnoreIneligibleTables(cmd *cobra.Command) error {
 	cmd.Printf("Could you agree to ignore those tables, and continue to replicate [Y/N]\n")
@@ -96,7 +93,7 @@ func getTables(cliPdAddr string, credential *security.Credential, cfg *config.Re
 		return nil, nil, errors.Trace(err)
 	}
 
-	snap, err := entry.NewSingleSchemaSnapshotFromMeta(meta, startTs, false /* explicitTables */)
+	snap, err := entry.NewSingleSchemaSnapshotFromMeta(meta, startTs, false)
 	if err != nil {
 		return nil, nil, errors.Trace(err)
 	}
@@ -105,7 +102,7 @@ func getTables(cliPdAddr string, credential *security.Credential, cfg *config.Re
 		if filter.ShouldIgnoreTable(tableInfo.TableName.Schema, tableInfo.TableName.Table) {
 			continue
 		}
-		if !tableInfo.IsEligible(false /* forceReplicate */) {
+		if !tableInfo.IsEligible(false) {
 			ineligibleTables = append(ineligibleTables, tableInfo.TableName)
 		} else {
 			eligibleTables = append(eligibleTables, tableInfo.TableName)
@@ -114,6 +111,7 @@ func getTables(cliPdAddr string, credential *security.Credential, cfg *config.Re
 
 	return
 }
+*/
 
 // sendOwnerChangefeedQuery sends owner changefeed query request.
 func sendOwnerChangefeedQuery(ctx context.Context, etcdClient *etcd.CDCEtcdClient,

@@ -23,11 +23,11 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/owner"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/logutil"
-	"github.com/tikv/client-go/v2/oracle"
 	"go.etcd.io/etcd/clientv3/concurrency"
 	"go.uber.org/zap"
 )
@@ -39,8 +39,8 @@ const (
 	APIOpVarChangefeedID = "cf-id"
 	// APIOpVarTargetCaptureID is the key of to-capture ID in HTTP API
 	APIOpVarTargetCaptureID = "target-cp-id"
-	// APIOpVarTableID is the key of table ID in HTTP API
-	APIOpVarTableID = "table-id"
+	// APIOpVarKeySpanID is the key of keyspan ID in HTTP API
+	APIOpVarKeySpanID = "keyspan-id"
 	// APIOpForceRemoveChangefeed is used when remove a changefeed
 	APIOpForceRemoveChangefeed = "force-remove"
 )
@@ -166,7 +166,7 @@ func (s *Server) handleRebalanceTrigger(w http.ResponseWriter, req *http.Request
 	handleOwnerResp(w, err)
 }
 
-func (s *Server) handleMoveTable(w http.ResponseWriter, req *http.Request) {
+func (s *Server) handleMoveKeySpan(w http.ResponseWriter, req *http.Request) {
 	if s.capture == nil {
 		// for test only
 		handleOwnerResp(w, concurrency.ErrElectionNotLeader)
@@ -190,16 +190,16 @@ func (s *Server) handleMoveTable(w http.ResponseWriter, req *http.Request) {
 			cerror.ErrAPIInvalidParam.GenWithStack("invalid target capture id: %s", to))
 		return
 	}
-	tableIDStr := req.Form.Get(APIOpVarTableID)
-	tableID, err := strconv.ParseInt(tableIDStr, 10, 64)
+	keyspanIDStr := req.Form.Get(APIOpVarKeySpanID)
+	keyspanID, err := strconv.ParseInt(keyspanIDStr, 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest,
-			cerror.ErrAPIInvalidParam.GenWithStack("invalid tableID: %s", tableIDStr))
+			cerror.ErrAPIInvalidParam.GenWithStack("invalid keyspanID: %s", keyspanIDStr))
 		return
 	}
 
 	err = s.capture.OperateOwnerUnderLock(func(owner *owner.Owner) error {
-		owner.ManualSchedule(changefeedID, to, tableID)
+		owner.ManualSchedule(changefeedID, to, uint64(keyspanID))
 		return nil
 	})
 

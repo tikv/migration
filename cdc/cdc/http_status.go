@@ -25,14 +25,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tikv/migration/cdc/cdc/capture"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.etcd.io/etcd/clientv3"
 	"go.uber.org/zap"
 )
@@ -52,7 +52,7 @@ func (s *Server) startStatusHTTP(lis net.Listener) error {
 	router.POST("/capture/owner/resign", gin.WrapF(s.handleResignOwner))
 	router.POST("/capture/owner/admin", gin.WrapF(s.handleChangefeedAdmin))
 	router.POST("/capture/owner/rebalance_trigger", gin.WrapF(s.handleRebalanceTrigger))
-	router.POST("/capture/owner/move_table", gin.WrapF(s.handleMoveTable))
+	router.POST("/capture/owner/move_keyspan", gin.WrapF(s.handleMoveKeySpan))
 	router.POST("/capture/owner/changefeed/query", gin.WrapF(s.handleChangefeedQuery))
 	router.POST("/admin/log", gin.WrapF(handleAdminLogLevel))
 

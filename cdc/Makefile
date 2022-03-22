@@ -85,7 +85,7 @@ LDFLAGS += -X "$(DM_PKG)/pkg/utils.GoVersion=$(GOVERSION)"
 default: build buildsucc
 
 buildsucc:
-	@echo Build TiDB CDC successfully!
+	@echo Build TiKV CDC successfully!
 
 all: dev install
 

@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/br/pkg/httputil"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/owner"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -28,7 +29,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/logutil"
 	"github.com/tikv/migration/cdc/pkg/retry"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/tikv/client-go/v2/oracle"
 	"go.uber.org/zap"
 )
 
@@ -166,11 +166,11 @@ func (h *HTTPHandler) GetChangefeed(c *gin.Context) {
 
 	taskStatus := make([]model.CaptureTaskStatus, 0, len(processorInfos))
 	for captureID, status := range processorInfos {
-		tables := make([]int64, 0)
-		for tableID := range status.Tables {
-			tables = append(tables, tableID)
+		keyspans := make([]uint64, 0)
+		for keyspanID := range status.KeySpans {
+			keyspans = append(keyspans, keyspanID)
 		}
-		taskStatus = append(taskStatus, model.CaptureTaskStatus{CaptureID: captureID, Tables: tables, Operation: status.Operation})
+		taskStatus = append(taskStatus, model.CaptureTaskStatus{CaptureID: captureID, KeySpans: keyspans, Operation: status.Operation})
 	}
 
 	changefeedDetail := &model.ChangefeedDetail{
@@ -424,17 +424,17 @@ func (h *HTTPHandler) RemoveChangefeed(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-// RebalanceTable rebalances tables
-// @Summary rebalance tables
-// @Description rebalance all tables of a changefeed
+// RebalanceKeySpan rebalances keyspans
+// @Summary rebalance keyspans
+// @Description rebalance all keyspans of a changefeed
 // @Tags changefeed
 // @Accept json
 // @Produce json
 // @Param changefeed_id path string true "changefeed_id"
 // @Success 202
 // @Failure 500,400 {object} model.HTTPError
-// @Router /api/v1/changefeeds/{changefeed_id}/tables/rebalance_table [post]
-func (h *HTTPHandler) RebalanceTable(c *gin.Context) {
+// @Router /api/v1/changefeeds/{changefeed_id}/keyspans/rebalance_keyspan [post]
+func (h *HTTPHandler) RebalanceKeySpan(c *gin.Context) {
 	if !h.capture.IsOwner() {
 		h.forwardToOwner(c)
 		return
@@ -462,19 +462,19 @@ func (h *HTTPHandler) RebalanceTable(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-// MoveTable moves a table to target capture
-// @Summary move table
-// @Description move one table to the target capture
+// MoveKeySpan moves a keyspan to target capture
+// @Summary move keyspan
+// @Description move one keyspan to the target capture
 // @Tags changefeed
 // @Accept json
 // @Produce json
 // @Param changefeed_id path string true "changefeed_id"
-// @Param table_id body integer true "table_id"
+// @Param keyspan_id body integer true "keyspan_id"
 // @Param capture_id body string true "capture_id"
 // @Success 202
 // @Failure 500,400 {object} model.HTTPError
-// @Router /api/v1/changefeeds/{changefeed_id}/tables/move_table [post]
-func (h *HTTPHandler) MoveTable(c *gin.Context) {
+// @Router /api/v1/changefeeds/{changefeed_id}/keyspans/move_keyspan [post]
+func (h *HTTPHandler) MoveKeySpan(c *gin.Context) {
 	if !h.capture.IsOwner() {
 		h.forwardToOwner(c)
 		return
@@ -495,7 +495,7 @@ func (h *HTTPHandler) MoveTable(c *gin.Context) {
 
 	data := struct {
 		CaptureID string `json:"capture_id"`
-		TableID   int64  `json:"table_id"`
+		KeySpanID uint64 `json:"keyspan_id"`
 	}{}
 	err = c.BindJSON(&data)
 	if err != nil {
@@ -509,7 +509,7 @@ func (h *HTTPHandler) MoveTable(c *gin.Context) {
 	}
 
 	_ = h.capture.OperateOwnerUnderLock(func(owner *owner.Owner) error {
-		owner.ManualSchedule(changefeedID, data.CaptureID, data.TableID)
+		owner.ManualSchedule(changefeedID, data.CaptureID, data.KeySpanID)
 		return nil
 	})
 
@@ -586,7 +586,7 @@ func (h *HTTPHandler) GetProcessor(c *gin.Context) {
 		return
 	}
 	position, exist := positions[captureID]
-	// Note: for the case that no tables are attached to a newly created changefeed,
+	// Note: for the case that no keyspans are attached to a newly created changefeed,
 	//       we just do not report an error.
 	var processorDetail model.ProcessorDetail
 	if exist {
@@ -596,11 +596,11 @@ func (h *HTTPHandler) GetProcessor(c *gin.Context) {
 			Count:        position.Count,
 			Error:        position.Error,
 		}
-		tables := make([]int64, 0)
-		for tableID := range status.Tables {
-			tables = append(tables, tableID)
+		keyspans := make([]uint64, 0)
+		for keyspanID := range status.KeySpans {
+			keyspans = append(keyspans, keyspanID)
 		}
-		processorDetail.Tables = tables
+		processorDetail.KeySpans = keyspans
 	}
 	c.IndentedJSON(http.StatusOK, &processorDetail)
 }

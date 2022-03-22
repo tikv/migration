@@ -21,21 +21,18 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	tidbkv "github.com/pingcap/tidb/kv"
+	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/puller/frontier"
 	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/txnutil"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"github.com/tikv/client-go/v2/oracle"
-	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
-
-// DDLPullerTableName is the fake table name for ddl puller.
-const DDLPullerTableName = "DDL_PULLER"
 
 const (
 	defaultPullerEventChanSize  = 128
@@ -120,7 +117,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 
 	captureAddr := util.CaptureAddrFromCtx(ctx)
 	changefeedID := util.ChangefeedIDFromCtx(ctx)
-	tableID, _ := util.TableIDFromCtx(ctx)
+	keyspanID, _ := util.KeySpanIDFromCtx(ctx)
 	metricOutputChanSize := outputChanSizeHistogram.WithLabelValues(captureAddr, changefeedID)
 	metricEventChanSize := eventChanSizeHistogram.WithLabelValues(captureAddr, changefeedID)
 	metricPullerResolvedTs := pullerResolvedTsGauge.WithLabelValues(captureAddr, changefeedID)
@@ -162,9 +159,10 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 					zap.Reflect("row", raw),
 					zap.Uint64("CRTs", raw.CRTs),
 					zap.Uint64("resolvedTs", p.resolvedTs),
-					zap.Int64("tableID", tableID))
+					zap.Int64("keyspanID", keyspanID))
 				return nil
 			}
+
 			select {
 			case <-ctx.Done():
 				return errors.Trace(ctx.Err())
@@ -182,6 +180,11 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return errors.Trace(ctx.Err())
 			}
+
+			log.Debug("revcive region feed event",
+				zap.String("RawKVEntry Key", string(e.Val.Key)),
+				zap.Uint64("ResolvedTS", e.Resolved.ResolvedTs))
+
 			if e.Val != nil {
 				metricTxnCollectCounterKv.Inc()
 				if err := output(e.Val); err != nil {
@@ -192,7 +195,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				if !regionspan.IsSubSpan(e.Resolved.Span, p.spans...) {
 					log.Panic("the resolved span is not in the total span",
 						zap.Reflect("resolved", e.Resolved),
-						zap.Int64("tableID", tableID),
+						zap.Int64("keyspanID", keyspanID),
 						zap.Reflect("spans", p.spans),
 					)
 				}
@@ -212,7 +215,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 					log.Info("puller is initialized",
 						zap.Duration("duration", time.Since(start)),
 						zap.String("changefeed", changefeedID),
-						zap.Int64("tableID", tableID),
+						zap.Int64("keyspanID", keyspanID),
 						zap.Strings("spans", spans),
 						zap.Uint64("resolvedTs", resolvedTs))
 				}

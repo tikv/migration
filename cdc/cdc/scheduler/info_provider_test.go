@@ -16,9 +16,9 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/scheduler/util"
-	"github.com/stretchr/testify/require"
 )
 
 // Asserts that BaseSchedulerDispatcher implements InfoProvider interface.
@@ -37,30 +37,30 @@ func injectSchedulerStateForInfoProviderTest(dispatcher *BaseScheduleDispatcher)
 			ResolvedTs:   1600,
 		},
 	}
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   1,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-2",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   4,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 4,
 		CaptureID: "capture-2",
-		Status:    util.AddingTable,
+		Status:    util.AddingKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   5,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 5,
 		CaptureID: "capture-1",
-		Status:    util.RemovingTable,
+		Status:    util.RemovingKeySpan,
 	})
 }
 
@@ -72,12 +72,12 @@ func TestInfoProviderTaskStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, map[model.CaptureID]*model.TaskStatus{
 		"capture-1": {
-			Tables: map[model.TableID]*model.TableReplicaInfo{
+			KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{
 				1: {},
 				3: {},
 				5: {},
 			},
-			Operation: map[model.TableID]*model.TableOperation{
+			Operation: map[model.KeySpanID]*model.KeySpanOperation{
 				5: {
 					Delete: true,
 					Status: model.OperDispatched,
@@ -85,11 +85,11 @@ func TestInfoProviderTaskStatus(t *testing.T) {
 			},
 		},
 		"capture-2": {
-			Tables: map[model.TableID]*model.TableReplicaInfo{
+			KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{
 				2: {},
 				4: {},
 			},
-			Operation: map[model.TableID]*model.TableOperation{
+			Operation: map[model.KeySpanID]*model.KeySpanOperation{
 				4: {
 					Delete: false,
 					Status: model.OperDispatched,

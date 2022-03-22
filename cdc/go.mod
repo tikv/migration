@@ -67,6 +67,7 @@ require (
 	github.com/tikv/client-go/v2 v2.0.0-rc.0.20211229051614-62d6b4a2e8f7
 	github.com/tikv/pd v1.1.0-beta.0.20211118054146-02848d2660ee
 	github.com/tinylib/msgp v1.1.0
+	github.com/twmb/murmur3 v1.1.3 // indirect
 	github.com/uber-go/atomic v1.4.0
 	github.com/ugorji/go v1.2.6 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.5

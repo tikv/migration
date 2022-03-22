@@ -16,11 +16,10 @@ package cmd
 import (
 	"os"
 
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/cmd/cli"
-	"github.com/tikv/migration/cdc/pkg/cmd/redo"
 	"github.com/tikv/migration/cdc/pkg/cmd/server"
 	"github.com/tikv/migration/cdc/pkg/cmd/version"
-	"github.com/spf13/cobra"
 )
 
 // NewCmd creates the root command.
@@ -45,7 +44,7 @@ func Run() {
 	cmd.AddCommand(server.NewCmdServer())
 	cmd.AddCommand(cli.NewCmdCli())
 	cmd.AddCommand(version.NewCmdVersion())
-	cmd.AddCommand(redo.NewCmdRedo())
+	// cmd.AddCommand(redo.NewCmdRedo())
 
 	if err := cmd.Execute(); err != nil {
 		cmd.PrintErrln(err)

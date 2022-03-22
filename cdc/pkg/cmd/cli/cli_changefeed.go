@@ -14,10 +14,10 @@
 package cli
 
 import (
+	"github.com/spf13/cobra"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
-	"github.com/spf13/cobra"
 )
 
 // changefeedOptions defines flags for the `cli changefeed` command.
@@ -75,10 +75,10 @@ func newCmdChangefeed(f factory.Factory) *cobra.Command {
 	cmds.AddCommand(newCmdCreateChangefeed(f))
 	cmds.AddCommand(newCmdUpdateChangefeed(f))
 	cmds.AddCommand(newCmdStatisticsChangefeed(f))
-	cmds.AddCommand(newCmdCyclicChangefeed(f))
+	// cmds.AddCommand(newCmdCyclicChangefeed(f))
 	cmds.AddCommand(newCmdListChangefeed(f))
 	cmds.AddCommand(newCmdPauseChangefeed(f))
-	cmds.AddCommand(newCmdQueryChangefeed(f))
+	// cmds.AddCommand(newCmdQueryChangefeed(f))
 	cmds.AddCommand(newCmdRemoveChangefeed(f))
 	cmds.AddCommand(newCmdResumeChangefeed(f))
 

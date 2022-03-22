@@ -25,9 +25,9 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	tidbkv "github.com/pingcap/tidb/kv"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tikv/migration/cdc/cdc/capture"
 	"github.com/tikv/migration/cdc/cdc/kv"
-	"github.com/tikv/migration/cdc/cdc/sorter/unified"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
@@ -38,7 +38,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
 	p2pProto "github.com/tikv/migration/cdc/proto/p2p"
-	"github.com/prometheus/client_golang/prometheus"
 	pd "github.com/tikv/pd/client"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/pkg/logutil"
@@ -262,9 +261,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return s.etcdHealthChecker(cctx)
 	})
 
-	wg.Go(func() error {
-		return unified.RunWorkerPool(cctx)
-	})
+	/*
+		wg.Go(func() error {
+			return unified.RunWorkerPool(cctx)
+		})
+	*/
 
 	wg.Go(func() error {
 		return kv.RunWorkerPool(cctx)

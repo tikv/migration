@@ -21,14 +21,13 @@ import (
 	"strconv"
 
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/sorter"
-	"github.com/tikv/migration/cdc/pkg/config"
-	cerrors "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/tikv/migration/cdc/pkg/retry"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/tikv/migration/cdc/pkg/config"
+	cerrors "github.com/tikv/migration/cdc/pkg/errors"
+	"github.com/tikv/migration/cdc/pkg/retry"
 	"go.uber.org/zap"
 )
 
@@ -116,12 +115,14 @@ func (p *levelDB) CollectMetrics(captureAddr string, i int) {
 		log.Panic("leveldb error", zap.Error(err), zap.Int("db", i))
 	}
 	id := strconv.Itoa(i)
-	sorter.OnDiskDataSizeGauge.
-		WithLabelValues(captureAddr, id).Set(float64(stats.LevelSizes.Sum()))
-	sorter.InMemoryDataSizeGauge.
-		WithLabelValues(captureAddr, id).Set(float64(stats.BlockCacheSize))
-	sorter.OpenFileCountGauge.
-		WithLabelValues(captureAddr, id).Set(float64(stats.OpenedTablesCount))
+	/*
+		sorter.OnDiskDataSizeGauge.
+			WithLabelValues(captureAddr, id).Set(float64(stats.LevelSizes.Sum()))
+		sorter.InMemoryDataSizeGauge.
+			WithLabelValues(captureAddr, id).Set(float64(stats.BlockCacheSize))
+		sorter.OpenFileCountGauge.
+			WithLabelValues(captureAddr, id).Set(float64(stats.OpenedTablesCount))
+	*/
 	dbSnapshotGauge.
 		WithLabelValues(captureAddr, id).Set(float64(stats.AliveSnapshots))
 	dbIteratorGauge.

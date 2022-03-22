@@ -23,13 +23,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/spf13/cobra"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sink"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/config"
-	"github.com/tikv/migration/cdc/pkg/cyclic"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/filter"
@@ -37,8 +38,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	ticdcutil "github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/spf13/cobra"
-	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 )
@@ -391,6 +390,7 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 		}
 	}
 
+	/* TiKV CDC don't have tables
 	ineligibleTables, eligibleTables, err := getTables(o.pdAddr, o.credential, o.cfg, o.startTs)
 	if err != nil {
 		return err
@@ -412,7 +412,7 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 	if o.cfg.Cyclic.IsEnabled() && !cyclic.IsTablesPaired(eligibleTables) {
 		return errors.New("normal tables and mark tables are not paired, " +
 			"please run `cdc cli changefeed cyclic create-marktables`")
-	}
+	} */
 
 	info := o.getInfo(cmd)
 

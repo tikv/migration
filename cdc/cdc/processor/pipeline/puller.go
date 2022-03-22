@@ -15,45 +15,39 @@ package pipeline
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/pingcap/errors"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/puller"
-	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
 	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"github.com/tikv/client-go/v2/oracle"
 	"golang.org/x/sync/errgroup"
 )
 
 type pullerNode struct {
-	tableName string // quoted schema and table, used in metircs only
+	// keyspanName string // quoted schema and keyspan, used in metircs only
 
-	tableID     model.TableID
-	replicaInfo *model.TableReplicaInfo
+	keyspanID   model.KeySpanID
+	replicaInfo *model.KeySpanReplicaInfo
 	cancel      context.CancelFunc
 	wg          *errgroup.Group
 }
 
 func newPullerNode(
-	tableID model.TableID, replicaInfo *model.TableReplicaInfo, tableName string) pipeline.Node {
+	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) pipeline.Node {
 	return &pullerNode{
-		tableID:     tableID,
+		keyspanID:   keyspanID,
 		replicaInfo: replicaInfo,
-		tableName:   tableName,
 	}
 }
 
-func (n *pullerNode) tableSpan(ctx cdcContext.Context) []regionspan.Span {
-	// start table puller
-	config := ctx.ChangefeedVars().Info.Config
-	spans := make([]regionspan.Span, 0, 4)
-	spans = append(spans, regionspan.GetTableSpan(n.tableID))
-
-	if config.Cyclic.IsEnabled() && n.replicaInfo.MarkTableID != 0 {
-		spans = append(spans, regionspan.GetTableSpan(n.replicaInfo.MarkTableID))
-	}
+func (n *pullerNode) keyspan() []regionspan.Span {
+	// start keyspan puller
+	spans := make([]regionspan.Span, 0, 1)
+	spans = append(spans, regionspan.Span{Start: n.replicaInfo.Start, End: n.replicaInfo.End})
 	return spans
 }
 
@@ -63,15 +57,14 @@ func (n *pullerNode) Init(ctx pipeline.NodeContext) error {
 
 func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Group) error {
 	n.wg = wg
-	metricTableResolvedTsGauge := tableResolvedTsGauge.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr, n.tableName)
+	metricKeySpanResolvedTsGauge := keyspanResolvedTsGauge.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr, strconv.FormatUint(n.keyspanID, 10))
 	ctxC, cancel := context.WithCancel(ctx)
-	ctxC = util.PutTableInfoInCtx(ctxC, n.tableID, n.tableName)
+	ctxC = util.PutKeySpanIDInCtx(ctxC, n.keyspanID)
 	ctxC = util.PutCaptureAddrInCtx(ctxC, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 	ctxC = util.PutChangefeedIDInCtx(ctxC, ctx.ChangefeedVars().ID)
-	// NOTICE: always pull the old value internally
-	// See also: https://github.com/tikv/migration/cdc/issues/2301.
+
 	plr := puller.NewPuller(ctxC, ctx.GlobalVars().PDClient, ctx.GlobalVars().GrpcPool, ctx.GlobalVars().RegionCache, ctx.GlobalVars().KVStorage,
-		n.replicaInfo.StartTs, n.tableSpan(ctx), true)
+		n.replicaInfo.StartTs, n.keyspan(), true)
 	n.wg.Go(func() error {
 		ctx.Throw(errors.Trace(plr.Run(ctxC)))
 		return nil
@@ -85,8 +78,9 @@ func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Gr
 				if rawKV == nil {
 					continue
 				}
+				rawKV.KeySpanID = n.keyspanID
 				if rawKV.OpType == model.OpTypeResolved {
-					metricTableResolvedTsGauge.Set(float64(oracle.ExtractPhysical(rawKV.CRTs)))
+					metricKeySpanResolvedTsGauge.Set(float64(oracle.ExtractPhysical(rawKV.CRTs)))
 				}
 				pEvent := model.NewPolymorphicEvent(rawKV)
 				ctx.SendToNextNode(pipeline.PolymorphicEventMessage(pEvent))
@@ -105,7 +99,7 @@ func (n *pullerNode) Receive(ctx pipeline.NodeContext) error {
 }
 
 func (n *pullerNode) Destroy(ctx pipeline.NodeContext) error {
-	tableResolvedTsGauge.DeleteLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr, n.tableName)
+	keyspanResolvedTsGauge.DeleteLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr, strconv.FormatUint(n.keyspanID, 10))
 	n.cancel()
 	return n.wg.Wait()
 }

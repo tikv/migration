@@ -18,6 +18,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/cdc/model"
 	apiv1client "github.com/tikv/migration/cdc/pkg/api/v1"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
@@ -26,7 +27,6 @@ import (
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
@@ -121,9 +121,9 @@ func (o *queryProcessorOptions) runCliWithAPIClient(ctx context.Context, cmd *co
 		return err
 	}
 
-	tables := make(map[int64]*model.TableReplicaInfo)
-	for _, tableID := range processor.Tables {
-		tables[tableID] = &model.TableReplicaInfo{
+	keyspans := make(map[uint64]*model.KeySpanReplicaInfo)
+	for _, keyspanID := range processor.KeySpans {
+		keyspans[keyspanID] = &model.KeySpanReplicaInfo{
 			// to be compatible with old version `cli processor query`,
 			// set this field to 0
 			StartTs: 0,
@@ -132,7 +132,7 @@ func (o *queryProcessorOptions) runCliWithAPIClient(ctx context.Context, cmd *co
 
 	meta := &processorMeta{
 		Status: &model.TaskStatus{
-			Tables: tables,
+			KeySpans: keyspans,
 			// Operations, AdminJobType and ModRevision are vacant
 		},
 		Position: &model.TaskPosition{

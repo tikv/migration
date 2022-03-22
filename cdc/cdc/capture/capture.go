@@ -25,12 +25,13 @@ import (
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
 	tidbkv "github.com/pingcap/tidb/kv"
+	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/owner"
 	"github.com/tikv/migration/cdc/cdc/processor"
-	"github.com/tikv/migration/cdc/cdc/processor/pipeline/system"
-	ssystem "github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
+
+	// ssystem "github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
@@ -39,7 +40,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/tikv/migration/cdc/pkg/pdtime"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
 	"go.etcd.io/etcd/clientv3/concurrency"
 	"go.etcd.io/etcd/mvcc"
@@ -66,10 +66,10 @@ type Capture struct {
 	grpcPool     kv.GrpcPool
 	regionCache  *tikv.RegionCache
 	TimeAcquirer pdtime.TimeAcquirer
-	sorterSystem *ssystem.System
+	// sorterSystem *ssystem.System
 
 	enableNewScheduler bool
-	tableActorSystem   *system.System
+	// keyspanActorSystem *system.System
 
 	// MessageServer is the receiver of the messages from the other nodes.
 	// It should be recreated each time the capture is restarted.
@@ -142,39 +142,43 @@ func (c *Capture) reset(ctx context.Context) error {
 	}
 	c.TimeAcquirer = pdtime.NewTimeAcquirer(c.pdClient)
 
-	if c.tableActorSystem != nil {
-		err := c.tableActorSystem.Stop()
-		if err != nil {
-			log.Warn("stop table actor system failed", zap.Error(err))
-		}
-	}
-	if conf.Debug.EnableTableActor {
-		c.tableActorSystem = system.NewSystem()
-		err = c.tableActorSystem.Start(ctx)
-		if err != nil {
-			return errors.Annotate(
-				cerror.WrapError(cerror.ErrNewCaptureFailed, err),
-				"create table actor system")
-		}
-	}
-	if conf.Debug.EnableDBSorter {
-		if c.sorterSystem != nil {
-			err := c.sorterSystem.Stop()
+	/*
+		if c.keyspanActorSystem != nil {
+			err := c.keyspanActorSystem.Stop()
 			if err != nil {
-				log.Warn("stop sorter system failed", zap.Error(err))
+				log.Warn("stop keyspan actor system failed", zap.Error(err))
 			}
 		}
-		// Sorter dir has been set and checked when server starts.
-		// See https://github.com/tikv/migration/cdc/blob/9dad09/cdc/server.go#L275
-		sortDir := config.GetGlobalServerConfig().Sorter.SortDir
-		c.sorterSystem = ssystem.NewSystem(sortDir, conf.Debug.DB)
-		err = c.sorterSystem.Start(ctx)
-		if err != nil {
-			return errors.Annotate(
-				cerror.WrapError(cerror.ErrNewCaptureFailed, err),
-				"create sorter system")
+		if conf.Debug.EnableKeySpanActor {
+			c.keyspanActorSystem = system.NewSystem()
+			err = c.keyspanActorSystem.Start(ctx)
+			if err != nil {
+				return errors.Annotate(
+					cerror.WrapError(cerror.ErrNewCaptureFailed, err),
+					"create keyspan actor system")
+			}
 		}
-	}
+	*/
+	/*
+		if conf.Debug.EnableDBSorter {
+			if c.sorterSystem != nil {
+				err := c.sorterSystem.Stop()
+				if err != nil {
+					log.Warn("stop sorter system failed", zap.Error(err))
+				}
+			}
+			// Sorter dir has been set and checked when server starts.
+			// See https://github.com/tikv/migration/cdc/blob/9dad09/cdc/server.go#L275
+			sortDir := config.GetGlobalServerConfig().Sorter.SortDir
+			c.sorterSystem = ssystem.NewSystem(sortDir, conf.Debug.DB)
+			err = c.sorterSystem.Start(ctx)
+			if err != nil {
+				return errors.Annotate(
+					cerror.WrapError(cerror.ErrNewCaptureFailed, err),
+					"create sorter system")
+			}
+		}
+	*/
 	if c.grpcPool != nil {
 		c.grpcPool.Close()
 	}
@@ -257,17 +261,17 @@ func (c *Capture) Run(ctx context.Context) error {
 
 func (c *Capture) run(stdCtx context.Context) error {
 	ctx := cdcContext.NewContext(stdCtx, &cdcContext.GlobalVars{
-		PDClient:         c.pdClient,
-		KVStorage:        c.kvStorage,
-		CaptureInfo:      c.info,
-		EtcdClient:       c.etcdClient,
-		GrpcPool:         c.grpcPool,
-		RegionCache:      c.regionCache,
-		TimeAcquirer:     c.TimeAcquirer,
-		TableActorSystem: c.tableActorSystem,
-		SorterSystem:     c.sorterSystem,
-		MessageServer:    c.MessageServer,
-		MessageRouter:    c.MessageRouter,
+		PDClient:     c.pdClient,
+		KVStorage:    c.kvStorage,
+		CaptureInfo:  c.info,
+		EtcdClient:   c.etcdClient,
+		GrpcPool:     c.grpcPool,
+		RegionCache:  c.regionCache,
+		TimeAcquirer: c.TimeAcquirer,
+		// KeySpanActorSystem: c.keyspanActorSystem,
+		// SorterSystem:       c.sorterSystem,
+		MessageServer: c.MessageServer,
+		MessageRouter: c.MessageRouter,
 	})
 	err := c.register(ctx)
 	if err != nil {
@@ -535,20 +539,15 @@ func (c *Capture) AsyncClose() {
 		c.regionCache.Close()
 		c.regionCache = nil
 	}
-	if c.tableActorSystem != nil {
-		err := c.tableActorSystem.Stop()
-		if err != nil {
-			log.Warn("stop table actor system failed", zap.Error(err))
+	/*
+		if c.keyspanActorSystem != nil {
+			err := c.keyspanActorSystem.Stop()
+			if err != nil {
+				log.Warn("stop keyspan actor system failed", zap.Error(err))
+			}
+			c.keyspanActorSystem = nil
 		}
-		c.tableActorSystem = nil
-	}
-	if c.sorterSystem != nil {
-		err := c.sorterSystem.Stop()
-		if err != nil {
-			log.Warn("stop sorter system failed", zap.Error(err))
-		}
-		c.sorterSystem = nil
-	}
+	*/
 	if c.enableNewScheduler {
 		c.grpcService.Reset(nil)
 

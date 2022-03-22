@@ -17,9 +17,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"github.com/stretchr/testify/require"
 )
 
 func TestValidateSink(t *testing.T) {
@@ -32,10 +32,10 @@ func TestValidateSink(t *testing.T) {
 	opts := make(map[string]string)
 
 	// test sink uri error
-	sinkURI := "mysql://root:111@127.0.0.1:3306/"
+	sinkURI := "tikv://127.0.0.1:3306/"
 	err := Validate(ctx, sinkURI, replicateConfig, opts)
 	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "fail to open MySQL connection")
+	require.Contains(t, err.Error(), "the sink scheme (tikv) is not supported")
 
 	// test sink uri right
 	sinkURI = "blackhole://"

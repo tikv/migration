@@ -24,7 +24,10 @@ import (
 	"github.com/pingcap/log"
 	ticonfig "github.com/pingcap/tidb/config"
 	"github.com/tikv/migration/cdc/cdc"
-	"github.com/tikv/migration/cdc/cdc/sorter/unified"
+
+	//	"github.com/tikv/migration/cdc/cdc/sorter/unified"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -33,8 +36,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/security"
 	ticdcutil "github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
 
@@ -132,7 +133,7 @@ func (o *options) run(cmd *cobra.Command) error {
 		return errors.Annotate(err, "run server")
 	}
 	server.Close()
-	unified.CleanUp()
+	// unified.CleanUp()
 	log.Info("cdc server exits successfully")
 
 	return nil

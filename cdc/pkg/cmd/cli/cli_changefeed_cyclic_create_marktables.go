@@ -13,6 +13,7 @@
 
 package cli
 
+/*
 import (
 	"github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
@@ -138,3 +139,4 @@ func newCmdCyclicCreateMarktables(f factory.Factory) *cobra.Command {
 
 	return command
 }
+*/

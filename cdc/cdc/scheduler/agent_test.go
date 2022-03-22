@@ -16,31 +16,33 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/tikv/migration/cdc/cdc/model"
-	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/cdc/model"
+	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 )
 
 // read only
 var agentConfigForTesting = &BaseAgentConfig{SendCheckpointTsInterval: 0}
 
-func TestAgentAddTable(t *testing.T) {
+func TestAgentAddKeySpan(t *testing.T) {
 	ctx := cdcContext.NewBackendContext4Test(false)
 
-	executor := NewMockTableExecutor(t)
+	executor := NewMockKeySpanExecutor(t)
 	messenger := &MockProcessorMessenger{}
 	agent := NewBaseAgent("test-cf", executor, messenger, agentConfigForTesting)
-	messenger.On("SyncTaskStatuses", mock.Anything, []model.TableID(nil), []model.TableID(nil), []model.TableID(nil)).
+	messenger.On("SyncTaskStatuses", mock.Anything, []model.KeySpanID(nil), []model.KeySpanID(nil), []model.KeySpanID(nil)).
 		Return(true, nil)
 	err := agent.Tick(ctx)
 	require.NoError(t, err)
 	messenger.AssertExpectations(t)
 
+	start, end := []byte{1}, []byte{5}
+
 	executor.ExpectedCalls = nil
 	messenger.ExpectedCalls = nil
-	agent.OnOwnerDispatchedTask("capture-1", 1, model.TableID(1), false)
-	executor.On("AddTable", mock.Anything, model.TableID(1)).Return(true, nil)
+	agent.OnOwnerDispatchedTask("capture-1", 1, model.KeySpanID(1), start, end, false)
+	executor.On("AddKeySpan", mock.Anything, model.KeySpanID(1)).Return(true, nil)
 	messenger.On("OnOwnerChanged", mock.Anything, "capture-1")
 
 	err = agent.Tick(ctx)
@@ -49,11 +51,11 @@ func TestAgentAddTable(t *testing.T) {
 
 	executor.ExpectedCalls = nil
 	messenger.ExpectedCalls = nil
-	delete(executor.Adding, model.TableID(1))
-	executor.Running[model.TableID(1)] = struct{}{}
+	delete(executor.Adding, model.KeySpanID(1))
+	executor.Running[model.KeySpanID(1)] = struct{}{}
 	executor.On("GetCheckpoint").Return(model.Ts(1002), model.Ts(1000))
 	messenger.On("SendCheckpoint", mock.Anything, model.Ts(1002), model.Ts(1000)).Return(true, nil)
-	messenger.On("FinishTableOperation", mock.Anything, model.TableID(1)).Return(true, nil)
+	messenger.On("FinishKeySpanOperation", mock.Anything, model.KeySpanID(1)).Return(true, nil)
 
 	err = agent.Tick(ctx)
 	require.NoError(t, err)
@@ -71,17 +73,17 @@ func TestAgentAddTable(t *testing.T) {
 	messenger.AssertExpectations(t)
 }
 
-func TestAgentRemoveTable(t *testing.T) {
+func TestAgentRemoveKeySpan(t *testing.T) {
 	ctx := cdcContext.NewBackendContext4Test(false)
 
-	executor := NewMockTableExecutor(t)
-	executor.Running[model.TableID(1)] = struct{}{}
-	executor.Running[model.TableID(2)] = struct{}{}
+	executor := NewMockKeySpanExecutor(t)
+	executor.Running[model.KeySpanID(1)] = struct{}{}
+	executor.Running[model.KeySpanID(2)] = struct{}{}
 
 	messenger := &MockProcessorMessenger{}
 	agent := NewBaseAgent("test-cf", executor, messenger, agentConfigForTesting)
 	agent.OnOwnerAnnounce("capture-2", 1)
-	messenger.On("SyncTaskStatuses", mock.Anything, []model.TableID{1, 2}, []model.TableID(nil), []model.TableID(nil)).
+	messenger.On("SyncTaskStatuses", mock.Anything, []model.KeySpanID{1, 2}, []model.KeySpanID(nil), []model.KeySpanID(nil)).
 		Return(true, nil)
 	messenger.On("OnOwnerChanged", mock.Anything, "capture-2")
 	executor.On("GetCheckpoint").Return(model.Ts(1000), model.Ts(1000))
@@ -90,12 +92,14 @@ func TestAgentRemoveTable(t *testing.T) {
 	require.NoError(t, err)
 	messenger.AssertExpectations(t)
 
+	start, end := []byte{1}, []byte{5}
+
 	executor.ExpectedCalls = nil
 	messenger.ExpectedCalls = nil
-	agent.OnOwnerDispatchedTask("capture-2", 1, model.TableID(1), true)
+	agent.OnOwnerDispatchedTask("capture-2", 1, model.KeySpanID(1), start, end, true)
 	executor.On("GetCheckpoint").Return(model.Ts(1000), model.Ts(1000))
 	messenger.On("SendCheckpoint", mock.Anything, model.Ts(1000), model.Ts(1000)).Return(true, nil)
-	executor.On("RemoveTable", mock.Anything, model.TableID(1)).Return(true, nil)
+	executor.On("RemoveKeySpan", mock.Anything, model.KeySpanID(1)).Return(true, nil)
 	messenger.On("Barrier", mock.Anything).Return(true)
 	err = agent.Tick(ctx)
 	require.NoError(t, err)
@@ -105,7 +109,7 @@ func TestAgentRemoveTable(t *testing.T) {
 	executor.ExpectedCalls = nil
 	messenger.ExpectedCalls = nil
 	executor.On("GetCheckpoint").Return(model.Ts(1000), model.Ts(1000))
-	messenger.On("SyncTaskStatuses", mock.Anything, []model.TableID{2}, []model.TableID(nil), []model.TableID{1}).
+	messenger.On("SyncTaskStatuses", mock.Anything, []model.KeySpanID{2}, []model.KeySpanID(nil), []model.KeySpanID{1}).
 		Return(true, nil)
 	messenger.On("OnOwnerChanged", mock.Anything, "capture-3")
 	messenger.On("SendCheckpoint", mock.Anything, model.Ts(1000), model.Ts(1000)).Return(true, nil)
@@ -117,10 +121,10 @@ func TestAgentRemoveTable(t *testing.T) {
 
 	executor.ExpectedCalls = nil
 	messenger.ExpectedCalls = nil
-	delete(executor.Removing, model.TableID(1))
+	delete(executor.Removing, model.KeySpanID(1))
 	executor.On("GetCheckpoint").Return(model.Ts(1002), model.Ts(1000))
 	messenger.On("Barrier", mock.Anything).Return(true)
-	messenger.On("FinishTableOperation", mock.Anything, model.TableID(1)).Return(true, nil)
+	messenger.On("FinishKeySpanOperation", mock.Anything, model.KeySpanID(1)).Return(true, nil)
 	messenger.On("SendCheckpoint", mock.Anything, model.Ts(1002), model.Ts(1000)).Return(true, nil)
 
 	err = agent.Tick(ctx)
@@ -128,20 +132,21 @@ func TestAgentRemoveTable(t *testing.T) {
 	messenger.AssertExpectations(t)
 }
 
-func TestAgentOwnerChangedWhileAddingTable(t *testing.T) {
+func TestAgentOwnerChangedWhileAddingKeySpan(t *testing.T) {
 	ctx := cdcContext.NewBackendContext4Test(false)
 
-	executor := NewMockTableExecutor(t)
+	executor := NewMockKeySpanExecutor(t)
 	messenger := &MockProcessorMessenger{}
 	agent := NewBaseAgent("test-cf", executor, messenger, agentConfigForTesting)
-	messenger.On("SyncTaskStatuses", mock.Anything, []model.TableID(nil), []model.TableID(nil), []model.TableID(nil)).
+	messenger.On("SyncTaskStatuses", mock.Anything, []model.KeySpanID(nil), []model.KeySpanID(nil), []model.KeySpanID(nil)).
 		Return(true, nil)
 	err := agent.Tick(ctx)
 	require.NoError(t, err)
 	messenger.AssertExpectations(t)
 
-	agent.OnOwnerDispatchedTask("capture-1", 1, model.TableID(1), false)
-	executor.On("AddTable", mock.Anything, model.TableID(1)).Return(true, nil)
+	start, end := []byte{1}, []byte{5}
+	agent.OnOwnerDispatchedTask("capture-1", 1, model.KeySpanID(1), start, end, false)
+	executor.On("AddKeySpan", mock.Anything, model.KeySpanID(1)).Return(true, nil)
 	messenger.On("OnOwnerChanged", mock.Anything, "capture-1")
 
 	err = agent.Tick(ctx)
@@ -161,7 +166,7 @@ func TestAgentOwnerChangedWhileAddingTable(t *testing.T) {
 	messenger.ExpectedCalls = nil
 	agent.OnOwnerAnnounce("capture-2", 2)
 	messenger.On("OnOwnerChanged", mock.Anything, "capture-2")
-	messenger.On("SyncTaskStatuses", mock.Anything, []model.TableID(nil), []model.TableID{1}, []model.TableID(nil)).
+	messenger.On("SyncTaskStatuses", mock.Anything, []model.KeySpanID(nil), []model.KeySpanID{1}, []model.KeySpanID(nil)).
 		Return(true, nil)
 	messenger.On("Barrier", mock.Anything).Return(true)
 	executor.On("GetCheckpoint").Return(model.Ts(1002), model.Ts(1000))
@@ -175,18 +180,19 @@ func TestAgentOwnerChangedWhileAddingTable(t *testing.T) {
 func TestAgentReceiveFromStaleOwner(t *testing.T) {
 	ctx := cdcContext.NewBackendContext4Test(false)
 
-	executor := NewMockTableExecutor(t)
+	executor := NewMockKeySpanExecutor(t)
 	messenger := &MockProcessorMessenger{}
 	agent := NewBaseAgent("test-cf", executor, messenger, agentConfigForTesting)
 	agent.checkpointSender = &MockCheckpointSender{}
-	messenger.On("SyncTaskStatuses", mock.Anything, []model.TableID(nil), []model.TableID(nil), []model.TableID(nil)).
+	messenger.On("SyncTaskStatuses", mock.Anything, []model.KeySpanID(nil), []model.KeySpanID(nil), []model.KeySpanID(nil)).
 		Return(true, nil)
 	err := agent.Tick(ctx)
 	require.NoError(t, err)
 	messenger.AssertExpectations(t)
 
-	agent.OnOwnerDispatchedTask("capture-1", 1, model.TableID(1), false)
-	executor.On("AddTable", mock.Anything, model.TableID(1)).Return(true, nil)
+	start, end := []byte{1}, []byte{5}
+	agent.OnOwnerDispatchedTask("capture-1", 1, model.KeySpanID(1), start, end, false)
+	executor.On("AddKeySpan", mock.Anything, model.KeySpanID(1)).Return(true, nil)
 	messenger.On("OnOwnerChanged", mock.Anything, "capture-1")
 
 	err = agent.Tick(ctx)
@@ -197,7 +203,8 @@ func TestAgentReceiveFromStaleOwner(t *testing.T) {
 	messenger.ExpectedCalls = nil
 	executor.On("GetCheckpoint").Return(model.Ts(1002), model.Ts(1000))
 	// Stale owner
-	agent.OnOwnerDispatchedTask("capture-2", 0, model.TableID(2), false)
+	start, end = []byte{5}, []byte{6}
+	agent.OnOwnerDispatchedTask("capture-2", 0, model.KeySpanID(2), start, end, false)
 
 	err = agent.Tick(ctx)
 	require.NoError(t, err)
@@ -216,11 +223,11 @@ func TestAgentReceiveFromStaleOwner(t *testing.T) {
 func TestOwnerMismatchShouldPanic(t *testing.T) {
 	ctx := cdcContext.NewBackendContext4Test(false)
 
-	executor := NewMockTableExecutor(t)
+	executor := NewMockKeySpanExecutor(t)
 	messenger := &MockProcessorMessenger{}
 	agent := NewBaseAgent("test-cf", executor, messenger, agentConfigForTesting)
 	agent.checkpointSender = &MockCheckpointSender{}
-	messenger.On("SyncTaskStatuses", mock.Anything, []model.TableID(nil), []model.TableID(nil), []model.TableID(nil)).
+	messenger.On("SyncTaskStatuses", mock.Anything, []model.KeySpanID(nil), []model.KeySpanID(nil), []model.KeySpanID(nil)).
 		Return(true, nil)
 	err := agent.Tick(ctx)
 	require.NoError(t, err)

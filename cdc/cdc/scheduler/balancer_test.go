@@ -16,38 +16,38 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/scheduler/util"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 func TestBalancerFindVictims(t *testing.T) {
-	balancer := newTableNumberRebalancer(zap.L())
-	tables := util.NewTableSet()
+	balancer := newKeySpanNumberRebalancer(zap.L())
+	keyspans := util.NewKeySpanSet()
 
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   1,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-1",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   4,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 4,
 		CaptureID: "capture-1",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   5,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 5,
 		CaptureID: "capture-2",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   6,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 6,
 		CaptureID: "capture-2",
 	})
 
@@ -63,44 +63,44 @@ func TestBalancerFindVictims(t *testing.T) {
 		},
 	}
 
-	victims := balancer.FindVictims(tables, mockCaptureInfos)
+	victims := balancer.FindVictims(keyspans, mockCaptureInfos)
 	require.Len(t, victims, 2)
-	require.Contains(t, victims, &util.TableRecord{
-		TableID:   1,
+	require.Contains(t, victims, &util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
 	})
-	require.Contains(t, victims, &util.TableRecord{
-		TableID:   2,
+	require.Contains(t, victims, &util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-1",
 	})
 }
 
 func TestBalancerFindTarget(t *testing.T) {
-	balancer := newTableNumberRebalancer(zap.L())
-	tables := util.NewTableSet()
+	balancer := newKeySpanNumberRebalancer(zap.L())
+	keyspans := util.NewKeySpanSet()
 
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   1,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-1",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   4,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 4,
 		CaptureID: "capture-2",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   5,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 5,
 		CaptureID: "capture-2",
 	})
-	tables.AddTableRecord(&util.TableRecord{
-		TableID:   6,
+	keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 6,
 		CaptureID: "capture-3",
 	})
 
@@ -116,15 +116,15 @@ func TestBalancerFindTarget(t *testing.T) {
 		},
 	}
 
-	target, ok := balancer.FindTarget(tables, mockCaptureInfos)
+	target, ok := balancer.FindTarget(keyspans, mockCaptureInfos)
 	require.True(t, ok)
 	require.Equal(t, "capture-3", target)
 }
 
 func TestBalancerNoCaptureAvailable(t *testing.T) {
-	balancer := newTableNumberRebalancer(zap.L())
-	tables := util.NewTableSet()
+	balancer := newKeySpanNumberRebalancer(zap.L())
+	keyspans := util.NewKeySpanSet()
 
-	_, ok := balancer.FindTarget(tables, map[model.CaptureID]*model.CaptureInfo{})
+	_, ok := balancer.FindTarget(keyspans, map[model.CaptureID]*model.CaptureInfo{})
 	require.False(t, ok)
 }

@@ -29,6 +29,9 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
+	"github.com/prometheus/client_golang/prometheus"
+	tidbkv "github.com/tikv/client-go/v2/kv"
+	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
@@ -37,9 +40,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/txnutil"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"github.com/prometheus/client_golang/prometheus"
-	tidbkv "github.com/tikv/client-go/v2/kv"
-	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -536,7 +536,7 @@ func (s *eventFeedSession) eventFeed(ctx context.Context, ts uint64) error {
 		}
 	})
 
-	tableID, tableName := util.TableIDFromCtx(ctx)
+	// tableID, tableName := util.KeySpanIDFromCtx(ctx)
 	cfID := util.ChangefeedIDFromCtx(ctx)
 	g.Go(func() error {
 		timer := time.NewTimer(defaultCheckRegionRateLimitInterval)
@@ -564,7 +564,7 @@ func (s *eventFeedSession) eventFeed(ctx context.Context, ts uint64) error {
 							zap.Uint64("regionID", errInfo.singleRegionInfo.verID.GetID()),
 							zap.Uint64("ts", errInfo.singleRegionInfo.ts),
 							zap.String("changefeed", cfID), zap.Stringer("span", errInfo.span),
-							zap.Int64("tableID", tableID), zap.String("tableName", tableName),
+							// 	zap.Int64("tableID", tableID), zap.String("tableName", tableName),
 							zapFieldAddr)
 					}
 					// rate limit triggers, add the error info to the rate limit queue.

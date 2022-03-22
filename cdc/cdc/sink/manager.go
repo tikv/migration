@@ -20,27 +20,26 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/cdc/redo"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tikv/migration/cdc/cdc/model"
 	"go.uber.org/zap"
 )
 
-// Manager manages table sinks, maintains the relationship between table sinks
+// Manager manages keyspan sinks, maintains the relationship between keyspan sinks
 // and backendSink.
 // Manager is thread-safe.
 type Manager struct {
 	bufSink                *bufferSink
-	tableCheckpointTsMap   sync.Map
-	tableSinks             map[model.TableID]*tableSink
-	tableSinksMu           sync.Mutex
+	keyspanCheckpointTsMap sync.Map
+	keyspanSinks           map[model.KeySpanID]*keyspanSink
+	keyspanSinksMu         sync.Mutex
 	changeFeedCheckpointTs uint64
 
 	drawbackChan chan drawbackMsg
 
-	captureAddr               string
-	changefeedID              model.ChangeFeedID
-	metricsTableSinkTotalRows prometheus.Counter
+	captureAddr                   string
+	changefeedID                  model.ChangeFeedID
+	metricsKeySpanSinkTotalEvents prometheus.Counter
 }
 
 // NewManager creates a new Sink manager
@@ -52,77 +51,76 @@ func NewManager(
 	bufSink := newBufferSink(backendSink, checkpointTs, drawbackChan)
 	go bufSink.run(ctx, errCh)
 	return &Manager{
-		bufSink:                   bufSink,
-		changeFeedCheckpointTs:    checkpointTs,
-		tableSinks:                make(map[model.TableID]*tableSink),
-		drawbackChan:              drawbackChan,
-		captureAddr:               captureAddr,
-		changefeedID:              changefeedID,
-		metricsTableSinkTotalRows: tableSinkTotalRowsCountCounter.WithLabelValues(captureAddr, changefeedID),
+		bufSink:                       bufSink,
+		changeFeedCheckpointTs:        checkpointTs,
+		keyspanSinks:                  make(map[model.KeySpanID]*keyspanSink),
+		drawbackChan:                  drawbackChan,
+		captureAddr:                   captureAddr,
+		changefeedID:                  changefeedID,
+		metricsKeySpanSinkTotalEvents: keyspanSinkTotalEventsCountCounter.WithLabelValues(captureAddr, changefeedID),
 	}
 }
 
-// CreateTableSink creates a table sink
-func (m *Manager) CreateTableSink(tableID model.TableID, checkpointTs model.Ts, redoManager redo.LogManager) Sink {
-	m.tableSinksMu.Lock()
-	defer m.tableSinksMu.Unlock()
-	if _, exist := m.tableSinks[tableID]; exist {
-		log.Panic("the table sink already exists", zap.Uint64("tableID", uint64(tableID)))
+// CreateKeySpanSink creates a keyspan sink
+func (m *Manager) CreateKeySpanSink(keyspanID model.KeySpanID, checkpointTs model.Ts) Sink {
+	m.keyspanSinksMu.Lock()
+	defer m.keyspanSinksMu.Unlock()
+	if _, exist := m.keyspanSinks[keyspanID]; exist {
+		log.Panic("the keyspan sink already exists", zap.Uint64("keyspanID", uint64(keyspanID)))
 	}
-	sink := &tableSink{
-		tableID:     tableID,
-		manager:     m,
-		buffer:      make([]*model.RowChangedEvent, 0, 128),
-		redoManager: redoManager,
+	sink := &keyspanSink{
+		keyspanID: keyspanID,
+		manager:   m,
+		buffer:    make([]*model.RawKVEntry, 0, 128),
 	}
-	m.tableSinks[tableID] = sink
+	m.keyspanSinks[keyspanID] = sink
 	return sink
 }
 
 // Close closes the Sink manager and backend Sink, this method can be reentrantly called
 func (m *Manager) Close(ctx context.Context) error {
-	m.tableSinksMu.Lock()
-	defer m.tableSinksMu.Unlock()
-	tableSinkTotalRowsCountCounter.DeleteLabelValues(m.captureAddr, m.changefeedID)
+	m.keyspanSinksMu.Lock()
+	defer m.keyspanSinksMu.Unlock()
+	keyspanSinkTotalEventsCountCounter.DeleteLabelValues(m.captureAddr, m.changefeedID)
 	if m.bufSink != nil {
 		return m.bufSink.Close(ctx)
 	}
 	return nil
 }
 
-func (m *Manager) flushBackendSink(ctx context.Context, tableID model.TableID, resolvedTs uint64) (model.Ts, error) {
-	checkpointTs, err := m.bufSink.FlushRowChangedEvents(ctx, tableID, resolvedTs)
+func (m *Manager) flushBackendSink(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (model.Ts, error) {
+	checkpointTs, err := m.bufSink.FlushChangedEvents(ctx, keyspanID, resolvedTs)
 	if err != nil {
-		return m.getCheckpointTs(tableID), errors.Trace(err)
+		return m.getCheckpointTs(keyspanID), errors.Trace(err)
 	}
-	m.tableCheckpointTsMap.Store(tableID, checkpointTs)
+	m.keyspanCheckpointTsMap.Store(keyspanID, checkpointTs)
 	return checkpointTs, nil
 }
 
-func (m *Manager) destroyTableSink(ctx context.Context, tableID model.TableID) error {
-	m.tableSinksMu.Lock()
-	delete(m.tableSinks, tableID)
-	m.tableSinksMu.Unlock()
+func (m *Manager) destroyKeySpanSink(ctx context.Context, keyspanID model.KeySpanID) error {
+	m.keyspanSinksMu.Lock()
+	delete(m.keyspanSinks, keyspanID)
+	m.keyspanSinksMu.Unlock()
 	callback := make(chan struct{})
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case m.drawbackChan <- drawbackMsg{tableID: tableID, callback: callback}:
+	case m.drawbackChan <- drawbackMsg{keyspanID: keyspanID, callback: callback}:
 	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-callback:
 	}
-	return m.bufSink.Barrier(ctx, tableID)
+	return m.bufSink.Barrier(ctx, keyspanID)
 }
 
-func (m *Manager) getCheckpointTs(tableID model.TableID) uint64 {
-	checkPoints, ok := m.tableCheckpointTsMap.Load(tableID)
+func (m *Manager) getCheckpointTs(keyspanID model.KeySpanID) uint64 {
+	checkPoints, ok := m.keyspanCheckpointTsMap.Load(keyspanID)
 	if ok {
 		return checkPoints.(uint64)
 	}
-	// cannot find table level checkpointTs because of no table level resolvedTs flush task finished successfully,
+	// cannot find keyspan level checkpointTs because of no keyspan level resolvedTs flush task finished successfully,
 	// for example: first time to flush resolvedTs but cannot get the flush lock, return changefeed level checkpointTs is safe
 	return atomic.LoadUint64(&m.changeFeedCheckpointTs)
 }
@@ -135,6 +133,6 @@ func (m *Manager) UpdateChangeFeedCheckpointTs(checkpointTs uint64) {
 }
 
 type drawbackMsg struct {
-	tableID  model.TableID
-	callback chan struct{}
+	keyspanID model.KeySpanID
+	callback  chan struct{}
 }

@@ -18,32 +18,23 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/entry"
-	"github.com/tikv/migration/cdc/cdc/kv"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
-	tablepipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
-	"github.com/tikv/migration/cdc/cdc/puller"
-	"github.com/tikv/migration/cdc/cdc/redo"
+	keyspanpipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
 	"github.com/tikv/migration/cdc/cdc/sink"
-	"github.com/tikv/migration/cdc/cdc/sorter/memory"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
-	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
-	"github.com/tikv/migration/cdc/pkg/regionspan"
-	"github.com/tikv/migration/cdc/pkg/retry"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tikv/client-go/v2/oracle"
 	"go.uber.org/zap"
 )
 
@@ -57,15 +48,10 @@ type processor struct {
 	captureInfo  *model.CaptureInfo
 	changefeed   *orchestrator.ChangefeedReactorState
 
-	tables map[model.TableID]tablepipeline.TablePipeline
-
-	schemaStorage entry.SchemaStorage
-	lastSchemaTs  model.Ts
+	keyspans map[model.KeySpanID]keyspanpipeline.KeySpanPipeline
 
 	filter        *filter.Filter
-	mounter       entry.Mounter
 	sinkManager   *sink.Manager
-	redoManager   redo.LogManager
 	lastRedoFlush time.Time
 
 	initialized bool
@@ -73,9 +59,9 @@ type processor struct {
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
 
-	lazyInit            func(ctx cdcContext.Context) error
-	createTablePipeline func(ctx cdcContext.Context, tableID model.TableID, replicaInfo *model.TableReplicaInfo) (tablepipeline.TablePipeline, error)
-	newAgent            func(ctx cdcContext.Context) (processorAgent, error)
+	lazyInit              func(ctx cdcContext.Context) error
+	createKeySpanPipeline func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error)
+	newAgent              func(ctx cdcContext.Context) (processorAgent, error)
 
 	// fields for integration with Scheduler(V2).
 	newSchedulerEnabled bool
@@ -83,13 +69,12 @@ type processor struct {
 	checkpointTs        model.Ts
 	resolvedTs          model.Ts
 
-	metricResolvedTsGauge        prometheus.Gauge
-	metricResolvedTsLagGauge     prometheus.Gauge
-	metricCheckpointTsGauge      prometheus.Gauge
-	metricCheckpointTsLagGauge   prometheus.Gauge
-	metricSyncTableNumGauge      prometheus.Gauge
-	metricSchemaStorageGcTsGauge prometheus.Gauge
-	metricProcessorErrorCounter  prometheus.Counter
+	metricResolvedTsGauge       prometheus.Gauge
+	metricResolvedTsLagGauge    prometheus.Gauge
+	metricCheckpointTsGauge     prometheus.Gauge
+	metricCheckpointTsLagGauge  prometheus.Gauge
+	metricSyncKeySpanNumGauge   prometheus.Gauge
+	metricProcessorErrorCounter prometheus.Counter
 }
 
 // checkReadyForMessages checks whether all necessary Etcd keys have been established.
@@ -97,125 +82,130 @@ func (p *processor) checkReadyForMessages() bool {
 	return p.changefeed != nil && p.changefeed.Status != nil
 }
 
-// AddTable implements TableExecutor interface.
-func (p *processor) AddTable(ctx cdcContext.Context, tableID model.TableID) (bool, error) {
+// AddKeySpan implements KeySpanExecutor interface.
+func (p *processor) AddKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID, start []byte, end []byte) (bool, error) {
 	if !p.checkReadyForMessages() {
 		return false, nil
 	}
 
-	log.Info("adding table",
-		zap.Int64("table-id", tableID),
+	log.Info("adding keyspan",
+		zap.Uint64("keyspan-id", keyspanID),
 		cdcContext.ZapFieldChangefeed(ctx))
-	err := p.addTable(ctx, tableID, &model.TableReplicaInfo{})
+
+	keyspanReplicaInfo := &model.KeySpanReplicaInfo{
+		Start: start,
+		End:   end,
+	}
+	err := p.addKeySpan(ctx, keyspanID, keyspanReplicaInfo)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
 	return true, nil
 }
 
-// RemoveTable implements TableExecutor interface.
-func (p *processor) RemoveTable(ctx cdcContext.Context, tableID model.TableID) (bool, error) {
+// RemoveKeySpan implements KeySpanExecutor interface.
+func (p *processor) RemoveKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID) (bool, error) {
 	if !p.checkReadyForMessages() {
 		return false, nil
 	}
 
-	table, ok := p.tables[tableID]
+	keyspan, ok := p.keyspans[keyspanID]
 	if !ok {
-		log.Warn("table which will be deleted is not found",
-			cdcContext.ZapFieldChangefeed(ctx), zap.Int64("tableID", tableID))
+		log.Warn("keyspan which will be deleted is not found",
+			cdcContext.ZapFieldChangefeed(ctx), zap.Uint64("keyspanID", keyspanID))
 		return true, nil
 	}
 
 	boundaryTs := p.changefeed.Status.CheckpointTs
-	if !table.AsyncStop(boundaryTs) {
+	if !keyspan.AsyncStop(boundaryTs) {
 		// We use a Debug log because it is conceivable for the pipeline to block for a legitimate reason,
 		// and we do not want to alarm the user.
 		log.Debug("AsyncStop has failed, possible due to a full pipeline",
 			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Uint64("checkpointTs", table.CheckpointTs()),
-			zap.Int64("tableID", tableID))
+			zap.Uint64("checkpointTs", keyspan.CheckpointTs()),
+			zap.Uint64("keyspanID", keyspanID))
 		return false, nil
 	}
 	return true, nil
 }
 
-// IsAddTableFinished implements TableExecutor interface.
-func (p *processor) IsAddTableFinished(ctx cdcContext.Context, tableID model.TableID) bool {
+// IsAddKeySpanFinished implements KeySpanExecutor interface.
+func (p *processor) IsAddKeySpanFinished(ctx cdcContext.Context, keyspanID model.KeySpanID) bool {
 	if !p.checkReadyForMessages() {
 		return false
 	}
 
-	table, exist := p.tables[tableID]
+	keyspan, exist := p.keyspans[keyspanID]
 	if !exist {
-		log.Panic("table which was added is not found",
+		log.Panic("keyspan which was added is not found",
 			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Int64("tableID", tableID))
+			zap.Uint64("keyspanID", keyspanID))
 	}
 	localResolvedTs := p.resolvedTs
 	globalResolvedTs := p.changefeed.Status.ResolvedTs
 	localCheckpointTs := p.agent.GetLastSentCheckpointTs()
 	globalCheckpointTs := p.changefeed.Status.CheckpointTs
 
-	// These two conditions are used to determine if the table's pipeline has finished
+	// These two conditions are used to determine if the keyspan's pipeline has finished
 	// initializing and all invariants have been preserved.
 	//
 	// The processor needs to make sure all reasonable invariants about the checkpoint-ts and
 	// the resolved-ts are preserved before communicating with the Owner.
 	//
 	// These conditions are similar to those in the legacy implementation of the Owner/Processor.
-	if table.CheckpointTs() < localCheckpointTs || localCheckpointTs < globalCheckpointTs {
+	if keyspan.CheckpointTs() < localCheckpointTs || localCheckpointTs < globalCheckpointTs {
 		return false
 	}
-	if table.ResolvedTs() < localResolvedTs || localResolvedTs < globalResolvedTs {
+	if keyspan.ResolvedTs() < localResolvedTs || localResolvedTs < globalResolvedTs {
 		return false
 	}
-	log.Info("Add Table finished",
+	log.Info("Add KeySpan finished",
 		cdcContext.ZapFieldChangefeed(ctx),
-		zap.Int64("tableID", tableID))
+		zap.Uint64("keyspanID", keyspanID))
 	return true
 }
 
-// IsRemoveTableFinished implements TableExecutor interface.
-func (p *processor) IsRemoveTableFinished(ctx cdcContext.Context, tableID model.TableID) bool {
+// IsRemoveKeySpanFinished implements KeySpanExecutor interface.
+func (p *processor) IsRemoveKeySpanFinished(ctx cdcContext.Context, keyspanID model.KeySpanID) bool {
 	if !p.checkReadyForMessages() {
 		return false
 	}
 
-	table, exist := p.tables[tableID]
+	keyspan, exist := p.keyspans[keyspanID]
 	if !exist {
-		log.Panic("table which was deleted is not found",
+		log.Panic("keyspan which was deleted is not found",
 			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Int64("tableID", tableID))
+			zap.Uint64("keyspanID", keyspanID))
 		return true
 	}
-	if table.Status() != tablepipeline.TableStatusStopped {
-		log.Debug("the table is still not stopped",
+	if keyspan.Status() != keyspanpipeline.KeySpanStatusStopped {
+		log.Debug("the keyspan is still not stopped",
 			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Uint64("checkpointTs", table.CheckpointTs()),
-			zap.Int64("tableID", tableID))
+			zap.Uint64("checkpointTs", keyspan.CheckpointTs()),
+			zap.Uint64("keyspanID", keyspanID))
 		return false
 	}
 
-	table.Cancel()
-	table.Wait()
-	delete(p.tables, tableID)
-	log.Info("Remove Table finished",
+	keyspan.Cancel()
+	keyspan.Wait()
+	delete(p.keyspans, keyspanID)
+	log.Info("Remove KeySpan finished",
 		cdcContext.ZapFieldChangefeed(ctx),
-		zap.Int64("tableID", tableID))
+		zap.Uint64("keyspanID", keyspanID))
 
 	return true
 }
 
-// GetAllCurrentTables implements TableExecutor interface.
-func (p *processor) GetAllCurrentTables() []model.TableID {
-	ret := make([]model.TableID, 0, len(p.tables))
-	for tableID := range p.tables {
-		ret = append(ret, tableID)
+// GetAllCurrentKeySpans implements KeySpanExecutor interface.
+func (p *processor) GetAllCurrentKeySpans() []model.KeySpanID {
+	ret := make([]model.KeySpanID, 0, len(p.keyspans))
+	for keyspanID := range p.keyspans {
+		ret = append(ret, keyspanID)
 	}
 	return ret
 }
 
-// GetCheckpoint implements TableExecutor interface.
+// GetCheckpoint implements KeySpanExecutor interface.
 func (p *processor) GetCheckpoint() (checkpointTs, resolvedTs model.Ts) {
 	return p.checkpointTs, p.resolvedTs
 }
@@ -226,7 +216,7 @@ func newProcessor(ctx cdcContext.Context) *processor {
 	advertiseAddr := ctx.GlobalVars().CaptureInfo.AdvertiseAddr
 	conf := config.GetGlobalServerConfig()
 	p := &processor{
-		tables:        make(map[model.TableID]tablepipeline.TablePipeline),
+		keyspans:      make(map[model.KeySpanID]keyspanpipeline.KeySpanPipeline),
 		errCh:         make(chan error, 1),
 		changefeedID:  changefeedID,
 		captureInfo:   ctx.GlobalVars().CaptureInfo,
@@ -235,15 +225,15 @@ func newProcessor(ctx cdcContext.Context) *processor {
 
 		newSchedulerEnabled: conf.Debug.EnableNewScheduler,
 
-		metricResolvedTsGauge:        resolvedTsGauge.WithLabelValues(changefeedID, advertiseAddr),
-		metricResolvedTsLagGauge:     resolvedTsLagGauge.WithLabelValues(changefeedID, advertiseAddr),
-		metricCheckpointTsGauge:      checkpointTsGauge.WithLabelValues(changefeedID, advertiseAddr),
-		metricCheckpointTsLagGauge:   checkpointTsLagGauge.WithLabelValues(changefeedID, advertiseAddr),
-		metricSyncTableNumGauge:      syncTableNumGauge.WithLabelValues(changefeedID, advertiseAddr),
-		metricProcessorErrorCounter:  processorErrorCounter.WithLabelValues(changefeedID, advertiseAddr),
-		metricSchemaStorageGcTsGauge: processorSchemaStorageGcTsGauge.WithLabelValues(changefeedID, advertiseAddr),
+		metricResolvedTsGauge:       resolvedTsGauge.WithLabelValues(changefeedID, advertiseAddr),
+		metricResolvedTsLagGauge:    resolvedTsLagGauge.WithLabelValues(changefeedID, advertiseAddr),
+		metricCheckpointTsGauge:     checkpointTsGauge.WithLabelValues(changefeedID, advertiseAddr),
+		metricCheckpointTsLagGauge:  checkpointTsLagGauge.WithLabelValues(changefeedID, advertiseAddr),
+		metricSyncKeySpanNumGauge:   syncKeySpanNumGauge.WithLabelValues(changefeedID, advertiseAddr),
+		metricProcessorErrorCounter: processorErrorCounter.WithLabelValues(changefeedID, advertiseAddr),
+		// metricSchemaStorageGcTsGauge: processorSchemaStorageGcTsGauge.WithLabelValues(changefeedID, advertiseAddr),
 	}
-	p.createTablePipeline = p.createTablePipelineImpl
+	p.createKeySpanPipeline = p.createKeySpanPipelineImpl
 	p.lazyInit = p.lazyInitImpl
 	p.newAgent = p.newAgentImpl
 	return p
@@ -274,7 +264,7 @@ func isProcessorIgnorableError(err error) bool {
 
 // Tick implements the `orchestrator.State` interface
 // the `state` parameter is sent by the etcd worker, the `state` must be a snapshot of KVs in etcd
-// The main logic of processor is in this function, including the calculation of many kinds of ts, maintain table pipeline, error handling, etc.
+// The main logic of processor is in this function, including the calculation of many kinds of ts, maintain keyspan pipeline, error handling, etc.
 func (p *processor) Tick(ctx cdcContext.Context, state *orchestrator.ChangefeedReactorState) (orchestrator.ReactorState, error) {
 	p.changefeed = state
 	state.CheckCaptureAlive(ctx.GlobalVars().CaptureInfo.ID)
@@ -333,32 +323,28 @@ func (p *processor) tick(ctx cdcContext.Context, state *orchestrator.ChangefeedR
 	}
 	// sink manager will return this checkpointTs to sink node if sink node resolvedTs flush failed
 	p.sinkManager.UpdateChangeFeedCheckpointTs(state.Info.GetCheckpointTs(state.Status))
-	if err := p.handleTableOperation(ctx); err != nil {
+	if err := p.handleKeySpanOperation(ctx); err != nil {
 		return nil, errors.Trace(err)
 	}
-	if err := p.checkTablesNum(ctx); err != nil {
+	if err := p.checkKeySpansNum(ctx); err != nil {
 		return nil, errors.Trace(err)
-	}
-	if err := p.flushRedoLogMeta(ctx); err != nil {
-		return nil, err
 	}
 	// it is no need to check the err here, because we will use
 	// local time when an error return, which is acceptable
 	pdTime, _ := ctx.GlobalVars().TimeAcquirer.CurrentTimeFromCached()
 
 	p.handlePosition(oracle.GetPhysical(pdTime))
-	p.pushResolvedTs2Table()
+	p.pushResolvedTs2KeySpan()
 
 	// The workload key does not contain extra information and
 	// will not be used in the new scheduler. If we wrote to the
-	// key while there are many tables (>10000), we would risk burdening Etcd.
+	// key while there are many keyspans (>10000), we would risk burdening Etcd.
 	//
 	// The keys will still exist but will no longer be written to
 	// if we do not call handleWorkload.
 	if !p.newSchedulerEnabled {
 		p.handleWorkload()
 	}
-	p.doGCSchemaStorage(ctx)
 
 	if p.newSchedulerEnabled {
 		if err := p.agent.Tick(ctx); err != nil {
@@ -434,25 +420,15 @@ func (p *processor) lazyInitImpl(ctx cdcContext.Context) error {
 	}()
 
 	var err error
-	p.filter, err = filter.NewFilter(p.changefeed.Info.Config)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	p.schemaStorage, err = p.createAndDriveSchemaStorage(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	/*
+		p.filter, err = filter.NewFilter(p.changefeed.Info.Config)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	*/
 
 	stdCtx := util.PutChangefeedIDInCtx(ctx, p.changefeed.ID)
 	stdCtx = util.PutCaptureAddrInCtx(stdCtx, p.captureInfo.AdvertiseAddr)
-
-	p.mounter = entry.NewMounter(p.schemaStorage, p.changefeed.Info.Config.Mounter.WorkerNum, p.changefeed.Info.Config.EnableOldValue)
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		p.sendError(p.mounter.Run(stdCtx))
-	}()
 
 	opts := make(map[string]string, len(p.changefeed.Info.Opts)+2)
 	for k, v := range p.changefeed.Info.Opts {
@@ -460,27 +436,25 @@ func (p *processor) lazyInitImpl(ctx cdcContext.Context) error {
 	}
 
 	// TODO(neil) find a better way to let sink know cyclic is enabled.
-	if p.changefeed.Info.Config.Cyclic.IsEnabled() {
-		cyclicCfg, err := p.changefeed.Info.Config.Cyclic.Marshal()
-		if err != nil {
-			return errors.Trace(err)
+	// TODO: it's useless for tikv cdc.
+	/*
+		if p.changefeed.Info.Config.Cyclic.IsEnabled() {
+			cyclicCfg, err := p.changefeed.Info.Config.Cyclic.Marshal()
+			if err != nil {
+				return errors.Trace(err)
+			}
+			opts[mark.OptCyclicConfig] = cyclicCfg
 		}
-		opts[mark.OptCyclicConfig] = cyclicCfg
-	}
+	*/
 	opts[sink.OptChangefeedID] = p.changefeed.ID
 	opts[sink.OptCaptureAddr] = ctx.GlobalVars().CaptureInfo.AdvertiseAddr
-	s, err := sink.New(stdCtx, p.changefeed.ID, p.changefeed.Info.SinkURI, p.filter, p.changefeed.Info.Config, opts, errCh)
+	s, err := sink.New(stdCtx, p.changefeed.ID, p.changefeed.Info.SinkURI, p.changefeed.Info.Config, opts, errCh)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	checkpointTs := p.changefeed.Info.GetCheckpointTs(p.changefeed.Status)
 	captureAddr := ctx.GlobalVars().CaptureInfo.AdvertiseAddr
 	p.sinkManager = sink.NewManager(stdCtx, s, errCh, checkpointTs, captureAddr, p.changefeedID)
-	redoManagerOpts := &redo.ManagerOptions{EnableBgRunner: true, ErrCh: errCh}
-	p.redoManager, err = redo.NewManager(stdCtx, p.changefeed.Info.Config.Consistent, redoManagerOpts)
-	if err != nil {
-		return err
-	}
 
 	if p.newSchedulerEnabled {
 		p.agent, err = p.newAgent(ctx)
@@ -523,21 +497,21 @@ func (p *processor) handleErrorCh(ctx cdcContext.Context) error {
 	return cerror.ErrReactorFinished
 }
 
-// handleTableOperation handles the operation of `TaskStatus`(add table operation and remove table operation)
-func (p *processor) handleTableOperation(ctx cdcContext.Context) error {
+// handleKeySpanOperation handles the operation of `TaskStatus`(add keyspan operation and remove keyspan operation)
+func (p *processor) handleKeySpanOperation(ctx cdcContext.Context) error {
 	if p.newSchedulerEnabled {
 		return nil
 	}
 
-	patchOperation := func(tableID model.TableID, fn func(operation *model.TableOperation) error) {
+	patchOperation := func(keyspanID model.KeySpanID, fn func(operation *model.KeySpanOperation) error) {
 		p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 			if status == nil || status.Operation == nil {
-				log.Error("Operation not found, may be remove by other patch", zap.Int64("tableID", tableID), zap.Any("status", status))
+				log.Error("Operation not found, may be remove by other patch", zap.Uint64("keyspanID", keyspanID), zap.Any("status", status))
 				return nil, false, cerror.ErrTaskStatusNotExists.GenWithStackByArgs()
 			}
-			opt := status.Operation[tableID]
+			opt := status.Operation[keyspanID]
 			if opt == nil {
-				log.Error("Operation not found, may be remove by other patch", zap.Int64("tableID", tableID), zap.Any("status", status))
+				log.Error("Operation not found, may be remove by other patch", zap.Uint64("keyspanID", keyspanID), zap.Any("status", status))
 				return nil, false, cerror.ErrTaskStatusNotExists.GenWithStackByArgs()
 			}
 			if err := fn(opt); err != nil {
@@ -547,17 +521,17 @@ func (p *processor) handleTableOperation(ctx cdcContext.Context) error {
 		})
 	}
 	taskStatus := p.changefeed.TaskStatuses[p.captureInfo.ID]
-	for tableID, opt := range taskStatus.Operation {
-		if opt.TableApplied() {
+	for keyspanID, opt := range taskStatus.Operation {
+		if opt.KeySpanApplied() {
 			continue
 		}
 		globalCheckpointTs := p.changefeed.Status.CheckpointTs
 		if opt.Delete {
-			table, exist := p.tables[tableID]
+			keyspan, exist := p.keyspans[keyspanID]
 			if !exist {
-				log.Warn("table which will be deleted is not found",
-					cdcContext.ZapFieldChangefeed(ctx), zap.Int64("tableID", tableID))
-				patchOperation(tableID, func(operation *model.TableOperation) error {
+				log.Warn("keyspan which will be deleted is not found",
+					cdcContext.ZapFieldChangefeed(ctx), zap.Uint64("keyspanID", keyspanID))
+				patchOperation(keyspanID, func(operation *model.KeySpanOperation) error {
 					operation.Status = model.OperFinished
 					return nil
 				})
@@ -566,33 +540,33 @@ func (p *processor) handleTableOperation(ctx cdcContext.Context) error {
 			switch opt.Status {
 			case model.OperDispatched:
 				if opt.BoundaryTs < globalCheckpointTs {
-					log.Warn("the BoundaryTs of remove table operation is smaller than global checkpoint ts", zap.Uint64("globalCheckpointTs", globalCheckpointTs), zap.Any("operation", opt))
+					log.Warn("the BoundaryTs of remove keyspan operation is smaller than global checkpoint ts", zap.Uint64("globalCheckpointTs", globalCheckpointTs), zap.Any("operation", opt))
 				}
-				if !table.AsyncStop(opt.BoundaryTs) {
+				if !keyspan.AsyncStop(opt.BoundaryTs) {
 					// We use a Debug log because it is conceivable for the pipeline to block for a legitimate reason,
 					// and we do not want to alarm the user.
 					log.Debug("AsyncStop has failed, possible due to a full pipeline",
-						zap.Uint64("checkpointTs", table.CheckpointTs()), zap.Int64("tableID", tableID))
+						zap.Uint64("checkpointTs", keyspan.CheckpointTs()), zap.Uint64("keyspanID", keyspanID))
 					continue
 				}
-				patchOperation(tableID, func(operation *model.TableOperation) error {
+				patchOperation(keyspanID, func(operation *model.KeySpanOperation) error {
 					operation.Status = model.OperProcessed
 					return nil
 				})
 			case model.OperProcessed:
-				if table.Status() != tablepipeline.TableStatusStopped {
-					log.Debug("the table is still not stopped", zap.Uint64("checkpointTs", table.CheckpointTs()), zap.Int64("tableID", tableID))
+				if keyspan.Status() != keyspanpipeline.KeySpanStatusStopped {
+					log.Debug("the keyspan is still not stopped", zap.Uint64("checkpointTs", keyspan.CheckpointTs()), zap.Uint64("keyspanID", keyspanID))
 					continue
 				}
-				patchOperation(tableID, func(operation *model.TableOperation) error {
-					operation.BoundaryTs = table.CheckpointTs()
+				patchOperation(keyspanID, func(operation *model.KeySpanOperation) error {
+					operation.BoundaryTs = keyspan.CheckpointTs()
 					operation.Status = model.OperFinished
 					return nil
 				})
-				p.removeTable(table, tableID)
+				p.removeKeySpan(keyspan, keyspanID)
 				log.Debug("Operation done signal received",
 					cdcContext.ZapFieldChangefeed(ctx),
-					zap.Int64("tableID", tableID),
+					zap.Uint64("keyspanID", keyspanID),
 					zap.Reflect("operation", opt))
 			default:
 				log.Panic("unreachable")
@@ -600,27 +574,27 @@ func (p *processor) handleTableOperation(ctx cdcContext.Context) error {
 		} else {
 			switch opt.Status {
 			case model.OperDispatched:
-				replicaInfo, exist := taskStatus.Tables[tableID]
+				replicaInfo, exist := taskStatus.KeySpans[keyspanID]
 				if !exist {
-					return cerror.ErrProcessorTableNotFound.GenWithStack("replicaInfo of table(%d)", tableID)
+					return cerror.ErrProcessorTableNotFound.GenWithStack("replicaInfo of keyspan(%d)", keyspanID)
 				}
 				if replicaInfo.StartTs != opt.BoundaryTs {
-					log.Warn("the startTs and BoundaryTs of add table operation should be always equaled", zap.Any("replicaInfo", replicaInfo))
+					log.Warn("the startTs and BoundaryTs of add keyspan operation should be always equaled", zap.Any("replicaInfo", replicaInfo))
 				}
-				err := p.addTable(ctx, tableID, replicaInfo)
+				err := p.addKeySpan(ctx, keyspanID, replicaInfo)
 				if err != nil {
 					return errors.Trace(err)
 				}
-				patchOperation(tableID, func(operation *model.TableOperation) error {
+				patchOperation(keyspanID, func(operation *model.KeySpanOperation) error {
 					operation.Status = model.OperProcessed
 					return nil
 				})
 			case model.OperProcessed:
-				table, exist := p.tables[tableID]
+				keyspan, exist := p.keyspans[keyspanID]
 				if !exist {
-					log.Warn("table which was added is not found",
-						cdcContext.ZapFieldChangefeed(ctx), zap.Int64("tableID", tableID))
-					patchOperation(tableID, func(operation *model.TableOperation) error {
+					log.Warn("keyspan which was added is not found",
+						cdcContext.ZapFieldChangefeed(ctx), zap.Uint64("keyspanID", keyspanID))
+					patchOperation(keyspanID, func(operation *model.KeySpanOperation) error {
 						operation.Status = model.OperDispatched
 						return nil
 					})
@@ -628,14 +602,14 @@ func (p *processor) handleTableOperation(ctx cdcContext.Context) error {
 				}
 				localResolvedTs := p.changefeed.TaskPositions[p.captureInfo.ID].ResolvedTs
 				globalResolvedTs := p.changefeed.Status.ResolvedTs
-				if table.ResolvedTs() >= localResolvedTs && localResolvedTs >= globalResolvedTs {
-					patchOperation(tableID, func(operation *model.TableOperation) error {
+				if keyspan.ResolvedTs() >= localResolvedTs && localResolvedTs >= globalResolvedTs {
+					patchOperation(keyspanID, func(operation *model.KeySpanOperation) error {
 						operation.Status = model.OperFinished
 						return nil
 					})
 					log.Debug("Operation done signal received",
 						cdcContext.ZapFieldChangefeed(ctx),
-						zap.Int64("tableID", tableID),
+						zap.Uint64("keyspanID", keyspanID),
 						zap.Reflect("operation", opt))
 				}
 			default:
@@ -644,67 +618,6 @@ func (p *processor) handleTableOperation(ctx cdcContext.Context) error {
 		}
 	}
 	return nil
-}
-
-func (p *processor) createAndDriveSchemaStorage(ctx cdcContext.Context) (entry.SchemaStorage, error) {
-	kvStorage := ctx.GlobalVars().KVStorage
-	ddlspans := []regionspan.Span{regionspan.GetDDLSpan(), regionspan.GetAddIndexDDLSpan()}
-	checkpointTs := p.changefeed.Info.GetCheckpointTs(p.changefeed.Status)
-	stdCtx := util.PutTableInfoInCtx(ctx, -1, puller.DDLPullerTableName)
-	stdCtx = util.PutChangefeedIDInCtx(stdCtx, ctx.ChangefeedVars().ID)
-	ddlPuller := puller.NewPuller(
-		stdCtx,
-		ctx.GlobalVars().PDClient,
-		ctx.GlobalVars().GrpcPool,
-		ctx.GlobalVars().RegionCache,
-		ctx.GlobalVars().KVStorage,
-		checkpointTs, ddlspans, false)
-	meta, err := kv.GetSnapshotMeta(kvStorage, checkpointTs)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	schemaStorage, err := entry.NewSchemaStorage(meta, checkpointTs, p.filter, p.changefeed.Info.Config.ForceReplicate)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		p.sendError(ddlPuller.Run(stdCtx))
-	}()
-	ddlRawKVCh := memory.SortOutput(ctx, ddlPuller.Output())
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		var ddlRawKV *model.RawKVEntry
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case ddlRawKV = <-ddlRawKVCh:
-			}
-			if ddlRawKV == nil {
-				continue
-			}
-			failpoint.Inject("processorDDLResolved", nil)
-			if ddlRawKV.OpType == model.OpTypeResolved {
-				schemaStorage.AdvanceResolvedTs(ddlRawKV.CRTs)
-			}
-			job, err := entry.UnmarshalDDL(ddlRawKV)
-			if err != nil {
-				p.sendError(errors.Trace(err))
-				return
-			}
-			if job == nil {
-				continue
-			}
-			if err := schemaStorage.HandleDDLJob(job); err != nil {
-				p.sendError(errors.Trace(err))
-				return
-			}
-		}
-	}()
-	return schemaStorage, nil
 }
 
 func (p *processor) sendError(err error) {
@@ -720,51 +633,51 @@ func (p *processor) sendError(err error) {
 	}
 }
 
-// checkTablesNum if the number of table pipelines is equal to the number of TaskStatus in etcd state.
-// if the table number is not right, create or remove the odd tables.
-func (p *processor) checkTablesNum(ctx cdcContext.Context) error {
+// checkKeySpansNum if the number of keyspan pipelines is equal to the number of TaskStatus in etcd state.
+// if the keyspan number is not right, create or remove the odd keyspans.
+func (p *processor) checkKeySpansNum(ctx cdcContext.Context) error {
 	if p.newSchedulerEnabled {
 		// No need to check this for the new scheduler.
 		return nil
 	}
 
 	taskStatus := p.changefeed.TaskStatuses[p.captureInfo.ID]
-	if len(p.tables) == len(taskStatus.Tables) {
+	if len(p.keyspans) == len(taskStatus.KeySpans) {
 		return nil
 	}
-	// check if a table should be listen but not
+	// check if a keyspan should be listen but not
 	// this only could be happened in the first tick.
-	for tableID, replicaInfo := range taskStatus.Tables {
-		if _, exist := p.tables[tableID]; exist {
+	for keyspanID, replicaInfo := range taskStatus.KeySpans {
+		if _, exist := p.keyspans[keyspanID]; exist {
 			continue
 		}
 		opt := taskStatus.Operation
 		// TODO(leoppro): check if the operation is a undone add operation
-		if opt != nil && opt[tableID] != nil {
+		if opt != nil && opt[keyspanID] != nil {
 			continue
 		}
-		log.Info("start to listen to the table immediately", zap.Int64("tableID", tableID), zap.Any("replicaInfo", replicaInfo))
+		log.Info("start to listen to the keyspan immediately", zap.Uint64("keyspanID", keyspanID), zap.Any("replicaInfo", replicaInfo))
 		if replicaInfo.StartTs < p.changefeed.Status.CheckpointTs {
 			replicaInfo.StartTs = p.changefeed.Status.CheckpointTs
 		}
-		err := p.addTable(ctx, tableID, replicaInfo)
+		err := p.addKeySpan(ctx, keyspanID, replicaInfo)
 		if err != nil {
 			return errors.Trace(err)
 		}
 	}
-	// check if a table should be removed but still exist
+	// check if a keyspan should be removed but still exist
 	// this shouldn't be happened in any time.
-	for tableID, tablePipeline := range p.tables {
-		if _, exist := taskStatus.Tables[tableID]; exist {
+	for keyspanID, keyspanPipeline := range p.keyspans {
+		if _, exist := taskStatus.KeySpans[keyspanID]; exist {
 			continue
 		}
 		opt := taskStatus.Operation
-		if opt != nil && opt[tableID] != nil && opt[tableID].Delete {
-			// table will be removed by normal logic
+		if opt != nil && opt[keyspanID] != nil && opt[keyspanID].Delete {
+			// keyspan will be removed by normal logic
 			continue
 		}
-		p.removeTable(tablePipeline, tableID)
-		log.Warn("the table was forcibly deleted", zap.Int64("tableID", tableID), zap.Any("taskStatus", taskStatus))
+		p.removeKeySpan(keyspanPipeline, keyspanID)
+		log.Warn("the keyspan was forcibly deleted", zap.Uint64("keyspanID", keyspanID), zap.Any("taskStatus", taskStatus))
 	}
 	return nil
 }
@@ -772,19 +685,17 @@ func (p *processor) checkTablesNum(ctx cdcContext.Context) error {
 // handlePosition calculates the local resolved ts and local checkpoint ts
 func (p *processor) handlePosition(currentTs int64) {
 	minResolvedTs := uint64(math.MaxUint64)
-	if p.schemaStorage != nil {
-		minResolvedTs = p.schemaStorage.ResolvedTs()
-	}
-	for _, table := range p.tables {
-		ts := table.ResolvedTs()
+
+	for _, keyspan := range p.keyspans {
+		ts := keyspan.ResolvedTs()
 		if ts < minResolvedTs {
 			minResolvedTs = ts
 		}
 	}
 
 	minCheckpointTs := minResolvedTs
-	for _, table := range p.tables {
-		ts := table.CheckpointTs()
+	for _, keyspan := range p.keyspans {
+		ts := keyspan.CheckpointTs()
 		if ts < minCheckpointTs {
 			minCheckpointTs = ts
 		}
@@ -804,7 +715,7 @@ func (p *processor) handlePosition(currentTs int64) {
 		return
 	}
 
-	// minResolvedTs and minCheckpointTs may less than global resolved ts and global checkpoint ts when a new table added, the startTs of the new table is less than global checkpoint ts.
+	// minResolvedTs and minCheckpointTs may less than global resolved ts and global checkpoint ts when a new keyspan added, the startTs of the new keyspan is less than global checkpoint ts.
 	if minResolvedTs != p.changefeed.TaskPositions[p.captureInfo.ID].ResolvedTs ||
 		minCheckpointTs != p.changefeed.TaskPositions[p.captureInfo.ID].CheckPointTs {
 		p.changefeed.PatchTaskPosition(p.captureInfo.ID, func(position *model.TaskPosition) (*model.TaskPosition, bool, error) {
@@ -822,22 +733,22 @@ func (p *processor) handlePosition(currentTs int64) {
 	}
 }
 
-// handleWorkload calculates the workload of all tables
+// handleWorkload calculates the workload of all keyspans
 func (p *processor) handleWorkload() {
 	p.changefeed.PatchTaskWorkload(p.captureInfo.ID, func(workloads model.TaskWorkload) (model.TaskWorkload, bool, error) {
 		changed := false
 		if workloads == nil {
 			workloads = make(model.TaskWorkload)
 		}
-		for tableID := range workloads {
-			if _, exist := p.tables[tableID]; !exist {
-				delete(workloads, tableID)
+		for keyspanID := range workloads {
+			if _, exist := p.keyspans[keyspanID]; !exist {
+				delete(workloads, keyspanID)
 				changed = true
 			}
 		}
-		for tableID, table := range p.tables {
-			if workloads[tableID] != table.Workload() {
-				workloads[tableID] = table.Workload()
+		for keyspanID, keyspan := range p.keyspans {
+			if workloads[keyspanID] != keyspan.Workload() {
+				workloads[keyspanID] = keyspan.Workload()
 				changed = true
 			}
 		}
@@ -845,34 +756,26 @@ func (p *processor) handleWorkload() {
 	})
 }
 
-// pushResolvedTs2Table sends global resolved ts to all the table pipelines.
-func (p *processor) pushResolvedTs2Table() {
+// pushResolvedTs2KeySpan sends global resolved ts to all the keyspan pipelines.
+func (p *processor) pushResolvedTs2KeySpan() {
 	resolvedTs := p.changefeed.Status.ResolvedTs
-	schemaResolvedTs := p.schemaStorage.ResolvedTs()
-	if schemaResolvedTs < resolvedTs {
-		// Do not update barrier ts that is larger than
-		// DDL puller's resolved ts.
-		// When DDL puller stall, resolved events that outputted by sorter
-		// may pile up in memory, as they have to wait DDL.
-		resolvedTs = schemaResolvedTs
-	}
-	for _, table := range p.tables {
-		table.UpdateBarrierTs(resolvedTs)
+	for _, keyspan := range p.keyspans {
+		keyspan.UpdateBarrierTs(resolvedTs)
 	}
 }
 
-// addTable creates a new table pipeline and adds it to the `p.tables`
-func (p *processor) addTable(ctx cdcContext.Context, tableID model.TableID, replicaInfo *model.TableReplicaInfo) error {
+// addKeySpan creates a new keyspan pipeline and adds it to the `p.keyspans`
+func (p *processor) addKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) error {
 	if replicaInfo.StartTs == 0 {
 		replicaInfo.StartTs = p.changefeed.Status.CheckpointTs
 	}
 
-	if table, ok := p.tables[tableID]; ok {
-		if table.Status() == tablepipeline.TableStatusStopped {
-			log.Warn("The same table exists but is stopped. Cancel it and continue.", cdcContext.ZapFieldChangefeed(ctx), zap.Int64("ID", tableID))
-			p.removeTable(table, tableID)
+	if keyspan, ok := p.keyspans[keyspanID]; ok {
+		if keyspan.Status() == keyspanpipeline.KeySpanStatusStopped {
+			log.Warn("The same keyspan exists but is stopped. Cancel it and continue.", cdcContext.ZapFieldChangefeed(ctx), zap.Uint64("ID", keyspanID))
+			p.removeKeySpan(keyspan, keyspanID)
 		} else {
-			log.Warn("Ignore existing table", cdcContext.ZapFieldChangefeed(ctx), zap.Int64("ID", tableID))
+			log.Warn("Ignore existing keyspan", cdcContext.ZapFieldChangefeed(ctx), zap.Uint64("ID", keyspanID))
 			return nil
 		}
 	}
@@ -880,21 +783,21 @@ func (p *processor) addTable(ctx cdcContext.Context, tableID model.TableID, repl
 	globalCheckpointTs := p.changefeed.Status.CheckpointTs
 
 	if replicaInfo.StartTs < globalCheckpointTs {
-		log.Warn("addTable: startTs < checkpoint",
+		log.Warn("addKeySpan: startTs < checkpoint",
 			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Int64("tableID", tableID),
+			zap.Uint64("keyspanID", keyspanID),
 			zap.Uint64("checkpoint", globalCheckpointTs),
 			zap.Uint64("startTs", replicaInfo.StartTs))
 	}
-	table, err := p.createTablePipeline(ctx, tableID, replicaInfo)
+	keyspan, err := p.createKeySpanPipeline(ctx, keyspanID, replicaInfo)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	p.tables[tableID] = table
+	p.keyspans[keyspanID] = keyspan
 	return nil
 }
 
-func (p *processor) createTablePipelineImpl(ctx cdcContext.Context, tableID model.TableID, replicaInfo *model.TableReplicaInfo) (tablepipeline.TablePipeline, error) {
+func (p *processor) createKeySpanPipelineImpl(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error) {
 	ctx = cdcContext.WithErrorHandler(ctx, func(err error) error {
 		if cerror.ErrTableProcessorStoppedSafely.Equal(err) ||
 			errors.Cause(errors.Cause(err)) == context.Canceled {
@@ -903,149 +806,62 @@ func (p *processor) createTablePipelineImpl(ctx cdcContext.Context, tableID mode
 		p.sendError(err)
 		return nil
 	})
-	var tableName *model.TableName
-	retry.Do(ctx, func() error { //nolint:errcheck
-		if name, ok := p.schemaStorage.GetLastSnapshot().GetTableNameByID(tableID); ok {
-			tableName = &name
-			return nil
-		}
-		return errors.Errorf("failed to get table name, fallback to use table id: %d", tableID)
-	}, retry.WithBackoffBaseDelay(backoffBaseDelayInMs), retry.WithMaxTries(maxTries), retry.WithIsRetryableErr(cerror.IsRetryableError))
-	if p.changefeed.Info.Config.Cyclic.IsEnabled() {
-		// Retry to find mark table ID
-		var markTableID model.TableID
-		err := retry.Do(context.Background(), func() error {
-			if tableName == nil {
-				name, exist := p.schemaStorage.GetLastSnapshot().GetTableNameByID(tableID)
-				if !exist {
-					return cerror.ErrProcessorTableNotFound.GenWithStack("normal table(%s)", tableID)
-				}
-				tableName = &name
-			}
-			markTableSchemaName, markTableTableName := mark.GetMarkTableName(tableName.Schema, tableName.Table)
-			tableInfo, exist := p.schemaStorage.GetLastSnapshot().GetTableByName(markTableSchemaName, markTableTableName)
-			if !exist {
-				return cerror.ErrProcessorTableNotFound.GenWithStack("normal table(%s) and mark table not match", tableName.String())
-			}
-			markTableID = tableInfo.ID
-			return nil
-		}, retry.WithBackoffBaseDelay(50), retry.WithBackoffMaxDelay(60*1000), retry.WithMaxTries(20))
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		replicaInfo.MarkTableID = markTableID
-	}
-	var tableNameStr string
-	if tableName == nil {
-		log.Warn("failed to get table name for metric")
-		tableNameStr = strconv.Itoa(int(tableID))
-	} else {
-		tableNameStr = tableName.QuoteString()
-	}
 
-	sink := p.sinkManager.CreateTableSink(tableID, replicaInfo.StartTs, p.redoManager)
-	table := tablepipeline.NewTablePipeline(
+	// sink := p.sinkManager.CreateKeySpanSink(keyspanID, replicaInfo.StartTs, p.redoManager)
+	sink := p.sinkManager.CreateKeySpanSink(keyspanID, replicaInfo.StartTs)
+	keyspan := keyspanpipeline.NewKeySpanPipeline(
 		ctx,
-		p.mounter,
-		tableID,
-		tableNameStr,
+		// p.mounter,
+		keyspanID,
 		replicaInfo,
 		sink,
 		p.changefeed.Info.GetTargetTs(),
 	)
 	p.wg.Add(1)
-	p.metricSyncTableNumGauge.Inc()
+	p.metricSyncKeySpanNumGauge.Inc()
 	go func() {
-		table.Wait()
+		keyspan.Wait()
 		p.wg.Done()
-		p.metricSyncTableNumGauge.Dec()
-		log.Debug("Table pipeline exited", zap.Int64("tableID", tableID),
+		p.metricSyncKeySpanNumGauge.Dec()
+		log.Debug("KeySpan pipeline exited", zap.Uint64("keyspanID", keyspanID),
 			cdcContext.ZapFieldChangefeed(ctx),
-			zap.String("name", table.Name()),
+			zap.String("name", keyspan.Name()),
 			zap.Any("replicaInfo", replicaInfo))
 	}()
 
-	if p.redoManager.Enabled() {
-		p.redoManager.AddTable(tableID, replicaInfo.StartTs)
-	}
-
-	log.Info("Add table pipeline", zap.Int64("tableID", tableID),
+	log.Info("Add keyspan pipeline", zap.Uint64("keyspanID", keyspanID),
 		cdcContext.ZapFieldChangefeed(ctx),
-		zap.String("name", table.Name()),
+		zap.String("name", keyspan.Name()),
 		zap.Any("replicaInfo", replicaInfo),
 		zap.Uint64("globalResolvedTs", p.changefeed.Status.ResolvedTs))
 
-	return table, nil
+	return keyspan, nil
 }
 
-func (p *processor) removeTable(table tablepipeline.TablePipeline, tableID model.TableID) {
-	table.Cancel()
-	table.Wait()
-	delete(p.tables, tableID)
-	if p.redoManager.Enabled() {
-		p.redoManager.RemoveTable(tableID)
-	}
-}
-
-// doGCSchemaStorage trigger the schema storage GC
-func (p *processor) doGCSchemaStorage(ctx cdcContext.Context) {
-	if p.schemaStorage == nil {
-		// schemaStorage is nil only in test
-		return
-	}
-
-	if p.changefeed.Status == nil {
-		// This could happen if Etcd data is not complete.
-		return
-	}
-
-	// Please refer to `unmarshalAndMountRowChanged` in cdc/entry/mounter.go
-	// for why we need -1.
-	lastSchemaTs := p.schemaStorage.DoGC(p.changefeed.Status.CheckpointTs - 1)
-	if p.lastSchemaTs == lastSchemaTs {
-		return
-	}
-	p.lastSchemaTs = lastSchemaTs
-
-	log.Debug("finished gc in schema storage",
-		zap.Uint64("gcTs", lastSchemaTs),
-		cdcContext.ZapFieldChangefeed(ctx))
-	lastSchemaPhysicalTs := oracle.ExtractPhysical(lastSchemaTs)
-	p.metricSchemaStorageGcTsGauge.Set(float64(lastSchemaPhysicalTs))
-}
-
-// flushRedoLogMeta flushes redo log meta, including resolved-ts and checkpoint-ts
-func (p *processor) flushRedoLogMeta(ctx context.Context) error {
-	if p.redoManager.Enabled() &&
-		time.Since(p.lastRedoFlush).Milliseconds() > p.changefeed.Info.Config.Consistent.FlushIntervalInMs {
-		st := p.changefeed.Status
-		err := p.redoManager.FlushResolvedAndCheckpointTs(ctx, st.ResolvedTs, st.CheckpointTs)
-		if err != nil {
-			return err
-		}
-		p.lastRedoFlush = time.Now()
-	}
-	return nil
+func (p *processor) removeKeySpan(keyspan keyspanpipeline.KeySpanPipeline, keyspanID model.KeySpanID) {
+	keyspan.Cancel()
+	keyspan.Wait()
+	delete(p.keyspans, keyspanID)
 }
 
 func (p *processor) Close() error {
-	for _, tbl := range p.tables {
+	for _, tbl := range p.keyspans {
 		tbl.Cancel()
 	}
-	for _, tbl := range p.tables {
+	for _, tbl := range p.keyspans {
 		tbl.Wait()
 	}
 	p.cancel()
 	p.wg.Wait()
-	// mark tables share the same cdcContext with its original table, don't need to cancel
+	// mark keyspans share the same cdcContext with its original keyspan, don't need to cancel
 	failpoint.Inject("processorStopDelay", nil)
 	resolvedTsGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
 	resolvedTsLagGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
 	checkpointTsGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
 	checkpointTsLagGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
-	syncTableNumGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
+	syncKeySpanNumGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
 	processorErrorCounter.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
-	processorSchemaStorageGcTsGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
+	// processorSchemaStorageGcTsGauge.DeleteLabelValues(p.changefeedID, p.captureInfo.AdvertiseAddr)
 	if p.sinkManager != nil {
 		// pass a canceled context is ok here, since we don't need to wait Close
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1070,8 +886,8 @@ func (p *processor) Close() error {
 // WriteDebugInfo write the debug info to Writer
 func (p *processor) WriteDebugInfo(w io.Writer) {
 	fmt.Fprintf(w, "%+v\n", *p.changefeed)
-	for tableID, tablePipeline := range p.tables {
-		fmt.Fprintf(w, "tableID: %d, tableName: %s, resolvedTs: %d, checkpointTs: %d, status: %s\n",
-			tableID, tablePipeline.Name(), tablePipeline.ResolvedTs(), tablePipeline.CheckpointTs(), tablePipeline.Status())
+	for keyspanID, keyspanPipeline := range p.keyspans {
+		fmt.Fprintf(w, "keyspanID: %d, keyspanName: %s, resolvedTs: %d, checkpointTs: %d, status: %s\n",
+			keyspanID, keyspanPipeline.Name(), keyspanPipeline.ResolvedTs(), keyspanPipeline.CheckpointTs(), keyspanPipeline.Status())
 	}
 }
