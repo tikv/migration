@@ -19,16 +19,14 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/r3labs/diff"
 	"github.com/tikv/client-go/v2/oracle"
-	"github.com/tikv/migration/cdc/cdc/entry"
-	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sink"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/tikv/migration/cdc/pkg/filter"
+
+	// "github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
@@ -87,12 +85,14 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 	if changefeedConfig.SinkConfig != nil {
 		replicaConfig.Sink = changefeedConfig.SinkConfig
 	}
-	if len(changefeedConfig.IgnoreTxnStartTs) != 0 {
-		replicaConfig.Filter.IgnoreTxnStartTs = changefeedConfig.IgnoreTxnStartTs
-	}
-	if len(changefeedConfig.FilterRules) != 0 {
-		replicaConfig.Filter.Rules = changefeedConfig.FilterRules
-	}
+	/*
+		if len(changefeedConfig.IgnoreTxnStartTs) != 0 {
+			replicaConfig.Filter.IgnoreTxnStartTs = changefeedConfig.IgnoreTxnStartTs
+		}
+		if len(changefeedConfig.FilterRules) != 0 {
+			replicaConfig.Filter.Rules = changefeedConfig.FilterRules
+		}
+	*/
 
 	captureInfos, err := capture.owner.StatusProvider().GetCaptures(ctx)
 	if err != nil {
@@ -127,16 +127,6 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		CreatorVersion:    version.ReleaseVersion,
 	}
 
-	if !replicaConfig.ForceReplicate && !changefeedConfig.IgnoreIneligibleTable {
-		ineligibleTables, _, err := verifyTables(replicaConfig, capture.kvStorage, changefeedConfig.StartTS)
-		if err != nil {
-			return nil, err
-		}
-		if len(ineligibleTables) != 0 {
-			return nil, cerror.ErrTableIneligible.GenWithStackByArgs(ineligibleTables)
-		}
-	}
-
 	tz, err := util.GetTimezone(changefeedConfig.TimeZone)
 	if err != nil {
 		return nil, cerror.ErrAPIInvalidParam.Wrap(errors.Annotatef(err, "invalid timezone:%s", changefeedConfig.TimeZone))
@@ -164,17 +154,19 @@ func verifyUpdateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 	}
 
 	// verify rules
-	if len(changefeedConfig.FilterRules) != 0 {
-		newInfo.Config.Filter.Rules = changefeedConfig.FilterRules
-		_, err = filter.VerifyRules(newInfo.Config)
-		if err != nil {
-			return nil, cerror.ErrChangefeedUpdateRefused.GenWithStackByArgs(err.Error())
+	/*
+		if len(changefeedConfig.FilterRules) != 0 {
+			newInfo.Config.Filter.Rules = changefeedConfig.FilterRules
+			_, err = filter.VerifyRules(newInfo.Config)
+			if err != nil {
+				return nil, cerror.ErrChangefeedUpdateRefused.GenWithStackByArgs(err.Error())
+			}
 		}
-	}
 
-	if len(changefeedConfig.IgnoreTxnStartTs) != 0 {
-		newInfo.Config.Filter.IgnoreTxnStartTs = changefeedConfig.IgnoreTxnStartTs
-	}
+		if len(changefeedConfig.IgnoreTxnStartTs) != 0 {
+			newInfo.Config.Filter.IgnoreTxnStartTs = changefeedConfig.IgnoreTxnStartTs
+		}
+	*/
 
 	if changefeedConfig.MounterWorkerNum != 0 {
 		newInfo.Config.Mounter.WorkerNum = changefeedConfig.MounterWorkerNum
@@ -197,31 +189,4 @@ func verifyUpdateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 	}
 
 	return newInfo, nil
-}
-
-func verifyTables(replicaConfig *config.ReplicaConfig, storage tidbkv.Storage, startTs uint64) (ineligibleTables, eligibleTables []model.TableName, err error) {
-	filter, err := filter.NewFilter(replicaConfig)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	meta, err := kv.GetSnapshotMeta(storage, startTs)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	snap, err := entry.NewSingleSchemaSnapshotFromMeta(meta, startTs, false /* explicitTables */)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	for _, tableInfo := range snap.Tables() {
-		if filter.ShouldIgnoreTable(tableInfo.TableName.Schema, tableInfo.TableName.Table) {
-			continue
-		}
-		if !tableInfo.IsEligible(false /* forceReplicate */) {
-			ineligibleTables = append(ineligibleTables, tableInfo.TableName)
-		} else {
-			eligibleTables = append(eligibleTables, tableInfo.TableName)
-		}
-	}
-	return
 }

@@ -22,7 +22,7 @@ import (
 
 const (
 	// EtcdKeyBase is the common prefix of the keys in CDC
-	EtcdKeyBase = "/tidb/cdc"
+	EtcdKeyBase = "/tikv/cdc"
 	ownerKey    = "/owner"
 	captureKey  = "/capture"
 

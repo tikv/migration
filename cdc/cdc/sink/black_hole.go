@@ -35,17 +35,17 @@ type blackHoleSink struct {
 	lastAccumulated uint64
 }
 
-func (b *blackHoleSink) EmitRowChangedEvents(ctx context.Context, rows ...*model.RowChangedEvent) error {
-	for _, row := range rows {
-		log.Debug("BlockHoleSink: EmitRowChangedEvents", zap.Any("row", row))
+func (b *blackHoleSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
+	for _, rawKVEntry := range rawKVEntries {
+		log.Debug("BlockHoleSink: EmitRowChangedEvents", zap.Any("row", rawKVEntry))
 	}
-	rowsCount := len(rows)
+	rowsCount := len(rawKVEntries)
 	atomic.AddUint64(&b.accumulated, uint64(rowsCount))
 	b.statistics.AddRowsCount(rowsCount)
 	return nil
 }
 
-func (b *blackHoleSink) FlushRowChangedEvents(ctx context.Context, _ model.TableID, resolvedTs uint64) (uint64, error) {
+func (b *blackHoleSink) FlushChangedEvents(ctx context.Context, _ model.KeySpanID, resolvedTs uint64) (uint64, error) {
 	log.Debug("BlockHoleSink: FlushRowChangedEvents", zap.Uint64("resolvedTs", resolvedTs))
 	err := b.statistics.RecordBatchExecution(func() (int, error) {
 		// TODO: add some random replication latency
@@ -72,6 +72,6 @@ func (b *blackHoleSink) Close(ctx context.Context) error {
 	return nil
 }
 
-func (b *blackHoleSink) Barrier(ctx context.Context, tableID model.TableID) error {
+func (b *blackHoleSink) Barrier(ctx context.Context, keyspanID model.KeySpanID) error {
 	return nil
 }

@@ -11,4 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pipeline
+package util
+
+import (
+	"sort"
+
+	"github.com/tikv/migration/cdc/cdc/model"
+)
+
+// SortKeySpanIDs sorts a slice of keyspan IDs in ascending order.
+func SortKeySpanIDs(keyspanIDs []model.KeySpanID) {
+	sort.Slice(keyspanIDs, func(i, j int) bool {
+		return keyspanIDs[i] < keyspanIDs[j]
+	})
+}

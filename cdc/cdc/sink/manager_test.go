@@ -25,7 +25,6 @@ import (
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
 	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/cdc/redo"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
@@ -35,51 +34,42 @@ var _ = check.Suite(&managerSuite{})
 
 type checkSink struct {
 	*check.C
-	rows           map[model.TableID][]*model.RowChangedEvent
+	entries        map[model.KeySpanID][]*model.RawKVEntry
 	rowsMu         sync.Mutex
-	lastResolvedTs map[model.TableID]uint64
+	lastResolvedTs map[model.KeySpanID]uint64
 }
 
 func newCheckSink(c *check.C) *checkSink {
 	return &checkSink{
 		C:              c,
-		rows:           make(map[model.TableID][]*model.RowChangedEvent),
-		lastResolvedTs: make(map[model.TableID]uint64),
+		entries:        make(map[model.KeySpanID][]*model.RawKVEntry),
+		lastResolvedTs: make(map[model.KeySpanID]uint64),
 	}
 }
 
-func (c *checkSink) EmitRowChangedEvents(ctx context.Context, rows ...*model.RowChangedEvent) error {
+func (c *checkSink) EmitChangedEvents(ctx context.Context, entries ...*model.RawKVEntry) error {
 	c.rowsMu.Lock()
 	defer c.rowsMu.Unlock()
-	for _, row := range rows {
-		c.rows[row.Table.TableID] = append(c.rows[row.Table.TableID], row)
+	for _, entry := range entries {
+		c.entries[entry.KeySpanID] = append(c.entries[entry.KeySpanID], entry)
 	}
 	return nil
 }
 
-func (c *checkSink) EmitDDLEvent(ctx context.Context, ddl *model.DDLEvent) error {
-	panic("unreachable")
-}
-
-func (c *checkSink) FlushRowChangedEvents(ctx context.Context, tableID model.TableID, resolvedTs uint64) (uint64, error) {
+func (c *checkSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
 	c.rowsMu.Lock()
 	defer c.rowsMu.Unlock()
-	var newRows []*model.RowChangedEvent
-	rows := c.rows[tableID]
-	for _, row := range rows {
-		if row.CommitTs <= c.lastResolvedTs[tableID] {
-			return c.lastResolvedTs[tableID], errors.Errorf("commit-ts(%d) is not greater than lastResolvedTs(%d)", row.CommitTs, c.lastResolvedTs)
-		}
-		if row.CommitTs > resolvedTs {
-			newRows = append(newRows, row)
-		}
+	var newEntries []*model.RawKVEntry
+	entries := c.entries[keyspanID]
+	for _, entry := range entries {
+		newEntries = append(newEntries, entry)
 	}
 
-	c.Assert(c.lastResolvedTs[tableID], check.LessEqual, resolvedTs)
-	c.lastResolvedTs[tableID] = resolvedTs
-	c.rows[tableID] = newRows
+	c.Assert(c.lastResolvedTs[keyspanID], check.LessEqual, resolvedTs)
+	c.lastResolvedTs[keyspanID] = resolvedTs
+	c.entries[keyspanID] = newEntries
 
-	return c.lastResolvedTs[tableID], nil
+	return c.lastResolvedTs[keyspanID], nil
 }
 
 func (c *checkSink) EmitCheckpointTs(ctx context.Context, ts uint64) error {
@@ -90,7 +80,7 @@ func (c *checkSink) Close(ctx context.Context) error {
 	return nil
 }
 
-func (c *checkSink) Barrier(ctx context.Context, tableID model.TableID) error {
+func (c *checkSink) Barrier(ctx context.Context, keyspanID model.KeySpanID) error {
 	return nil
 }
 
@@ -104,19 +94,19 @@ func (s *managerSuite) TestManagerRandom(c *check.C) {
 	goroutineNum := 10
 	rowNum := 100
 	var wg sync.WaitGroup
-	tableSinks := make([]Sink, goroutineNum)
+	keyspanSinks := make([]Sink, goroutineNum)
 	for i := 0; i < goroutineNum; i++ {
 		i := i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			tableSinks[i] = manager.CreateTableSink(model.TableID(i), 0, redo.NewDisabledManager())
+			keyspanSinks[i] = manager.CreateKeySpanSink(model.KeySpanID(i), 0)
 		}()
 	}
 	wg.Wait()
 	for i := 0; i < goroutineNum; i++ {
 		i := i
-		tableSink := tableSinks[i]
+		keyspanSink := keyspanSinks[i]
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -125,18 +115,17 @@ func (s *managerSuite) TestManagerRandom(c *check.C) {
 			for j := 1; j < rowNum; j++ {
 				if rand.Intn(10) == 0 {
 					resolvedTs := lastResolvedTs + uint64(rand.Intn(j-int(lastResolvedTs)))
-					_, err := tableSink.FlushRowChangedEvents(ctx, model.TableID(i), resolvedTs)
+					_, err := keyspanSink.FlushChangedEvents(ctx, model.KeySpanID(i), resolvedTs)
 					c.Assert(err, check.IsNil)
 					lastResolvedTs = resolvedTs
 				} else {
-					err := tableSink.EmitRowChangedEvents(ctx, &model.RowChangedEvent{
-						Table:    &model.TableName{TableID: int64(i)},
-						CommitTs: uint64(j),
+					err := keyspanSink.EmitChangedEvents(ctx, &model.RawKVEntry{
+						KeySpanID: uint64(i),
 					})
 					c.Assert(err, check.IsNil)
 				}
 			}
-			_, err := tableSink.FlushRowChangedEvents(ctx, model.TableID(i), uint64(rowNum))
+			_, err := keyspanSink.FlushChangedEvents(ctx, model.KeySpanID(i), uint64(rowNum))
 			c.Assert(err, check.IsNil)
 		}()
 	}
@@ -149,7 +138,7 @@ func (s *managerSuite) TestManagerRandom(c *check.C) {
 	}
 }
 
-func (s *managerSuite) TestManagerAddRemoveTable(c *check.C) {
+func (s *managerSuite) TestManagerAddRemoveKeySpan(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -161,9 +150,9 @@ func (s *managerSuite) TestManagerAddRemoveTable(c *check.C) {
 	const ExitSignal = uint64(math.MaxUint64)
 
 	var maxResolvedTs uint64
-	tableSinks := make([]Sink, 0, goroutineNum)
-	tableCancels := make([]context.CancelFunc, 0, goroutineNum)
-	runTableSink := func(ctx context.Context, index int64, sink Sink, startTs uint64) {
+	keyspanSinks := make([]Sink, 0, goroutineNum)
+	keyspanCancels := make([]context.CancelFunc, 0, goroutineNum)
+	runKeySpanSink := func(ctx context.Context, index uint64, sink Sink, startTs uint64) {
 		defer wg.Done()
 		lastResolvedTs := startTs
 		for {
@@ -181,13 +170,12 @@ func (s *managerSuite) TestManagerAddRemoveTable(c *check.C) {
 				continue
 			}
 			for i := lastResolvedTs + 1; i <= resolvedTs; i++ {
-				err := sink.EmitRowChangedEvents(ctx, &model.RowChangedEvent{
-					Table:    &model.TableName{TableID: index},
-					CommitTs: i,
+				err := sink.EmitChangedEvents(ctx, &model.RawKVEntry{
+					KeySpanID: index,
 				})
 				c.Assert(err, check.IsNil)
 			}
-			_, err := sink.FlushRowChangedEvents(ctx, sink.(*tableSink).tableID, resolvedTs)
+			_, err := sink.FlushChangedEvents(ctx, sink.(*keyspanSink).keyspanID, resolvedTs)
 			if err != nil {
 				c.Assert(errors.Cause(err), check.Equals, context.Canceled)
 			}
@@ -195,31 +183,30 @@ func (s *managerSuite) TestManagerAddRemoveTable(c *check.C) {
 		}
 	}
 
-	redoManager := redo.NewDisabledManager()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// add three table and then remote one table
+		// add three keyspan and then remote one keyspan
 		for i := 0; i < goroutineNum; i++ {
 			if i%4 != 3 {
-				// add table
-				table := manager.CreateTableSink(model.TableID(i), maxResolvedTs, redoManager)
+				// add keyspan
+				keyspan := manager.CreateKeySpanSink(model.KeySpanID(i), maxResolvedTs)
 				ctx, cancel := context.WithCancel(ctx)
-				tableCancels = append(tableCancels, cancel)
-				tableSinks = append(tableSinks, table)
+				keyspanCancels = append(keyspanCancels, cancel)
+				keyspanSinks = append(keyspanSinks, keyspan)
 
 				atomic.AddUint64(&maxResolvedTs, 20)
 				wg.Add(1)
-				go runTableSink(ctx, int64(i), table, maxResolvedTs)
+				go runKeySpanSink(ctx, uint64(i), keyspan, maxResolvedTs)
 			} else {
-				// remove table
-				table := tableSinks[0]
-				// note when a table is removed, no more data can be sent to the
-				// backend sink, so we cancel the context of this table sink.
-				tableCancels[0]()
-				c.Assert(table.Close(ctx), check.IsNil)
-				tableSinks = tableSinks[1:]
-				tableCancels = tableCancels[1:]
+				// remove keyspan
+				keyspan := keyspanSinks[0]
+				// note when a keyspan is removed, no more data can be sent to the
+				// backend sink, so we cancel the context of this keyspan sink.
+				keyspanCancels[0]()
+				c.Assert(keyspan.Close(ctx), check.IsNil)
+				keyspanSinks = keyspanSinks[1:]
+				keyspanCancels = keyspanCancels[1:]
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
@@ -235,7 +222,7 @@ func (s *managerSuite) TestManagerAddRemoveTable(c *check.C) {
 	}
 }
 
-func (s *managerSuite) TestManagerDestroyTableSink(c *check.C) {
+func (s *managerSuite) TestManagerDestroyKeySpanSink(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -244,16 +231,15 @@ func (s *managerSuite) TestManagerDestroyTableSink(c *check.C) {
 	manager := NewManager(ctx, newCheckSink(c), errCh, 0, "", "")
 	defer manager.Close(ctx)
 
-	tableID := int64(49)
-	tableSink := manager.CreateTableSink(tableID, 100, redo.NewDisabledManager())
-	err := tableSink.EmitRowChangedEvents(ctx, &model.RowChangedEvent{
-		Table:    &model.TableName{TableID: tableID},
-		CommitTs: uint64(110),
+	keyspanID := uint64(49)
+	keyspanSink := manager.CreateKeySpanSink(keyspanID, 100)
+	err := keyspanSink.EmitChangedEvents(ctx, &model.RawKVEntry{
+		KeySpanID: keyspanID,
 	})
 	c.Assert(err, check.IsNil)
-	_, err = tableSink.FlushRowChangedEvents(ctx, tableID, 110)
+	_, err = keyspanSink.FlushChangedEvents(ctx, keyspanID, 110)
 	c.Assert(err, check.IsNil)
-	err = manager.destroyTableSink(ctx, tableID)
+	err = manager.destroyKeySpanSink(ctx, keyspanID)
 	c.Assert(err, check.IsNil)
 }
 
@@ -264,17 +250,17 @@ func BenchmarkManagerFlushing(b *testing.B) {
 	errCh := make(chan error, 16)
 	manager := NewManager(ctx, newCheckSink(nil), errCh, 0, "", "")
 
-	// Init table sinks.
+	// Init keyspan sinks.
 	goroutineNum := 2000
 	rowNum := 2000
 	var wg sync.WaitGroup
-	tableSinks := make([]Sink, goroutineNum)
+	keyspanSinks := make([]Sink, goroutineNum)
 	for i := 0; i < goroutineNum; i++ {
 		i := i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			tableSinks[i] = manager.CreateTableSink(model.TableID(i), 0, redo.NewDisabledManager())
+			keyspanSinks[i] = manager.CreateKeySpanSink(model.KeySpanID(i), 0)
 		}()
 	}
 	wg.Wait()
@@ -282,14 +268,13 @@ func BenchmarkManagerFlushing(b *testing.B) {
 	// Concurrent emit events.
 	for i := 0; i < goroutineNum; i++ {
 		i := i
-		tableSink := tableSinks[i]
+		keyspanSink := keyspanSinks[i]
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for j := 1; j < rowNum; j++ {
-				err := tableSink.EmitRowChangedEvents(context.Background(), &model.RowChangedEvent{
-					Table:    &model.TableName{TableID: int64(i)},
-					CommitTs: uint64(j),
+				err := keyspanSink.EmitChangedEvents(context.Background(), &model.RawKVEntry{
+					KeySpanID: uint64(i),
 				})
 				if err != nil {
 					b.Error(err)
@@ -299,14 +284,14 @@ func BenchmarkManagerFlushing(b *testing.B) {
 	}
 	wg.Wait()
 
-	// All tables are flushed concurrently, except table 0.
+	// All keyspans are flushed concurrently, except keyspan 0.
 	for i := 1; i < goroutineNum; i++ {
 		i := i
-		tblSink := tableSinks[i]
+		tblSink := keyspanSinks[i]
 		go func() {
 			for j := 1; j < rowNum; j++ {
 				if j%2 == 0 {
-					_, err := tblSink.FlushRowChangedEvents(context.Background(), tblSink.(*tableSink).tableID, uint64(j))
+					_, err := tblSink.FlushChangedEvents(context.Background(), tblSink.(*keyspanSink).keyspanID, uint64(j))
 					if err != nil {
 						b.Error(err)
 					}
@@ -316,10 +301,10 @@ func BenchmarkManagerFlushing(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	// Table 0 flush.
-	tblSink := tableSinks[0]
+	// KeySpan 0 flush.
+	tblSink := keyspanSinks[0]
 	for i := 0; i < b.N; i++ {
-		_, err := tblSink.FlushRowChangedEvents(context.Background(), tblSink.(*tableSink).tableID, uint64(rowNum))
+		_, err := tblSink.FlushChangedEvents(context.Background(), tblSink.(*keyspanSink).keyspanID, uint64(rowNum))
 		if err != nil {
 			b.Error(err)
 		}
@@ -340,15 +325,11 @@ type errorSink struct {
 	*check.C
 }
 
-func (e *errorSink) EmitRowChangedEvents(ctx context.Context, rows ...*model.RowChangedEvent) error {
+func (e *errorSink) EmitChangedEvents(ctx context.Context, rows ...*model.RawKVEntry) error {
 	return errors.New("error in emit row changed events")
 }
 
-func (e *errorSink) EmitDDLEvent(ctx context.Context, ddl *model.DDLEvent) error {
-	panic("unreachable")
-}
-
-func (e *errorSink) FlushRowChangedEvents(ctx context.Context, tableID model.TableID, resolvedTs uint64) (uint64, error) {
+func (e *errorSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
 	return 0, errors.New("error in flush row changed events")
 }
 
@@ -360,7 +341,7 @@ func (e *errorSink) Close(ctx context.Context) error {
 	return nil
 }
 
-func (e *errorSink) Barrier(ctx context.Context, tableID model.TableID) error {
+func (e *errorSink) Barrier(ctx context.Context, keyspanID model.KeySpanID) error {
 	return nil
 }
 
@@ -371,13 +352,12 @@ func (s *managerSuite) TestManagerError(c *check.C) {
 	errCh := make(chan error, 16)
 	manager := NewManager(ctx, &errorSink{C: c}, errCh, 0, "", "")
 	defer manager.Close(ctx)
-	sink := manager.CreateTableSink(1, 0, redo.NewDisabledManager())
-	err := sink.EmitRowChangedEvents(ctx, &model.RowChangedEvent{
-		CommitTs: 1,
-		Table:    &model.TableName{TableID: 1},
+	sink := manager.CreateKeySpanSink(1, 0)
+	err := sink.EmitChangedEvents(ctx, &model.RawKVEntry{
+		KeySpanID: 1,
 	})
 	c.Assert(err, check.IsNil)
-	_, err = sink.FlushRowChangedEvents(ctx, 1, 2)
+	_, err = sink.FlushChangedEvents(ctx, 1, 2)
 	c.Assert(err, check.IsNil)
 	err = <-errCh
 	c.Assert(err.Error(), check.Equals, "error in emit row changed events")

@@ -131,13 +131,13 @@ type ChangefeedConfig struct {
 	SinkURI  string `json:"sink_uri"`
 	// timezone used when checking sink uri
 	TimeZone string `json:"timezone" default:"system"`
-	// if true, force to replicate some ineligible tables
-	ForceReplicate        bool               `json:"force_replicate" default:"false"`
-	IgnoreIneligibleTable bool               `json:"ignore_ineligible_table" default:"false"`
-	FilterRules           []string           `json:"filter_rules"`
-	IgnoreTxnStartTs      []uint64           `json:"ignore_txn_start_ts"`
-	MounterWorkerNum      int                `json:"mounter_worker_num" default:"16"`
-	SinkConfig            *config.SinkConfig `json:"sink_config"`
+	// if true, force to replicate some ineligible keyspans
+	ForceReplicate          bool               `json:"force_replicate" default:"false"`
+	IgnoreIneligibleKeySpan bool               `json:"ignore_ineligible_keyspan" default:"false"`
+	FilterRules             []string           `json:"filter_rules"`
+	IgnoreTxnStartTs        []uint64           `json:"ignore_txn_start_ts"`
+	MounterWorkerNum        int                `json:"mounter_worker_num" default:"16"`
+	SinkConfig              *config.SinkConfig `json:"sink_config"`
 }
 
 // ProcessorCommonInfo holds the common info of a processor
@@ -152,8 +152,8 @@ type ProcessorDetail struct {
 	CheckPointTs uint64 `json:"checkpoint_ts"`
 	// The event that satisfies CommitTs <= ResolvedTs can be synchronized.
 	ResolvedTs uint64 `json:"resolved_ts"`
-	// all table ids that this processor are replicating
-	Tables []int64 `json:"table_ids"`
+	// all keyspan ids that this processor are replicating
+	KeySpans []uint64 `json:"keyspan_ids"`
 	// The count of events that have been replicated.
 	Count uint64 `json:"count"`
 	// Error code when error happens
@@ -163,9 +163,9 @@ type ProcessorDetail struct {
 // CaptureTaskStatus holds TaskStatus of a capture
 type CaptureTaskStatus struct {
 	CaptureID string `json:"capture_id"`
-	// Table list, containing tables that processor should process
-	Tables    []int64                     `json:"table_ids"`
-	Operation map[TableID]*TableOperation `json:"table_operations"`
+	// KeySpan list, containing keyspans that processor should process
+	KeySpans  []uint64                        `json:"keyspan_ids"`
+	Operation map[KeySpanID]*KeySpanOperation `json:"keyspan_operations"`
 }
 
 // Capture holds common information of a capture in cdc

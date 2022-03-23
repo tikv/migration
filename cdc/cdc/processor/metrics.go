@@ -46,12 +46,12 @@ var (
 			Name:      "checkpoint_ts_lag",
 			Help:      "global checkpoint ts lag of processor",
 		}, []string{"changefeed", "capture"})
-	syncTableNumGauge = prometheus.NewGaugeVec(
+	syncKeySpanNumGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "ticdc",
 			Subsystem: "processor",
-			Name:      "num_of_tables",
-			Help:      "number of synchronized table of processor",
+			Name:      "num_of_keyspans",
+			Help:      "number of synchronized keyspan of processor",
 		}, []string{"changefeed", "capture"})
 	processorErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -75,7 +75,7 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(resolvedTsLagGauge)
 	registry.MustRegister(checkpointTsGauge)
 	registry.MustRegister(checkpointTsLagGauge)
-	registry.MustRegister(syncTableNumGauge)
+	registry.MustRegister(syncKeySpanNumGauge)
 	registry.MustRegister(processorErrorCounter)
 	registry.MustRegister(processorSchemaStorageGcTsGauge)
 }

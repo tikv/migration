@@ -58,7 +58,7 @@ type ownerJob struct {
 	// for ManualSchedule only
 	targetCaptureID model.CaptureID
 	// for ManualSchedule only
-	tableID model.TableID
+	keyspanID model.KeySpanID
 
 	// for Admin Job only
 	adminJob *model.AdminJob
@@ -106,16 +106,19 @@ func NewOwner(pdClient pd.Client) *Owner {
 }
 
 // NewOwner4Test creates a new Owner for test
+// TODO: modify for tikv cdc
 func NewOwner4Test(
-	newDDLPuller func(ctx cdcContext.Context, startTs uint64) (DDLPuller, error),
-	newSink func() DDLSink,
+	/*
+		newDDLPuller func(ctx cdcContext.Context, startTs uint64) (DDLPuller, error),
+		newSink func() DDLSink,
+	*/
 	pdClient pd.Client,
 ) *Owner {
 	o := NewOwner(pdClient)
 	// Most tests do not need to test bootstrap.
 	o.bootstrapped = true
 	o.newChangefeed = func(id model.ChangeFeedID, gcManager gc.Manager) *changefeed {
-		return newChangefeed4Test(id, gcManager, newDDLPuller, newSink)
+		return newChangefeed4Test(id, gcManager)
 	}
 	return o
 }
@@ -219,13 +222,13 @@ func (o *Owner) TriggerRebalance(cfID model.ChangeFeedID) {
 	})
 }
 
-// ManualSchedule moves a table from a capture to another capture
-func (o *Owner) ManualSchedule(cfID model.ChangeFeedID, toCapture model.CaptureID, tableID model.TableID) {
+// ManualSchedule moves a keyspan from a capture to another capture
+func (o *Owner) ManualSchedule(cfID model.ChangeFeedID, toCapture model.CaptureID, keyspanID model.KeySpanID) {
 	o.pushOwnerJob(&ownerJob{
 		tp:              ownerJobTypeManualSchedule,
 		changefeedID:    cfID,
 		targetCaptureID: toCapture,
-		tableID:         tableID,
+		keyspanID:       keyspanID,
 		done:            make(chan struct{}),
 	})
 }
@@ -304,7 +307,7 @@ func (o *Owner) updateMetrics(state *orchestrator.GlobalReactorState) {
 	ownershipCounter.Add(float64(now.Sub(o.lastTickTime)) / float64(time.Second))
 	o.lastTickTime = now
 
-	ownerMaintainTableNumGauge.Reset()
+	ownerMaintainKeySpanNumGauge.Reset()
 	changefeedStatusGauge.Reset()
 	for changefeedID, changefeedState := range state.Changefeeds {
 		for captureID, captureInfo := range state.Captures {
@@ -312,8 +315,8 @@ func (o *Owner) updateMetrics(state *orchestrator.GlobalReactorState) {
 			if !exist {
 				continue
 			}
-			ownerMaintainTableNumGauge.WithLabelValues(changefeedID, captureInfo.AdvertiseAddr, maintainTableTypeTotal).Set(float64(len(taskStatus.Tables)))
-			ownerMaintainTableNumGauge.WithLabelValues(changefeedID, captureInfo.AdvertiseAddr, maintainTableTypeWip).Set(float64(len(taskStatus.Operation)))
+			ownerMaintainKeySpanNumGauge.WithLabelValues(changefeedID, captureInfo.AdvertiseAddr, maintainKeySpanTypeTotal).Set(float64(len(taskStatus.KeySpans)))
+			ownerMaintainKeySpanNumGauge.WithLabelValues(changefeedID, captureInfo.AdvertiseAddr, maintainKeySpanTypeWip).Set(float64(len(taskStatus.Operation)))
 			if changefeedState.Info != nil {
 				changefeedStatusGauge.WithLabelValues(changefeedID).Set(float64(changefeedState.Info.State.ToInt()))
 			}
@@ -347,7 +350,7 @@ func (o *Owner) handleJobs() {
 		case ownerJobTypeAdminJob:
 			cfReactor.feedStateManager.PushAdminJob(job.adminJob)
 		case ownerJobTypeManualSchedule:
-			cfReactor.scheduler.MoveTable(job.tableID, job.targetCaptureID)
+			cfReactor.scheduler.MoveKeySpan(job.keyspanID, job.targetCaptureID)
 		case ownerJobTypeRebalance:
 			cfReactor.scheduler.Rebalance()
 		case ownerJobTypeQuery:

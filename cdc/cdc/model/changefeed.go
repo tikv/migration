@@ -32,6 +32,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO(zeminzhou): Maybe TiKV CDC don't need sort, cyclic
 // SortEngine is the sorter engine
 type SortEngine = string
 

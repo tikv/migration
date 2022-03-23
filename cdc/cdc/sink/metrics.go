@@ -87,12 +87,12 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.002 /* 2ms */, 2, 20),
 		}, []string{"capture", "changefeed", "type"})
 
-	tableSinkTotalRowsCountCounter = prometheus.NewCounterVec(
+	keyspanSinkTotalEventsCountCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "ticdc",
 			Subsystem: "sink",
-			Name:      "table_sink_total_rows_count",
-			Help:      "The total count of rows that are processed by table sink",
+			Name:      "keyspan_sink_total_event_count",
+			Help:      "The total count of rows that are processed by keyspan sink",
 		}, []string{"capture", "changefeed"})
 
 	bufferSinkTotalRowsCountCounter = prometheus.NewCounterVec(
@@ -115,6 +115,6 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(totalRowsCountGauge)
 	registry.MustRegister(totalFlushedRowsCountGauge)
 	registry.MustRegister(flushRowChangedDuration)
-	registry.MustRegister(tableSinkTotalRowsCountCounter)
+	registry.MustRegister(keyspanSinkTotalEventsCountCounter)
 	registry.MustRegister(bufferSinkTotalRowsCountCounter)
 }

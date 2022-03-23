@@ -80,7 +80,8 @@ type RawKVEntry struct {
 	CRTs uint64 `msg:"crts"`
 
 	// Additional debug info
-	RegionID uint64 `msg:"region_id"`
+	RegionID  uint64 `msg:"region_id"`
+	KeySpanID uint64 `msg:"keyspan_id"`
 }
 
 func (v *RawKVEntry) String() string {

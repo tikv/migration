@@ -31,20 +31,20 @@ const (
 	CheckpointCannotProceed = model.Ts(0)
 )
 
-// ScheduleDispatcher is an interface for a table scheduler used in Owner.
+// ScheduleDispatcher is an interface for a keyspan scheduler used in Owner.
 type ScheduleDispatcher interface {
 	// Tick is called periodically to update the SchedulerDispatcher on the latest state of replication.
 	// This function should NOT be assumed to be thread-safe. No concurrent calls allowed.
 	Tick(
 		ctx context.Context,
 		checkpointTs model.Ts, // Latest global checkpoint of the changefeed
-		currentTables []model.TableID, // All tables that SHOULD be replicated (or started) at the current checkpoint.
+		currentKeySpans []model.KeySpanID, // All keyspans that SHOULD be replicated (or started) at the current checkpoint.
 		captures map[model.CaptureID]*model.CaptureInfo, // All captures that are alive according to the latest Etcd states.
 	) (newCheckpointTs, newResolvedTs model.Ts, err error)
 
-	// MoveTable requests that a table be moved to target.
+	// MoveKeySpan requests that a keyspan be moved to target.
 	// It should be thread-safe.
-	MoveTable(tableID model.TableID, target model.CaptureID)
+	MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID)
 
 	// Rebalance triggers a rebalance operation.
 	// It should be thread-safe
@@ -56,12 +56,12 @@ type ScheduleDispatcher interface {
 // an implementation of ScheduleDispatcherCommunicator to supply BaseScheduleDispatcher
 // some methods to specify its behavior.
 type ScheduleDispatcherCommunicator interface {
-	// DispatchTable should send a dispatch command to the Processor.
-	DispatchTable(ctx context.Context,
+	// DispatchKeySpan should send a dispatch command to the Processor.
+	DispatchKeySpan(ctx context.Context,
 		changeFeedID model.ChangeFeedID,
-		tableID model.TableID,
+		keyspanID model.KeySpanID,
 		captureID model.CaptureID,
-		isDelete bool, // True when we want to remove a table from the capture.
+		isDelete bool, // True when we want to remove a keyspan from the capture.
 	) (done bool, err error)
 
 	// Announce announces to the specified capture that the current node has become the Owner.
@@ -80,13 +80,13 @@ const (
 // ScheduleDispatcherCommunicator.
 type BaseScheduleDispatcher struct {
 	mu            sync.Mutex
-	tables        *util.TableSet                         // information of all actually running tables
+	keyspans      *util.KeySpanSet                       // information of all actually running kespans
 	captures      map[model.CaptureID]*model.CaptureInfo // basic information of all captures
 	captureStatus map[model.CaptureID]*captureStatus     // more information on the captures
 	checkpointTs  model.Ts                               // current checkpoint-ts
 
-	moveTableManager moveTableManager
-	balancer         balancer
+	moveKeySpanManager moveKeySpanManager
+	balancer           balancer
 
 	lastTickCaptureCount int
 	needRebalance        bool
@@ -107,10 +107,10 @@ func NewBaseScheduleDispatcher(
 	logger := log.L().With(zap.String("changefeed-id", changeFeedID))
 
 	return &BaseScheduleDispatcher{
-		tables:               util.NewTableSet(),
+		keyspans:             util.NewKeySpanSet(),
 		captureStatus:        map[model.CaptureID]*captureStatus{},
-		moveTableManager:     newMoveTableManager(),
-		balancer:             newTableNumberRebalancer(logger),
+		moveKeySpanManager:   newMoveKeySpanManager(),
+		balancer:             newKeySpanNumberRebalancer(logger),
 		changeFeedID:         changeFeedID,
 		logger:               logger,
 		communicator:         communicator,
@@ -122,7 +122,7 @@ func NewBaseScheduleDispatcher(
 type captureStatus struct {
 	// SyncStatus indicates what we know about the capture's internal state.
 	// We need to know this before we can make decision whether to
-	// dispatch a table.
+	// dispatch a keyspan.
 	SyncStatus captureSyncStatus
 
 	// Watermark fields
@@ -141,7 +141,7 @@ const (
 	// no response yet.
 	captureSyncSent
 	// captureSyncFinished indicates that the capture has been fully initialized and is ready to
-	// accept `DispatchTable` messages.
+	// accept `DispatchKeySpan` messages.
 	captureSyncFinished
 )
 
@@ -149,9 +149,9 @@ const (
 func (s *BaseScheduleDispatcher) Tick(
 	ctx context.Context,
 	checkpointTs model.Ts,
-	// currentTables are tables that SHOULD be running given the current checkpoint-ts.
+	// currentKeySpans are keyspans that SHOULD be running given the current checkpoint-ts.
 	// It is maintained by the caller of this function.
-	currentTables []model.TableID,
+	currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (newCheckpointTs, resolvedTs model.Ts, err error) {
 	s.mu.Lock()
@@ -191,26 +191,26 @@ func (s *BaseScheduleDispatcher) Tick(
 	if !done {
 		// Returns early if not all captures have synced their states with us.
 		// We need to know all captures' status in order to proceed.
-		// This is crucial for ensuring that no table is double-scheduled.
+		// This is crucial for ensuring that no keyspan is double-scheduled.
 		return CheckpointCannotProceed, CheckpointCannotProceed, nil
 	}
 
-	s.descheduleTablesFromDownCaptures()
+	s.descheduleKeySpansFromDownCaptures()
 
-	shouldReplicateTableSet := make(map[model.TableID]struct{})
-	for _, tableID := range currentTables {
-		shouldReplicateTableSet[tableID] = struct{}{}
+	shouldReplicateKeySpanSet := make(map[model.KeySpanID]struct{})
+	for _, keyspanID := range currentKeySpans {
+		shouldReplicateKeySpanSet[keyspanID] = struct{}{}
 	}
 
-	// findDiffTables compares the tables that should be running and
-	// the tables that are actually running.
-	// Note: Tables that are being added and removed are considered
+	// findDiffKeySpans compares the keyspans that should be running and
+	// the keyspans that are actually running.
+	// Note: keyspans that are being added and removed are considered
 	// "running" for the purpose of comparison, and we do not interrupt
 	// these operations.
-	toAdd, toRemove := s.findDiffTables(shouldReplicateTableSet)
+	toAdd, toRemove := s.findDiffKeySpans(shouldReplicateKeySpanSet)
 
-	for _, tableID := range toAdd {
-		ok, err := s.addTable(ctx, tableID)
+	for _, keyspanID := range toAdd {
+		ok, err := s.addKeySpan(ctx, keyspanID)
 		if err != nil {
 			return CheckpointCannotProceed, CheckpointCannotProceed, errors.Trace(err)
 		}
@@ -219,17 +219,17 @@ func (s *BaseScheduleDispatcher) Tick(
 		}
 	}
 
-	for _, tableID := range toRemove {
-		record, ok := s.tables.GetTableRecord(tableID)
+	for _, keyspanID := range toRemove {
+		record, ok := s.keyspans.GetKeySpanRecord(keyspanID)
 		if !ok {
-			s.logger.Panic("table not found", zap.Int64("table-id", tableID))
+			s.logger.Panic("keyspan not found", zap.Uint64("keyspan-id", keyspanID))
 		}
-		if record.Status != util.RunningTable {
+		if record.Status != util.RunningKeySpan {
 			// another operation is in progress
 			continue
 		}
 
-		ok, err := s.removeTable(ctx, tableID)
+		ok, err := s.removeKeySpan(ctx, keyspanID)
 		if err != nil {
 			return CheckpointCannotProceed, CheckpointCannotProceed, errors.Trace(err)
 		}
@@ -239,16 +239,16 @@ func (s *BaseScheduleDispatcher) Tick(
 	}
 
 	checkAllTasksNormal := func() bool {
-		return s.tables.CountTableByStatus(util.RunningTable) == len(currentTables) &&
-			s.tables.CountTableByStatus(util.AddingTable) == 0 &&
-			s.tables.CountTableByStatus(util.RemovingTable) == 0
+		return s.keyspans.CountKeySpanByStatus(util.RunningKeySpan) == len(currentKeySpans) &&
+			s.keyspans.CountKeySpanByStatus(util.AddingKeySpan) == 0 &&
+			s.keyspans.CountKeySpanByStatus(util.RemovingKeySpan) == 0
 	}
 	if !checkAllTasksNormal() {
 		return CheckpointCannotProceed, CheckpointCannotProceed, nil
 	}
 
-	// handleMoveTableJobs tries to execute user-specified manual move table jobs.
-	ok, err := s.handleMoveTableJobs(ctx)
+	// handleMoveKeySpanJobs tries to execute user-specified manual move keyspan jobs.
+	ok, err := s.handleMoveKeySpanJobs(ctx)
 	if err != nil {
 		return CheckpointCannotProceed, CheckpointCannotProceed, errors.Trace(err)
 	}
@@ -282,9 +282,9 @@ func (s *BaseScheduleDispatcher) calculateTs() (checkpointTs, resolvedTs model.T
 	resolvedTs = math.MaxUint64
 
 	for captureID, status := range s.captureStatus {
-		if s.tables.CountTableByCaptureID(captureID) == 0 {
+		if s.keyspans.CountKeySpanByCaptureID(captureID) == 0 {
 			// the checkpoint (as well as resolved-ts) from a capture
-			// that is not replicating any table is meaningless.
+			// that is not replicating any keyspan is meaningless.
 			continue
 		}
 		if status.ResolvedTs < resolvedTs {
@@ -337,66 +337,69 @@ func (s *BaseScheduleDispatcher) syncCaptures(ctx context.Context) (capturesAllS
 			panic("unreachable")
 		}
 	}
+	s.logger.Debug("syncCaptures: size of captures, size of sync finished captures",
+		zap.Int("size of caputres", len(s.captureStatus)),
+		zap.Int("size of finished captures", finishedCount))
 
 	return finishedCount == len(s.captureStatus), nil
 }
 
-// descheduleTablesFromDownCaptures removes tables from `s.tables` that are
+// descheduleKeySpansFromDownCaptures removes keyspans from `s.keyspans` that are
 // associated with a capture that no longer exists.
 // `s.captures` MUST be updated before calling this method.
-func (s *BaseScheduleDispatcher) descheduleTablesFromDownCaptures() {
-	for _, captureID := range s.tables.GetDistinctCaptures() {
+func (s *BaseScheduleDispatcher) descheduleKeySpansFromDownCaptures() {
+	for _, captureID := range s.keyspans.GetDistinctCaptures() {
 		// If the capture is not in the current list of captures, it means that
 		// the capture has been removed from the system.
 		if _, ok := s.captures[captureID]; !ok {
-			// Remove records for all table previously replicated by the
+			// Remove records for all keyspan previously replicated by the
 			// gone capture.
-			removed := s.tables.RemoveTableRecordByCaptureID(captureID)
-			s.logger.Info("capture down, removing tables",
+			removed := s.keyspans.RemoveKeySpanRecordByCaptureID(captureID)
+			s.logger.Info("capture down, removing keyspans",
 				zap.String("capture-id", captureID),
-				zap.Any("removed-tables", removed))
-			s.moveTableManager.OnCaptureRemoved(captureID)
+				zap.Any("removed-keyspans", removed))
+			s.moveKeySpanManager.OnCaptureRemoved(captureID)
 		}
 	}
 }
 
-func (s *BaseScheduleDispatcher) findDiffTables(
-	shouldReplicateTables map[model.TableID]struct{},
-) (toAdd, toRemove []model.TableID) {
-	// Find tables that need to be added.
-	for tableID := range shouldReplicateTables {
-		if _, ok := s.tables.GetTableRecord(tableID); !ok {
-			// table is not found in `s.tables`.
-			toAdd = append(toAdd, tableID)
+func (s *BaseScheduleDispatcher) findDiffKeySpans(
+	shouldReplicateKeySpans map[model.KeySpanID]struct{},
+) (toAdd, toRemove []model.KeySpanID) {
+	// Find keyspans that need to be added.
+	for keyspanID := range shouldReplicateKeySpans {
+		if _, ok := s.keyspans.GetKeySpanRecord(keyspanID); !ok {
+			// keyspan is not found in `s.keyspans`.
+			toAdd = append(toAdd, keyspanID)
 		}
 	}
 
-	// Find tables that need to be removed.
-	for tableID := range s.tables.GetAllTables() {
-		if _, ok := shouldReplicateTables[tableID]; !ok {
-			// table is not found in `shouldReplicateTables`.
-			toRemove = append(toRemove, tableID)
+	// Find keyspans that need to be removed.
+	for keyspanID := range s.keyspans.GetAllKeySpans() {
+		if _, ok := shouldReplicateKeySpans[keyspanID]; !ok {
+			// keyspan is not found in `shouldReplicateKeySpans`.
+			toRemove = append(toRemove, keyspanID)
 		}
 	}
 	return
 }
 
-func (s *BaseScheduleDispatcher) addTable(
+func (s *BaseScheduleDispatcher) addKeySpan(
 	ctx context.Context,
-	tableID model.TableID,
+	keyspanID model.KeySpanID,
 ) (done bool, err error) {
-	// A user triggered move-table will have had the target recorded.
-	target, ok := s.moveTableManager.GetTargetByTableID(tableID)
+	// A user triggered move-keyspan will have had the target recorded.
+	target, ok := s.moveKeySpanManager.GetTargetByKeySpanID(keyspanID)
 	isManualMove := ok
 	if !ok {
-		target, ok = s.balancer.FindTarget(s.tables, s.captures)
+		target, ok = s.balancer.FindTarget(s.keyspans, s.captures)
 		if !ok {
 			s.logger.Warn("no active capture")
 			return true, nil
 		}
 	}
 
-	ok, err = s.communicator.DispatchTable(ctx, s.changeFeedID, tableID, target, false)
+	ok, err = s.communicator.DispatchKeySpan(ctx, s.changeFeedID, keyspanID, target, false)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -405,30 +408,30 @@ func (s *BaseScheduleDispatcher) addTable(
 		return false, nil
 	}
 	if isManualMove {
-		s.moveTableManager.MarkDone(tableID)
+		s.moveKeySpanManager.MarkDone(keyspanID)
 	}
 
-	if ok := s.tables.AddTableRecord(&util.TableRecord{
-		TableID:   tableID,
+	if ok := s.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: keyspanID,
 		CaptureID: target,
-		Status:    util.AddingTable,
+		Status:    util.AddingKeySpan,
 	}); !ok {
-		s.logger.Panic("duplicate table", zap.Int64("table-id", tableID))
+		s.logger.Panic("duplicate keyspan", zap.Uint64("keyspan-id", keyspanID))
 	}
 	return true, nil
 }
 
-func (s *BaseScheduleDispatcher) removeTable(
+func (s *BaseScheduleDispatcher) removeKeySpan(
 	ctx context.Context,
-	tableID model.TableID,
+	keyspanID model.KeySpanID,
 ) (done bool, err error) {
-	record, ok := s.tables.GetTableRecord(tableID)
+	record, ok := s.keyspans.GetKeySpanRecord(keyspanID)
 	if !ok {
-		s.logger.Panic("table not found", zap.Int64("table-id", tableID))
+		s.logger.Panic("keyspan not found", zap.Uint64("keyspan-id", keyspanID))
 	}
-	// need to delete table
+	// need to delete keyspan
 	captureID := record.CaptureID
-	ok, err = s.communicator.DispatchTable(ctx, s.changeFeedID, tableID, captureID, true)
+	ok, err = s.communicator.DispatchKeySpan(ctx, s.changeFeedID, keyspanID, captureID, true)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -436,45 +439,45 @@ func (s *BaseScheduleDispatcher) removeTable(
 		return false, nil
 	}
 
-	record.Status = util.RemovingTable
-	s.tables.UpdateTableRecord(record)
+	record.Status = util.RemovingKeySpan
+	s.keyspans.UpdateKeySpanRecord(record)
 	return true, nil
 }
 
-// MoveTable implements the interface SchedulerDispatcher.
-func (s *BaseScheduleDispatcher) MoveTable(tableID model.TableID, target model.CaptureID) {
-	if !s.moveTableManager.Add(tableID, target) {
-		log.Info("Move Table command has been ignored, because the last user triggered"+
+// MoveKeySpan implements the interface SchedulerDispatcher.
+func (s *BaseScheduleDispatcher) MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID) {
+	if !s.moveKeySpanManager.Add(keyspanID, target) {
+		log.Info("Move KeySpan command has been ignored, because the last user triggered"+
 			"move has not finished",
-			zap.Int64("table-id", tableID),
+			zap.Uint64("keyspan-id", keyspanID),
 			zap.String("target-capture", target))
 	}
 }
 
-func (s *BaseScheduleDispatcher) handleMoveTableJobs(ctx context.Context) (bool, error) {
-	removeAllDone, err := s.moveTableManager.DoRemove(ctx,
-		func(ctx context.Context, tableID model.TableID, target model.CaptureID) (removeTableResult, error) {
-			_, ok := s.tables.GetTableRecord(tableID)
+func (s *BaseScheduleDispatcher) handleMoveKeySpanJobs(ctx context.Context) (bool, error) {
+	removeAllDone, err := s.moveKeySpanManager.DoRemove(ctx,
+		func(ctx context.Context, keyspanID model.KeySpanID, target model.CaptureID) (removeKeySpanResult, error) {
+			_, ok := s.keyspans.GetKeySpanRecord(keyspanID)
 			if !ok {
-				s.logger.Warn("table does not exist", zap.Int64("table-id", tableID))
-				return removeTableResultGiveUp, nil
+				s.logger.Warn("keyspan does not exist", zap.Uint64("keyspan-id", keyspanID))
+				return removeKeySpanResultGiveUp, nil
 			}
 
 			if _, ok := s.captures[target]; !ok {
-				s.logger.Warn("move table target does not exist",
-					zap.Int64("table-id", tableID),
+				s.logger.Warn("move keyspan target does not exist",
+					zap.Uint64("keyspan-id", keyspanID),
 					zap.String("target-capture", target))
-				return removeTableResultGiveUp, nil
+				return removeKeySpanResultGiveUp, nil
 			}
 
-			ok, err := s.removeTable(ctx, tableID)
+			ok, err := s.removeKeySpan(ctx, keyspanID)
 			if err != nil {
-				return removeTableResultUnavailable, errors.Trace(err)
+				return removeKeySpanResultUnavailable, errors.Trace(err)
 			}
 			if !ok {
-				return removeTableResultUnavailable, nil
+				return removeKeySpanResultUnavailable, nil
 			}
-			return removeTableResultOK, nil
+			return removeKeySpanResultOK, nil
 		},
 	)
 	if err != nil {
@@ -489,15 +492,15 @@ func (s *BaseScheduleDispatcher) Rebalance() {
 }
 
 func (s *BaseScheduleDispatcher) rebalance(ctx context.Context) (done bool, err error) {
-	tablesToRemove := s.balancer.FindVictims(s.tables, s.captures)
-	for _, record := range tablesToRemove {
-		if record.Status != util.RunningTable {
-			s.logger.DPanic("unexpected table status",
-				zap.Any("table-record", record))
+	keyspansToRemove := s.balancer.FindVictims(s.keyspans, s.captures)
+	for _, record := range keyspansToRemove {
+		if record.Status != util.RunningKeySpan {
+			s.logger.DPanic("unexpected keyspan status",
+				zap.Any("keyspan-record", record))
 		}
 
-		// Removes the table from the current capture
-		ok, err := s.communicator.DispatchTable(ctx, s.changeFeedID, record.TableID, record.CaptureID, true)
+		// Removes the keyspan from the current capture
+		ok, err := s.communicator.DispatchKeySpan(ctx, s.changeFeedID, record.KeySpanID, record.CaptureID, true)
 		if err != nil {
 			return false, errors.Trace(err)
 		}
@@ -505,21 +508,21 @@ func (s *BaseScheduleDispatcher) rebalance(ctx context.Context) (done bool, err 
 			return false, nil
 		}
 
-		record.Status = util.RemovingTable
-		s.tables.UpdateTableRecord(record)
+		record.Status = util.RemovingKeySpan
+		s.keyspans.UpdateKeySpanRecord(record)
 	}
 	return true, nil
 }
 
-// OnAgentFinishedTableOperation is called when a table operation has been finished by
+// OnAgentFinishedKeySpanOperation is called when a keyspan operation has been finished by
 // the processor.
-func (s *BaseScheduleDispatcher) OnAgentFinishedTableOperation(captureID model.CaptureID, tableID model.TableID) {
+func (s *BaseScheduleDispatcher) OnAgentFinishedKeySpanOperation(captureID model.CaptureID, keyspanID model.KeySpanID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	logger := s.logger.With(
 		zap.String("capture-id", captureID),
-		zap.Int64("table-id", tableID),
+		zap.Uint64("keyspan-id", keyspanID),
 	)
 
 	if _, ok := s.captures[captureID]; !ok {
@@ -527,9 +530,9 @@ func (s *BaseScheduleDispatcher) OnAgentFinishedTableOperation(captureID model.C
 		return
 	}
 
-	record, ok := s.tables.GetTableRecord(tableID)
+	record, ok := s.keyspans.GetKeySpanRecord(keyspanID)
 	if !ok {
-		logger.Warn("response about a stale table, ignore")
+		logger.Warn("response about a stale keyspan, ignore")
 		return
 	}
 
@@ -540,20 +543,20 @@ func (s *BaseScheduleDispatcher) OnAgentFinishedTableOperation(captureID model.C
 	logger.Info("owner received dispatch finished")
 
 	switch record.Status {
-	case util.AddingTable:
-		record.Status = util.RunningTable
-		s.tables.UpdateTableRecord(record)
-	case util.RemovingTable:
-		if !s.tables.RemoveTableRecord(tableID) {
-			logger.Panic("failed to remove table")
+	case util.AddingKeySpan:
+		record.Status = util.RunningKeySpan
+		s.keyspans.UpdateKeySpanRecord(record)
+	case util.RemovingKeySpan:
+		if !s.keyspans.RemoveKeySpanRecord(keyspanID) {
+			logger.Panic("failed to remove keyspan")
 		}
-	case util.RunningTable:
+	case util.RunningKeySpan:
 		logger.Panic("response to invalid dispatch message")
 	}
 }
 
 // OnAgentSyncTaskStatuses is called when the processor sends its complete current state.
-func (s *BaseScheduleDispatcher) OnAgentSyncTaskStatuses(captureID model.CaptureID, running, adding, removing []model.TableID) {
+func (s *BaseScheduleDispatcher) OnAgentSyncTaskStatuses(captureID model.CaptureID, running, adding, removing []model.KeySpanID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -568,10 +571,10 @@ func (s *BaseScheduleDispatcher) OnAgentSyncTaskStatuses(captureID model.Capture
 			zap.Any("removing", removing))
 	}
 
-	// Clear all tables previously run by the sender capture,
+	// Clear all keyspans previously run by the sender capture,
 	// because `Sync` tells the Owner to reset its state regarding
 	// the sender capture.
-	s.tables.RemoveTableRecordByCaptureID(captureID)
+	s.keyspans.RemoveKeySpanRecordByCaptureID(captureID)
 
 	if _, ok := s.captureStatus[captureID]; !ok {
 		logger.Warn("received sync from a capture not previously tracked, ignore",
@@ -579,29 +582,29 @@ func (s *BaseScheduleDispatcher) OnAgentSyncTaskStatuses(captureID model.Capture
 		return
 	}
 
-	for _, tableID := range adding {
-		if record, ok := s.tables.GetTableRecord(tableID); ok {
-			logger.Panic("duplicate table tasks",
-				zap.Int64("table-id", tableID),
+	for _, keyspanID := range adding {
+		if record, ok := s.keyspans.GetKeySpanRecord(keyspanID); ok {
+			logger.Panic("duplicate keyspan tasks",
+				zap.Uint64("keyspan-id", keyspanID),
 				zap.String("actual-capture-id", record.CaptureID))
 		}
-		s.tables.AddTableRecord(&util.TableRecord{TableID: tableID, CaptureID: captureID, Status: util.AddingTable})
+		s.keyspans.AddKeySpanRecord(&util.KeySpanRecord{KeySpanID: keyspanID, CaptureID: captureID, Status: util.AddingKeySpan})
 	}
-	for _, tableID := range running {
-		if record, ok := s.tables.GetTableRecord(tableID); ok {
-			logger.Panic("duplicate table tasks",
-				zap.Int64("table-id", tableID),
+	for _, keyspanID := range running {
+		if record, ok := s.keyspans.GetKeySpanRecord(keyspanID); ok {
+			logger.Panic("duplicate keyspan tasks",
+				zap.Uint64("keyspan-id", keyspanID),
 				zap.String("actual-capture-id", record.CaptureID))
 		}
-		s.tables.AddTableRecord(&util.TableRecord{TableID: tableID, CaptureID: captureID, Status: util.RunningTable})
+		s.keyspans.AddKeySpanRecord(&util.KeySpanRecord{KeySpanID: keyspanID, CaptureID: captureID, Status: util.RunningKeySpan})
 	}
-	for _, tableID := range removing {
-		if record, ok := s.tables.GetTableRecord(tableID); ok {
-			logger.Panic("duplicate table tasks",
-				zap.Int64("table-id", tableID),
+	for _, keyspanID := range removing {
+		if record, ok := s.keyspans.GetKeySpanRecord(keyspanID); ok {
+			logger.Panic("duplicate keyspan tasks",
+				zap.Uint64("keyspan-id", keyspanID),
 				zap.String("actual-capture-id", record.CaptureID))
 		}
-		s.tables.AddTableRecord(&util.TableRecord{TableID: tableID, CaptureID: captureID, Status: util.RemovingTable})
+		s.keyspans.AddKeySpanRecord(&util.KeySpanRecord{KeySpanID: keyspanID, CaptureID: captureID, Status: util.RemovingKeySpan})
 	}
 
 	s.captureStatus[captureID].SyncStatus = captureSyncFinished

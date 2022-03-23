@@ -90,15 +90,15 @@ var defaultServerConfig = &ServerConfig{
 		NumWorkerPoolGoroutine: 16,
 		SortDir:                DefaultSortDir,
 	},
-	Security:            &SecurityConfig{},
-	PerTableMemoryQuota: 10 * 1024 * 1024, // 10MB
+	Security:              &SecurityConfig{},
+	PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10MB
 	KVClient: &KVClientConfig{
 		WorkerConcurrent: 8,
 		WorkerPoolSize:   0, // 0 will use NumCPU() * 2
 		RegionScanLimit:  40,
 	},
 	Debug: &DebugConfig{
-		EnableTableActor:   false,
+		EnableKeySpanActor: false,
 		EnableNewScheduler: false,
 		// Default leveldb sorter config
 		EnableDBSorter: false,
@@ -144,11 +144,11 @@ type ServerConfig struct {
 	OwnerFlushInterval     TomlDuration `toml:"owner-flush-interval" json:"owner-flush-interval"`
 	ProcessorFlushInterval TomlDuration `toml:"processor-flush-interval" json:"processor-flush-interval"`
 
-	Sorter              *SorterConfig   `toml:"sorter" json:"sorter"`
-	Security            *SecurityConfig `toml:"security" json:"security"`
-	PerTableMemoryQuota uint64          `toml:"per-table-memory-quota" json:"per-table-memory-quota"`
-	KVClient            *KVClientConfig `toml:"kv-client" json:"kv-client"`
-	Debug               *DebugConfig    `toml:"debug" json:"debug"`
+	Sorter                *SorterConfig   `toml:"sorter" json:"sorter"`
+	Security              *SecurityConfig `toml:"security" json:"security"`
+	PerKeySpanMemoryQuota uint64          `toml:"per-keyspan-memory-quota" json:"per-keyspan-memory-quota"`
+	KVClient              *KVClientConfig `toml:"kv-client" json:"kv-client"`
+	Debug                 *DebugConfig    `toml:"debug" json:"debug"`
 }
 
 // Marshal returns the json marshal format of a ServerConfig
@@ -240,8 +240,8 @@ func (c *ServerConfig) ValidateAndAdjust() error {
 		return err
 	}
 
-	if c.PerTableMemoryQuota == 0 {
-		c.PerTableMemoryQuota = defaultCfg.PerTableMemoryQuota
+	if c.PerKeySpanMemoryQuota == 0 {
+		c.PerKeySpanMemoryQuota = defaultCfg.PerKeySpanMemoryQuota
 	}
 
 	if c.KVClient == nil {
