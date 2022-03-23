@@ -97,8 +97,7 @@ func (s *httpStatusSuite) TestHTTPStatus(c *check.C) {
 	testHandleRebalance(c)
 	testHandleMoveKeySpan(c)
 	testHandleChangefeedQuery(c)
-	// TODO: pass testHandleFailpoint
-	// testHandleFailpoint(c)
+	testHandleFailpoint(c)
 
 	cancel()
 	wg.Wait()

@@ -66,7 +66,7 @@ func (m *Manager) CreateKeySpanSink(keyspanID model.KeySpanID, checkpointTs mode
 	m.keyspanSinksMu.Lock()
 	defer m.keyspanSinksMu.Unlock()
 	if _, exist := m.keyspanSinks[keyspanID]; exist {
-		log.Panic("the keyspan sink already exists", zap.Uint64("keyspanID", uint64(keyspanID)))
+		log.Panic("the keyspan sink already exists", zap.Uint64("keyspanID", keyspanID))
 	}
 	sink := &keyspanSink{
 		keyspanID: keyspanID,

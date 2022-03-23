@@ -115,7 +115,7 @@ func createTiKVSink(
 func (k *tikvSink) dispatch(entry *model.RawKVEntry) uint32 {
 	hasher := murmur3.New32()
 	hasher.Write(entry.Key)
-	return uint32(hasher.Sum32()) % k.workerNum
+	return hasher.Sum32() % k.workerNum
 }
 
 func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
@@ -356,7 +356,7 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 	return &config, pdAddr, nil
 }
 
-func newTiKVSink(ctx context.Context, sinkURI *url.URL, replicaConfig *config.ReplicaConfig, opts map[string]string, errCh chan error) (*tikvSink, error) {
+func newTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaConfig, opts map[string]string, errCh chan error) (*tikvSink, error) {
 	config, pdAddr, err := parseTiKVUri(sinkURI, opts)
 	if err != nil {
 		return nil, errors.Trace(err)

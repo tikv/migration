@@ -17,12 +17,8 @@ import (
 	"testing"
 
 	"github.com/tikv/migration/cdc/pkg/leakutil"
-	"go.uber.org/goleak"
 )
 
 func TestMain(m *testing.M) {
-	leakutil.SetUpLeakTest(
-		m,
-		goleak.IgnoreTopFunction("github.com/tikv/migration/cdc/cdc/sorter/unified.newBackEndPool.func1"),
-	)
+	leakutil.SetUpLeakTest(m)
 }

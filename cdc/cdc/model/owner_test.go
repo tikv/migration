@@ -102,7 +102,7 @@ func TestChangeFeedStatusMarshal(t *testing.T) {
 	require.Equal(t, status, newStatus)
 }
 
-func TestTableOperationState(t *testing.T) {
+func TestKeySpanOperationState(t *testing.T) {
 	t.Parallel()
 
 	processedMap := map[uint64]bool{
@@ -115,20 +115,20 @@ func TestTableOperationState(t *testing.T) {
 		OperProcessed:  false,
 		OperFinished:   true,
 	}
-	o := &TableOperation{}
+	o := &KeySpanOperation{}
 
 	for status, processed := range processedMap {
 		o.Status = status
-		require.Equal(t, processed, o.TableProcessed())
+		require.Equal(t, processed, o.KeySpanProcessed())
 	}
 	for status, applied := range appliedMap {
 		o.Status = status
-		require.Equal(t, applied, o.TableApplied())
+		require.Equal(t, applied, o.KeySpanApplied())
 	}
 
 	// test clone nil operation. no-nil clone will be tested in `TestShouldBeDeepCopy`
-	var nilTableOper *TableOperation
-	require.Nil(t, nilTableOper.Clone())
+	var nilKeySpanOper *KeySpanOperation
+	require.Nil(t, nilKeySpanOper.Clone())
 }
 
 func TestTaskWorkloadMarshal(t *testing.T) {
@@ -164,13 +164,13 @@ func TestShouldBeDeepCopy(t *testing.T) {
 
 	info := TaskStatus{
 
-		Tables: map[TableID]*TableReplicaInfo{
+		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: 100},
 			2: {StartTs: 100},
 			3: {StartTs: 100},
 			4: {StartTs: 100},
 		},
-		Operation: map[TableID]*TableOperation{
+		Operation: map[KeySpanID]*KeySpanOperation{
 			5: {
 				Delete: true, BoundaryTs: 6,
 			},
@@ -183,13 +183,13 @@ func TestShouldBeDeepCopy(t *testing.T) {
 
 	clone := info.Clone()
 	assertIsSnapshot := func() {
-		require.Equal(t, map[TableID]*TableReplicaInfo{
+		require.Equal(t, map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: 100},
 			2: {StartTs: 100},
 			3: {StartTs: 100},
 			4: {StartTs: 100},
-		}, clone.Tables)
-		require.Equal(t, map[TableID]*TableOperation{
+		}, clone.KeySpans)
+		require.Equal(t, map[KeySpanID]*KeySpanOperation{
 			5: {
 				Delete: true, BoundaryTs: 6,
 			},
@@ -202,11 +202,11 @@ func TestShouldBeDeepCopy(t *testing.T) {
 
 	assertIsSnapshot()
 
-	info.Tables[7] = &TableReplicaInfo{StartTs: 100}
-	info.Operation[7] = &TableOperation{Delete: true, BoundaryTs: 7}
+	info.KeySpans[7] = &KeySpanReplicaInfo{StartTs: 100}
+	info.Operation[7] = &KeySpanOperation{Delete: true, BoundaryTs: 7}
 
 	info.Operation[5].BoundaryTs = 8
-	info.Tables[1].StartTs = 200
+	info.KeySpans[1].StartTs = 200
 
 	assertIsSnapshot()
 }
@@ -215,7 +215,7 @@ func TestProcSnapshot(t *testing.T) {
 	t.Parallel()
 
 	info := TaskStatus{
-		Tables: map[TableID]*TableReplicaInfo{
+		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			10: {StartTs: 100},
 		},
 	}
@@ -224,19 +224,19 @@ func TestProcSnapshot(t *testing.T) {
 	snap := info.Snapshot(cfID, captureID, 200)
 	require.Equal(t, cfID, snap.CfID)
 	require.Equal(t, captureID, snap.CaptureID)
-	require.Equal(t, 1, len(snap.Tables))
-	require.Equal(t, &TableReplicaInfo{StartTs: 200}, snap.Tables[10])
+	require.Equal(t, 1, len(snap.KeySpans))
+	require.Equal(t, &KeySpanReplicaInfo{StartTs: 200}, snap.KeySpans[10])
 }
 
 func TestTaskStatusMarshal(t *testing.T) {
 	t.Parallel()
 
 	status := &TaskStatus{
-		Tables: map[TableID]*TableReplicaInfo{
+		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: 420875942036766723},
 		},
 	}
-	expected := `{"tables":{"1":{"start-ts":420875942036766723,"mark-table-id":0}},"operation":null,"admin-job-type":0}`
+	expected := `{"keyspans":{"1":{"start-ts":420875942036766723,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`
 
 	data, err := status.Marshal()
 	require.Nil(t, err)
@@ -249,15 +249,15 @@ func TestTaskStatusMarshal(t *testing.T) {
 	require.Equal(t, status, newStatus)
 }
 
-func TestAddTable(t *testing.T) {
+func TestAddKeySpan(t *testing.T) {
 	t.Parallel()
 
 	ts := uint64(420875942036766723)
 	expected := &TaskStatus{
-		Tables: map[TableID]*TableReplicaInfo{
+		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: ts},
 		},
-		Operation: map[TableID]*TableOperation{
+		Operation: map[KeySpanID]*KeySpanOperation{
 			1: {
 				BoundaryTs: ts,
 				Status:     OperDispatched,
@@ -265,11 +265,11 @@ func TestAddTable(t *testing.T) {
 		},
 	}
 	status := &TaskStatus{}
-	status.AddTable(1, &TableReplicaInfo{StartTs: ts}, ts)
+	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: ts}, ts)
 	require.Equal(t, expected, status)
 
-	// add existing table does nothing
-	status.AddTable(1, &TableReplicaInfo{StartTs: 1}, 1)
+	// add existing keyspan does nothing
+	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: 1}, 1)
 	require.Equal(t, expected, status)
 }
 
@@ -279,8 +279,8 @@ func TestTaskStatusApplyState(t *testing.T) {
 	ts1 := uint64(420875042036766723)
 	ts2 := uint64(420876783269969921)
 	status := &TaskStatus{}
-	status.AddTable(1, &TableReplicaInfo{StartTs: ts1}, ts1)
-	status.AddTable(2, &TableReplicaInfo{StartTs: ts2}, ts2)
+	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: ts1}, ts1)
+	status.AddKeySpan(2, &KeySpanReplicaInfo{StartTs: ts2}, ts2)
 	require.True(t, status.SomeOperationsUnapplied())
 	require.Equal(t, ts1, status.AppliedTs())
 
@@ -290,23 +290,23 @@ func TestTaskStatusApplyState(t *testing.T) {
 	require.Equal(t, uint64(math.MaxUint64), status.AppliedTs())
 }
 
-func TestMoveTable(t *testing.T) {
+func TestMoveKeySpan(t *testing.T) {
 	t.Parallel()
 
 	info := TaskStatus{
-		Tables: map[TableID]*TableReplicaInfo{
+		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: 100},
 			2: {StartTs: 200},
 		},
 	}
 
-	replicaInfo, found := info.RemoveTable(2, 300, true)
+	replicaInfo, found := info.RemoveKeySpan(2, 300, true)
 	require.True(t, found)
-	require.Equal(t, &TableReplicaInfo{StartTs: 200}, replicaInfo)
-	require.NotNil(t, info.Tables[int64(1)])
-	require.Nil(t, info.Tables[int64(2)])
-	expectedFlag := uint64(1) // OperFlagMoveTable
-	require.Equal(t, map[int64]*TableOperation{
+	require.Equal(t, &KeySpanReplicaInfo{StartTs: 200}, replicaInfo)
+	require.NotNil(t, info.KeySpans[uint64(1)])
+	require.Nil(t, info.KeySpans[uint64(2)])
+	expectedFlag := uint64(1) // OperFlagMoveKeySpan
+	require.Equal(t, map[int64]*KeySpanOperation{
 		2: {
 			Delete:     true,
 			Flag:       expectedFlag,
@@ -316,11 +316,11 @@ func TestMoveTable(t *testing.T) {
 	}, info.Operation)
 }
 
-func TestShouldReturnRemovedTable(t *testing.T) {
+func TestShouldReturnRemovedKeySpan(t *testing.T) {
 	t.Parallel()
 
 	info := TaskStatus{
-		Tables: map[TableID]*TableReplicaInfo{
+		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: 100},
 			2: {StartTs: 200},
 			3: {StartTs: 300},
@@ -328,23 +328,23 @@ func TestShouldReturnRemovedTable(t *testing.T) {
 		},
 	}
 
-	replicaInfo, found := info.RemoveTable(2, 666, false)
+	replicaInfo, found := info.RemoveKeySpan(2, 666, false)
 	require.True(t, found)
-	require.Equal(t, &TableReplicaInfo{StartTs: 200}, replicaInfo)
+	require.Equal(t, &KeySpanReplicaInfo{StartTs: 200}, replicaInfo)
 }
 
-func TestShouldHandleTableNotFound(t *testing.T) {
+func TestShouldHandleKeySpanNotFound(t *testing.T) {
 	t.Parallel()
 
 	info := TaskStatus{}
-	_, found := info.RemoveTable(404, 666, false)
+	_, found := info.RemoveKeySpan(404, 666, false)
 	require.False(t, found)
 
 	info = TaskStatus{
-		Tables: map[TableID]*TableReplicaInfo{
+		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: 100},
 		},
 	}
-	_, found = info.RemoveTable(404, 666, false)
+	_, found = info.RemoveKeySpan(404, 666, false)
 	require.False(t, found)
 }

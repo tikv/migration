@@ -25,7 +25,6 @@ import (
 	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/pkg/config"
-	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/version"
@@ -217,15 +216,6 @@ func (info *ChangeFeedInfo) Unmarshal(data []byte) error {
 	if err != nil {
 		return errors.Annotatef(
 			cerror.WrapError(cerror.ErrUnmarshalFailed, err), "Unmarshal data: %v", data)
-	}
-	// TODO(neil) find a better way to let sink know cyclic is enabled.
-	if info.Config != nil && info.Config.Cyclic.IsEnabled() {
-		cyclicCfg, err := info.Config.Cyclic.Marshal()
-		if err != nil {
-			return errors.Annotatef(
-				cerror.WrapError(cerror.ErrMarshalFailed, err), "Marshal data: %v", data)
-		}
-		info.Opts[mark.OptCyclicConfig] = cyclicCfg
 	}
 	return nil
 }

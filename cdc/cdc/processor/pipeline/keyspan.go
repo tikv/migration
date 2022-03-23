@@ -28,12 +28,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	// TODO determine a reasonable default value
-	// This is part of sink performance optimization
-	resolvedTsInterpolateInterval = 200 * time.Millisecond
-)
-
 // KeySpanPipeline is a pipeline which capture the change log from tikv in a keyspan
 type KeySpanPipeline interface {
 	// ID returns the ID of source keyspan and mark keyspan

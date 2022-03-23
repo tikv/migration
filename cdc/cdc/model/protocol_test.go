@@ -50,9 +50,9 @@ func TestSerializeSyncMessage(t *testing.T) {
 }
 
 func makeVeryLargeSyncMessage() *SyncMessage {
-	largeSliceFn := func() (ret []TableID) {
+	largeSliceFn := func() (ret []KeySpanID) {
 		for i := 0; i < 80000; i++ {
-			ret = append(ret, TableID(i))
+			ret = append(ret, KeySpanID(i))
 		}
 		return
 	}
@@ -63,10 +63,10 @@ func makeVeryLargeSyncMessage() *SyncMessage {
 	}
 }
 
-func TestMarshalDispatchTableMessage(t *testing.T) {
-	msg := &DispatchTableMessage{
+func TestMarshalDispatchKeySpanMessage(t *testing.T) {
+	msg := &DispatchKeySpanMessage{
 		OwnerRev: 1,
-		ID:       TableID(1),
+		ID:       KeySpanID(1),
 		IsDelete: true,
 	}
 	bytes, err := json.Marshal(msg)
@@ -74,9 +74,9 @@ func TestMarshalDispatchTableMessage(t *testing.T) {
 	require.Equal(t, `{"owner-rev":1,"id":1,"is-delete":true}`, string(bytes))
 }
 
-func TestMarshalDispatchTableResponseMessage(t *testing.T) {
-	msg := &DispatchTableResponseMessage{
-		ID: TableID(1),
+func TestMarshalDispatchKeySpanResponseMessage(t *testing.T) {
+	msg := &DispatchKeySpanResponseMessage{
+		ID: KeySpanID(1),
 	}
 	bytes, err := json.Marshal(msg)
 	require.NoError(t, err)

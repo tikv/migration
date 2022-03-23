@@ -44,7 +44,7 @@ var _ scheduler.KeySpanExecutor = (*processor)(nil)
 
 func newProcessor4Test(
 	ctx cdcContext.Context,
-	c *check.C,
+	_ *check.C,
 	createKeySpanPipeline func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error),
 ) *processor {
 	p := newProcessor(ctx)
@@ -926,49 +926,3 @@ func (s *processorSuite) TestIgnorableError(c *check.C) {
 		c.Assert(isProcessorIgnorableError(tc.err), check.Equals, tc.ignorable)
 	}
 }
-
-/* TODO: how to modify
-func (s *processorSuite) TestUpdateBarrierTs(c *check.C) {
-	defer testleak.AfterTest(c)()
-	ctx := cdcContext.NewBackendContext4Test(true)
-	p, tester := initProcessor4Test(ctx, c)
-	p.changefeed.PatchStatus(func(status *model.ChangeFeedStatus) (*model.ChangeFeedStatus, bool, error) {
-		status.CheckpointTs = 5
-		status.ResolvedTs = 10
-		return status, true, nil
-	})
-	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddKeySpan(1, &model.KeySpanReplicaInfo{StartTs: 5}, 5)
-		return status, true, nil
-	})
-	p.schemaStorage.(*mockSchemaStorage).resolvedTs = 10
-
-	// init tick, add keyspan OperDispatched.
-	_, err := p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-	// tick again, add keyspan OperProcessed.
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	// Global resolved ts has advanced while schema storage stalls.
-	p.changefeed.PatchStatus(func(status *model.ChangeFeedStatus) (*model.ChangeFeedStatus, bool, error) {
-		status.ResolvedTs = 20
-		return status, true, nil
-	})
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-	tb := p.keyspans[model.KeySpanID(1)].(*mockKeySpanPipeline)
-	c.Assert(tb.barrierTs, check.Equals, uint64(10))
-
-	// Schema storage has advanced too.
-	p.schemaStorage.(*mockSchemaStorage).resolvedTs = 15
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-	tb = p.keyspans[model.KeySpanID(1)].(*mockKeySpanPipeline)
-	c.Assert(tb.barrierTs, check.Equals, uint64(15))
-}
-*/

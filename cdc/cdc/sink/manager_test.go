@@ -61,9 +61,7 @@ func (c *checkSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeyS
 	defer c.rowsMu.Unlock()
 	var newEntries []*model.RawKVEntry
 	entries := c.entries[keyspanID]
-	for _, entry := range entries {
-		newEntries = append(newEntries, entry)
-	}
+	newEntries = append(newEntries, entries...)
 
 	c.Assert(c.lastResolvedTs[keyspanID], check.LessEqual, resolvedTs)
 	c.lastResolvedTs[keyspanID] = resolvedTs

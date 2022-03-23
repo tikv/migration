@@ -313,7 +313,6 @@ func (ts *TaskStatus) AppliedTs() Ts {
 	return appliedTs
 }
 
-/*
 // Snapshot takes a snapshot of `*TaskStatus` and returns a new `*ProcInfoSnap`
 func (ts *TaskStatus) Snapshot(cfID ChangeFeedID, captureID CaptureID, checkpointTs Ts) *ProcInfoSnap {
 	snap := &ProcInfoSnap{
@@ -327,12 +326,11 @@ func (ts *TaskStatus) Snapshot(cfID ChangeFeedID, captureID CaptureID, checkpoin
 			ts = keyspan.StartTs
 		}
 		snap.KeySpans[keyspanID] = &KeySpanReplicaInfo{
-			StartTs:       ts,
-			MarkKeySpanID: keyspan.MarkKeySpanID,
+			StartTs: ts,
 		}
 	}
 	return snap
-}*/
+}
 
 // Marshal returns the json marshal format of a TaskStatus
 func (ts *TaskStatus) Marshal() (string, error) {

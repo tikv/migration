@@ -18,7 +18,6 @@ import (
 	filterV2 "github.com/pingcap/tidb-tools/pkg/table-filter"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/tikv/migration/cdc/pkg/config"
-	"github.com/tikv/migration/cdc/pkg/cyclic/mark"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 )
 
@@ -83,10 +82,6 @@ func (f *Filter) shouldIgnoreStartTs(ts uint64) bool {
 func (f *Filter) ShouldIgnoreTable(db, tbl string) bool {
 	if isSysSchema(db) {
 		return true
-	}
-	if f.isCyclicEnabled && mark.IsMarkTable(db, tbl) {
-		// Always replicate mark tables.
-		return false
 	}
 	return !f.filter.MatchTable(db, tbl)
 }

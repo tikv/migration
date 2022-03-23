@@ -32,15 +32,9 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"go.uber.org/zap"
-)
-
-const (
-	backoffBaseDelayInMs = 5
-	maxTries             = 3
 )
 
 type processor struct {
@@ -50,7 +44,6 @@ type processor struct {
 
 	keyspans map[model.KeySpanID]keyspanpipeline.KeySpanPipeline
 
-	filter        *filter.Filter
 	sinkManager   *sink.Manager
 	lastRedoFlush time.Time
 

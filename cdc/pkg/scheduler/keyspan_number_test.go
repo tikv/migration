@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDistributeTables(t *testing.T) {
+func TestDistributeKeySpans(t *testing.T) {
 	t.Parallel()
-	scheduler := newTableNumberScheduler()
+	scheduler := newKeySpanNumberScheduler()
 	scheduler.ResetWorkloads("capture1", model.TaskWorkload{
 		1: model.WorkloadInfo{Workload: 1},
 		2: model.WorkloadInfo{Workload: 1},
@@ -40,26 +40,26 @@ func TestDistributeTables(t *testing.T) {
 		8: model.WorkloadInfo{Workload: 1},
 	})
 	require.Equal(t, fmt.Sprintf("%.2f%%", scheduler.Skewness()*100), "35.36%")
-	tableToAdd := map[model.TableID]model.Ts{10: 1, 11: 2, 12: 3, 13: 4, 14: 5, 15: 6, 16: 7, 17: 8}
-	result := scheduler.DistributeTables(tableToAdd)
+	keyspanToAdd := map[model.KeySpanID]model.Ts{10: 1, 11: 2, 12: 3, 13: 4, 14: 5, 15: 6, 16: 7, 17: 8}
+	result := scheduler.DistributeKeySpans(keyspanToAdd)
 	require.Equal(t, len(result), 3)
-	totalTableNum := 0
+	totalKeySpanNum := 0
 	for _, ops := range result {
-		for tableID, op := range ops {
-			ts, exist := tableToAdd[tableID]
+		for keyspanID, op := range ops {
+			ts, exist := keyspanToAdd[keyspanID]
 			require.True(t, exist)
 			require.False(t, op.Delete)
 			require.Equal(t, op.BoundaryTs, ts)
-			totalTableNum++
+			totalKeySpanNum++
 		}
 	}
-	require.Equal(t, totalTableNum, 8)
+	require.Equal(t, totalKeySpanNum, 8)
 	require.Equal(t, fmt.Sprintf("%.2f%%", scheduler.Skewness()*100), "8.84%")
 }
 
 func TestCalRebalanceOperates(t *testing.T) {
 	t.Parallel()
-	scheduler := newTableNumberScheduler()
+	scheduler := newKeySpanNumberScheduler()
 	scheduler.ResetWorkloads("capture1", model.TaskWorkload{
 		1: model.WorkloadInfo{Workload: 1},
 		2: model.WorkloadInfo{Workload: 1},
@@ -79,12 +79,12 @@ func TestCalRebalanceOperates(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("%.2f%%", scheduler.Skewness()*100), "56.57%")
 	skewness, moveJobs := scheduler.CalRebalanceOperates(0)
 
-	for tableID, job := range moveJobs {
+	for keyspanID, job := range moveJobs {
 		require.Greater(t, len(job.From), 0)
 		require.Greater(t, len(job.To), 0)
-		require.Equal(t, job.TableID, tableID)
+		require.Equal(t, job.KeySpanID, keyspanID)
 		require.NotEqual(t, job.From, job.To)
-		require.Equal(t, job.Status, model.MoveTableStatusNone)
+		require.Equal(t, job.Status, model.MoveKeySpanStatusNone)
 	}
 
 	require.Equal(t, fmt.Sprintf("%.2f%%", skewness*100), "14.14%")
@@ -99,12 +99,12 @@ func TestCalRebalanceOperates(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("%.2f%%", scheduler.Skewness()*100), "141.42%")
 	skewness, moveJobs = scheduler.CalRebalanceOperates(0)
 
-	for tableID, job := range moveJobs {
+	for keyspanID, job := range moveJobs {
 		require.Greater(t, len(job.From), 0)
 		require.Greater(t, len(job.To), 0)
-		require.Equal(t, job.TableID, tableID)
+		require.Equal(t, job.KeySpanID, keyspanID)
 		require.NotEqual(t, job.From, job.To)
-		require.Equal(t, job.Status, model.MoveTableStatusNone)
+		require.Equal(t, job.Status, model.MoveKeySpanStatusNone)
 	}
 	require.Equal(t, fmt.Sprintf("%.2f%%", skewness*100), "0.00%")
 }

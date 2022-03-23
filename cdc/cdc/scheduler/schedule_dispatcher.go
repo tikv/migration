@@ -338,7 +338,7 @@ func (s *BaseScheduleDispatcher) syncCaptures(ctx context.Context) (capturesAllS
 		}
 	}
 	s.logger.Debug("syncCaptures: size of captures, size of sync finished captures",
-		zap.Int("size of caputres", len(s.captureStatus)),
+		zap.Int("size of captures", len(s.captureStatus)),
 		zap.Int("size of finished captures", finishedCount))
 
 	return finishedCount == len(s.captureStatus), nil
