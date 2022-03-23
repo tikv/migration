@@ -34,7 +34,7 @@ br backup raw \
 ```
 spark-submit \
 --master local[*] \
---jars /path/to/tikv-client-java-3.2.0-SNAPSHOT.jar \
+--jars /path/to/tikv-client-java-3.3.0-SNAPSHOT.jar \
 --class org.tikv.datasources.sst.example.SSTDataSourceExample \
 sst-data-source/target/sst-data-source-0.0.1-SNAPSHOT.jar \
 hdfs:///path/to/sst/
