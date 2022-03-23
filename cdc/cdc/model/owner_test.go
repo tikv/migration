@@ -236,7 +236,7 @@ func TestTaskStatusMarshal(t *testing.T) {
 			1: {StartTs: 420875942036766723},
 		},
 	}
-	expected := `{"keyspans":{"1":{"start-ts":420875942036766723,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`
+	expected := `{"keyspans":{"1":{"start-ts":420875942036766723,"Start":null,"End":null}},"operation":null,"admin-job-type":0}`
 
 	data, err := status.Marshal()
 	require.Nil(t, err)
@@ -306,8 +306,8 @@ func TestMoveKeySpan(t *testing.T) {
 	require.NotNil(t, info.KeySpans[uint64(1)])
 	require.Nil(t, info.KeySpans[uint64(2)])
 	expectedFlag := uint64(1) // OperFlagMoveKeySpan
-	require.Equal(t, map[int64]*KeySpanOperation{
-		2: {
+	require.Equal(t, map[uint64]*KeySpanOperation{
+		uint64(2): {
 			Delete:     true,
 			Flag:       expectedFlag,
 			BoundaryTs: 300,

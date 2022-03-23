@@ -108,12 +108,6 @@ func New(ctx context.Context, changefeedID model.ChangeFeedID, sinkURIStr string
 
 // Validate sink if given valid parameters.
 func Validate(ctx context.Context, sinkURI string, cfg *config.ReplicaConfig, opts map[string]string) error {
-	/*
-		sinkFilter, err := filter.NewFilter(cfg)
-		if err != nil {
-			return err
-		}
-	*/
 	errCh := make(chan error)
 	// TODO: find a better way to verify a sinkURI is valid
 	s, err := New(ctx, "sink-verify", sinkURI, cfg, opts, errCh)

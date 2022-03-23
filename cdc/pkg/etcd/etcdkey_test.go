@@ -28,64 +28,64 @@ func (s *etcdkeySuite) TestEtcdKey(c *check.C) {
 		key      string
 		expected *CDCKey
 	}{{
-		key: "/tidb/cdc/owner/223176cb44d20a13",
+		key: "/tikv/cdc/owner/223176cb44d20a13",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeOwner,
 			OwnerLeaseID: "223176cb44d20a13",
 		},
 	}, {
-		key: "/tidb/cdc/owner",
+		key: "/tikv/cdc/owner",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeOwner,
 			OwnerLeaseID: "",
 		},
 	}, {
-		key: "/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+		key: "/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		expected: &CDCKey{
 			Tp:        CDCKeyTypeCapture,
 			CaptureID: "6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		},
 	}, {
-		key: "/tidb/cdc/changefeed/info/test-_@#$%changefeed",
+		key: "/tikv/cdc/changefeed/info/test-_@#$%changefeed",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeChangefeedInfo,
 			ChangefeedID: "test-_@#$%changefeed",
 		},
 	}, {
-		key: "/tidb/cdc/changefeed/info/test/changefeed",
+		key: "/tikv/cdc/changefeed/info/test/changefeed",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeChangefeedInfo,
 			ChangefeedID: "test/changefeed",
 		},
 	}, {
-		key: "/tidb/cdc/job/test-changefeed",
+		key: "/tikv/cdc/job/test-changefeed",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeChangeFeedStatus,
 			ChangefeedID: "test-changefeed",
 		},
 	}, {
-		key: "/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-changefeed",
+		key: "/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-changefeed",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeTaskPosition,
 			ChangefeedID: "test-changefeed",
 			CaptureID:    "6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		},
 	}, {
-		key: "/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test/changefeed",
+		key: "/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test/changefeed",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeTaskPosition,
 			ChangefeedID: "test/changefeed",
 			CaptureID:    "6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		},
 	}, {
-		key: "/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-changefeed",
+		key: "/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-changefeed",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeTaskStatus,
 			ChangefeedID: "test-changefeed",
 			CaptureID:    "6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		},
 	}, {
-		key: "/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-changefeed",
+		key: "/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-changefeed",
 		expected: &CDCKey{
 			Tp:           CDCKeyTypeTaskWorkload,
 			ChangefeedID: "test-changefeed",
@@ -107,25 +107,25 @@ func (s *etcdkeySuite) TestEtcdKeyParseError(c *check.C) {
 		key   string
 		error bool
 	}{{
-		key:   "/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test/changefeed",
+		key:   "/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test/changefeed",
 		error: false,
 	}, {
-		key:   "/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/",
+		key:   "/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/",
 		error: false,
 	}, {
-		key:   "/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+		key:   "/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		error: true,
 	}, {
-		key:   "/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+		key:   "/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		error: true,
 	}, {
-		key:   "/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+		key:   "/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		error: true,
 	}, {
-		key:   "/tidb/cd",
+		key:   "/tikv/cd",
 		error: true,
 	}, {
-		key:   "/tidb/cdc/",
+		key:   "/tikv/cdc/",
 		error: true,
 	}}
 	for _, tc := range testCases {

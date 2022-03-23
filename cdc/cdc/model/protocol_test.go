@@ -71,7 +71,7 @@ func TestMarshalDispatchKeySpanMessage(t *testing.T) {
 	}
 	bytes, err := json.Marshal(msg)
 	require.NoError(t, err)
-	require.Equal(t, `{"owner-rev":1,"id":1,"is-delete":true}`, string(bytes))
+	require.Equal(t, `{"owner-rev":1,"id":1,"is-delete":true,"start":null,"end":null}`, string(bytes))
 }
 
 func TestMarshalDispatchKeySpanResponseMessage(t *testing.T) {

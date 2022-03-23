@@ -40,7 +40,7 @@ var defaultReplicaConfig = &ReplicaConfig{
 		Enable: false,
 	},
 	Scheduler: &SchedulerConfig{
-		Tp:          "table-number",
+		Tp:          "keyspan-number",
 		PollingTime: -1,
 	},
 	Consistent: &ConsistentConfig{

@@ -31,13 +31,11 @@ func TestValidateSink(t *testing.T) {
 	replicateConfig := config.GetDefaultReplicaConfig()
 	opts := make(map[string]string)
 
-	// test sink uri error
+	// test sink uri right
 	sinkURI := "tikv://127.0.0.1:3306/"
 	err := Validate(ctx, sinkURI, replicateConfig, opts)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "the sink scheme (tikv) is not supported")
+	require.Nil(t, err)
 
-	// test sink uri right
 	sinkURI = "blackhole://"
 	err = Validate(ctx, sinkURI, replicateConfig, opts)
 	require.Nil(t, err)
