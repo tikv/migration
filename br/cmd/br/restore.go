@@ -17,26 +17,6 @@ import (
 	"sourcegraph.com/sourcegraph/appdash"
 )
 
-func runRestoreCommand(command *cobra.Command, cmdName string) error {
-	cfg := task.RestoreConfig{Config: task.Config{LogProgress: HasLogFile()}}
-	if err := cfg.ParseFromFlags(command.Flags()); err != nil {
-		command.SilenceUsage = false
-		return errors.Trace(err)
-	}
-
-	ctx := GetDefaultContext()
-	if cfg.EnableOpenTracing {
-		var store *appdash.MemoryStore
-		ctx, store = trace.TracerStartSpan(ctx)
-		defer trace.TracerFinishSpan(ctx, store)
-	}
-	if err := task.RunRestore(GetDefaultContext(), tidbGlue, cmdName, &cfg); err != nil {
-		log.Error("failed to restore", zap.Error(err))
-		return errors.Trace(err)
-	}
-	return nil
-}
-
 func runRestoreRawCommand(command *cobra.Command, cmdName string) error {
 	cfg := task.RestoreRawConfig{
 		RawKvConfig: task.RawKvConfig{Config: task.Config{LogProgress: HasLogFile()}},
@@ -79,52 +59,10 @@ func NewRestoreCommand() *cobra.Command {
 		},
 	}
 	command.AddCommand(
-		newFullRestoreCommand(),
-		newDBRestoreCommand(),
-		newTableRestoreCommand(),
 		newRawRestoreCommand(),
 	)
 	task.DefineRestoreFlags(command.PersistentFlags())
 
-	return command
-}
-
-func newFullRestoreCommand() *cobra.Command {
-	command := &cobra.Command{
-		Use:   "full",
-		Short: "restore all tables",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runRestoreCommand(cmd, "Full restore")
-		},
-	}
-	task.DefineFilterFlags(command, filterOutSysAndMemTables)
-	return command
-}
-
-func newDBRestoreCommand() *cobra.Command {
-	command := &cobra.Command{
-		Use:   "db",
-		Short: "restore tables in a database from the backup data",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runRestoreCommand(cmd, "Database restore")
-		},
-	}
-	task.DefineDatabaseFlags(command)
-	return command
-}
-
-func newTableRestoreCommand() *cobra.Command {
-	command := &cobra.Command{
-		Use:   "table",
-		Short: "restore a table from the backup data",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runRestoreCommand(cmd, "Table restore")
-		},
-	}
-	task.DefineTableFlags(command)
 	return command
 }
 
