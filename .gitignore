@@ -1,3 +1,6 @@
+# ignore maven generated files
+dependency-reduced-pom.xml
+
 #ignore idea configuration
 .idea
 *.iml

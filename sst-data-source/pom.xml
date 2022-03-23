@@ -27,6 +27,18 @@
     <packaging>jar</packaging>
     <name>Spark SST Data Source</name>
 
+    <properties>
+        <rocksdb.version>6.22.1.1</rocksdb.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.rocksdb</groupId>
+            <artifactId>rocksdbjni</artifactId>
+            <version>${rocksdb.version}</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <extensions>
             <extension>
@@ -36,6 +48,30 @@
             </extension>
         </extensions>
         <plugins>
+            <!--- Needs to shade Protobuf 3 since other projects might use other version -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <artifactSet>
+                               <includes>
+                                <include>org.rocksdb:rocksdbjni</include>
+                               </includes>
+                            </artifactSet>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- Scala Format Plug-in -->
             <plugin>
                 <groupId>org.antipathy</groupId>

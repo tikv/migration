@@ -22,7 +22,7 @@ mvn clean package -DskipTests -am -pl online-bulk-load
 ```
 spark-submit \
 --master local[*] \
---jars /path/to/tikv-client-java-3.2.0-SNAPSHOT.jar \
+--jars /path/to/tikv-client-java-3.3.0-SNAPSHOT.jar \
 --class org.tikv.bulkload.example.BulkLoadExample \
 online-bulk-load/target/online-bulk-load-0.0.1-SNAPSHOT.jar \
 <pdaddr> <key_prefix> <data_size> <partition_nums>
