@@ -34,6 +34,7 @@ import (
 	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -204,6 +205,46 @@ func CheckBackupStorageIsLocked(ctx context.Context, s storage.ExternalStorage) 
 		return err
 	}
 	return nil
+}
+
+// BackupRanges make a backup of the given key ranges.
+func (bc *Client) BackupRanges(
+	ctx context.Context,
+	ranges []rtree.Range,
+	req backuppb.BackupRequest,
+	concurrency uint,
+	metaWriter *metautil.MetaWriter,
+	progressCallBack func(ProgressUnit),
+) error {
+	init := time.Now()
+	defer log.Info("Backup Ranges", zap.Duration("take", time.Since(init)))
+
+	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
+		span1 := span.Tracer().StartSpan("Client.BackupRanges", opentracing.ChildOf(span.Context()))
+		defer span1.Finish()
+		ctx = opentracing.ContextWithSpan(ctx, span1)
+	}
+
+	// we collect all files in a single goroutine to avoid thread safety issues.
+	workerPool := utils.NewWorkerPool(concurrency, "Ranges")
+	eg, ectx := errgroup.WithContext(ctx)
+	for id, r := range ranges {
+		id := id
+		sk, ek := r.StartKey, r.EndKey
+		workerPool.ApplyOnErrorGroup(eg, func() error {
+			elctx := logutil.ContextWithField(ectx, logutil.RedactAny("range-sn", id))
+			err := bc.BackupRange(elctx, sk, ek, req, metaWriter, progressCallBack)
+			if err != nil {
+				// The error due to context cancel, stack trace is meaningless, the stack shall be suspended (also clear)
+				if errors.Cause(err) == context.Canceled {
+					return errors.SuspendStack(err)
+				}
+				return errors.Trace(err)
+			}
+			return nil
+		})
+	}
+	return eg.Wait()
 }
 
 // BackupRange make a backup of the given key range.
