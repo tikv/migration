@@ -27,7 +27,9 @@ import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
-import org.tikv.br.{BackupDecoder, BackupMetaDecoder}
+import org.tikv.datasources.br.BackupDecoder
+import org.tikv.datasources.br
+import org.tikv.datasources.br.BackupMetaDecoder
 
 import java.io.File
 import scala.collection.convert.ImplicitConversions.`map AsScala`
@@ -69,7 +71,7 @@ case class SSTScan(
     val backupMetaFilePath = downloadBackupMeta(path, hadoopConf)
     val backupMetaDecoder = BackupMetaDecoder.parse(backupMetaFilePath)
     val ttlEnabled = options.getBoolean(SSTDataSource.ENABLE_TTL, SSTDataSource.DEF_ENABLE_TTL)
-    val backupDecoder: BackupDecoder =
+    val backupDecoder: br.BackupDecoder =
       new BackupDecoder(backupMetaDecoder.getBackupMeta, ttlEnabled)
     val broadcastedBackupDecoder = sparkSession.sparkContext.broadcast(backupDecoder)
     SSTPartitionReaderFactory(broadcastedConf, broadcastedBackupDecoder)

@@ -27,7 +27,7 @@ import org.apache.spark.sql.execution.datasources.v2.{
 }
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
-import org.tikv.br.BackupDecoder
+import org.tikv.datasources.br.BackupDecoder
 
 import java.io.File
 
