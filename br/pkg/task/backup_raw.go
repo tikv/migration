@@ -135,9 +135,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
-	// Backup raw does not need domain.
-	needDomain := false
-	mgr, err := NewMgr(ctx, g, cfg.PD, cfg.TLS, GetKeepalive(&cfg.Config), cfg.CheckRequirements, needDomain)
+	mgr, err := NewMgr(ctx, g, cfg.PD, cfg.TLS, GetKeepalive(&cfg.Config), cfg.CheckRequirements)
 	if err != nil {
 		return errors.Trace(err)
 	}
