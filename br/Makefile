@@ -118,3 +118,22 @@ clean:
 	rm -rf *.out
 	rm -rf bin
 	rm -rf tools/bin
+
+br_integration_test: br_bins build_br build_for_br_integration_test
+	@cd br && tests/run.sh
+
+# TODO: adjust bins when br integraion tests reformat.
+br_bins:
+	@which bin/tikv-server
+	@which bin/pd-server
+	@which bin/pd-ctl
+
+build_for_br_integration_test:
+	@make failpoint-enable
+	($(GOTEST) -c -cover -covermode=count \
+		-coverpkg=github.com/tikv/migration/br/... \
+		-o $(BR_BIN).test \
+		github.com/tikv/migration/br/cmd/br && \
+	$(GOBUILD) $(RACE_FLAG) -o bin/rawkv tests/br_rawkv/*.go \
+	) || (make failpoint-disable && exit 1)
+	@make failpoint-disable

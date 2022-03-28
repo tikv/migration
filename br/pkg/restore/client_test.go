@@ -22,7 +22,7 @@ var defaultKeepaliveCfg = keepalive.ClientParameters{
 
 func TestIsOnline(t *testing.T) {
 	m := mc
-	client, err := restore.NewRestoreClient(gluetidb.New(), m.PDClient, m.Storage, nil, defaultKeepaliveCfg)
+	client, err := restore.NewRestoreClient(gluetidb.New(), m.PDClient, m.Storage, nil, defaultKeepaliveCfg, false) // TODO: add test case for "isRawKv=true"
 	require.NoError(t, err)
 
 	require.False(t, client.IsOnline())

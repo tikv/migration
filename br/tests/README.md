@@ -35,25 +35,16 @@ This folder contains all tests which relies on external processes such as TiDB.
 
 1. The following 9 executables must be copied or linked into these locations:
 
-    * `bin/tidb-server`
     * `bin/tikv-server`
     * `bin/pd-server`
     * `bin/pd-ctl`
-    * `bin/go-ycsb`
-    * `bin/minio`
-    * `bin/mc`
-    * `bin/tiflash`
-    * `bin/cdc`
-    * `bin/tikv-importer`
 
     The versions must be ≥2.1.0.
 
-    What's more, there must be dynamic link library for TiFlash, see make target `bin` to learn more.
     You can install most of dependencies by running `download_tools.sh`.
 
 2. The following programs must be installed:
 
-    * `mysql` (the CLI client)
     * `curl`
     * `openssl`
     * `wget`
@@ -70,9 +61,8 @@ If you have docker installed, you can skip step 1 and step 2 by running
 Run `make br_integration_test` to execute the integration tests. This command will
 
 1. Build `br`
-2. Check that all 9 required executables and `br` executable exist
+2. Check that all required executables and `br` executable exist
 3. Execute `tests/run.sh`
-4. To start cluster with tiflash, please run `TIFLASH=1 tests/run.sh`
 
 If the first two steps are done before, you could also run `tests/run.sh` directly.
 This script will
@@ -89,12 +79,3 @@ After executing the tests, run `make br_coverage` to get a coverage report at
 
 New integration tests can be written as shell scripts in `tests/TEST_NAME/run.sh`.
 The script should exit with a nonzero error code on failure.
-
-Several convenient commands are provided:
-
-* `run_sql <SQL>` — Executes an SQL query on the TiDB database
-* `run_lightning [CONFIG]` — Starts `tidb-lightning` using `tests/TEST_NAME/CONFIG.toml`
-* `check_contains <TEXT>` — Checks if the previous `run_sql` result contains the given text
-    (in `-E` format)
-* `check_not_contains <TEXT>` — Checks if the previous `run_sql` result does not contain the given
-    text (in `-E` format)

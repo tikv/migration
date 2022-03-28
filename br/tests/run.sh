@@ -24,7 +24,8 @@ rm -rf $TEST_DIR && mkdir -p $TEST_DIR
 # Generate TLS certs
 tests/_utils/generate_certs &> /dev/null
 
-SELECTED_TEST_NAME="${TEST_NAME-$(find tests -mindepth 2 -maxdepth 2 -name run.sh | cut -d/ -f2 | sort)}"
+# SELECTED_TEST_NAME="${TEST_NAME-$(find tests -mindepth 2 -maxdepth 2 -name run.sh | cut -d/ -f2 | sort)}"
+SELECTED_TEST_NAME=br_rawkv # run "br_rawkv" only.
 source tests/_utils/run_services
 
 trap stop_services EXIT
@@ -55,10 +56,6 @@ for casename in $SELECTED_TEST_NAME; do
     CLUSTER_VERSION_MINOR="$CLUSTER_VERSION_MINOR" \
     CLUSTER_VERSION_REVISION="$CLUSTER_VERSION_REVISION" \
     PD_ADDR="$PD_ADDR" \
-    TIDB_IP="$TIDB_IP" \
-    TIDB_PORT="$TIDB_PORT" \
-    TIDB_ADDR="$TIDB_ADDR" \
-    TIDB_STATUS_ADDR="$TIDB_STATUS_ADDR" \
     TIKV_ADDR="$TIKV_ADDR" \
     BR_LOG_TO_TERM=1 \
     bash "$script" && echo "TEST: [$casename] success!"

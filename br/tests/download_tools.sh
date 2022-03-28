@@ -18,7 +18,7 @@
 
 set -eu
 
-BIN="$(dirname "$0")/../../bin"
+BIN="$(dirname "$0")/../bin"
 
 if [ "$(uname -s)" != Linux ]; then
     echo 'Can only automatically download binaries on Linux.'
@@ -31,18 +31,6 @@ for COMPONENT in tidb-server pd-server tikv-server pd-ctl; do
         MISSING_TIDB_COMPONENTS="$MISSING_TIDB_COMPONENTS tidb-nightly-linux-amd64/bin/$COMPONENT"
     fi
 done
-
-if [ ! -e "$BIN/tiflash" ]; then
-    echo "Downloading nightly Tiflash..."
-    curl -L -f -o "$BIN/tiflash.tar.gz" "https://download.pingcap.org/tiflash-nightly-linux-amd64.tar.gz"
-    tar -xf "$BIN/tiflash.tar.gz" -C "$BIN/"
-    rm "$BIN/tiflash.tar.gz"
-    mkdir "$BIN"/flash_cluster_manager
-    mv "$BIN"/tiflash-nightly-linux-amd64/flash_cluster_manager/* "$BIN/flash_cluster_manager"
-    rmdir "$BIN/"tiflash-nightly-linux-amd64/flash_cluster_manager
-    mv "$BIN"/tiflash-nightly-linux-amd64/* "$BIN/"
-    rmdir "$BIN/"tiflash-nightly-linux-amd64
-fi
 
 if [ -n "$MISSING_TIDB_COMPONENTS" ]; then
     echo "Downloading latest TiDB bundle..."
@@ -60,23 +48,26 @@ if [ ! -e "$BIN/go-ycsb" ]; then
     exit 1
 fi
 
-if [ ! -e "$BIN/minio" ]; then
-    echo "Downloading minio..."
-    curl -L -f -o "$BIN/minio" "https://dl.min.io/server/minio/release/linux-amd64/minio"
-    chmod a+x "$BIN/minio"
-fi
+# TODO: Very slow. Add back later if necessary.
+# if [ ! -e "$BIN/minio" ]; then
+#     echo "Downloading minio..."
+#     curl -L -f -o "$BIN/minio" "https://dl.min.io/server/minio/release/linux-amd64/minio"
+#     chmod a+x "$BIN/minio"
+# fi
 
-if [ ! -e "$BIN/fake-gcs-server" ]; then
-    echo "Downloading fake-gcs-server..."
-    curl -L -f -o "$BIN/fake-gcs-server" "http://lease.pingcap.org/fake-gcs-server"
-    chmod a+x "$BIN/fake-gcs-server"
-fi
+# TODO: Download failed, "lease.pingcap.org" not found. Check later.
+# if [ ! -e "$BIN/fake-gcs-server" ]; then
+#     echo "Downloading fake-gcs-server..."
+#     curl -L -f -o "$BIN/fake-gcs-server" "http://lease.pingcap.org/fake-gcs-server"
+#     chmod a+x "$BIN/fake-gcs-server"
+# fi
 
-if [ ! -e "$BIN/brv4.0.8" ]; then
-    echo "Downloading brv4.0.8..."
-    curl -L -f -o "$BIN/brv4.0.8" "http://lease.pingcap.org/brv4.0.8"
-    chmod a+x "$BIN/brv4.0.8"
-fi
+# TODO: Download failed, "lease.pingcap.org" not found. Check later.
+# if [ ! -e "$BIN/brv4.0.8" ]; then
+#     echo "Downloading brv4.0.8..."
+#     curl -L -f -o "$BIN/brv4.0.8" "http://lease.pingcap.org/brv4.0.8"
+#     chmod a+x "$BIN/brv4.0.8"
+# fi
 
 if [ ! -e "$BIN/cdc" ]; then
     echo "Downloading cdc..."

@@ -212,6 +212,7 @@ func NewTiKVSender(
 	cli *Client,
 	updateCh glue.Progress,
 	splitConcurrency uint,
+	isRawKv bool,
 ) (BatchSender, error) {
 	inCh := make(chan DrainResult, defaultChannelSize)
 	midCh := make(chan drainResultAndDone, defaultChannelSize)
@@ -225,7 +226,7 @@ func NewTiKVSender(
 	}
 
 	sender.wg.Add(2)
-	go sender.splitWorker(ctx, inCh, midCh, splitConcurrency)
+	go sender.splitWorker(ctx, inCh, midCh, splitConcurrency, isRawKv)
 	go sender.restoreWorker(ctx, midCh)
 	return sender, nil
 }
@@ -245,6 +246,7 @@ func (b *tikvSender) splitWorker(ctx context.Context,
 	ranges <-chan DrainResult,
 	next chan<- drainResultAndDone,
 	concurrency uint,
+	isRawKv bool,
 ) {
 	defer log.Debug("split worker closed")
 	eg, ectx := errgroup.WithContext(ctx)
@@ -289,7 +291,7 @@ func (b *tikvSender) splitWorker(ctx context.Context,
 			// hence the checksum would fail.
 			done := b.registerTableIsRestoring(result.TablesToSend)
 			pool.ApplyOnErrorGroup(eg, func() error {
-				err := SplitRanges(ectx, b.client, result.Ranges, result.RewriteRules, b.updateCh)
+				err := SplitRanges(ectx, b.client, result.Ranges, result.RewriteRules, b.updateCh, isRawKv)
 				if err != nil {
 					log.Error("failed on split range", rtree.ZapRanges(result.Ranges), zap.Error(err))
 					return err
