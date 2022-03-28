@@ -16,11 +16,11 @@
 
 set -eu
 
-export PD_PEER_ADDR="127.0.0.1:44380"
-export PD_ADDR="127.0.0.1:44379"
+export PD_PEER_ADDR="127.0.0.1:2380"
+export PD_ADDR="127.0.0.1:2379"
 # actual tikv_addr are TIKV_ADDR${i}
-export TIKV_ADDR="127.0.0.1:4416"
-export TIKV_STATUS_ADDR="127.0.0.1:4418"
+export TIKV_ADDR="127.0.0.1:2016"
+export TIKV_STATUS_ADDR="127.0.0.1:2018"
 export TIKV_COUNT=3
 export TIKV_PIDS="${TEST_DIR:?}/tikv_pids.txt"
 
@@ -43,7 +43,7 @@ stop_services() {
         stop $svc &
     done
     sleep 2 # give some time for the OS to reap all processes
-    lsof -n -P -i :44379 -i :40161 -i :40162 -i :40163 -i :40181 -i :40182 -i :40183 || true
+    lsof -n -P -i :2379 -i :20161 -i :20162 -i :20163 -i :20181 -i :20182 -i :20183 || true
 }
 
 start_services() {
