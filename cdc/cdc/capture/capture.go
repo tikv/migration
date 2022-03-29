@@ -141,44 +141,6 @@ func (c *Capture) reset(ctx context.Context) error {
 		c.TimeAcquirer.Stop()
 	}
 	c.TimeAcquirer = pdtime.NewTimeAcquirer(c.pdClient)
-
-	/*
-		if c.keyspanActorSystem != nil {
-			err := c.keyspanActorSystem.Stop()
-			if err != nil {
-				log.Warn("stop keyspan actor system failed", zap.Error(err))
-			}
-		}
-		if conf.Debug.EnableKeySpanActor {
-			c.keyspanActorSystem = system.NewSystem()
-			err = c.keyspanActorSystem.Start(ctx)
-			if err != nil {
-				return errors.Annotate(
-					cerror.WrapError(cerror.ErrNewCaptureFailed, err),
-					"create keyspan actor system")
-			}
-		}
-	*/
-	/*
-		if conf.Debug.EnableDBSorter {
-			if c.sorterSystem != nil {
-				err := c.sorterSystem.Stop()
-				if err != nil {
-					log.Warn("stop sorter system failed", zap.Error(err))
-				}
-			}
-			// Sorter dir has been set and checked when server starts.
-			// See https://github.com/tikv/migration/cdc/blob/9dad09/cdc/server.go#L275
-			sortDir := config.GetGlobalServerConfig().Sorter.SortDir
-			c.sorterSystem = ssystem.NewSystem(sortDir, conf.Debug.DB)
-			err = c.sorterSystem.Start(ctx)
-			if err != nil {
-				return errors.Annotate(
-					cerror.WrapError(cerror.ErrNewCaptureFailed, err),
-					"create sorter system")
-			}
-		}
-	*/
 	if c.grpcPool != nil {
 		c.grpcPool.Close()
 	}
@@ -539,15 +501,6 @@ func (c *Capture) AsyncClose() {
 		c.regionCache.Close()
 		c.regionCache = nil
 	}
-	/*
-		if c.keyspanActorSystem != nil {
-			err := c.keyspanActorSystem.Stop()
-			if err != nil {
-				log.Warn("stop keyspan actor system failed", zap.Error(err))
-			}
-			c.keyspanActorSystem = nil
-		}
-	*/
 	if c.enableNewScheduler {
 		c.grpcService.Reset(nil)
 

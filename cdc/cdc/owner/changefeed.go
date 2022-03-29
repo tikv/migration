@@ -181,20 +181,6 @@ func (c *changefeed) tick(ctx cdcContext.Context, state *orchestrator.Changefeed
 	default:
 	}
 
-	/*
-		c.sink.emitCheckpointTs(ctx, checkpointTs)
-		barrierTs, err := c.handleBarrier(ctx)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		if barrierTs < checkpointTs {
-			// This condition implies that the DDL resolved-ts has not yet reached checkpointTs,
-			// which implies that it would be premature to schedule tables or to update status.
-			// So we return here.
-			return nil
-		}
-	*/
-
 	newCheckpointTs, newResolvedTs, err := c.scheduler.Tick(ctx, c.state, captures)
 	if err != nil {
 		return errors.Trace(err)
@@ -204,14 +190,6 @@ func (c *changefeed) tick(ctx cdcContext.Context, state *orchestrator.Changefeed
 	if newCheckpointTs != schedulerv2.CheckpointCannotProceed {
 		pdTime, _ := ctx.GlobalVars().TimeAcquirer.CurrentTimeFromCached()
 		currentTs := oracle.GetPhysical(pdTime)
-		/*
-			if newResolvedTs > barrierTs {
-				newResolvedTs = barrierTs
-			}
-			if newCheckpointTs > barrierTs {
-				newCheckpointTs = barrierTs
-			}
-		*/
 		c.updateStatus(currentTs, newCheckpointTs, newResolvedTs)
 	}
 	return nil

@@ -32,7 +32,7 @@ PACKAGE_LIST := go list ./... | grep -vE 'vendor|proto|cdc\/tests|integration|te
 PACKAGES := $$($(PACKAGE_LIST))
 FILES := $$(find . -name '*.go' -type f | grep -vE 'vendor|kv_gen|proto|pb\.go|pb\.gw\.go')
 TEST_FILES := $$(find . -name '*_test.go' -type f | grep -vE 'vendor|kv_gen|integration|testing_utils')
-FAILPOINT_DIR := $$(for p in $(PACKAGES); do echo $${p\#"github.com/tikv/migration/cdc/"}|grep -v "github.com/pingcap/migration/cdc/"; done)
+FAILPOINT_DIR := $$(for p in $(PACKAGES); do echo $${p\#"github.com/tikv/migration/cdc/"}|grep -v "github.com/tikv/migration/cdc/"; done)
 FAILPOINT := tools/bin/failpoint-ctl
 
 FAILPOINT_ENABLE  := $$(echo $(FAILPOINT_DIR) | xargs $(FAILPOINT) enable >/dev/null)
