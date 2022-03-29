@@ -5,16 +5,12 @@ package glue
 import (
 	"context"
 
-	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/parser/model"
 	pd "github.com/tikv/pd/client"
 )
 
 // Glue is an abstraction of TiDB function calls used in BR.
 type Glue interface {
-	GetDomain(store kv.Storage) (*domain.Domain, error)
-	CreateSession(store kv.Storage) (Session, error)
 	Open(path string, option pd.SecurityOption) (kv.Storage, error)
 
 	// OwnsStorage returns whether the storage returned by Open() is owned
@@ -32,10 +28,6 @@ type Glue interface {
 
 // Session is an abstraction of the session.Session interface.
 type Session interface {
-	Execute(ctx context.Context, sql string) error
-	ExecuteInternal(ctx context.Context, sql string, args ...interface{}) error
-	CreateDatabase(ctx context.Context, schema *model.DBInfo) error
-	CreateTable(ctx context.Context, dbName model.CIStr, table *model.TableInfo) error
 	Close()
 }
 

@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -19,10 +18,8 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/statistics/handle"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/tikv/client-go/v2/oracle"
@@ -55,19 +52,8 @@ type Client struct {
 	tlsConf       *tls.Config
 	keepaliveConf keepalive.ClientParameters
 
-	databases  map[string]*utils.Database
-	ddlJobs    []*model.Job
 	backupMeta *backuppb.BackupMeta
-	// TODO Remove this field or replace it with a []*DB,
-	// since https://github.com/pingcap/br/pull/377 needs more DBs to speed up DDL execution.
-	// And for now, we must inject a pool of DBs to `Client.GoCreateTables`, otherwise there would be a race condition.
-	// This is dirty: why we need DBs from different sources?
-	// By replace it with a []*DB, we can remove the dirty parameter of `Client.GoCreateTable`,
-	// along with them in some private functions.
-	// Before you do it, you can firstly read discussions at
-	// https://github.com/pingcap/br/pull/377#discussion_r446594501,
-	// this probably isn't as easy as it seems like (however, not hard, too :D)
-	db              *DB
+
 	rateLimit       uint64
 	isOnline        bool
 	hasSpeedLimited bool
@@ -79,12 +65,6 @@ type Client struct {
 	backend            *backuppb.StorageBackend
 	switchModeInterval time.Duration
 	switchCh           chan struct{}
-
-	// statHandler and dom are used for analyze table after restore.
-	// it will backup stats with #dump.DumpStatsToJSON
-	// and restore stats with #dump.LoadStatsFromJSON
-	statsHandler *handle.Handle
-	dom          *domain.Domain
 }
 
 // NewRestoreClient returns a new RestoreClient.
@@ -95,30 +75,12 @@ func NewRestoreClient(
 	tlsConf *tls.Config,
 	keepaliveConf keepalive.ClientParameters,
 ) (*Client, error) {
-	db, err := NewDB(g, store)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	dom, err := g.GetDomain(store)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	var statsHandle *handle.Handle
-	// tikv.Glue will return nil, tidb.Glue will return available domain
-	if dom != nil {
-		statsHandle = dom.StatsHandle()
-	}
-
 	return &Client{
 		pdClient:      pdClient,
 		toolClient:    NewSplitClient(pdClient, tlsConf),
-		db:            db,
 		tlsConf:       tlsConf,
 		keepaliveConf: keepaliveConf,
 		switchCh:      make(chan struct{}),
-		dom:           dom,
-		statsHandler:  statsHandle,
 	}, nil
 }
 
@@ -159,10 +121,6 @@ func (rc *Client) SetSwitchModeInterval(interval time.Duration) {
 
 // Close a client.
 func (rc *Client) Close() {
-	// rc.db can be nil in raw kv mode.
-	if rc.db != nil {
-		rc.db.Close()
-	}
 	log.Info("Restore client closed")
 }
 
@@ -174,28 +132,9 @@ func (rc *Client) InitBackupMeta(
 	externalStorage storage.ExternalStorage,
 	reader *metautil.MetaReader) error {
 	if !backupMeta.IsRawKv {
-		databases, err := utils.LoadBackupTables(c, reader)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		rc.databases = databases
-
-		var ddlJobs []*model.Job
-		// ddls is the bytes of json.Marshal
-		ddls, err := reader.ReadDDLs(c)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		if len(ddls) != 0 {
-			err = json.Unmarshal(ddls, &ddlJobs)
-			if err != nil {
-				return errors.Trace(err)
-			}
-		}
-		rc.ddlJobs = ddlJobs
+		return errors.Errorf("backup meta for non-rawkv is unsupported")
 	}
 	rc.backupMeta = backupMeta
-	log.Info("load backupmeta", zap.Int("databases", len(rc.databases)), zap.Int("jobs", len(rc.ddlJobs)))
 
 	metaClient := NewSplitClient(rc.pdClient, rc.tlsConf)
 	importCli := NewImportClient(metaClient, rc.tlsConf, rc.keepaliveConf)

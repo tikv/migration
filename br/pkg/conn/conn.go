@@ -16,7 +16,6 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
@@ -104,7 +103,6 @@ func NewConnPool(cap int, newConn func(ctx context.Context) (*grpc.ClientConn, e
 type Mgr struct {
 	*pdutil.PdController
 	tlsConf   *tls.Config
-	dom       *domain.Domain
 	storage   kv.Storage   // Used to access SQL related interfaces.
 	tikvStore tikv.Storage // Used to access TiKV specific interfaces.
 	grpcClis  struct {
@@ -222,7 +220,6 @@ func checkStoresAlive(ctx context.Context,
 
 // NewMgr creates a new Mgr.
 //
-// Domain is optional for Backup, set `needDomain` to false to disable
 // initializing Domain.
 func NewMgr(
 	ctx context.Context,
@@ -233,7 +230,6 @@ func NewMgr(
 	keepalive keepalive.ClientParameters,
 	storeBehavior StoreBehavior,
 	checkRequirements bool,
-	needDomain bool,
 ) (*Mgr, error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
 		span1 := span.Tracer().StartSpan("conn.NewMgr", opentracing.ChildOf(span.Context()))
@@ -272,19 +268,10 @@ func NewMgr(
 		return nil, berrors.ErrKVNotTiKV
 	}
 
-	var dom *domain.Domain
-	if needDomain {
-		dom, err = g.GetDomain(storage)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-	}
-
 	mgr := &Mgr{
 		PdController: controller,
 		storage:      storage,
 		tikvStore:    tikvStorage,
-		dom:          dom,
 		tlsConf:      tlsConf,
 		ownsStorage:  g.OwnsStorage(),
 		grpcClis: struct {
@@ -418,11 +405,6 @@ func (mgr *Mgr) GetLockResolver() *txnlock.LockResolver {
 	return mgr.tikvStore.GetLockResolver()
 }
 
-// GetDomain returns a tikv storage.
-func (mgr *Mgr) GetDomain() *domain.Domain {
-	return mgr.dom
-}
-
 // Close closes all client in Mgr.
 func (mgr *Mgr) Close() {
 	mgr.grpcClis.mu.Lock()
@@ -437,9 +419,6 @@ func (mgr *Mgr) Close() {
 	// Gracefully shutdown domain so it does not affect other TiDB DDL.
 	// Must close domain before closing storage, otherwise it gets stuck forever.
 	if mgr.ownsStorage {
-		if mgr.dom != nil {
-			mgr.dom.Close()
-		}
 		tikv.StoreShuttingDown(1)
 		mgr.storage.Close()
 	}
