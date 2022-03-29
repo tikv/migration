@@ -53,43 +53,6 @@ func TestGetSSTMetaFromFile(t *testing.T) {
 	require.Equal(t, "t2\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff", string(sstMeta.GetRange().GetEnd()))
 }
 
-func TestMapTableToFiles(t *testing.T) {
-	filesOfTable1 := []*backuppb.File{
-		{
-			Name:     "table1-1.sst",
-			StartKey: tablecodec.EncodeTablePrefix(1),
-			EndKey:   tablecodec.EncodeTablePrefix(1),
-		},
-		{
-			Name:     "table1-2.sst",
-			StartKey: tablecodec.EncodeTablePrefix(1),
-			EndKey:   tablecodec.EncodeTablePrefix(1),
-		},
-		{
-			Name:     "table1-3.sst",
-			StartKey: tablecodec.EncodeTablePrefix(1),
-			EndKey:   tablecodec.EncodeTablePrefix(1),
-		},
-	}
-	filesOfTable2 := []*backuppb.File{
-		{
-			Name:     "table2-1.sst",
-			StartKey: tablecodec.EncodeTablePrefix(2),
-			EndKey:   tablecodec.EncodeTablePrefix(2),
-		},
-		{
-			Name:     "table2-2.sst",
-			StartKey: tablecodec.EncodeTablePrefix(2),
-			EndKey:   tablecodec.EncodeTablePrefix(2),
-		},
-	}
-
-	result := restore.MapTableToFiles(append(filesOfTable2, filesOfTable1...))
-
-	require.Equal(t, filesOfTable1, result[1])
-	require.Equal(t, filesOfTable2, result[2])
-}
-
 func TestValidateFileRewriteRule(t *testing.T) {
 	rules := &restore.RewriteRules{
 		Data: []*import_sstpb.RewriteRule{{
