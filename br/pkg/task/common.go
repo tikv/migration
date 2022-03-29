@@ -29,7 +29,6 @@ import (
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/storage"
-	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"go.etcd.io/etcd/pkg/transport"
 	"go.uber.org/zap"
@@ -52,16 +51,11 @@ const (
 	// flagKey is the name of TLS key flag.
 	flagKey = "key"
 
-	flagDatabase = "db"
-	flagTable    = "table"
-
 	flagChecksumConcurrency = "checksum-concurrency"
 	flagRateLimit           = "ratelimit"
 	flagRateLimitUnit       = "ratelimit-unit"
 	flagConcurrency         = "concurrency"
 	flagChecksum            = "checksum"
-	flagFilter              = "filter"
-	flagCaseSensitive       = "case-sensitive"
 	flagRemoveTiFlash       = "remove-tiflash"
 	flagCheckRequirement    = "check-requirements"
 	flagSwitchModeInterval  = "switch-mode-interval"
@@ -155,12 +149,7 @@ type Config struct {
 	// should be removed after TiDB upgrades the BR dependency.
 	Filter filter.MySQLReplicationRules
 
-	TableFilter        filter.Filter `json:"-" toml:"-"`
 	SwitchModeInterval time.Duration `json:"switch-mode-interval" toml:"switch-mode-interval"`
-	// Schemas is a database name set, to check whether the restore database has been backup
-	Schemas map[string]struct{}
-	// Tables is a table name set, to check whether the restore table has been backup
-	Tables map[string]struct{}
 
 	// GrpcKeepaliveTime is the interval of pinging the server.
 	GRPCKeepaliveTime time.Duration `json:"grpc-keepalive-time" toml:"grpc-keepalive-time"`
@@ -224,26 +213,6 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 	flags.String(flagCipherKeyFile, "", "FilePath, its content is used as the cipher-key")
 
 	storage.DefineFlags(flags)
-}
-
-// DefineDatabaseFlags defines the required --db flag for `db` subcommand.
-func DefineDatabaseFlags(command *cobra.Command) {
-	command.Flags().String(flagDatabase, "", "database name")
-	_ = command.MarkFlagRequired(flagDatabase)
-}
-
-// DefineTableFlags defines the required --db and --table flags for `table` subcommand.
-func DefineTableFlags(command *cobra.Command) {
-	DefineDatabaseFlags(command)
-	command.Flags().StringP(flagTable, "t", "", "table name")
-	_ = command.MarkFlagRequired(flagTable)
-}
-
-// DefineFilterFlags defines the --filter and --case-sensitive flags for `full` subcommand.
-func DefineFilterFlags(command *cobra.Command, defaultFilter []string) {
-	flags := command.Flags()
-	flags.StringArrayP(flagFilter, "f", defaultFilter, "select tables to process")
-	flags.Bool(flagCaseSensitive, false, "whether the table names used in --filter should be case-sensitive")
 }
 
 // ParseTLSTripleFromFlags parses the (ca, cert, key) triple from flags.
@@ -403,45 +372,6 @@ func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet) error {
 	}
 	cfg.RateLimit = rateLimit * rateLimitUnit
 
-	cfg.Schemas = make(map[string]struct{})
-	cfg.Tables = make(map[string]struct{})
-	var caseSensitive bool
-	if filterFlag := flags.Lookup(flagFilter); filterFlag != nil {
-		var f filter.Filter
-		f, err = filter.Parse(filterFlag.Value.(pflag.SliceValue).GetSlice())
-		if err != nil {
-			return errors.Trace(err)
-		}
-		cfg.TableFilter = f
-		caseSensitive, err = flags.GetBool(flagCaseSensitive)
-		if err != nil {
-			return errors.Trace(err)
-		}
-	} else if dbFlag := flags.Lookup(flagDatabase); dbFlag != nil {
-		db := dbFlag.Value.String()
-		if len(db) == 0 {
-			return errors.Annotate(berrors.ErrInvalidArgument, "empty database name is not allowed")
-		}
-		cfg.Schemas[utils.EncloseName(db)] = struct{}{}
-		if tblFlag := flags.Lookup(flagTable); tblFlag != nil {
-			tbl := tblFlag.Value.String()
-			if len(tbl) == 0 {
-				return errors.Annotate(berrors.ErrInvalidArgument, "empty table name is not allowed")
-			}
-			cfg.Tables[utils.EncloseDBAndTable(db, tbl)] = struct{}{}
-			cfg.TableFilter = filter.NewTablesFilter(filter.Table{
-				Schema: db,
-				Name:   tbl,
-			})
-		} else {
-			cfg.TableFilter = filter.NewSchemasFilter(db)
-		}
-	} else {
-		cfg.TableFilter, _ = filter.Parse([]string{"*.*"})
-	}
-	if !caseSensitive {
-		cfg.TableFilter = filter.CaseInsensitive(cfg.TableFilter)
-	}
 	checkRequirements, err := flags.GetBool(flagCheckRequirement)
 	if err != nil {
 		return errors.Trace(err)
@@ -502,7 +432,6 @@ func NewMgr(ctx context.Context,
 	tlsConfig TLSConfig,
 	keepalive keepalive.ClientParameters,
 	checkRequirements bool,
-	needDomain bool,
 ) (*conn.Mgr, error) {
 	var (
 		tlsConf *tls.Config
@@ -527,7 +456,7 @@ func NewMgr(ctx context.Context,
 	// Is it necessary to remove `StoreBehavior`?
 	return conn.NewMgr(
 		ctx, g, pdAddress, tlsConf, securityOption, keepalive, conn.SkipTiFlash,
-		checkRequirements, needDomain,
+		checkRequirements,
 	)
 }
 
