@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -19,12 +18,8 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/statistics/handle"
-	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/encrypt"
 	berrors "github.com/tikv/migration/br/pkg/errors"
-	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
 	"go.uber.org/zap"
@@ -129,23 +124,6 @@ func walkLeafMetaFile(
 	return nil
 }
 
-// Table wraps the schema and files of a table.
-type Table struct {
-	DB              *model.DBInfo
-	Info            *model.TableInfo
-	Crc64Xor        uint64
-	TotalKvs        uint64
-	TotalBytes      uint64
-	Files           []*backuppb.File
-	TiFlashReplicas int
-	Stats           *handle.JSONTable
-}
-
-// NoChecksum checks whether the table has a calculated checksum.
-func (tbl *Table) NoChecksum() bool {
-	return tbl.Crc64Xor == 0 && tbl.TotalKvs == 0 && tbl.TotalBytes == 0
-}
-
 // MetaReader wraps a reader to read both old and new version of backupmeta.
 type MetaReader struct {
 	storage    storage.ExternalStorage
@@ -165,50 +143,6 @@ func NewMetaReader(
 	}
 }
 
-func (reader *MetaReader) readDDLs(ctx context.Context, output func([]byte)) error {
-	// Read backupmeta v1 metafiles.
-	// if the backupmeta equals to v1, or doesn't not exists(old version).
-	if reader.backupMeta.Version == MetaV1 {
-		output(reader.backupMeta.Ddls)
-		return nil
-	}
-	// Read backupmeta v2 metafiles.
-	outputFn := func(m *backuppb.MetaFile) {
-		for _, s := range m.Ddls {
-			output(s)
-		}
-	}
-	return walkLeafMetaFile(ctx, reader.storage, reader.backupMeta.DdlIndexes, reader.cipher, outputFn)
-}
-
-func (reader *MetaReader) readSchemas(ctx context.Context, output func(*backuppb.Schema)) error {
-	// Read backupmeta v1 metafiles.
-	for _, s := range reader.backupMeta.Schemas {
-		output(s)
-	}
-	// Read backupmeta v2 metafiles.
-	outputFn := func(m *backuppb.MetaFile) {
-		for _, s := range m.Schemas {
-			output(s)
-		}
-	}
-	return walkLeafMetaFile(ctx, reader.storage, reader.backupMeta.SchemaIndex, reader.cipher, outputFn)
-}
-
-func (reader *MetaReader) readDataFiles(ctx context.Context, output func(*backuppb.File)) error {
-	// Read backupmeta v1 data files.
-	for _, f := range reader.backupMeta.Files {
-		output(f)
-	}
-	// Read backupmeta v2 data files.
-	outputFn := func(m *backuppb.MetaFile) {
-		for _, f := range m.DataFiles {
-			output(f)
-		}
-	}
-	return walkLeafMetaFile(ctx, reader.storage, reader.backupMeta.FileIndex, reader.cipher, outputFn)
-}
-
 // ArchiveSize return the size of Archive data
 func (reader *MetaReader) ArchiveSize(ctx context.Context, files []*backuppb.File) uint64 {
 	total := uint64(0)
@@ -216,157 +150,6 @@ func (reader *MetaReader) ArchiveSize(ctx context.Context, files []*backuppb.Fil
 		total += file.Size_
 	}
 	return total
-}
-
-// ReadDDLs reads the ddls from the backupmeta.
-// This function is compatible with the old backupmeta.
-func (reader *MetaReader) ReadDDLs(ctx context.Context) ([]byte, error) {
-	var err error
-	ch := make(chan interface{}, MaxBatchSize)
-	errCh := make(chan error)
-	go func() {
-		if err = reader.readDDLs(ctx, func(s []byte) { ch <- s }); err != nil {
-			errCh <- errors.Trace(err)
-		}
-		close(ch)
-	}()
-
-	var ddlBytes []byte
-	var ddlBytesArray [][]byte
-	for {
-		itemCount := 0
-		err := receiveBatch(ctx, errCh, ch, MaxBatchSize, func(item interface{}) error {
-			itemCount++
-			if reader.backupMeta.Version == MetaV1 {
-				ddlBytes = item.([]byte)
-			} else {
-				// we collect all ddls from files.
-				ddlBytesArray = append(ddlBytesArray, item.([]byte))
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		// finish read
-		if itemCount == 0 {
-			if len(ddlBytesArray) != 0 {
-				ddlBytes = mergeDDLs(ddlBytesArray)
-			}
-			return ddlBytes, nil
-		}
-	}
-}
-
-// ReadSchemasFiles reads the schema and datafiles from the backupmeta.
-// This function is compatible with the old backupmeta.
-func (reader *MetaReader) ReadSchemasFiles(ctx context.Context, output chan<- *Table) error {
-	ch := make(chan interface{}, MaxBatchSize)
-	errCh := make(chan error, 1)
-	go func() {
-		if err := reader.readSchemas(ctx, func(s *backuppb.Schema) { ch <- s }); err != nil {
-			errCh <- errors.Trace(err)
-		}
-		close(ch)
-	}()
-
-	// It's not easy to balance memory and time costs for current structure.
-	// put all files in memory due to https://github.com/pingcap/br/issues/705
-	fileMap := make(map[int64][]*backuppb.File)
-	outputFn := func(file *backuppb.File) {
-		tableID := tablecodec.DecodeTableID(file.GetStartKey())
-		if tableID == 0 {
-			log.Panic("tableID must not equal to 0", logutil.File(file))
-		}
-		fileMap[tableID] = append(fileMap[tableID], file)
-	}
-	err := reader.readDataFiles(ctx, outputFn)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	for {
-		// table ID -> *Table
-		tableMap := make(map[int64]*Table, MaxBatchSize)
-		err := receiveBatch(ctx, errCh, ch, MaxBatchSize, func(item interface{}) error {
-			s := item.(*backuppb.Schema)
-			tableInfo := &model.TableInfo{}
-			if err := json.Unmarshal(s.Table, tableInfo); err != nil {
-				return errors.Trace(err)
-			}
-			dbInfo := &model.DBInfo{}
-			if err := json.Unmarshal(s.Db, dbInfo); err != nil {
-				return errors.Trace(err)
-			}
-			var stats *handle.JSONTable
-			if s.Stats != nil {
-				stats = &handle.JSONTable{}
-				if err := json.Unmarshal(s.Stats, stats); err != nil {
-					return errors.Trace(err)
-				}
-			}
-			table := &Table{
-				DB:              dbInfo,
-				Info:            tableInfo,
-				Crc64Xor:        s.Crc64Xor,
-				TotalKvs:        s.TotalKvs,
-				TotalBytes:      s.TotalBytes,
-				TiFlashReplicas: int(s.TiflashReplicas),
-				Stats:           stats,
-			}
-			if files, ok := fileMap[tableInfo.ID]; ok {
-				table.Files = append(table.Files, files...)
-			}
-			if tableInfo.Partition != nil {
-				// Partition table can have many table IDs (partition IDs).
-				for _, p := range tableInfo.Partition.Definitions {
-					if files, ok := fileMap[p.ID]; ok {
-						table.Files = append(table.Files, files...)
-					}
-				}
-			}
-			tableMap[tableInfo.ID] = table
-			return nil
-		})
-		if err != nil {
-			return errors.Trace(err)
-		}
-		if len(tableMap) == 0 {
-			// We have read all tables.
-			return nil
-		}
-		for _, table := range tableMap {
-			output <- table
-		}
-	}
-}
-
-func receiveBatch(
-	ctx context.Context, errCh chan error, ch <-chan interface{}, maxBatchSize int,
-	collectItem func(interface{}) error,
-) error {
-	batchSize := 0
-	for {
-		select {
-		case <-ctx.Done():
-			return errors.Trace(ctx.Err())
-		case err := <-errCh:
-			return errors.Trace(err)
-		case s, ok := <-ch:
-			if !ok {
-				return nil
-			}
-			if err := collectItem(s); err != nil {
-				return errors.Trace(err)
-			}
-		}
-		// Return if the batch is large enough.
-		batchSize++
-		if batchSize >= maxBatchSize {
-			return nil
-		}
-	}
 }
 
 // AppendOp represents the operation type of meta.
