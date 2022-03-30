@@ -44,7 +44,7 @@ func TestVerifyUpdateChangefeedConfig(t *testing.T) {
 	require.Nil(t, newInfo)
 
 	// test verify success
-	// changefeedConfig = model.ChangefeedConfig{MounterWorkerNum: 32}
+	changefeedConfig = model.ChangefeedConfig{SinkConfig: &config.SinkConfig{Protocol: "test"}}
 	newInfo, err = verifyUpdateChangefeedConfig(ctx, changefeedConfig, oldInfo)
 	require.Nil(t, err)
 	require.NotNil(t, newInfo)

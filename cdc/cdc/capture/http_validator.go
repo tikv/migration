@@ -155,26 +155,6 @@ func verifyUpdateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 	}
 
 	// verify rules
-	/*
-		if len(changefeedConfig.FilterRules) != 0 {
-			newInfo.Config.Filter.Rules = changefeedConfig.FilterRules
-			_, err = filter.VerifyRules(newInfo.Config)
-			if err != nil {
-				return nil, cerror.ErrChangefeedUpdateRefused.GenWithStackByArgs(err.Error())
-			}
-		}
-
-		if len(changefeedConfig.IgnoreTxnStartTs) != 0 {
-			newInfo.Config.Filter.IgnoreTxnStartTs = changefeedConfig.IgnoreTxnStartTs
-		}
-	*/
-
-	/*
-		if changefeedConfig.MounterWorkerNum != 0 {
-			newInfo.Config.Mounter.WorkerNum = changefeedConfig.MounterWorkerNum
-		}
-	*/
-
 	if changefeedConfig.SinkConfig != nil {
 		newInfo.Config.Sink = changefeedConfig.SinkConfig
 	}
