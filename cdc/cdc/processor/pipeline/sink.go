@@ -124,7 +124,7 @@ func (n *sinkNode) stop(ctx context.Context) (err error) {
 		return
 	}
 	log.Info("sink is closed", zap.Uint64("keyspanID", n.keyspanID))
-	err = cerror.ErrTableProcessorStoppedSafely.GenWithStackByArgs()
+	err = cerror.ErrKeySpanProcessorStoppedSafely.GenWithStackByArgs()
 	return
 }
 
@@ -236,7 +236,7 @@ func (n *sinkNode) Receive(ctx pipeline.NodeContext) error {
 
 func (n *sinkNode) HandleMessage(ctx context.Context, msg pipeline.Message) (bool, error) {
 	if n.status == KeySpanStatusStopped {
-		return false, cerror.ErrTableProcessorStoppedSafely.GenWithStackByArgs()
+		return false, cerror.ErrKeySpanProcessorStoppedSafely.GenWithStackByArgs()
 	}
 	switch msg.Tp {
 	case pipeline.MessageTypePolymorphicEvent:

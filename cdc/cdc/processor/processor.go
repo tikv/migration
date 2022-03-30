@@ -569,7 +569,7 @@ func (p *processor) handleKeySpanOperation(ctx cdcContext.Context) error {
 			case model.OperDispatched:
 				replicaInfo, exist := taskStatus.KeySpans[keyspanID]
 				if !exist {
-					return cerror.ErrProcessorTableNotFound.GenWithStack("replicaInfo of keyspan(%d)", keyspanID)
+					return cerror.ErrProcessorKeySpanNotFound.GenWithStack("replicaInfo of keyspan(%d)", keyspanID)
 				}
 				if replicaInfo.StartTs != opt.BoundaryTs {
 					log.Warn("the startTs and BoundaryTs of add keyspan operation should be always equaled", zap.Any("replicaInfo", replicaInfo))
@@ -792,7 +792,7 @@ func (p *processor) addKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID
 
 func (p *processor) createKeySpanPipelineImpl(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error) {
 	ctx = cdcContext.WithErrorHandler(ctx, func(err error) error {
-		if cerror.ErrTableProcessorStoppedSafely.Equal(err) ||
+		if cerror.ErrKeySpanProcessorStoppedSafely.Equal(err) ||
 			errors.Cause(errors.Cause(err)) == context.Canceled {
 			return nil
 		}

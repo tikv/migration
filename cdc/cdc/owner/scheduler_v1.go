@@ -166,13 +166,13 @@ func (s *oldScheduler) keyspan2CaptureIndex() (map[model.KeySpanID]model.Capture
 	for captureID, taskStatus := range s.state.TaskStatuses {
 		for keyspanID := range taskStatus.KeySpans {
 			if preCaptureID, exist := keyspan2CaptureIndex[keyspanID]; exist && preCaptureID != captureID {
-				return nil, cerror.ErrTableListenReplicated.GenWithStackByArgs(keyspanID, preCaptureID, captureID)
+				return nil, cerror.ErrKeySpanListenReplicated.GenWithStackByArgs(keyspanID, preCaptureID, captureID)
 			}
 			keyspan2CaptureIndex[keyspanID] = captureID
 		}
 		for keyspanID := range taskStatus.Operation {
 			if preCaptureID, exist := keyspan2CaptureIndex[keyspanID]; exist && preCaptureID != captureID {
-				return nil, cerror.ErrTableListenReplicated.GenWithStackByArgs(keyspanID, preCaptureID, captureID)
+				return nil, cerror.ErrKeySpanListenReplicated.GenWithStackByArgs(keyspanID, preCaptureID, captureID)
 			}
 			keyspan2CaptureIndex[keyspanID] = captureID
 		}

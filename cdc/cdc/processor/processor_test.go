@@ -919,7 +919,7 @@ func (s *processorSuite) TestIgnorableError(c *check.C) {
 		{cerror.ErrReactorFinished.GenWithStackByArgs(), true},
 		{cerror.ErrRedoWriterStopped.GenWithStackByArgs(), true},
 		{errors.Trace(context.Canceled), true},
-		{cerror.ErrProcessorTableNotFound.GenWithStackByArgs(), false},
+		{cerror.ErrProcessorKeySpanNotFound.GenWithStackByArgs(), false},
 		{errors.New("test error"), false},
 	}
 	for _, tc := range testCases {

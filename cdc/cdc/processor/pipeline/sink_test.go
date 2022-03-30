@@ -140,7 +140,7 @@ func TestStatus(t *testing.T) {
 
 	err := node.Receive(pipeline.MockNodeContext4Test(ctx,
 		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 15, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil))
-	require.True(t, cerrors.ErrTableProcessorStoppedSafely.Equal(err))
+	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 	require.Equal(t, uint64(10), node.CheckpointTs())
 
@@ -158,12 +158,12 @@ func TestStatus(t *testing.T) {
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
 		pipeline.CommandMessage(&pipeline.Command{Tp: pipeline.CommandTypeStop}), nil))
-	require.True(t, cerrors.ErrTableProcessorStoppedSafely.Equal(err))
+	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
 		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil))
-	require.True(t, cerrors.ErrTableProcessorStoppedSafely.Equal(err))
+	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 	require.Equal(t, uint64(2), node.CheckpointTs())
 
@@ -181,12 +181,12 @@ func TestStatus(t *testing.T) {
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
 		pipeline.CommandMessage(&pipeline.Command{Tp: pipeline.CommandTypeStop}), nil))
-	require.True(t, cerrors.ErrTableProcessorStoppedSafely.Equal(err))
+	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
 		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil))
-	require.True(t, cerrors.ErrTableProcessorStoppedSafely.Equal(err))
+	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 	require.Equal(t, uint64(7), node.CheckpointTs())
 }
@@ -218,7 +218,7 @@ func TestStopStatus(t *testing.T) {
 		// This will block until sink Close returns
 		err := node.Receive(pipeline.MockNodeContext4Test(ctx,
 			pipeline.CommandMessage(&pipeline.Command{Tp: pipeline.CommandTypeStop}), nil))
-		require.True(t, cerrors.ErrTableProcessorStoppedSafely.Equal(err))
+		require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 		require.Equal(t, KeySpanStatusStopped, node.Status())
 	}()
 	// wait to ensure stop message is sent to the sink node
