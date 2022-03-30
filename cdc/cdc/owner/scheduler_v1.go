@@ -442,7 +442,12 @@ func ImpUpdateCurrentKeySpans(ctx cdcContext.Context) ([]model.KeySpanID, map[mo
 
 		keyspan := regionspan.Span{Start: startKey, End: endKey}
 		id := keyspan.ID()
-		if _, ok := currentKeySpans[id]; ok {
+
+		// Avoid hash functions generating the same id.
+		for {
+			if _, ok := currentKeySpans[id]; !ok {
+				break
+			}
 			id += 1
 		}
 		currentKeySpans[id] = keyspan
