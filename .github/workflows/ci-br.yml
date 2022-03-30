@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  br-check/tidy:
+  br-check-tidy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -23,7 +23,7 @@ jobs:
         run: |
           cd br
           make check/tidy
-  br-check/golangci-lint:
+  br-check-golangci-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -35,7 +35,7 @@ jobs:
         run: |
           cd br
           make check/golangci-lint
-  br-check/gosec:
+  br-check-gosec:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
