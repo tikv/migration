@@ -11,6 +11,18 @@ permissions:
   contents: read
 
 jobs:
+  br-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check
+        shell: bash
+        run: |
+          cd br
+          make check
   br-ut:
     runs-on: ubuntu-latest
     steps:
@@ -18,36 +30,8 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.16.1'
-      - name: ut
+      - name: make test
         shell: bash
         run: |
           cd br
-          make unit_test_in_verify_ci
-  br-golangci-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.16.1'
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.42.0
-          working-directory: br
-          args: -v $(go list ./...| grep "github.com\/tikv\/migration\/br" | sed 's|github.com/tikv/migration/br/||') --config ../.golangci.yml --allow-parallel-runners --timeout=10m
-  br-gosec:
-    runs-on: ubuntu-latest
-    env:
-      GO111MODULE: on
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.16.1'
-      - name: gosec
-        shell: bash
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
-          cd br
-          gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
+          make test
