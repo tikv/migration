@@ -11,18 +11,42 @@ permissions:
   contents: read
 
 jobs:
-  br-check:
+  br-check/tidy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
           go-version: '1.16.1'
-      - name: make check
+      - name: make check/tidy
         shell: bash
         run: |
           cd br
-          make check
+          make check/tidy
+  br-check/golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check/golangci-lint
+        shell: bash
+        run: |
+          cd br
+          make check/golangci-lint
+  br-check/gosec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check/gosec
+        shell: bash
+        run: |
+          cd br
+          make check/gosec
   br-test:
     runs-on: ubuntu-latest
     steps:

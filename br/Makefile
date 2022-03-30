@@ -30,14 +30,25 @@ LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell da
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitHash=$(shell git rev-parse HEAD)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell git rev-parse --abbrev-ref HEAD)"
 
-check: build/golangci-lint
+check: 
+	@make check/tidy
+	@make check/golangci-lint
+	@make check/gosec
+
+check/tidy:
+	cp go.sum /tmp/go.sum.origin
 	$(GO) mod tidy
+	diff -q go.sum /tmp/go.sum.origin
+
+check/golangci-lint: 
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.41.1
 	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(DIRECTORIES)) --config ../.golangci.yml --timeout 5m
+
+check/gosec:
 	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
 	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
 test: build/gocov build/gocov-xml
-	$(GO) mod tidy
 	@make failpoint/enable
 	@export TZ='Asia/Shanghai';
 	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" || ( make failpoint/disable && exit 1 )
@@ -51,11 +62,7 @@ failpoint/disable: build/failpoint-ctl
 	find `pwd`/ -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable
 
 build:
-	$(GO) mod tidy
 	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o bin/br cmd/br/*.go
-
-build/golangci-lint:
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.41.1
 
 build/gocov: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov github.com/axw/gocov/gocov
