@@ -27,6 +27,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	RawKvStartKey = byte('r')
+	RawKvEndKey   = byte('s')
+)
+
 // Span represents an arbitrary kv range
 type Span struct {
 	Start []byte

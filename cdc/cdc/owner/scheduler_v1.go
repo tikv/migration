@@ -422,22 +422,22 @@ func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[m
 	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
 
 	regionCache := ctx.GlobalVars().RegionCache
-	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, []byte{'r'}, []byte{'s'}, limit)
+	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, []byte{regionspan.RawKvStartKey}, []byte{regionspan.RawKvEndKey}, limit)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	currentKeySpans := map[model.KeySpanID]regionspan.Span{}
-	currentKeySpansID := []model.KeySpanID{}
+	currentKeySpansID := make([]model.KeySpanID, 0, len(regions))
 	for i, region := range regions {
 		startKey := region.StartKey()
 		endKey := region.EndKey()
 
 		if i == 0 {
-			startKey = []byte{'r'}
+			startKey = []byte{regionspan.RawKvStartKey}
 		}
 		if i == len(regions)-1 {
-			endKey = []byte{'s'}
+			endKey = []byte{regionspan.RawKvEndKey}
 		}
 
 		keyspan := regionspan.Span{Start: startKey, End: endKey}
