@@ -132,12 +132,12 @@ type ChangefeedConfig struct {
 	// timezone used when checking sink uri
 	TimeZone string `json:"timezone" default:"system"`
 	// if true, force to replicate some ineligible keyspans
-	ForceReplicate          bool               `json:"force_replicate" default:"false"`
-	IgnoreIneligibleKeySpan bool               `json:"ignore_ineligible_keyspan" default:"false"`
-	FilterRules             []string           `json:"filter_rules"`
-	IgnoreTxnStartTs        []uint64           `json:"ignore_txn_start_ts"`
-	MounterWorkerNum        int                `json:"mounter_worker_num" default:"16"`
-	SinkConfig              *config.SinkConfig `json:"sink_config"`
+	// ForceReplicate          bool               `json:"force_replicate" default:"false"`
+	// IgnoreIneligibleKeySpan bool               `json:"ignore_ineligible_keyspan" default:"false"`
+	// FilterRules             []string           `json:"filter_rules"`
+	// IgnoreTxnStartTs        []uint64           `json:"ignore_txn_start_ts"`
+	// MounterWorkerNum        int                `json:"mounter_worker_num" default:"16"`
+	SinkConfig *config.SinkConfig `json:"sink_config"`
 }
 
 // ProcessorCommonInfo holds the common info of a processor
