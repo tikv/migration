@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -19,12 +18,8 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/statistics/handle"
-	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/encrypt"
 	berrors "github.com/tikv/migration/br/pkg/errors"
-	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
 	"go.uber.org/zap"
@@ -127,23 +122,6 @@ func walkLeafMetaFile(
 		}
 	}
 	return nil
-}
-
-// Table wraps the schema and files of a table.
-type Table struct {
-	DB              *model.DBInfo
-	Info            *model.TableInfo
-	Crc64Xor        uint64
-	TotalKvs        uint64
-	TotalBytes      uint64
-	Files           []*backuppb.File
-	TiFlashReplicas int
-	Stats           *handle.JSONTable
-}
-
-// NoChecksum checks whether the table has a calculated checksum.
-func (tbl *Table) NoChecksum() bool {
-	return tbl.Crc64Xor == 0 && tbl.TotalKvs == 0 && tbl.TotalBytes == 0
 }
 
 // MetaReader wraps a reader to read both old and new version of backupmeta.
@@ -255,89 +233,6 @@ func (reader *MetaReader) ReadDDLs(ctx context.Context) ([]byte, error) {
 				ddlBytes = mergeDDLs(ddlBytesArray)
 			}
 			return ddlBytes, nil
-		}
-	}
-}
-
-// ReadSchemasFiles reads the schema and datafiles from the backupmeta.
-// This function is compatible with the old backupmeta.
-func (reader *MetaReader) ReadSchemasFiles(ctx context.Context, output chan<- *Table) error {
-	ch := make(chan interface{}, MaxBatchSize)
-	errCh := make(chan error, 1)
-	go func() {
-		if err := reader.readSchemas(ctx, func(s *backuppb.Schema) { ch <- s }); err != nil {
-			errCh <- errors.Trace(err)
-		}
-		close(ch)
-	}()
-
-	// It's not easy to balance memory and time costs for current structure.
-	// put all files in memory due to https://github.com/pingcap/br/issues/705
-	fileMap := make(map[int64][]*backuppb.File)
-	outputFn := func(file *backuppb.File) {
-		tableID := tablecodec.DecodeTableID(file.GetStartKey())
-		if tableID == 0 {
-			log.Panic("tableID must not equal to 0", logutil.File(file))
-		}
-		fileMap[tableID] = append(fileMap[tableID], file)
-	}
-	err := reader.readDataFiles(ctx, outputFn)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	for {
-		// table ID -> *Table
-		tableMap := make(map[int64]*Table, MaxBatchSize)
-		err := receiveBatch(ctx, errCh, ch, MaxBatchSize, func(item interface{}) error {
-			s := item.(*backuppb.Schema)
-			tableInfo := &model.TableInfo{}
-			if err := json.Unmarshal(s.Table, tableInfo); err != nil {
-				return errors.Trace(err)
-			}
-			dbInfo := &model.DBInfo{}
-			if err := json.Unmarshal(s.Db, dbInfo); err != nil {
-				return errors.Trace(err)
-			}
-			var stats *handle.JSONTable
-			if s.Stats != nil {
-				stats = &handle.JSONTable{}
-				if err := json.Unmarshal(s.Stats, stats); err != nil {
-					return errors.Trace(err)
-				}
-			}
-			table := &Table{
-				DB:              dbInfo,
-				Info:            tableInfo,
-				Crc64Xor:        s.Crc64Xor,
-				TotalKvs:        s.TotalKvs,
-				TotalBytes:      s.TotalBytes,
-				TiFlashReplicas: int(s.TiflashReplicas),
-				Stats:           stats,
-			}
-			if files, ok := fileMap[tableInfo.ID]; ok {
-				table.Files = append(table.Files, files...)
-			}
-			if tableInfo.Partition != nil {
-				// Partition table can have many table IDs (partition IDs).
-				for _, p := range tableInfo.Partition.Definitions {
-					if files, ok := fileMap[p.ID]; ok {
-						table.Files = append(table.Files, files...)
-					}
-				}
-			}
-			tableMap[tableInfo.ID] = table
-			return nil
-		})
-		if err != nil {
-			return errors.Trace(err)
-		}
-		if len(tableMap) == 0 {
-			// We have read all tables.
-			return nil
-		}
-		for _, table := range tableMap {
-			output <- table
 		}
 	}
 }

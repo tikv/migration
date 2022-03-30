@@ -5,7 +5,6 @@ package version
 import (
 	"context"
 	"fmt"
-	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -31,17 +30,6 @@ var (
 
 	versionHash = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}")
 )
-
-// NextMajorVersion returns the next major version.
-func NextMajorVersion() semver.Version {
-	nextMajorVersion, err := semver.NewVersion(removeVAndHash(build.ReleaseVersion))
-	if err != nil {
-		// build.ReleaseVersion is unknown, assuming infinitely-new nightly version.
-		return semver.Version{Major: math.MaxInt64, PreRelease: "nightly"}
-	}
-	nextMajorVersion.BumpMajor()
-	return *nextMajorVersion
-}
 
 // removeVAndHash sanitizes a version string.
 func removeVAndHash(v string) string {

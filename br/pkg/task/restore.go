@@ -141,28 +141,6 @@ func (cfg *RestoreConfig) ParseFromFlags(flags *pflag.FlagSet) error {
 	return nil
 }
 
-// adjustRestoreConfig is use for BR(binary) and BR in TiDB.
-// When new config was add and not included in parser.
-// we should set proper value in this function.
-// so that both binary and TiDB will use same default value.
-func (cfg *RestoreConfig) adjustRestoreConfig() {
-	cfg.Config.adjust()
-	cfg.RestoreCommonConfig.adjust()
-
-	if cfg.Config.Concurrency == 0 {
-		cfg.Config.Concurrency = defaultRestoreConcurrency
-	}
-	if cfg.Config.SwitchModeInterval == 0 {
-		cfg.Config.SwitchModeInterval = defaultSwitchInterval
-	}
-	if cfg.PDConcurrency == 0 {
-		cfg.PDConcurrency = defaultPDConcurrency
-	}
-	if cfg.BatchFlushInterval == 0 {
-		cfg.BatchFlushInterval = defaultBatchFlushInterval
-	}
-}
-
 // restorePreWork executes some prepare work before restore.
 // TODO make this function returns a restore post work.
 func restorePreWork(ctx context.Context, client *restore.Client, mgr *conn.Mgr) (pdutil.UndoFunc, error) {
