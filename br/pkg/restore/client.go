@@ -52,8 +52,6 @@ type Client struct {
 	isOnline        bool
 	hasSpeedLimited bool
 
-	restoreStores []uint64
-
 	cipher             *backuppb.CipherInfo
 	storage            storage.ExternalStorage
 	backend            *backuppb.StorageBackend

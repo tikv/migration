@@ -5,7 +5,6 @@ package restore
 import (
 	"bytes"
 	"context"
-	"regexp"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver
@@ -21,11 +20,6 @@ import (
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/rtree"
 	"go.uber.org/zap"
-)
-
-var (
-	recordPrefixSep = []byte("_r")
-	quoteRegexp     = regexp.MustCompile("`(?:[^`]|``)*`")
 )
 
 // GetSSTMetaFromFile compares the keys in file, region and rewrite rules, then returns a sst conn.

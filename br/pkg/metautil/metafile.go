@@ -143,50 +143,6 @@ func NewMetaReader(
 	}
 }
 
-func (reader *MetaReader) readDDLs(ctx context.Context, output func([]byte)) error {
-	// Read backupmeta v1 metafiles.
-	// if the backupmeta equals to v1, or doesn't not exists(old version).
-	if reader.backupMeta.Version == MetaV1 {
-		output(reader.backupMeta.Ddls)
-		return nil
-	}
-	// Read backupmeta v2 metafiles.
-	outputFn := func(m *backuppb.MetaFile) {
-		for _, s := range m.Ddls {
-			output(s)
-		}
-	}
-	return walkLeafMetaFile(ctx, reader.storage, reader.backupMeta.DdlIndexes, reader.cipher, outputFn)
-}
-
-func (reader *MetaReader) readSchemas(ctx context.Context, output func(*backuppb.Schema)) error {
-	// Read backupmeta v1 metafiles.
-	for _, s := range reader.backupMeta.Schemas {
-		output(s)
-	}
-	// Read backupmeta v2 metafiles.
-	outputFn := func(m *backuppb.MetaFile) {
-		for _, s := range m.Schemas {
-			output(s)
-		}
-	}
-	return walkLeafMetaFile(ctx, reader.storage, reader.backupMeta.SchemaIndex, reader.cipher, outputFn)
-}
-
-func (reader *MetaReader) readDataFiles(ctx context.Context, output func(*backuppb.File)) error {
-	// Read backupmeta v1 data files.
-	for _, f := range reader.backupMeta.Files {
-		output(f)
-	}
-	// Read backupmeta v2 data files.
-	outputFn := func(m *backuppb.MetaFile) {
-		for _, f := range m.DataFiles {
-			output(f)
-		}
-	}
-	return walkLeafMetaFile(ctx, reader.storage, reader.backupMeta.FileIndex, reader.cipher, outputFn)
-}
-
 // ArchiveSize return the size of Archive data
 func (reader *MetaReader) ArchiveSize(ctx context.Context, files []*backuppb.File) uint64 {
 	total := uint64(0)
@@ -194,74 +150,6 @@ func (reader *MetaReader) ArchiveSize(ctx context.Context, files []*backuppb.Fil
 		total += file.Size_
 	}
 	return total
-}
-
-// ReadDDLs reads the ddls from the backupmeta.
-// This function is compatible with the old backupmeta.
-func (reader *MetaReader) ReadDDLs(ctx context.Context) ([]byte, error) {
-	var err error
-	ch := make(chan interface{}, MaxBatchSize)
-	errCh := make(chan error)
-	go func() {
-		if err = reader.readDDLs(ctx, func(s []byte) { ch <- s }); err != nil {
-			errCh <- errors.Trace(err)
-		}
-		close(ch)
-	}()
-
-	var ddlBytes []byte
-	var ddlBytesArray [][]byte
-	for {
-		itemCount := 0
-		err := receiveBatch(ctx, errCh, ch, MaxBatchSize, func(item interface{}) error {
-			itemCount++
-			if reader.backupMeta.Version == MetaV1 {
-				ddlBytes = item.([]byte)
-			} else {
-				// we collect all ddls from files.
-				ddlBytesArray = append(ddlBytesArray, item.([]byte))
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		// finish read
-		if itemCount == 0 {
-			if len(ddlBytesArray) != 0 {
-				ddlBytes = mergeDDLs(ddlBytesArray)
-			}
-			return ddlBytes, nil
-		}
-	}
-}
-
-func receiveBatch(
-	ctx context.Context, errCh chan error, ch <-chan interface{}, maxBatchSize int,
-	collectItem func(interface{}) error,
-) error {
-	batchSize := 0
-	for {
-		select {
-		case <-ctx.Done():
-			return errors.Trace(ctx.Err())
-		case err := <-errCh:
-			return errors.Trace(err)
-		case s, ok := <-ch:
-			if !ok {
-				return nil
-			}
-			if err := collectItem(s); err != nil {
-				return errors.Trace(err)
-			}
-		}
-		// Return if the batch is large enough.
-		batchSize++
-		if batchSize >= maxBatchSize {
-			return nil
-		}
-	}
 }
 
 // AppendOp represents the operation type of meta.
