@@ -26,11 +26,6 @@ type Glue interface {
 	GetVersion() string
 }
 
-// Session is an abstraction of the session.Session interface.
-type Session interface {
-	Close()
-}
-
 // Progress is an interface recording the current execution progress.
 type Progress interface {
 	// Inc increases the progress. This method must be goroutine-safe, and can

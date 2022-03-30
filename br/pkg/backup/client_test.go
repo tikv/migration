@@ -17,7 +17,6 @@ import (
 	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/conn"
 	"github.com/tikv/migration/br/pkg/metautil"
-	"github.com/tikv/migration/br/pkg/mock"
 	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/storage"
 	pd "github.com/tikv/pd/client"
@@ -30,7 +29,6 @@ type testBackup struct {
 	mockPDClient pd.Client
 	backupClient *backup.Client
 
-	cluster *mock.Cluster
 	storage storage.ExternalStorage
 }
 
@@ -51,13 +49,9 @@ func (r *testBackup) SetUpSuite(c *C) {
 	r.backupClient, err = backup.NewBackupClient(r.ctx, mockMgr)
 	c.Assert(err, IsNil)
 
-	r.cluster, err = mock.NewCluster()
-	c.Assert(err, IsNil)
 	base := c.MkDir()
 	r.storage, err = storage.NewLocalStorage(base)
 	c.Assert(err, IsNil)
-	//c.Assert(r.cluster.Start(), IsNil)
-
 }
 
 func (r *testBackup) resetStorage(c *C) {
