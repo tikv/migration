@@ -85,7 +85,7 @@ func NewSchedulerV2(
 		messageServer:         messageServer,
 		messageRouter:         messageRouter,
 		stats:                 &schedulerStats{},
-		updateCurrentKeySpans: ImpUpdateCurrentKeySpans,
+		updateCurrentKeySpans: updateCurrentKeySpansImpl,
 	}
 	ret.BaseScheduleDispatcher = pscheduler.NewBaseScheduleDispatcher(changeFeedID, ret, checkpointTs)
 	if err := ret.registerPeerMessageHandlers(ctx); err != nil {

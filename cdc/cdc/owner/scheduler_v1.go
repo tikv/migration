@@ -69,7 +69,7 @@ type oldScheduler struct {
 func newSchedulerV1() scheduler {
 	return &schedulerV1CompatWrapper{&oldScheduler{
 		moveKeySpanTargets:    make(map[model.KeySpanID]model.CaptureID),
-		updateCurrentKeySpans: ImpUpdateCurrentKeySpans,
+		updateCurrentKeySpans: updateCurrentKeySpansImpl,
 	}}
 }
 
@@ -416,7 +416,7 @@ func (s *oldScheduler) rebalanceByKeySpanNum() (shouldUpdateState bool) {
 	return
 }
 
-func ImpUpdateCurrentKeySpans(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 	limit := -1
 	tikvRequestMaxBackoff := 20000
 	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
