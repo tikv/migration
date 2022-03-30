@@ -23,7 +23,7 @@ jobs:
         run: |
           cd br
           make check
-  br-ut:
+  br-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
