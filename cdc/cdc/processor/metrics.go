@@ -20,49 +20,49 @@ import (
 var (
 	resolvedTsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "resolved_ts",
 			Help:      "local resolved ts of processor",
 		}, []string{"changefeed", "capture"})
 	resolvedTsLagGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "resolved_ts_lag",
 			Help:      "local resolved ts lag of processor",
 		}, []string{"changefeed", "capture"})
 	checkpointTsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "checkpoint_ts",
 			Help:      "global checkpoint ts of processor",
 		}, []string{"changefeed", "capture"})
 	checkpointTsLagGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "checkpoint_ts_lag",
 			Help:      "global checkpoint ts lag of processor",
 		}, []string{"changefeed", "capture"})
 	syncKeySpanNumGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "num_of_keyspans",
 			Help:      "number of synchronized keyspan of processor",
 		}, []string{"changefeed", "capture"})
 	processorErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "exit_with_error_count",
 			Help:      "counter for processor exits with error",
 		}, []string{"changefeed", "capture"})
 	processorSchemaStorageGcTsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "schema_storage_gc_ts",
 			Help:      "the TS of the currently maintained oldest snapshot in SchemaStorage",

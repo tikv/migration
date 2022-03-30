@@ -17,7 +17,7 @@ import "github.com/prometheus/client_golang/prometheus"
 
 var etcdRequestCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "etcd",
 		Name:      "request_count",
 		Help:      "request counter of etcd operation",

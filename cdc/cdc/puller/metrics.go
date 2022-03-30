@@ -20,28 +20,28 @@ import (
 var (
 	kvEventCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "puller",
 			Name:      "kv_event_count",
 			Help:      "The number of events received from kv client event channel",
 		}, []string{"capture", "changefeed", "type"})
 	txnCollectCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "puller",
 			Name:      "txn_collect_event_count",
 			Help:      "The number of events received from txn collector",
 		}, []string{"capture", "changefeed", "type"})
 	pullerResolvedTsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "puller",
 			Name:      "resolved_ts",
 			Help:      "puller forward resolved ts",
 		}, []string{"capture", "changefeed"})
 	outputChanSizeHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "puller",
 			Name:      "output_chan_size",
 			Help:      "Puller entry buffer size",
@@ -49,14 +49,14 @@ var (
 		}, []string{"capture", "changefeed"})
 	memBufferSizeGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "puller",
 			Name:      "mem_buffer_size",
 			Help:      "Puller in memory buffer size",
 		}, []string{"capture", "changefeed"})
 	eventChanSizeHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "puller",
 			Name:      "event_chan_size",
 			Help:      "Puller event channel size",

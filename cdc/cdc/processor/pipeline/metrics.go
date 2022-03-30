@@ -20,21 +20,21 @@ import (
 var (
 	keyspanResolvedTsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "keyspan_resolved_ts",
 			Help:      "local resolved ts of processor",
 		}, []string{"changefeed", "capture", "keyspan"})
 	txnCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "txn_count",
 			Help:      "txn count received/executed by this processor",
 		}, []string{"type", "changefeed", "capture"})
 	keyspanMemoryHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "keyspan_memory_consumption",
 			Help:      "estimated memory consumption for a keyspan after the sorter",
