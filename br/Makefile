@@ -30,10 +30,7 @@ LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell da
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitHash=$(shell git rev-parse HEAD)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell git rev-parse --abbrev-ref HEAD)"
 
-check: 
-	make check/tidy
-	make check/golangci-lint
-	make check/gosec
+check: check/tidy check/golangci-lint check/gosec
 
 check/tidy:
 	cp go.sum /tmp/go.sum.origin
