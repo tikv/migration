@@ -22,7 +22,7 @@ PACKAGES    := go list ./...
 DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
 # test 
-TEST_COVERAGE_DIR := .
+COVERAGE_DIR := build
 TEST_PARALLEL = 8
 
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
@@ -31,9 +31,9 @@ LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitHash=$(shell gi
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell git rev-parse --abbrev-ref HEAD)"
 
 check: 
-	@make check/tidy
-	@make check/golangci-lint
-	@make check/gosec
+	make check/tidy
+	make check/golangci-lint
+	make check/gosec
 
 check/tidy:
 	cp go.sum /tmp/go.sum.origin
@@ -49,32 +49,32 @@ check/gosec:
 	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
 test: build/gocov build/gocov-xml
-	@make failpoint/enable
-	@export TZ='Asia/Shanghai';
-	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" || ( make failpoint/disable && exit 1 )
-	tools/bin/gocov convert "$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" | tools/bin/gocov-xml > "$(TEST_COVERAGE_DIR)/br_cov.unit_test.out"
-	@make failpoint/disable
+	make failpoint/enable
+	export TZ='Asia/Shanghai';
+	mkdir -p $(COVERAGE_DIR)
+	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile=$(COVERAGE_DIR)/coverage.raw || ( make failpoint/disable && exit 1 )
+	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
+	make failpoint/disable
 
 failpoint/enable: build/failpoint-ctl
-	find `pwd`/ -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
+	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
 
 failpoint/disable: build/failpoint-ctl
-	find `pwd`/ -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable
+	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable
 
 build:
 	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o bin/br cmd/br/*.go
 
-build/gocov: tools/check/go.mod
+build/gocov: 
 	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov github.com/axw/gocov/gocov
 
-build/gocov-xml: tools/check/go.mod
+build/gocov-xml: 
 	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
 
-build/failpoint-ctl: tools/check/go.mod
+build/failpoint-ctl:
 	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
 
 clean:
 	go clean -i ./...
-	rm -rf *.out
-	rm -rf bin
-	rm -rf tools/bin
+	rm -rf *.out bin tools/bin
+	rm -rf $(COVERAGE_DIR)/coverage.raw $(COVERAGE_DIR)/coverage.xml
