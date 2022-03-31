@@ -161,10 +161,6 @@ const (
 	// AppendDataFile represents the DataFile type.
 	// it records the file meta from tikv.
 	AppendDataFile AppendOp = 1
-	// AppendSchema represents the schema from tidb.
-	AppendSchema AppendOp = 2
-	// AppendDDL represents the ddls before last backup.
-	AppendDDL AppendOp = 3
 )
 
 func (op AppendOp) name() string {
@@ -174,10 +170,6 @@ func (op AppendOp) name() string {
 		name = "metafile"
 	case AppendDataFile:
 		name = "datafile"
-	case AppendSchema:
-		name = "schema"
-	case AppendDDL:
-		name = "ddl"
 	default:
 		log.Panic("unsupport op type", zap.Any("op", op))
 	}
@@ -201,14 +193,6 @@ func (op AppendOp) appendFile(a *backuppb.MetaFile, b interface{}) (int, int) {
 			itemCount++
 			size += int(f.Size_)
 		}
-	case AppendSchema:
-		a.Schemas = append(a.Schemas, b.(*backuppb.Schema))
-		itemCount++
-		size += b.(*backuppb.Schema).Size()
-	case AppendDDL:
-		a.Ddls = append(a.Ddls, b.([]byte))
-		itemCount++
-		size += len(b.([]byte))
 	}
 
 	return size, itemCount
@@ -418,10 +402,6 @@ func (writer *MetaWriter) fillMetasV1(_ context.Context, op AppendOp) {
 	switch op {
 	case AppendDataFile:
 		writer.backupMeta.Files = writer.metafiles.root.DataFiles
-	case AppendSchema:
-		writer.backupMeta.Schemas = writer.metafiles.root.Schemas
-	case AppendDDL:
-		writer.backupMeta.Ddls = mergeDDLs(writer.metafiles.root.Ddls)
 	default:
 		log.Panic("unsupport op type", zap.Any("op", op))
 	}
@@ -431,15 +411,6 @@ func (writer *MetaWriter) fillMetasV1(_ context.Context, op AppendOp) {
 func (writer *MetaWriter) flushMetasV2(ctx context.Context, op AppendOp) error {
 	var index *backuppb.MetaFile
 	switch op {
-	case AppendSchema:
-		if len(writer.metafiles.root.Schemas) == 0 {
-			return nil
-		}
-		// Add the metafile to backupmeta and reset metafiles.
-		if writer.backupMeta.SchemaIndex == nil {
-			writer.backupMeta.SchemaIndex = &backuppb.MetaFile{}
-		}
-		index = writer.backupMeta.SchemaIndex
 	case AppendDataFile:
 		if len(writer.metafiles.root.DataFiles) == 0 {
 			return nil
@@ -449,14 +420,6 @@ func (writer *MetaWriter) flushMetasV2(ctx context.Context, op AppendOp) error {
 			writer.backupMeta.FileIndex = &backuppb.MetaFile{}
 		}
 		index = writer.backupMeta.FileIndex
-	case AppendDDL:
-		if len(writer.metafiles.root.Ddls) == 0 {
-			return nil
-		}
-		if writer.backupMeta.DdlIndexes == nil {
-			writer.backupMeta.DdlIndexes = &backuppb.MetaFile{}
-		}
-		index = writer.backupMeta.DdlIndexes
 	}
 	content, err := writer.metafiles.root.Marshal()
 	if err != nil {
@@ -505,13 +468,4 @@ func (writer *MetaWriter) ArchiveSize() uint64 {
 func (writer *MetaWriter) Backupmeta() *backuppb.BackupMeta {
 	clone := proto.Clone(writer.backupMeta)
 	return clone.(*backuppb.BackupMeta)
-}
-
-func mergeDDLs(ddls [][]byte) []byte {
-	b := bytes.Join(ddls, []byte(`,`))
-	b = append(b, 0)
-	copy(b[1:], b[0:])
-	b[0] = byte('[')
-	b = append(b, ']')
-	return b
 }
