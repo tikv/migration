@@ -40,15 +40,14 @@ check/tidy:
 	$(GO) mod tidy
 	diff -q go.sum /tmp/go.sum.origin
 
-check/golangci-lint: 
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.41.1
+check/golangci-lint: tools/bin/golangci-lint
 	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(DIRECTORIES)) --config ../.golangci.yml --timeout 5m
 
 check/gosec:
 	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
 	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
-test: build/gocov build/gocov-xml
+test: tools/bin/gocov tools/bin/gocov-xml
 	make failpoint/enable
 	export TZ='Asia/Shanghai';
 	mkdir -p $(COVERAGE_DIR)
@@ -56,25 +55,29 @@ test: build/gocov build/gocov-xml
 	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
 	make failpoint/disable
 
-failpoint/enable: build/failpoint-ctl
+failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
 
-failpoint/disable: build/failpoint-ctl
+failpoint/disable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable
+
+tools/bin/golangci-lint:
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.41.1
+
+tools/bin/gocov: tools/check/go.mod
+	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov github.com/axw/gocov/gocov
+
+tools/bin/gocov-xml: tools/check/go.mod
+	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
+
+tools/bin/failpoint-ctl: tools/check/go.mod
+	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
 
 build:
 	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o bin/br cmd/br/*.go
 
-build/gocov: 
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov github.com/axw/gocov/gocov
-
-build/gocov-xml: 
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
-
-build/failpoint-ctl:
-	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
-
 clean:
 	go clean -i ./...
 	rm -rf *.out bin tools/bin
-	rm -rf $(COVERAGE_DIR)/coverage.raw $(COVERAGE_DIR)/coverage.xml
+	rm -rf results.xml 
+	rm -rf br-junit-report.xml $(COVERAGE_DIR)/coverage.raw $(COVERAGE_DIR)/coverage.xml
