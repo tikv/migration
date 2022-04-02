@@ -22,8 +22,9 @@ PACKAGES    := go list ./...
 DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
 # test 
-COVERAGE_DIR := build
-TEST_PARALLEL = 8
+COVERAGE_DIR  ?= build
+TEST_PARALLEL ?= 8
+PD_ADDR       ?= 127.0.0.1:2379
 
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
@@ -46,11 +47,14 @@ check/gosec:
 
 test: tools/bin/gocov tools/bin/gocov-xml
 	make failpoint/enable
-	export TZ='Asia/Shanghai';
+	export TZ='Asia/Shanghai'
 	mkdir -p $(COVERAGE_DIR)
 	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile=$(COVERAGE_DIR)/coverage.raw || ( make failpoint/disable && exit 1 )
 	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
 	make failpoint/disable
+
+test/integration: build build/rawkv-helper
+	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
@@ -72,6 +76,9 @@ tools/bin/failpoint-ctl: tools/check/go.mod
 
 build:
 	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o bin/br cmd/br/*.go
+
+build/rawkv-helper:
+	cd tests/br_rawkv && $(GO) build -mod=mod -o ../../bin/rawkv client.go
 
 clean:
 	go clean -i ./...
