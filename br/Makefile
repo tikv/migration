@@ -22,9 +22,10 @@ PACKAGES    := go list ./...
 DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
 # test 
-COVERAGE_DIR  ?= build
-TEST_PARALLEL ?= 8
-PD_ADDR       ?= 127.0.0.1:2379
+COVERAGE_DIR   ?= build
+TEST_PARALLEL  ?= 8
+PD_ADDR        ?= 127.0.0.1:2379
+BR_LOCAL_STORE ?= /tmp/backup_restore_test
 
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
@@ -54,7 +55,7 @@ test: tools/bin/gocov tools/bin/gocov-xml
 	make failpoint/disable
 
 test/integration: build build/rawkv-helper
-	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br
+	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br --br-storage=local://$(BR_LOCAL_STORE)
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
@@ -85,3 +86,4 @@ clean:
 	rm -rf *.out bin tools/bin
 	rm -rf results.xml 
 	rm -rf br-junit-report.xml $(COVERAGE_DIR)/coverage.raw $(COVERAGE_DIR)/coverage.xml
+	rm -rf $(BR_LOCAL_STORE)

@@ -2,6 +2,7 @@
 #!coding:utf-8
 
 import re
+import sys
 import argparse
 import subprocess
 import traceback
@@ -12,86 +13,59 @@ class rawkvTester:
         self.pd = global_args.pd
         self.br = global_args.br
         self.helper = global_args.helper
-        self.local_backup_dir = "/tmp/backup_restore_test/"
+        self.br_storage = global_args.br_storage
 
 
-    def test_full_rawkv(self):
-        checksum_empty = self._get_checksum("31", "3130303030303030")
+    def test_rawkv(self):
+        outer_start, outer_end = "31", "3130303030303030"
+        inner_start, inner_end = "311111", "311122"
+        cs_outer_empty = self._get_checksum(outer_start, outer_end)
 
-        # prepare data
-        self._run_cmd(self.helper,
-                "-pd", self.pd,
-                "-mode", "rand-gen",
-                "-start-key", "31",
-                "-end-key", "3130303030303030",
-                "-duration", "10")
-        self._run_cmd(self.helper,
-                "-pd", self.pd,
-                "-mode", "put",
+        # prepare and backup data
+        self._randgen(outer_start, outer_end)
+        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "put",
                 "-put-data", "311121:31, 31112100:32, 311122:33, 31112200:34, 3111220000:35, 311123:36")
-        checksum_origin = self._get_checksum("31", "3130303030303030")
-        checksum_partial = self._get_checksum("311111", "311122")
+        self._backup_range(outer_start, outer_end)
+        cs_outer_origin = self._get_checksum(outer_start, outer_end)
+        cs_inner_origin = self._get_checksum(inner_start, inner_end)
 
-        start_key, end_key = "00", "ff"
-        checksum = self._get_checksum(start_key, end_key)
+        # clean and restore outer range
+        self._clean_range(outer_start, outer_end)
+        cs_outer_clean = self._get_checksum(outer_start, outer_end)
+        self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
+        self._restore_range(outer_start, outer_end)
+        cs_outer_restore = self._get_checksum(outer_start, outer_end)
+        self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_restore, cs_outer_origin)
 
-        # backup
-        self._run_cmd(self.br,
-                "--pd", self.pd,
-                "--check-requirements", "false",
-                "backup", "raw",
-                "-s", self.local_backup_dir,
-                "--start", "31",
-                "--end", "3130303030303030",
-                "--format", "hex",
-                "--concurrency", "4",
-                "--crypter.method", "aes128-ctr",
-                "--crypter.key", "0123456789abcdef0123456789abcdef")
+        # clean and restore inner range
+        self._clean_range(outer_start, outer_end)
+        cs_outer_clean = self._get_checksum(outer_start, outer_end)
+        self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
+        self._restore_range(inner_start, inner_end)
+        cs_inner_restore = self._get_checksum(inner_start, inner_end)
+        self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
 
-        # clean data
-        self._run_cmd(self.helper,
-                "-pd", self.pd,
-                "-mode", "delete",
-                "-start-key", "31",
-                "-end-key", "3130303030303030")
 
-        checksum_new = self._get_checksum("31", "3130303030303030")
+    def _backup_range(self, start_key, end_key):
+        self._run_cmd(self.br, "--pd", self.pd, "backup", "raw", "-s", self.br_storage,
+                "--start", start_key, "--end", end_key, "--format", "hex", "--check-requirements=false")
 
-        if checksum_new != checksum_empty:
-            self._exit_with_error("failed to delete data in range [{}, {}), checksum mismatch:\n  expected: {}\n  actual: {}".format("31", "3130303030303030", checksum_empty, checksum_new))
 
-        # partial restore
-        self._run_cmd(self.br,
-                "--pd", self.pd,
-                "--check-requirements", "false",
-                "restore", "raw",
-                "-s", self.local_backup_dir,
-                "--start", "31311111",
-                "--end", "311311122",
-                "--format", "hex",
-                "--concurrency", "4",
-                "--crypter.method", "aes128-ctr",
-                "--crypter.key", "0120123456789abcdef0123456789abcdef")
+    def _restore_range(self, start_key, end_key):
+        self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", self.br_storage,
+                "--start", start_key, "--end", end_key, "--format", "hex", "--check-requirements=false")
 
-        # self._run_cmd(self.helper,
-        #         "-pd", self.pd,
-        #         "-mode", "scan",
-        #         "-start-key", "311311121",
-        #         "-end-key", "33",
-        #         )
-        checksum_new = self._get_checksum("31", "3130303030303030")
-        if checksum_new != checksum_partial:
-            self._exit_with_error("checksum failed after restore:\n  expected: {}\n  actual: {}".format(checksum_partial, checksum_new))
 
-        print(checksum)
+    def _randgen(self, start_key, end_key):
+        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "rand-gen", "-start-key", start_key, "-end-key", end_key, "-duration", "10")
+
+
+    def _clean_range(self, start_key, end_key):
+        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "delete", "-start-key", start_key, "-end-key", end_key)
 
 
     def _get_checksum(self, start_key, end_key):
-        output = self._run_cmd(self.helper,
-                "-pd", self.pd,
-                "-mode", "checksum",
-                "-start-key", start_key,
-                "-end-key", end_key)
+        output = self._run_cmd(self.helper, "-pd", self.pd, "-mode", "checksum", "-start-key", start_key, "-end-key", end_key)
         matched = re.search("Checksum result: .*", output)
         if matched:
             return str(matched.group(0))[len("Checksum result: "):]
@@ -105,16 +79,13 @@ class rawkvTester:
         for arg in args:
             cmd_list.append(arg)
 
-        # execute the command, record erorr
-        p = subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        output, error = p.communicate()
+        output = subprocess.check_output(cmd_list, stderr=sys.stderr, universal_newlines=True)
+        return str(output)
 
-        # report error and exit if execute command failed
-        if len(error) > 0:
-            self._exit_with_error("EXECUTE COMMAND FAILED:\n  COMMAND: {}\n  ERROR: {}".format(' '.join(map(str, cmd_list)), error))
 
-        # return output
-        return output
+    def _assert(self, fmt, actual, expect):
+        if actual != expect:
+            self._exit_with_error(fmt.format(actual, expect))
 
 
     def _exit_with_error(self, error):
@@ -122,33 +93,25 @@ class rawkvTester:
         for line in traceback.format_stack():
             print(line.strip())
 
-        print("\nerror:")
-        print(error)
+        print("\nerror:\n{}".format(error))
         exit(1)
 
 
 def main():
     args = parse_args()
     tester = rawkvTester(args)
-    tester.test_full_rawkv()
+    tester.test_rawkv()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="The backup/restore integration test runner for RawKV")
-    parser.add_argument(
-            "--br",
-            dest = "br",
-            default = "../../bin/br",
-            help = "The br binary to be tested. Default: '../../bin/br'")
-    parser.add_argument(
-            "--pd",
-            dest = "pd",
-            default = "127.0.0.1:2379",
-            help = "The pd address of the TiKV cluster to be tested. Default: '127.0.0.1:2379'")
-    parser.add_argument(
-            "--test-helper",
-            dest = "helper",
-            default = "./rawkv",
+    parser.add_argument("--br", dest = "br", required = True,
+            help = "The br binary to be tested.")
+    parser.add_argument("--pd", dest = "pd", required = True,
+            help = "The pd address of the TiKV cluster to be tested.")
+    parser.add_argument("--br-storage", dest = "br_storage", default = "local:///tmp/backup_restore_test",
+            help = "The url to store SST files of backup/resotre. Default: 'local:///tmp/backup_restore_test'")
+    parser.add_argument("--test-helper", dest = "helper", default = "./rawkv",
             help = "The test helper binary to be used to populate and clean data for the TiKV cluster. Default: './rawkv'")
     args = parser.parse_args()
     return args
