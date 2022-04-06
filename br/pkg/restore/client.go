@@ -6,11 +6,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
@@ -25,7 +22,6 @@ import (
 	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/storage"
-	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"github.com/tikv/pd/server/schedule/placement"
@@ -50,7 +46,7 @@ type Client struct {
 
 	rateLimit       uint64
 	isOnline        bool
-	hasSpeedLimited bool
+	hasSpeedLimited bool // nolint:unused
 
 	cipher             *backuppb.CipherInfo
 	storage            storage.ExternalStorage
@@ -246,6 +242,7 @@ func (rc *Client) GetPlacementRules(ctx context.Context, pdAddrs []string) ([]pl
 	return placementRules, errors.Trace(errRetry)
 }
 
+// nolint:unused
 func (rc *Client) setSpeedLimit(ctx context.Context) error {
 	if !rc.hasSpeedLimited && rc.rateLimit != 0 {
 		stores, err := conn.GetAllTiKVStores(ctx, rc.pdClient, conn.SkipTiFlash)
@@ -259,95 +256,6 @@ func (rc *Client) setSpeedLimit(ctx context.Context) error {
 			}
 		}
 		rc.hasSpeedLimited = true
-	}
-	return nil
-}
-
-// isFilesBelongToSameRange check whether two files are belong to the same range with different cf.
-func isFilesBelongToSameRange(f1, f2 string) bool {
-	// the backup date file pattern is `{store_id}_{region_id}_{epoch_version}_{key}_{ts}_{cf}.sst`
-	// so we need to compare with out the `_{cf}.sst` suffix
-	idx1 := strings.LastIndex(f1, "_")
-	idx2 := strings.LastIndex(f2, "_")
-
-	if idx1 < 0 || idx2 < 0 {
-		panic(fmt.Sprintf("invalid backup data file name: '%s', '%s'", f1, f2))
-	}
-
-	return f1[:idx1] == f2[:idx2]
-}
-
-func drainFilesByRange(files []*backuppb.File, supportMulti bool) ([]*backuppb.File, []*backuppb.File) {
-	if len(files) == 0 {
-		return nil, nil
-	}
-	if !supportMulti {
-		return files[:1], files[1:]
-	}
-	idx := 1
-	for idx < len(files) {
-		if !isFilesBelongToSameRange(files[idx-1].Name, files[idx].Name) {
-			break
-		}
-		idx++
-	}
-
-	return files[:idx], files[idx:]
-}
-
-// RestoreFiles tries to restore the files.
-func (rc *Client) RestoreFiles(
-	ctx context.Context,
-	files []*backuppb.File,
-	rewriteRules *RewriteRules,
-	updateCh glue.Progress,
-) (err error) {
-	start := time.Now()
-	defer func() {
-		elapsed := time.Since(start)
-		if err == nil {
-			log.Info("Restore files", zap.Duration("take", elapsed), logutil.Files(files))
-			summary.CollectSuccessUnit("files", len(files), elapsed)
-		}
-	}()
-
-	log.Debug("start to restore files", zap.Int("files", len(files)))
-
-	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("Client.RestoreFiles", opentracing.ChildOf(span.Context()))
-		defer span1.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span1)
-	}
-
-	eg, ectx := errgroup.WithContext(ctx)
-	err = rc.setSpeedLimit(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	var rangeFiles []*backuppb.File
-	var leftFiles []*backuppb.File
-	for rangeFiles, leftFiles = drainFilesByRange(files, rc.fileImporter.supportMultiIngest); len(rangeFiles) != 0; rangeFiles, leftFiles = drainFilesByRange(leftFiles, rc.fileImporter.supportMultiIngest) {
-		filesReplica := rangeFiles
-		rc.workerPool.ApplyOnErrorGroup(eg,
-			func() error {
-				fileStart := time.Now()
-				defer func() {
-					log.Info("import files done", logutil.Files(filesReplica),
-						zap.Duration("take", time.Since(fileStart)))
-					updateCh.Inc()
-				}()
-				return rc.fileImporter.Import(ectx, filesReplica, rewriteRules, rc.cipher)
-			})
-	}
-
-	if err := eg.Wait(); err != nil {
-		summary.CollectFailureUnit("file", err)
-		log.Error(
-			"restore files failed",
-			zap.Error(err),
-		)
-		return errors.Trace(err)
 	}
 	return nil
 }
