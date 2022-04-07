@@ -6,22 +6,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/hex"
-	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
-	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/tablecodec"
-	"github.com/pingcap/tidb/util/codec"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -31,7 +22,6 @@ import (
 	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/storage"
-	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"github.com/tikv/pd/server/schedule/placement"
@@ -56,9 +46,7 @@ type Client struct {
 
 	rateLimit       uint64
 	isOnline        bool
-	hasSpeedLimited bool
-
-	restoreStores []uint64
+	hasSpeedLimited bool // nolint:unused
 
 	cipher             *backuppb.CipherInfo
 	storage            storage.ExternalStorage
@@ -255,6 +243,7 @@ func (rc *Client) GetPlacementRules(ctx context.Context, pdAddrs []string) ([]pl
 	return placementRules, errors.Trace(errRetry)
 }
 
+// nolint:unused
 func (rc *Client) setSpeedLimit(ctx context.Context) error {
 	if !rc.hasSpeedLimited && rc.rateLimit != 0 {
 		stores, err := conn.GetAllTiKVStores(ctx, rc.pdClient, conn.SkipTiFlash)
@@ -268,95 +257,6 @@ func (rc *Client) setSpeedLimit(ctx context.Context) error {
 			}
 		}
 		rc.hasSpeedLimited = true
-	}
-	return nil
-}
-
-// isFilesBelongToSameRange check whether two files are belong to the same range with different cf.
-func isFilesBelongToSameRange(f1, f2 string) bool {
-	// the backup date file pattern is `{store_id}_{region_id}_{epoch_version}_{key}_{ts}_{cf}.sst`
-	// so we need to compare with out the `_{cf}.sst` suffix
-	idx1 := strings.LastIndex(f1, "_")
-	idx2 := strings.LastIndex(f2, "_")
-
-	if idx1 < 0 || idx2 < 0 {
-		panic(fmt.Sprintf("invalid backup data file name: '%s', '%s'", f1, f2))
-	}
-
-	return f1[:idx1] == f2[:idx2]
-}
-
-func drainFilesByRange(files []*backuppb.File, supportMulti bool) ([]*backuppb.File, []*backuppb.File) {
-	if len(files) == 0 {
-		return nil, nil
-	}
-	if !supportMulti {
-		return files[:1], files[1:]
-	}
-	idx := 1
-	for idx < len(files) {
-		if !isFilesBelongToSameRange(files[idx-1].Name, files[idx].Name) {
-			break
-		}
-		idx++
-	}
-
-	return files[:idx], files[idx:]
-}
-
-// RestoreFiles tries to restore the files.
-func (rc *Client) RestoreFiles(
-	ctx context.Context,
-	files []*backuppb.File,
-	rewriteRules *RewriteRules,
-	updateCh glue.Progress,
-) (err error) {
-	start := time.Now()
-	defer func() {
-		elapsed := time.Since(start)
-		if err == nil {
-			log.Info("Restore files", zap.Duration("take", elapsed), logutil.Files(files))
-			summary.CollectSuccessUnit("files", len(files), elapsed)
-		}
-	}()
-
-	log.Debug("start to restore files", zap.Int("files", len(files)))
-
-	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("Client.RestoreFiles", opentracing.ChildOf(span.Context()))
-		defer span1.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span1)
-	}
-
-	eg, ectx := errgroup.WithContext(ctx)
-	err = rc.setSpeedLimit(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	var rangeFiles []*backuppb.File
-	var leftFiles []*backuppb.File
-	for rangeFiles, leftFiles = drainFilesByRange(files, rc.fileImporter.supportMultiIngest); len(rangeFiles) != 0; rangeFiles, leftFiles = drainFilesByRange(leftFiles, rc.fileImporter.supportMultiIngest) {
-		filesReplica := rangeFiles
-		rc.workerPool.ApplyOnErrorGroup(eg,
-			func() error {
-				fileStart := time.Now()
-				defer func() {
-					log.Info("import files done", logutil.Files(filesReplica),
-						zap.Duration("take", time.Since(fileStart)))
-					updateCh.Inc()
-				}()
-				return rc.fileImporter.Import(ectx, filesReplica, rewriteRules, rc.cipher)
-			})
-	}
-
-	if err := eg.Wait(); err != nil {
-		summary.CollectFailureUnit("file", err)
-		log.Error(
-			"restore files failed",
-			zap.Error(err),
-		)
-		return errors.Trace(err)
 	}
 	return nil
 }
@@ -487,162 +387,4 @@ func (rc *Client) switchTiKVMode(ctx context.Context, mode import_sstpb.SwitchMo
 		}
 	}
 	return nil
-}
-
-const (
-	restoreLabelKey   = "exclusive"
-	restoreLabelValue = "restore"
-)
-
-// LoadRestoreStores loads the stores used to restore data.
-func (rc *Client) LoadRestoreStores(ctx context.Context) error {
-	if !rc.isOnline {
-		return nil
-	}
-	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
-		span1 := span.Tracer().StartSpan("Client.LoadRestoreStores", opentracing.ChildOf(span.Context()))
-		defer span1.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span1)
-	}
-
-	stores, err := rc.pdClient.GetAllStores(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	for _, s := range stores {
-		if s.GetState() != metapb.StoreState_Up {
-			continue
-		}
-		for _, l := range s.GetLabels() {
-			if l.GetKey() == restoreLabelKey && l.GetValue() == restoreLabelValue {
-				rc.restoreStores = append(rc.restoreStores, s.GetId())
-				break
-			}
-		}
-	}
-	log.Info("load restore stores", zap.Uint64s("store-ids", rc.restoreStores))
-	return nil
-}
-
-// ResetRestoreLabels removes the exclusive labels of the restore stores.
-func (rc *Client) ResetRestoreLabels(ctx context.Context) error {
-	if !rc.isOnline {
-		return nil
-	}
-	log.Info("start reseting store labels")
-	return rc.toolClient.SetStoresLabel(ctx, rc.restoreStores, restoreLabelKey, "")
-}
-
-// SetupPlacementRules sets rules for the tables' regions.
-func (rc *Client) SetupPlacementRules(ctx context.Context, tables []*model.TableInfo) error {
-	if !rc.isOnline || len(rc.restoreStores) == 0 {
-		return nil
-	}
-	log.Info("start setting placement rules")
-	rule, err := rc.toolClient.GetPlacementRule(ctx, "pd", "default")
-	if err != nil {
-		return errors.Trace(err)
-	}
-	rule.Index = 100
-	rule.Override = true
-	rule.LabelConstraints = append(rule.LabelConstraints, placement.LabelConstraint{
-		Key:    restoreLabelKey,
-		Op:     "in",
-		Values: []string{restoreLabelValue},
-	})
-	for _, t := range tables {
-		rule.ID = rc.getRuleID(t.ID)
-		rule.StartKeyHex = hex.EncodeToString(codec.EncodeBytes([]byte{}, tablecodec.EncodeTablePrefix(t.ID)))
-		rule.EndKeyHex = hex.EncodeToString(codec.EncodeBytes([]byte{}, tablecodec.EncodeTablePrefix(t.ID+1)))
-		err = rc.toolClient.SetPlacementRule(ctx, rule)
-		if err != nil {
-			return errors.Trace(err)
-		}
-	}
-	log.Info("finish setting placement rules")
-	return nil
-}
-
-// WaitPlacementSchedule waits PD to move tables to restore stores.
-func (rc *Client) WaitPlacementSchedule(ctx context.Context, tables []*model.TableInfo) error {
-	if !rc.isOnline || len(rc.restoreStores) == 0 {
-		return nil
-	}
-	log.Info("start waiting placement schedule")
-	ticker := time.NewTicker(time.Second * 10)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			ok, progress, err := rc.checkRegions(ctx, tables)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			if ok {
-				log.Info("finish waiting placement schedule")
-				return nil
-			}
-			log.Info("placement schedule progress: " + progress)
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-}
-
-func (rc *Client) checkRegions(ctx context.Context, tables []*model.TableInfo) (bool, string, error) {
-	for i, t := range tables {
-		start := codec.EncodeBytes([]byte{}, tablecodec.EncodeTablePrefix(t.ID))
-		end := codec.EncodeBytes([]byte{}, tablecodec.EncodeTablePrefix(t.ID+1))
-		ok, regionProgress, err := rc.checkRange(ctx, start, end)
-		if err != nil {
-			return false, "", errors.Trace(err)
-		}
-		if !ok {
-			return false, fmt.Sprintf("table %v/%v, %s", i, len(tables), regionProgress), nil
-		}
-	}
-	return true, "", nil
-}
-
-func (rc *Client) checkRange(ctx context.Context, start, end []byte) (bool, string, error) {
-	regions, err := rc.toolClient.ScanRegions(ctx, start, end, -1)
-	if err != nil {
-		return false, "", errors.Trace(err)
-	}
-	for i, r := range regions {
-	NEXT_PEER:
-		for _, p := range r.Region.GetPeers() {
-			for _, storeID := range rc.restoreStores {
-				if p.GetStoreId() == storeID {
-					continue NEXT_PEER
-				}
-			}
-			return false, fmt.Sprintf("region %v/%v", i, len(regions)), nil
-		}
-	}
-	return true, "", nil
-}
-
-// ResetPlacementRules removes placement rules for tables.
-func (rc *Client) ResetPlacementRules(ctx context.Context, tables []*model.TableInfo) error {
-	if !rc.isOnline || len(rc.restoreStores) == 0 {
-		return nil
-	}
-	log.Info("start reseting placement rules")
-	var failedTables []int64
-	for _, t := range tables {
-		err := rc.toolClient.DeletePlacementRule(ctx, "pd", rc.getRuleID(t.ID))
-		if err != nil {
-			log.Info("failed to delete placement rule for table", zap.Int64("table-id", t.ID))
-			failedTables = append(failedTables, t.ID)
-		}
-	}
-	if len(failedTables) > 0 {
-		return errors.Annotatef(berrors.ErrPDInvalidResponse, "failed to delete placement rules for tables %v", failedTables)
-	}
-	return nil
-}
-
-func (rc *Client) getRuleID(tableID int64) string {
-	return "restore-t" + strconv.FormatInt(tableID, 10)
 }

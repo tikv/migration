@@ -5,8 +5,6 @@ package restore
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"regexp"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver
@@ -15,67 +13,14 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/rtree"
-	"github.com/tikv/migration/br/pkg/utils"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
-
-var (
-	recordPrefixSep = []byte("_r")
-	quoteRegexp     = regexp.MustCompile("`(?:[^`]|``)*`")
-)
-
-// GetRewriteRules returns the rewrite rule of the new table and the old table.
-func GetRewriteRules(
-	newTable, oldTable *model.TableInfo, newTimeStamp uint64,
-) *RewriteRules {
-	tableIDs := make(map[int64]int64)
-	tableIDs[oldTable.ID] = newTable.ID
-	if oldTable.Partition != nil {
-		for _, srcPart := range oldTable.Partition.Definitions {
-			for _, destPart := range newTable.Partition.Definitions {
-				if srcPart.Name == destPart.Name {
-					tableIDs[srcPart.ID] = destPart.ID
-				}
-			}
-		}
-	}
-	indexIDs := make(map[int64]int64)
-	for _, srcIndex := range oldTable.Indices {
-		for _, destIndex := range newTable.Indices {
-			if srcIndex.Name == destIndex.Name {
-				indexIDs[srcIndex.ID] = destIndex.ID
-			}
-		}
-	}
-
-	dataRules := make([]*import_sstpb.RewriteRule, 0)
-	for oldTableID, newTableID := range tableIDs {
-		dataRules = append(dataRules, &import_sstpb.RewriteRule{
-			OldKeyPrefix: append(tablecodec.EncodeTablePrefix(oldTableID), recordPrefixSep...),
-			NewKeyPrefix: append(tablecodec.EncodeTablePrefix(newTableID), recordPrefixSep...),
-			NewTimestamp: newTimeStamp,
-		})
-		for oldIndexID, newIndexID := range indexIDs {
-			dataRules = append(dataRules, &import_sstpb.RewriteRule{
-				OldKeyPrefix: tablecodec.EncodeTableIndexPrefix(oldTableID, oldIndexID),
-				NewKeyPrefix: tablecodec.EncodeTableIndexPrefix(newTableID, newIndexID),
-				NewTimestamp: newTimeStamp,
-			})
-		}
-	}
-
-	return &RewriteRules{
-		Data: dataRules,
-	}
-}
 
 // GetSSTMetaFromFile compares the keys in file, region and rewrite rules, then returns a sst conn.
 // The range of the returned sst meta is [regionRule.NewKeyPrefix, append(regionRule.NewKeyPrefix, 0xff)].
@@ -137,51 +82,6 @@ func GetSSTMetaFromFile(
 	}
 }
 
-// ValidateFileRewriteRule uses rewrite rules to validate the ranges of a file.
-func ValidateFileRewriteRule(file *backuppb.File, rewriteRules *RewriteRules) error {
-	// Check if the start key has a matched rewrite key
-	_, startRule := rewriteRawKey(file.GetStartKey(), rewriteRules)
-	if rewriteRules != nil && startRule == nil {
-		tableID := tablecodec.DecodeTableID(file.GetStartKey())
-		log.Error(
-			"cannot find rewrite rule for file start key",
-			zap.Int64("tableID", tableID),
-			logutil.File(file),
-		)
-		return errors.Annotate(berrors.ErrRestoreInvalidRewrite, "cannot find rewrite rule")
-	}
-	// Check if the end key has a matched rewrite key
-	_, endRule := rewriteRawKey(file.GetEndKey(), rewriteRules)
-	if rewriteRules != nil && endRule == nil {
-		tableID := tablecodec.DecodeTableID(file.GetEndKey())
-		log.Error(
-			"cannot find rewrite rule for file end key",
-			zap.Int64("tableID", tableID),
-			logutil.File(file),
-		)
-		return errors.Annotate(berrors.ErrRestoreInvalidRewrite, "cannot find rewrite rule")
-	}
-	// the rewrite rule of the start key and the end key should be equaled.
-	// i.e. there should only one rewrite rule for one file, a file should only be imported into one region.
-	if !bytes.Equal(startRule.GetNewKeyPrefix(), endRule.GetNewKeyPrefix()) {
-		startTableID := tablecodec.DecodeTableID(file.GetStartKey())
-		endTableID := tablecodec.DecodeTableID(file.GetEndKey())
-		log.Error(
-			"unexpected rewrite rules",
-			zap.Int64("startTableID", startTableID),
-			zap.Int64("endTableID", endTableID),
-			zap.Stringer("startRule", startRule),
-			zap.Stringer("endRule", endRule),
-			logutil.File(file),
-		)
-		return errors.Annotatef(berrors.ErrRestoreInvalidRewrite,
-			"rewrite rule mismatch, the backup data may be dirty or from incompatible versions of BR, startKey rule: %X => %X, endKey rule: %X => %X",
-			startRule.OldKeyPrefix, startRule.NewKeyPrefix, endRule.OldKeyPrefix, endRule.NewKeyPrefix,
-		)
-	}
-	return nil
-}
-
 // Rewrites a raw key and returns a encoded key.
 func rewriteRawKey(key []byte, rewriteRules *RewriteRules) ([]byte, *import_sstpb.RewriteRule) {
 	if rewriteRules == nil {
@@ -204,13 +104,6 @@ func matchOldPrefix(key []byte, rewriteRules *RewriteRules) *import_sstpb.Rewrit
 	return nil
 }
 
-func truncateTS(key []byte) []byte {
-	if len(key) == 0 {
-		return nil
-	}
-	return key[:len(key)-8]
-}
-
 // SplitRanges splits region by
 // 1. data range after rewrite.
 // 2. rewrite rules.
@@ -229,16 +122,6 @@ func SplitRanges(
 			updateCh.Inc()
 		}
 	})
-}
-
-func findMatchedRewriteRule(file *backuppb.File, rules *RewriteRules) *import_sstpb.RewriteRule {
-	startID := tablecodec.DecodeTableID(file.GetStartKey())
-	endID := tablecodec.DecodeTableID(file.GetEndKey())
-	if startID != endID {
-		return nil
-	}
-	_, rule := rewriteRawKey(file.StartKey, rules)
-	return rule
 }
 
 func rewriteFileKeys(file *backuppb.File, rewriteRules *RewriteRules) (startKey, endKey []byte, err error) {
@@ -268,45 +151,4 @@ func rewriteFileKeys(file *backuppb.File, rewriteRules *RewriteRules) (startKey,
 		err = errors.Annotate(berrors.ErrRestoreInvalidRewrite, "invalid table id")
 	}
 	return
-}
-
-func encodeKeyPrefix(key []byte) []byte {
-	encodedPrefix := make([]byte, 0)
-	ungroupedLen := len(key) % 8
-	encodedPrefix = append(encodedPrefix, codec.EncodeBytes([]byte{}, key[:len(key)-ungroupedLen])...)
-	return append(encodedPrefix[:len(encodedPrefix)-9], key[len(key)-ungroupedLen:]...)
-}
-
-// ZapTables make zap field of table for debuging, including table names.
-func ZapTables(tables []CreatedTable) zapcore.Field {
-	return logutil.AbbreviatedArray("tables", tables, func(input interface{}) []string {
-		tables := input.([]CreatedTable)
-		names := make([]string, 0, len(tables))
-		for _, t := range tables {
-			names = append(names, fmt.Sprintf("%s.%s",
-				utils.EncloseName(t.OldTable.DB.Name.String()),
-				utils.EncloseName(t.OldTable.Info.Name.String())))
-		}
-		return names
-	})
-}
-
-// ParseQuoteName parse the quote `db`.`table` name, and split it.
-func ParseQuoteName(name string) (db, table string) {
-	names := quoteRegexp.FindAllStringSubmatch(name, -1)
-	if len(names) != 2 {
-		log.Panic("failed to parse schema name",
-			zap.String("origin name", name),
-			zap.Any("parsed names", names))
-	}
-	db = names[0][0]
-	table = names[1][0]
-	db = strings.ReplaceAll(unQuoteName(db), "``", "`")
-	table = strings.ReplaceAll(unQuoteName(table), "``", "`")
-	return db, table
-}
-
-func unQuoteName(name string) string {
-	name = strings.TrimPrefix(name, "`")
-	return strings.TrimSuffix(name, "`")
 }

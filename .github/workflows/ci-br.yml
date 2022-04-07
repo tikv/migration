@@ -11,43 +11,78 @@ permissions:
   contents: read
 
 jobs:
-  br-ut:
+  br-check-tidy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
           go-version: '1.16.1'
-      - name: ut
+      - name: make check/tidy
         shell: bash
         run: |
           cd br
-          make unit_test_in_verify_ci
-  br-golangci-lint:
+          make check/tidy
+  br-check-golangci-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
           go-version: '1.16.1'
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.42.0
-          working-directory: br
-          args: -v $(go list ./...| grep "github.com\/tikv\/migration\/br" | sed 's|github.com/tikv/migration/br/||') --config ../.golangci.yml --allow-parallel-runners --timeout=10m
-  br-gosec:
-    runs-on: ubuntu-latest
-    env:
-      GO111MODULE: on
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.16.1'
-      - name: gosec
+      - name: make check/golangci-lint
         shell: bash
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
           cd br
-          gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
+          make check/golangci-lint
+  br-check-gosec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check/gosec
+        shell: bash
+        run: |
+          cd br
+          make check/gosec
+  br-unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make test
+        shell: bash
+        run: |
+          cd br
+          make test
+  br-integration-test:
+    name: br-integration-test-${{ matrix.tikv_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tikv_version: [v5.0.0, v5.1.0, v5.2.0, v5.3.0, v5.4.0, v6.0.0, nightly]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: install tiup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
+      - name: start tikv cluster
+        run: |
+          # start tikv in apiv1ttl
+          /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &
+          # The first run of `tiup` has to download all components so it'll take longer.
+          sleep 1m 30s
+          # Parse PD address from `tiup` output
+          echo "PD_ADDR=$(cat raw.out | grep -oP '(?<=PD client endpoints: \[)[0-9\.:]+(?=\])')" >> $GITHUB_ENV
+          # Log the output
+          echo "$(cat raw.out)" >&2
+      - name: run integration test
+        run: |
+          cd br
+          make test/integration
