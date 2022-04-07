@@ -60,7 +60,7 @@ test: tools/bin/gocov tools/bin/gocov-xml
 
 test/integration: build build/br-test build/rawkv-helper
 	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br \
-		--br-test='bin/br.test -test.coverprofile="cov.br_rawkv.out.log" DEVEL' \
+		--br-test='bin/br.test -test.coverprofile=cov.br_rawkv.out.log DEVEL' \
 		--br-storage=local://$(BR_LOCAL_STORE)
 
 failpoint/enable: tools/bin/failpoint-ctl
