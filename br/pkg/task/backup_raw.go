@@ -3,118 +3,52 @@
 package task
 
 import (
-	"bytes"
 	"context"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/tikv/migration/br/pkg/backup"
-	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
-	"github.com/tikv/migration/br/pkg/utils"
 	"go.uber.org/zap"
 )
 
 const (
-	flagKeyFormat        = "format"
-	flagTiKVColumnFamily = "cf"
-	flagStartKey         = "start"
-	flagEndKey           = "end"
+	flagKeyFormat     = "format"
+	flagStartKey      = "start"
+	flagEndKey        = "end"
+	flagDstAPIVersion = "dst-api-version"
 )
-
-// RawKvConfig is the common config for rawkv backup and restore.
-type RawKvConfig struct {
-	Config
-
-	StartKey []byte `json:"start-key" toml:"start-key"`
-	EndKey   []byte `json:"end-key" toml:"end-key"`
-	CF       string `json:"cf" toml:"cf"`
-	CompressionConfig
-	RemoveSchedulers bool `json:"remove-schedulers" toml:"remove-schedulers"`
-}
 
 // DefineRawBackupFlags defines common flags for the backup command.
 func DefineRawBackupFlags(command *cobra.Command) {
-	command.Flags().StringP(flagKeyFormat, "", "hex", "start/end key format, support raw|escaped|hex")
-	command.Flags().StringP(flagTiKVColumnFamily, "", "default", "backup specify cf, correspond to tikv cf")
-	command.Flags().StringP(flagStartKey, "", "", "backup raw kv start key, key is inclusive")
-	command.Flags().StringP(flagEndKey, "", "", "backup raw kv end key, key is exclusive")
+	command.Flags().StringP(flagStartKey, "", "",
+		"The start key of the backup task, key is inclusive.")
+
+	command.Flags().StringP(flagEndKey, "", "",
+		"The end key of the backup task, key is exclusive.")
+
+	command.Flags().StringP(flagKeyFormat, "", "hex",
+		"The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
+
+	command.Flags().StringP(flagDstAPIVersion, "", "",
+		"The encoding method of backuped SST files for destination TiKV cluster, default to the source TiKV cluster. Available options: \"v1\", \"v1ttl\", \"v2\".")
+
 	command.Flags().String(flagCompressionType, "zstd",
-		"backup sst file compression algorithm, value can be one of 'lz4|zstd|snappy'")
+		"The compression algorithm of the backuped SST files. Available options: \"lz4\", \"zstd\", \"snappy\".")
+
 	command.Flags().Bool(flagRemoveSchedulers, false,
-		"disable the balance, shuffle and region-merge schedulers in PD to speed up backup")
+		"disable the balance, shuffle and region-merge schedulers in PD to speed up backup.")
+
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
-}
-
-// ParseFromFlags parses the raw kv backup&restore common flags from the flag set.
-func (cfg *RawKvConfig) ParseFromFlags(flags *pflag.FlagSet) error {
-	format, err := flags.GetString(flagKeyFormat)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	start, err := flags.GetString(flagStartKey)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.StartKey, err = utils.ParseKey(format, start)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	end, err := flags.GetString(flagEndKey)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.EndKey, err = utils.ParseKey(format, end)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if len(cfg.StartKey) > 0 && len(cfg.EndKey) > 0 && bytes.Compare(cfg.StartKey, cfg.EndKey) >= 0 {
-		return errors.Annotate(berrors.ErrBackupInvalidRange, "endKey must be greater than startKey")
-	}
-	cfg.CF, err = flags.GetString(flagTiKVColumnFamily)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if err = cfg.Config.ParseFromFlags(flags); err != nil {
-		return errors.Trace(err)
-	}
-	return nil
-}
-
-// ParseBackupConfigFromFlags parses the backup-related flags from the flag set.
-func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
-	err := cfg.ParseFromFlags(flags)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	compressionCfg, err := parseCompressionFlags(flags)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.CompressionConfig = *compressionCfg
-
-	cfg.RemoveSchedulers, err = flags.GetBool(flagRemoveSchedulers)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	level, err := flags.GetInt32(flagCompressionLevel)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.CompressionLevel = level
-
-	return nil
 }
 
 // RunBackupRaw starts a backup task inside the current goroutine.
@@ -204,7 +138,8 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		RateLimit:        cfg.RateLimit,
 		Concurrency:      cfg.Concurrency,
 		IsRawKv:          true,
-		Cf:               cfg.CF,
+		Cf:               "default",
+		DstApiVersion:    kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion]),
 		CompressionType:  cfg.CompressionType,
 		CompressionLevel: cfg.CompressionLevel,
 		CipherInfo:       &cfg.CipherInfo,
@@ -217,7 +152,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	}
 	// Backup has finished
 	updateCh.Close()
-	rawRanges := []*backuppb.RawRange{{StartKey: backupRange.StartKey, EndKey: backupRange.EndKey, Cf: cfg.CF}}
+	rawRanges := []*backuppb.RawRange{{StartKey: backupRange.StartKey, EndKey: backupRange.EndKey, Cf: "defaul"}}
 	metaWriter.Update(func(m *backuppb.BackupMeta) {
 		m.StartVersion = req.StartVersion
 		m.EndVersion = req.EndVersion

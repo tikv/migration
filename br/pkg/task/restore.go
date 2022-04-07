@@ -6,7 +6,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"github.com/spf13/pflag"
 	"github.com/tikv/migration/br/pkg/conn"
@@ -33,28 +32,6 @@ const (
 	defaultBatchFlushInterval = 16 * time.Second
 )
 
-// RestoreCommonConfig is the common configuration for all BR restore tasks.
-type RestoreCommonConfig struct {
-	Online bool `json:"online" toml:"online"`
-
-	// MergeSmallRegionSizeBytes is the threshold of merging small regions (Default 96MB, region split size).
-	// MergeSmallRegionKeyCount is the threshold of merging smalle regions (Default 960_000, region split key count).
-	// See https://github.com/tikv/tikv/blob/v4.0.8/components/raftstore/src/coprocessor/config.rs#L35-L38
-	MergeSmallRegionSizeBytes uint64 `json:"merge-region-size-bytes" toml:"merge-region-size-bytes"`
-	MergeSmallRegionKeyCount  uint64 `json:"merge-region-key-count" toml:"merge-region-key-count"`
-}
-
-// adjust adjusts the abnormal config value in the current config.
-// useful when not starting BR from CLI (e.g. from BRIE in SQL).
-func (cfg *RestoreCommonConfig) adjust() {
-	if cfg.MergeSmallRegionKeyCount == 0 {
-		cfg.MergeSmallRegionKeyCount = restore.DefaultMergeRegionKeyCount
-	}
-	if cfg.MergeSmallRegionSizeBytes == 0 {
-		cfg.MergeSmallRegionSizeBytes = restore.DefaultMergeRegionSizeBytes
-	}
-}
-
 // DefineRestoreCommonFlags defines common flags for the restore command.
 func DefineRestoreCommonFlags(flags *pflag.FlagSet) {
 	// TODO remove experimental tag if it's stable
@@ -74,34 +51,6 @@ func DefineRestoreCommonFlags(flags *pflag.FlagSet) {
 	_ = flags.MarkHidden(FlagBatchFlushInterval)
 }
 
-// ParseFromFlags parses the config from the flag set.
-func (cfg *RestoreCommonConfig) ParseFromFlags(flags *pflag.FlagSet) error {
-	var err error
-	cfg.Online, err = flags.GetBool(flagOnline)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.MergeSmallRegionKeyCount, err = flags.GetUint64(FlagMergeRegionKeyCount)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.MergeSmallRegionSizeBytes, err = flags.GetUint64(FlagMergeRegionSizeBytes)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	return errors.Trace(err)
-}
-
-// RestoreConfig is the configuration specific for restore tasks.
-type RestoreConfig struct {
-	Config
-	RestoreCommonConfig
-
-	NoSchema           bool          `json:"no-schema" toml:"no-schema"`
-	PDConcurrency      uint          `json:"pd-concurrency" toml:"pd-concurrency"`
-	BatchFlushInterval time.Duration `json:"batch-flush-interval" toml:"batch-flush-interval"`
-}
-
 // DefineRestoreFlags defines common flags for the restore tidb command.
 func DefineRestoreFlags(flags *pflag.FlagSet) {
 	flags.Bool(flagNoSchema, false, "skip creating schemas and tables, reuse existing empty ones")
@@ -109,36 +58,6 @@ func DefineRestoreFlags(flags *pflag.FlagSet) {
 	_ = flags.MarkHidden(flagNoSchema)
 
 	DefineRestoreCommonFlags(flags)
-}
-
-// ParseFromFlags parses the restore-related flags from the flag set.
-func (cfg *RestoreConfig) ParseFromFlags(flags *pflag.FlagSet) error {
-	var err error
-	cfg.NoSchema, err = flags.GetBool(flagNoSchema)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	err = cfg.Config.ParseFromFlags(flags)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	err = cfg.RestoreCommonConfig.ParseFromFlags(flags)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if cfg.Config.Concurrency == 0 {
-		cfg.Config.Concurrency = defaultRestoreConcurrency
-	}
-	cfg.PDConcurrency, err = flags.GetUint(FlagPDConcurrency)
-	if err != nil {
-		return errors.Annotatef(err, "failed to get flag %s", FlagPDConcurrency)
-	}
-	cfg.BatchFlushInterval, err = flags.GetDuration(FlagBatchFlushInterval)
-	if err != nil {
-		return errors.Annotatef(err, "failed to get flag %s", FlagBatchFlushInterval)
-	}
-	return nil
 }
 
 // restorePreWork executes some prepare work before restore.
