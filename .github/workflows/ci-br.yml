@@ -87,7 +87,7 @@ jobs:
           cd br
           make test/integration
   br-integration-test-5.X:
-    name: br-integration-test-${{ matrix.tikv_version }}
+    name: br-integration-test-5.X-${{ matrix.tikv_version }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
