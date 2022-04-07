@@ -6,19 +6,29 @@ import sys
 import argparse
 import subprocess
 import traceback
+import os
 
 
+# ingest "region error" to trigger fineGrainedBackup
+FAILPOINT_TIKV_REGION_ERROR = 'github.com/tikv/migration/br/pkg/backup/tikv-region-error=return("region error")'
+
+# storage_path_suffix: used for separating backup storages for different test cases.
 class rawkvTester:
-    def __init__(self, global_args):
+    def __init__(self, br, global_args, storage_path_suffix=None, failpoints=''):
+        storage = global_args.br_storage if storage_path_suffix is None else os.path.join(global_args.br_storage, storage_path_suffix)
+
         self.pd = global_args.pd
-        self.br = global_args.br
+        self.br = br
+        self.br_test = global_args.br_test
         self.helper = global_args.helper
-        self.br_storage = global_args.br_storage
+        self.br_storage = storage
+        self.failpoints = failpoints
 
 
     def test_rawkv(self):
         outer_start, outer_end = "31", "3130303030303030"
         inner_start, inner_end = "311111", "311122"
+        self._clean_range(outer_start, outer_end) # clean data left by previous test case.
         cs_outer_empty = self._get_checksum(outer_start, outer_end)
 
         # prepare and backup data
@@ -47,13 +57,21 @@ class rawkvTester:
 
 
     def _backup_range(self, start_key, end_key):
+        env = {
+            'GO_FAILPOINTS': self.failpoints,
+        }
         self._run_cmd(self.br, "--pd", self.pd, "backup", "raw", "-s", self.br_storage,
-                "--start", start_key, "--end", end_key, "--format", "hex", "--check-requirements=false")
+                "--start", start_key, "--end", end_key, "--format", "hex", "--check-requirements=false",
+                "-L", "debug", **env)
 
 
     def _restore_range(self, start_key, end_key):
+        env = {
+            'GO_FAILPOINTS': self.failpoints,
+        }
         self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", self.br_storage,
-                "--start", start_key, "--end", end_key, "--format", "hex", "--check-requirements=false")
+                "--start", start_key, "--end", end_key, "--format", "hex", "--check-requirements=false",
+                "-L", "debug", **env)
 
 
     def _randgen(self, start_key, end_key):
@@ -73,13 +91,13 @@ class rawkvTester:
             self._exit_with_error("get checksum failed:\n  start_key: {}\n  end_key: {}", start_key, end_key)
 
 
-    def _run_cmd(self, cmd, *args):
+    def _run_cmd(self, cmd, *args, **env):
         # construct command and arguments
-        cmd_list = [cmd]
+        cmd_list = cmd.split() # `cmd` may contain arguments, so split() to meet requirement of `subprocess.check_output`.
         for arg in args:
             cmd_list.append(arg)
 
-        output = subprocess.check_output(cmd_list, stderr=sys.stderr, universal_newlines=True)
+        output = subprocess.check_output(cmd_list, stderr=sys.stderr, universal_newlines=True, env=env)
         return str(output)
 
 
@@ -99,14 +117,20 @@ class rawkvTester:
 
 def main():
     args = parse_args()
-    tester = rawkvTester(args)
+
+    tester = rawkvTester(args.br, args, storage_path_suffix="basic")
     tester.test_rawkv()
+
+    tester_fp = rawkvTester(args.br_test, args, storage_path_suffix="fp", failpoints=FAILPOINT_TIKV_REGION_ERROR)
+    tester_fp.test_rawkv()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="The backup/restore integration test runner for RawKV")
     parser.add_argument("--br", dest = "br", required = True,
-            help = "The br binary to be tested.")
+            help = "The normal br binary to be tested.")
+    parser.add_argument("--br-test", dest = "br_test", required = True,
+            help = "The br binary with failpoints enabled.")
     parser.add_argument("--pd", dest = "pd", required = True,
             help = "The pd address of the TiKV cluster to be tested.")
     parser.add_argument("--br-storage", dest = "br_storage", default = "local:///tmp/backup_restore_test",

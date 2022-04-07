@@ -27,6 +27,10 @@ TEST_PARALLEL  ?= 8
 PD_ADDR        ?= 127.0.0.1:2379
 BR_LOCAL_STORE ?= /tmp/backup_restore_test
 
+# env
+# GO_SUM_TMPFILE for avoiding access issue on shared machine.
+GO_SUM_TMPFILE := $(shell mktemp -t go.sum.origin.XXXXXXXXXX)
+
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitHash=$(shell git rev-parse HEAD)"
@@ -35,9 +39,9 @@ LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell 
 check: check/tidy check/golangci-lint check/gosec
 
 check/tidy:
-	cp go.sum /tmp/go.sum.origin
+	cp go.sum $(GO_SUM_TMPFILE)
 	$(GO) mod tidy
-	diff -q go.sum /tmp/go.sum.origin
+	diff -q go.sum $(GO_SUM_TMPFILE)
 
 check/golangci-lint: tools/bin/golangci-lint
 	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(DIRECTORIES)) --config ../.golangci.yml --timeout 5m
@@ -54,8 +58,10 @@ test: tools/bin/gocov tools/bin/gocov-xml
 	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
 	make failpoint/disable
 
-test/integration: build build/rawkv-helper
-	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br --br-storage=local://$(BR_LOCAL_STORE)
+test/integration: build build/br-test build/rawkv-helper
+	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br \
+		--br-test='bin/br.test -test.coverprofile="cov.br_rawkv.out.log" DEVEL' \
+		--br-storage=local://$(BR_LOCAL_STORE)
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
@@ -85,7 +91,7 @@ build/br-test:
 	@make failpoint/enable
 	($(GO) test -c -cover -covermode=count \
 		-coverpkg=github.com/tikv/migration/br/... \
-		-o tikv-br.test \
+		-o bin/br.test \
 		github.com/tikv/migration/br/cmd/br \
 	) || (make failpoint/disable && exit 1)
 	@make failpoint/disable
