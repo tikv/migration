@@ -27,10 +27,6 @@ TEST_PARALLEL  ?= 8
 PD_ADDR        ?= 127.0.0.1:2379
 BR_LOCAL_STORE ?= /tmp/backup_restore_test
 
-# env
-# GO_SUM_TMPFILE for avoiding access issue on shared machine.
-GO_SUM_TMPFILE := $(shell mktemp -t go.sum.origin.XXXXXXXXXX)
-
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitHash=$(shell git rev-parse HEAD)"
@@ -39,6 +35,7 @@ LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell 
 check: check/tidy check/golangci-lint check/gosec
 
 check/tidy:
+	$(eval GO_SUM_TMPFILE := $(shell mktemp -t go.sum.origin.XXXXXXXXXX))
 	cp go.sum $(GO_SUM_TMPFILE)
 	$(GO) mod tidy
 	diff -q go.sum $(GO_SUM_TMPFILE)
@@ -58,9 +55,9 @@ test: tools/bin/gocov tools/bin/gocov-xml
 	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
 	make failpoint/disable
 
-test/integration: build build/br-test build/rawkv-helper
-	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br \
-		--br-test='bin/br.test -test.coverprofile=cov.br_rawkv.out.log DEVEL' \
+test/integration: build/br-test build/rawkv-helper
+	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) \
+		--br='bin/br.test -test.coverprofile=cov.br_rawkv.out.log DEVEL' \
 		--br-storage=local://$(BR_LOCAL_STORE)
 
 failpoint/enable: tools/bin/failpoint-ctl

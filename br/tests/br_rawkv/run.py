@@ -9,17 +9,14 @@ import traceback
 import os
 
 
-# ingest "region error" to trigger fineGrainedBackup
-FAILPOINT_TIKV_REGION_ERROR = 'github.com/tikv/migration/br/pkg/backup/tikv-region-error=return("region error")'
-
-# storage_path_suffix: used for separating backup storages for different test cases.
 class rawkvTester:
-    def __init__(self, br, global_args, storage_path_suffix=None, failpoints=''):
-        storage = global_args.br_storage if storage_path_suffix is None else os.path.join(global_args.br_storage, storage_path_suffix)
+    # storage_path_suffix: used for separating backup storages for different test cases.
+    def __init__(self, global_args, storage_path_suffix=None, failpoints=''):
+        storage = global_args.br_storage if storage_path_suffix is None \
+                    else os.path.join(global_args.br_storage, storage_path_suffix)
 
         self.pd = global_args.pd
-        self.br = br
-        self.br_test = global_args.br_test
+        self.br = global_args.br
         self.helper = global_args.helper
         self.br_storage = storage
         self.failpoints = failpoints
@@ -118,19 +115,19 @@ class rawkvTester:
 def main():
     args = parse_args()
 
-    tester = rawkvTester(args.br, args, storage_path_suffix="basic")
+    tester = rawkvTester(args, storage_path_suffix="basic")
     tester.test_rawkv()
 
-    tester_fp = rawkvTester(args.br_test, args, storage_path_suffix="fp", failpoints=FAILPOINT_TIKV_REGION_ERROR)
+    # ingest "region error" to trigger fineGrainedBackup
+    tester_fp = rawkvTester(args, storage_path_suffix="fp",
+        failpoints='github.com/tikv/migration/br/pkg/backup/tikv-region-error=return("region error")')
     tester_fp.test_rawkv()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="The backup/restore integration test runner for RawKV")
     parser.add_argument("--br", dest = "br", required = True,
-            help = "The normal br binary to be tested.")
-    parser.add_argument("--br-test", dest = "br_test", required = True,
-            help = "The br binary with failpoints enabled.")
+            help = "The br binary to be tested.")
     parser.add_argument("--pd", dest = "pd", required = True,
             help = "The pd address of the TiKV cluster to be tested.")
     parser.add_argument("--br-storage", dest = "br_storage", default = "local:///tmp/backup_restore_test",

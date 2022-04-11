@@ -87,6 +87,7 @@ jobs:
           cd br
           make test/integration
   br-integration-test-5X:
+    # Separate integration tests of v5.X, to distinguish whether failure would be caused by compatibility of old versions.
     name: br-integration-test-5X-${{ matrix.tikv_version }}
     runs-on: ubuntu-latest
     strategy:
