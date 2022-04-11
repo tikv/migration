@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"runtime/debug"
 	"time"
 
 	"github.com/pingcap/errors"
@@ -158,7 +157,6 @@ func (rc *Client) GetFilesInRawRange(startKey []byte, endKey []byte, cf string) 
 			utils.CompareEndKey(endKey, rawRange.EndKey) > 0 {
 			// Only partial of the restoring range is in the current backup-ed range. So the given range can't be fully
 			// restored.
-			debug.PrintStack()
 			return nil, errors.Annotatef(berrors.ErrRestoreRangeMismatch,
 				"the given range to restore [%s, %s) is not fully covered by the range that was backed up [%s, %s)",
 				redact.Key(startKey), redact.Key(endKey), redact.Key(rawRange.StartKey), redact.Key(rawRange.EndKey),

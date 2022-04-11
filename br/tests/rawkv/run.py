@@ -17,22 +17,30 @@ class rawkvTester:
 
 
     def test_dst_apiv1(self):
+        self._clean()
         self._run_br_test("v1")
-        self._success_msg(test_dst_apiv1.__name__)
+        self._success_msg(self.test_dst_apiv1.__name__)
 
 
     def test_dst_apiv1ttl(self):
+        self._clean()
         self._run_br_test("v1ttl")
-        self._success_msg(test_dst_apiv1ttl.__name__)
+        self._success_msg(self.test_dst_apiv1ttl.__name__)
 
 
     def test_dst_apiv2(self):
+        self._clean()
         self._run_br_test("v2")
-        self._success_msg(test_dst_apiv2.__name__)
+        self._success_msg(self.test_dst_apiv2.__name__)
+
+    def _clean(self):
+        if self.br_storage.startswith("local://"):
+            local_dir = self.br_storage[len("local://"):]
+            self._run_cmd("rm", "-rf", local_dir)
 
 
     def _success_msg(self, case_name):
-        print("PASSED: {}".forma(case_name))
+        print("PASSED: {}".format(case_name))
 
 
     def _run_br_test(self, dst_api_version):
@@ -56,7 +64,7 @@ class rawkvTester:
         cs_outer_clean = self._get_checksum(outer_start, outer_end)
         self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
         print("outer_start: {}, outer_end: {}".format(outer_start, outer_end))
-        self._restore_range(outer_start, outer_end)
+        self._restore_range(outer_start, outer_end, dst_api_version)
         cs_outer_restore = self._get_checksum(outer_start, outer_end)
         self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_restore, cs_outer_origin)
 
@@ -64,7 +72,7 @@ class rawkvTester:
         self._clean_range(outer_start, outer_end)
         cs_outer_clean = self._get_checksum(outer_start, outer_end)
         self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
-        self._restore_range(inner_start, inner_end)
+        self._restore_range(inner_start, inner_end, dst_api_version)
         cs_inner_restore = self._get_checksum(inner_start, inner_end)
         self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
 
@@ -75,9 +83,10 @@ class rawkvTester:
                 "--check-requirements=false")
 
 
-    def _restore_range(self, start_key, end_key):
+    def _restore_range(self, start_key, end_key, dst_api_version):
         self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", self.br_storage,
-                "--start", start_key, "--end", end_key, "--format", "hex", "--check-requirements=false")
+                "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
+                "--check-requirements=false")
 
 
     def _randgen(self, start_key, end_key):
