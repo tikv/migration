@@ -160,12 +160,15 @@ func startPProf(cmd *cobra.Command) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	ca, cert, key, err := task.ParseTLSTripleFromFlags(cmd.Flags())
+
+	tlsConfig := &task.TLSConfig{}
+	err = tlsConfig.ParseFromFlags(cmd.Flags())
 	if err != nil {
 		return errors.Trace(err)
 	}
+
 	// Host isn't used here.
-	tls, err := tidbutils.NewTLS(ca, cert, key, "localhost", nil)
+	tls, err := tidbutils.NewTLS(tlsConfig.CA, tlsConfig.Cert, tlsConfig.Key, "localhost", nil)
 	if err != nil {
 		return errors.Trace(err)
 	}
