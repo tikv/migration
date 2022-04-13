@@ -16,7 +16,6 @@ import (
 	tidbutils "github.com/pingcap/tidb-tools/pkg/utils"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/spf13/cobra"
-	"github.com/tikv/migration/br/pkg/gluetidb"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/task"
@@ -28,7 +27,6 @@ var (
 	initOnce        = sync.Once{}
 	defaultContext  context.Context
 	hasLogFile      uint64
-	tidbGlue        = gluetidb.New()
 	envLogToTermKey = "BR_LOG_TO_TERM"
 )
 
