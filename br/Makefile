@@ -21,7 +21,8 @@ GO          := GO111MODULE=on go
 PACKAGES    := go list ./...
 DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
-# test 
+# build & test
+BR_BIN_PATH    ?= bin/tikv-br
 COVERAGE_DIR   ?= build
 TEST_PARALLEL  ?= 8
 PD_ADDR        ?= 127.0.0.1:2379
@@ -55,7 +56,7 @@ test: tools/bin/gocov tools/bin/gocov-xml
 	make failpoint/disable
 
 test/integration: build build/rawkv-helper
-	./tests/br_rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=bin/br --br-storage=local://$(BR_LOCAL_STORE)
+	./tests/rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=$(BR_BIN_PATH) --br-storage=local://$(BR_LOCAL_STORE)
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
@@ -76,10 +77,10 @@ tools/bin/failpoint-ctl: tools/check/go.mod
 	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
 
 build:
-	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o bin/br cmd/br/*.go
+	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
 
 build/rawkv-helper:
-	cd tests/br_rawkv && $(GO) build -mod=mod -o ../../bin/rawkv client.go
+	cd tests/rawkv && $(GO) build -mod=mod -o ../../bin/rawkv client.go
 
 clean:
 	go clean -i ./...
