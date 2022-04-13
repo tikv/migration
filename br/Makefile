@@ -86,5 +86,5 @@ clean:
 	go clean -i ./...
 	rm -rf *.out bin tools/bin
 	rm -rf results.xml 
-	rm -rf br-junit-report.xml $(COVERAGE_DIR)/coverage.raw $(COVERAGE_DIR)/coverage.xml
+	rm -rf br-junit-report.xml $(COVERAGE_DIR)
 	rm -rf $(BR_LOCAL_STORE)
