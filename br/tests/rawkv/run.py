@@ -31,33 +31,43 @@ class rawkvTester:
 
 
     def test_dst_apiv1(self):
-        self._clean()
-        self._run_br_test("v1")
-        self._success_msg(self.test_dst_apiv1.__name__)
+        test_name = self.test_dst_apiv1.__name__
+        storage_dir = self.br_storage + "/" + test_name
+
+        self._clean(storage_dir)
+        self._run_br_test("v1", storage_dir)
+        self._success_msg(test_name)
 
 
     def test_dst_apiv1ttl(self):
-        self._clean()
-        self._run_br_test("v1ttl")
-        self._success_msg(self.test_dst_apiv1ttl.__name__)
+        test_name = self.test_dst_apiv1ttl.__name__
+        storage_dir = self.br_storage + "/" + test_name
+
+        self._clean(storage_dir)
+        self._run_br_test("v1ttl", storage_dir)
+        self._success_msg(test_name)
 
 
     def test_dst_apiv2(self):
-        self._clean()
-        self._run_br_test("v2")
-        self._success_msg(self.test_dst_apiv2.__name__)
+        test_name = self.test_dst_apiv2.__name__
+        storage_dir = self.br_storage + "/" + test_name
 
-    def _clean(self):
-        if self.br_storage.startswith("local://"):
-            local_dir = self.br_storage[len("local://"):]
+        self._clean(storage_dir)
+        self._run_br_test("v2", storage_dir)
+        self._success_msg(test_name)
+
+    def _clean(self, storage_dir):
+        if storage_dir.startswith("local://"):
+            local_dir = storage_dir[len("local://"):]
             self._run_cmd("rm", "-rf", local_dir)
+            self._run_cmd("mkdir", "-p", local_dir)
 
 
     def _success_msg(self, case_name):
-        print("PASSED: {}".format(case_name))
+        print(f"PASSED: {case_name}")
 
 
-    def _run_br_test(self, dst_api_version):
+    def _run_br_test(self, dst_api_version, storage_dir):
         outer_start, outer_end = "31", "3130303030303030"
         inner_start, inner_end = "311111", "311122"
 
@@ -69,7 +79,7 @@ class rawkvTester:
         self._randgen(outer_start, outer_end)
         self._run_cmd(self.helper, "-pd", self.pd, "-mode", "put",
                 "-put-data", "311121:31, 31112100:32, 311122:33, 31112200:34, 3111220000:35, 311123:36")
-        self._backup_range(outer_start, outer_end, dst_api_version)
+        self._backup_range(outer_start, outer_end, dst_api_version, storage_dir)
         cs_outer_origin = self._get_checksum(outer_start, outer_end)
         cs_inner_origin = self._get_checksum(inner_start, inner_end)
 
@@ -77,7 +87,7 @@ class rawkvTester:
         self._clean_range(outer_start, outer_end)
         cs_outer_clean = self._get_checksum(outer_start, outer_end)
         self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
-        self._restore_range(outer_start, outer_end, dst_api_version)
+        self._restore_range(outer_start, outer_end, dst_api_version, storage_dir)
         cs_outer_restore = self._get_checksum(outer_start, outer_end)
         self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_restore, cs_outer_origin)
 
@@ -85,19 +95,19 @@ class rawkvTester:
         self._clean_range(outer_start, outer_end)
         cs_outer_clean = self._get_checksum(outer_start, outer_end)
         self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
-        self._restore_range(inner_start, inner_end, dst_api_version)
+        self._restore_range(inner_start, inner_end, dst_api_version, storage_dir)
         cs_inner_restore = self._get_checksum(inner_start, inner_end)
         self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
 
 
-    def _backup_range(self, start_key, end_key, dst_api_version):
-        self._run_cmd(self.br, "--pd", self.pd, "backup", "raw", "-s", self.br_storage,
+    def _backup_range(self, start_key, end_key, dst_api_version, storage_dir):
+        self._run_cmd(self.br, "--pd", self.pd, "backup", "raw", "-s", storage_dir,
                 "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
                 "--check-requirements=false")
 
 
-    def _restore_range(self, start_key, end_key, dst_api_version):
-        self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", self.br_storage,
+    def _restore_range(self, start_key, end_key, dst_api_version, storage_dir):
+        self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", storage_dir,
                 "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
                 "--check-requirements=false")
 
@@ -116,7 +126,7 @@ class rawkvTester:
         if matched:
             return str(matched.group(0))[len("Checksum result: "):]
         else:
-            self._exit_with_error("get checksum failed:\n  start_key: {}\n  end_key: {}".format(start_key, end_key))
+            self._exit_with_error(f"get checksum failed:\n  start_key: {start_key}\n  end_key: {end_key}")
 
 
     def _run_cmd(self, cmd, *args):
@@ -129,7 +139,7 @@ class rawkvTester:
         try:
             output = subprocess.run(cmd_list, universal_newlines=True, check=True, stdout=subprocess.PIPE).stdout
         except  subprocess.CalledProcessError as e:
-            self._exit_with_error("run command failed:\n  cmd: {}\n  stdout: {}\n  stderr: {}".format(e.cmd, e.stdout, e.stderr))
+            self._exit_with_error(f"run command failed:\n  cmd: {e.cmd}\n  stdout: {e.stdout}\n  stderr: {e.stderr}")
 
         return str(output)
 
@@ -144,7 +154,7 @@ class rawkvTester:
         for line in traceback.format_stack():
             print(line.strip())
 
-        print("\nerror:\n{}".format(error))
+        print(f"\nerror:\n{error}")
         exit(1)
 
 
