@@ -21,7 +21,6 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/br/pkg/lightning/common"
 	"github.com/pingcap/tidb/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/httputil"
@@ -704,22 +703,4 @@ func (p *PdController) doRemoveSchedulersWith(
 func (p *PdController) Close() {
 	p.pdClient.Close()
 	close(p.schedulerPauseCh)
-}
-
-// FetchPDVersion get pd version
-func FetchPDVersion(ctx context.Context, tls *common.TLS, pdAddr string) (*semver.Version, error) {
-	// An example of PD version API.
-	// curl http://pd_address/pd/api/v1/version
-	// {
-	//   "version": "v4.0.0-rc.2-451-g760fb650"
-	// }
-	var rawVersion struct {
-		Version string `json:"version"`
-	}
-	err := tls.WithHost(pdAddr).GetJSON(ctx, "/pd/api/v1/version", &rawVersion)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return parseVersion([]byte(rawVersion.Version)), nil
 }

@@ -14,36 +14,20 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	tidbutils "github.com/pingcap/tidb-tools/pkg/utils"
-	"github.com/tikv/migration/br/pkg/gluetidb"
+	"github.com/pingcap/tidb/util/logutil"
+	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/task"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
-	"github.com/pingcap/tidb/util/logutil"
-	"github.com/spf13/cobra"
 )
 
 var (
 	initOnce        = sync.Once{}
 	defaultContext  context.Context
 	hasLogFile      uint64
-	tidbGlue        = gluetidb.New()
 	envLogToTermKey = "BR_LOG_TO_TERM"
-
-	filterOutSysAndMemTables = []string{
-		"*.*",
-		fmt.Sprintf("!%s.*", utils.TemporaryDBName("*")),
-		"!mysql.*",
-		"!sys.*",
-		"!INFORMATION_SCHEMA.*",
-		"!PERFORMANCE_SCHEMA.*",
-		"!METRICS_SCHEMA.*",
-		"!INSPECTION_SCHEMA.*",
-	}
-	acceptAllTables = []string{
-		"*.*",
-	}
 )
 
 const (
@@ -174,12 +158,15 @@ func startPProf(cmd *cobra.Command) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	ca, cert, key, err := task.ParseTLSTripleFromFlags(cmd.Flags())
+
+	tlsConfig := &task.TLSConfig{}
+	err = tlsConfig.ParseFromFlags(cmd.Flags())
 	if err != nil {
 		return errors.Trace(err)
 	}
+
 	// Host isn't used here.
-	tls, err := tidbutils.NewTLS(ca, cert, key, "localhost", nil)
+	tls, err := tidbutils.NewTLS(tlsConfig.CA, tlsConfig.Cert, tlsConfig.Key, "localhost", nil)
 	if err != nil {
 		return errors.Trace(err)
 	}

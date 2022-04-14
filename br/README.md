@@ -13,7 +13,7 @@
 
 ## Architecture
 
-<img src="images/arch.svg?sanitize=true" alt="architecture" width="600"/>
+<img src="docs/images/arch.svg?sanitize=true" alt="architecture" width="600"/>
 
 ## Documentation
 

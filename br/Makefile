@@ -12,109 +12,92 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PROJECT=br
-GOPATH ?= $(shell go env GOPATH)
-P=8
+.PHONY: check test build clean 
+default: build
+all: check test build clean
 
-# Ensure GOPATH is set before running build process.
-ifeq "$(GOPATH)" ""
-  $(error Please set the environment variable GOPATH before running `make`)
-endif
-FAIL_ON_STDOUT := awk '{ print } END { if (NR > 0) { exit 1 } }'
+# golang
+GO          := GO111MODULE=on go
+PACKAGES    := go list ./...
+DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
-CURDIR := $(shell pwd)
-path_to_add := $(addsuffix /bin,$(subst :,/bin:,$(GOPATH))):$(PWD)/tools/bin
-export PATH := $(path_to_add):$(PATH)
+# build & test
+BR_BIN_PATH    ?= bin/tikv-br
+TEST_BIN_PATH  ?= bin/tikv-br.test
+COVERAGE_DIR   ?= build
+TEST_PARALLEL  ?= 8
+PD_ADDR        ?= 127.0.0.1:2379
+BR_LOCAL_STORE ?= /tmp/backup_restore_test
 
-GO              := GO111MODULE=on go
-GOBUILD         := $(GO) build $(BUILD_FLAG) -tags codes
-GOTEST          := $(GO) test -p $(P)
-OVERALLS        := GO111MODULE=on overalls
-STATICCHECK     := GO111MODULE=on staticcheck
+LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
+LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
+LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitHash=$(shell git rev-parse HEAD)"
+LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell git rev-parse --abbrev-ref HEAD)"
 
-LINUX     := "Linux"
-MAC       := "Darwin"
+check: check/tidy check/golangci-lint check/gosec
 
-FAILPOINT_ENABLE  := find $$PWD/ -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
-FAILPOINT_DISABLE := find $$PWD/ -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable
+check/tidy:
+	$(eval GO_SUM_TMPFILE := $(shell mktemp -t go.sum.origin.XXXXXXXXXX))
+	cp go.sum $(GO_SUM_TMPFILE)
+	$(GO) mod tidy
+	diff -q go.sum $(GO_SUM_TMPFILE)
 
-TARGET = ""
+check/golangci-lint: tools/bin/golangci-lint
+	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(DIRECTORIES)) --config ../.golangci.yml --timeout 5m
 
-RACE_FLAG =
-ifeq ("$(WITH_RACE)", "1")
-	RACE_FLAG = -race
-	GOBUILD   = GOPATH=$(GOPATH) $(GO) build
-endif
+check/gosec:
+	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
+	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
-CHECK_FLAG =
-ifeq ("$(WITH_CHECK)", "1")
-	CHECK_FLAG = $(TEST_LDFLAGS)
-endif
+test: tools/bin/gocov tools/bin/gocov-xml
+	make failpoint/enable
+	export TZ='Asia/Shanghai'
+	mkdir -p $(COVERAGE_DIR)
+	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile=$(COVERAGE_DIR)/coverage.raw || ( make failpoint/disable && exit 1 )
+	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
+	make failpoint/disable
 
-BR_PKG := github.com/tikv/migration/br
-BR_PACKAGES       := go list ./...| grep "github.com\/tikv\/migration\/br"
-BR_PACKAGE_DIRECTORIES := $(BR_PACKAGES) | sed 's|github.com/tikv/migration/br/||'
-BR_BIN            := bin/br
-TEST_DIR          := /tmp/backup_restore_test
+test/integration: build/br-test build/rawkv-helper
+	./tests/rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) \
+		--br='$(TEST_BIN_PATH) -test.coverprofile=cov.br_rawkv.out.log DEVEL' \
+		--br-storage=local://$(BR_LOCAL_STORE)
 
-TEST_COVERAGE_DIR := "."
+failpoint/enable: tools/bin/failpoint-ctl
+	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
 
-.PHONY: build_br clean unit_test check check-static
-
-default: build_br
-
-failpoint-enable: tools/bin/failpoint-ctl
-# Converting gofail failpoints...
-	@$(FAILPOINT_ENABLE)
-
-failpoint-disable: tools/bin/failpoint-ctl
-# Restoring gofail failpoints...
-	@$(FAILPOINT_DISABLE)
-
-tools/bin/failpoint-ctl: tools/check/go.mod
-	cd tools/check; \
-	$(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
-
-build_br:
-	CGO_ENABLED=1 $(GOBUILD) $(RACE_FLAG) -ldflags '$(LDFLAGS) $(CHECK_FLAG)' -o $(BR_BIN) cmd/br/*.go
-
-test: unit_test
-
-unit_test: export ARGS=$$($(BR_PACKAGES))
-unit_test:
-	@make failpoint-enable
-	@export TZ='Asia/Shanghai';
-	$(GOTEST) $(RACE_FLAG) -ldflags '$(LDFLAGS)' -tags leak $(ARGS) -coverprofile=coverage.txt || ( make failpoint-disable && exit 1 )
-	@make failpoint-disable
-unit_test_in_verify_ci: export ARGS=$$($(BR_PACKAGES))
-unit_test_in_verify_ci: tools/bin/gotestsum tools/bin/gocov tools/bin/gocov-xml
-	@make failpoint-enable
-	@export TZ='Asia/Shanghai';
-	@mkdir -p $(TEST_COVERAGE_DIR)
-	CGO_ENABLED=1 tools/bin/gotestsum --junitfile "$(TEST_COVERAGE_DIR)/br-junit-report.xml" -- $(RACE_FLAG) -ldflags '$(LDFLAGS)' \
-	-tags leak $(ARGS) -coverprofile="$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" || ( make failpoint-disable && exit 1 )
-	tools/bin/gocov convert "$(TEST_COVERAGE_DIR)/br_cov.unit_test.plain" | tools/bin/gocov-xml > "$(TEST_COVERAGE_DIR)/br_cov.unit_test.out"
-	@make failpoint-disable
-
-check: check-static
-
-check-static: tools/bin/golangci-lint
-	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(BR_PACKAGE_DIRECTORIES)) --config ../.golangci.yml
+failpoint/disable: tools/bin/failpoint-ctl
+	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable
 
 tools/bin/golangci-lint:
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b ./tools/bin v1.41.1
-
-tools/bin/gotestsum: tools/check/go.mod
-	cd tools/check && $(GO) build -o ../bin/gotestsum gotest.tools/gotestsum
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.41.1
 
 tools/bin/gocov: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov  github.com/axw/gocov/gocov
+	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov github.com/axw/gocov/gocov
 
 tools/bin/gocov-xml: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
 
+tools/bin/failpoint-ctl: tools/check/go.mod
+	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
+
+build:
+	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
+
+build/rawkv-helper:
+	cd tests/rawkv && $(GO) build -mod=mod -o ../../bin/rawkv client.go
+
+build/br-test:
+	@make failpoint/enable
+	($(GO) test -c -cover -covermode=count \
+		-coverpkg=github.com/tikv/migration/br/... \
+		-o $(TEST_BIN_PATH) \
+		github.com/tikv/migration/br/cmd/br \
+	) || (make failpoint/disable && exit 1)
+	@make failpoint/disable
+
 clean:
 	go clean -i ./...
-	rm -rf *.out
-	rm -rf bin
-	rm -rf tools/bin
+	rm -rf *.out bin tools/bin
+	rm -rf results.xml 
+	rm -rf br-junit-report.xml $(COVERAGE_DIR)
+	rm -rf $(BR_LOCAL_STORE)

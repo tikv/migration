@@ -319,7 +319,7 @@ func (importer *FileImporter) Import(
 					if importer.isRawKvMode {
 						downloadMeta, e = importer.downloadRawKVSST(ctx, info, f, cipher)
 					} else {
-						downloadMeta, e = importer.downloadSST(ctx, info, f, rewriteRules, cipher)
+						return errors.Errorf("FileImporter for non-RawKV is unsupported")
 					}
 					failpoint.Inject("restore-storage-error", func(val failpoint.Value) {
 						msg := val.(string)
@@ -443,84 +443,13 @@ func (importer *FileImporter) Import(
 	return errors.Trace(err)
 }
 
+// nolint:unused
 func (importer *FileImporter) setDownloadSpeedLimit(ctx context.Context, storeID uint64) error {
 	req := &import_sstpb.SetDownloadSpeedLimitRequest{
 		SpeedLimit: importer.rateLimit,
 	}
 	_, err := importer.importClient.SetDownloadSpeedLimit(ctx, storeID, req)
 	return errors.Trace(err)
-}
-
-func (importer *FileImporter) downloadSST(
-	ctx context.Context,
-	regionInfo *RegionInfo,
-	file *backuppb.File,
-	rewriteRules *RewriteRules,
-	cipher *backuppb.CipherInfo,
-) (*import_sstpb.SSTMeta, error) {
-	uid := uuid.New()
-	id := uid[:]
-	// Get the rewrite rule for the file.
-	fileRule := findMatchedRewriteRule(file, rewriteRules)
-	if fileRule == nil {
-		return nil, errors.Trace(berrors.ErrKVRewriteRuleNotFound)
-	}
-	rule := import_sstpb.RewriteRule{
-		OldKeyPrefix: encodeKeyPrefix(fileRule.GetOldKeyPrefix()),
-		NewKeyPrefix: encodeKeyPrefix(fileRule.GetNewKeyPrefix()),
-	}
-	sstMeta := GetSSTMetaFromFile(id, file, regionInfo.Region, &rule)
-
-	req := &import_sstpb.DownloadRequest{
-		Sst:            sstMeta,
-		StorageBackend: importer.backend,
-		Name:           file.GetName(),
-		RewriteRule:    rule,
-		CipherInfo:     cipher,
-	}
-	log.Debug("download SST",
-		logutil.SSTMeta(&sstMeta),
-		logutil.File(file),
-		logutil.Region(regionInfo.Region),
-		logutil.Leader(regionInfo.Leader),
-	)
-
-	var atomicResp atomic.Value
-	eg, ectx := errgroup.WithContext(ctx)
-	for _, p := range regionInfo.Region.GetPeers() {
-		peer := p
-		eg.Go(func() error {
-			resp, err := importer.importClient.DownloadSST(ectx, peer.GetStoreId(), req)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			if resp.GetError() != nil {
-				return errors.Annotate(berrors.ErrKVDownloadFailed, resp.GetError().GetMessage())
-			}
-			if resp.GetIsEmpty() {
-				return errors.Trace(berrors.ErrKVRangeIsEmpty)
-			}
-
-			log.Debug("download from peer",
-				logutil.Region(regionInfo.Region),
-				logutil.Peer(peer),
-				logutil.Key("resp-range-start", resp.Range.Start),
-				logutil.Key("resp-range-end", resp.Range.Start),
-				zap.Bool("resp-isempty", resp.IsEmpty),
-				zap.Uint32("resp-crc32", resp.Crc32),
-			)
-			atomicResp.Store(resp)
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		return nil, err
-	}
-
-	downloadResp := atomicResp.Load().(*import_sstpb.DownloadResponse)
-	sstMeta.Range.Start = truncateTS(downloadResp.Range.GetStart())
-	sstMeta.Range.End = truncateTS(downloadResp.Range.GetEnd())
-	return &sstMeta, nil
 }
 
 func (importer *FileImporter) downloadRawKVSST(

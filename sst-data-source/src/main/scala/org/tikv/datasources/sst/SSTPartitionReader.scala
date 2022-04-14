@@ -19,11 +19,12 @@ package org.tikv.datasources.sst
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.connector.read.PartitionReader
-import org.tikv.br.{BackupDecoder, SSTDecoder}
+import org.tikv.datasources.br
+import org.tikv.datasources.br.SSTDecoder
 
 import java.io.File
 
-class SSTPartitionReader(sstFilePath: String, backupDecoder: BackupDecoder)
+class SSTPartitionReader(sstFilePath: String, backupDecoder: br.BackupDecoder)
     extends PartitionReader[InternalRow] {
   private val sstDecoder: SSTDecoder = backupDecoder.decodeSST(sstFilePath)
   private val iterator = sstDecoder.getIterator

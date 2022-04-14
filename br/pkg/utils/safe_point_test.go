@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 )
 

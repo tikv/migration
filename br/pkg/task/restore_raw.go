@@ -7,52 +7,23 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/spf13/cobra"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/summary"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
-
-// RestoreRawConfig is the configuration specific for raw kv restore tasks.
-type RestoreRawConfig struct {
-	RawKvConfig
-	RestoreCommonConfig
-}
 
 // DefineRawRestoreFlags defines common flags for the backup command.
 func DefineRawRestoreFlags(command *cobra.Command) {
 	command.Flags().StringP(flagKeyFormat, "", "hex", "start/end key format, support raw|escaped|hex")
-	command.Flags().StringP(flagTiKVColumnFamily, "", "default", "restore specify cf, correspond to tikv cf")
 	command.Flags().StringP(flagStartKey, "", "", "restore raw kv start key, key is inclusive")
 	command.Flags().StringP(flagEndKey, "", "", "restore raw kv end key, key is exclusive")
+	command.Flags().StringP(flagDstAPIVersion, "", "",
+		"The encoding method of backuped SST files for destination TiKV cluster, default to the source TiKV cluster. Available options: \"v1\", \"v1ttl\", \"v2\".")
 
 	DefineRestoreCommonFlags(command.PersistentFlags())
-}
-
-// ParseFromFlags parses the backup-related flags from the flag set.
-func (cfg *RestoreRawConfig) ParseFromFlags(flags *pflag.FlagSet) error {
-	var err error
-	cfg.Online, err = flags.GetBool(flagOnline)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	err = cfg.RestoreCommonConfig.ParseFromFlags(flags)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	return cfg.RawKvConfig.ParseFromFlags(flags)
-}
-
-func (cfg *RestoreRawConfig) adjust() {
-	cfg.Config.adjust()
-	cfg.RestoreCommonConfig.adjust()
-
-	if cfg.Concurrency == 0 {
-		cfg.Concurrency = defaultRestoreConcurrency
-	}
 }
 
 // RunRestoreRaw starts a raw kv restore task inside the current goroutine.
@@ -63,9 +34,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	ctx, cancel := context.WithCancel(c)
 	defer cancel()
 
-	// Restore raw does not need domain.
-	needDomain := false
-	mgr, err := NewMgr(ctx, g, cfg.PD, cfg.TLS, GetKeepalive(&cfg.Config), cfg.CheckRequirements, needDomain)
+	mgr, err := NewMgr(ctx, g, cfg.PD, cfg.TLS, GetKeepalive(&cfg.Config), cfg.CheckRequirements)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -75,7 +44,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	// sometimes we have pooled the connections.
 	// sending heartbeats in idle times is useful.
 	keepaliveCfg.PermitWithoutStream = true
-	client, err := restore.NewRestoreClient(g, mgr.GetPDClient(), mgr.GetStorage(), mgr.GetTLSConfig(), keepaliveCfg)
+	client, err := restore.NewRestoreClient(g, mgr.GetPDClient(), mgr.GetTLSConfig(), keepaliveCfg, true)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -101,7 +70,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		return errors.Annotate(berrors.ErrRestoreModeMismatch, "cannot do raw restore from transactional data")
 	}
 
-	files, err := client.GetFilesInRawRange(cfg.StartKey, cfg.EndKey, cfg.CF)
+	files, err := client.GetFilesInRawRange(cfg.StartKey, cfg.EndKey, "default")
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -131,7 +100,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 
 	// RawKV restore does not need to rewrite keys.
 	rewrite := &restore.RewriteRules{}
-	err = restore.SplitRanges(ctx, client, ranges, rewrite, updateCh)
+	err = restore.SplitRanges(ctx, client, ranges, rewrite, updateCh, true)
 	if err != nil {
 		return errors.Trace(err)
 	}

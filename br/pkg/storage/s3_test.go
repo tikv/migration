@@ -19,9 +19,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/br/pkg/mock"
 	. "github.com/tikv/migration/br/pkg/storage"
-	"github.com/stretchr/testify/require"
 )
 
 type s3Suite struct {

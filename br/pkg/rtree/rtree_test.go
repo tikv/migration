@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/rtree"
 )
 
 func newRange(start, end []byte) *rtree.Range {

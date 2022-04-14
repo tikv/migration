@@ -12,8 +12,8 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/coreos/go-semver/semver"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/tikv/migration/br/pkg/version/build"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/version/build"
 	pd "github.com/tikv/pd/client"
 )
 
@@ -182,29 +182,6 @@ func TestCompareVersion(t *testing.T) {
 		Compare(*semver.New("3.0.5-beta.12")))
 	require.Equal(t, 0, semver.New(removeVAndHash("v2.1.0-rc.1-7-g38c939f-dirty")).
 		Compare(*semver.New("2.1.0-rc.1")))
-}
-
-func TestNextMajorVersion(t *testing.T) {
-	oldReleaseVersion := build.ReleaseVersion
-	defer func() {
-		build.ReleaseVersion = oldReleaseVersion
-	}()
-
-	build.ReleaseVersion = "v4.0.0-rc.1"
-	require.Equal(t, "5.0.0", NextMajorVersion().String())
-	build.ReleaseVersion = "4.0.0-rc-35-g31dae220"
-	require.Equal(t, "5.0.0", NextMajorVersion().String())
-	build.ReleaseVersion = "4.0.0-9-g30f0b014"
-	require.Equal(t, "5.0.0", NextMajorVersion().String())
-
-	build.ReleaseVersion = "v5.0.0-rc.2"
-	require.Equal(t, "6.0.0", NextMajorVersion().String())
-	build.ReleaseVersion = "v5.0.0-master"
-	require.Equal(t, "6.0.0", NextMajorVersion().String())
-
-	build.ReleaseVersion = "b7ed87d-dirty"
-	_ = NextMajorVersion()
-	//^ doesn't matter what is returned, just need to ensure it doesn't crash.
 }
 
 func TestExtractTiDBVersion(t *testing.T) {
