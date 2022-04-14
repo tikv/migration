@@ -23,6 +23,7 @@ DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
 # build & test
 BR_BIN_PATH    ?= bin/tikv-br
+TEST_BIN_PATH  ?= bin/tikv-br.test
 COVERAGE_DIR   ?= build
 TEST_PARALLEL  ?= 8
 PD_ADDR        ?= 127.0.0.1:2379
@@ -36,9 +37,10 @@ LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell 
 check: check/tidy check/golangci-lint check/gosec
 
 check/tidy:
-	cp go.sum /tmp/go.sum.origin
+	$(eval GO_SUM_TMPFILE := $(shell mktemp -t go.sum.origin.XXXXXXXXXX))
+	cp go.sum $(GO_SUM_TMPFILE)
 	$(GO) mod tidy
-	diff -q go.sum /tmp/go.sum.origin
+	diff -q go.sum $(GO_SUM_TMPFILE)
 
 check/golangci-lint: tools/bin/golangci-lint
 	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(DIRECTORIES)) --config ../.golangci.yml --timeout 5m
@@ -55,8 +57,10 @@ test: tools/bin/gocov tools/bin/gocov-xml
 	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
 	make failpoint/disable
 
-test/integration: build build/rawkv-helper
-	./tests/rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) --br=$(BR_BIN_PATH) --br-storage=local://$(BR_LOCAL_STORE)
+test/integration: build/br-test build/rawkv-helper
+	./tests/rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) \
+		--br='$(TEST_BIN_PATH) -test.coverprofile=cov.br_rawkv.out.log DEVEL' \
+		--br-storage=local://$(BR_LOCAL_STORE)
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
@@ -81,6 +85,15 @@ build:
 
 build/rawkv-helper:
 	cd tests/rawkv && $(GO) build -mod=mod -o ../../bin/rawkv client.go
+
+build/br-test:
+	@make failpoint/enable
+	($(GO) test -c -cover -covermode=count \
+		-coverpkg=github.com/tikv/migration/br/... \
+		-o $(TEST_BIN_PATH) \
+		github.com/tikv/migration/br/cmd/br \
+	) || (make failpoint/disable && exit 1)
+	@make failpoint/disable
 
 clean:
 	go clean -i ./...

@@ -16,18 +16,18 @@
 
 
 import re
-import sys
 import argparse
 import subprocess
 import traceback
 
 
 class rawkvTester:
-    def __init__(self, global_args):
+    def __init__(self, global_args, failpoints=''):
         self.pd = global_args.pd
         self.br = global_args.br
         self.helper = global_args.helper
         self.br_storage = global_args.br_storage
+        self.failpoints = failpoints
 
 
     def test_dst_apiv1(self):
@@ -101,15 +101,21 @@ class rawkvTester:
 
 
     def _backup_range(self, start_key, end_key, dst_api_version, storage_dir):
+        env = {
+            'GO_FAILPOINTS': self.failpoints,
+        }
         self._run_cmd(self.br, "--pd", self.pd, "backup", "raw", "-s", storage_dir,
                 "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
-                "--check-requirements=false")
+                "--check-requirements=false", "-L", "debug", **env)
 
 
     def _restore_range(self, start_key, end_key, dst_api_version, storage_dir):
+        env = {
+            'GO_FAILPOINTS': self.failpoints,
+        }
         self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", storage_dir,
                 "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
-                "--check-requirements=false")
+                "--check-requirements=false", "-L", "debug", **env)
 
 
     def _randgen(self, start_key, end_key):
@@ -129,15 +135,15 @@ class rawkvTester:
             self._exit_with_error(f"get checksum failed:\n  start_key: {start_key}\n  end_key: {end_key}")
 
 
-    def _run_cmd(self, cmd, *args):
+    def _run_cmd(self, cmd, *args, **env):
         # construct command and arguments
-        cmd_list = [cmd]
+        cmd_list = cmd.split() # `cmd` may contain arguments, so split() to meet requirement of `subprocess.check_output`.
         for arg in args:
             cmd_list.append(arg)
 
         # CalledProcessError
         try:
-            output = subprocess.run(cmd_list, universal_newlines=True, check=True, stdout=subprocess.PIPE).stdout
+            output = subprocess.run(cmd_list, env=env, universal_newlines=True, check=True, stdout=subprocess.PIPE).stdout
         except  subprocess.CalledProcessError as e:
             self._exit_with_error(f"run command failed:\n  cmd: {e.cmd}\n  stdout: {e.stdout}\n  stderr: {e.stderr}")
 
@@ -158,12 +164,18 @@ class rawkvTester:
         exit(1)
 
 
+FAILPOINTS = [
+    # ingest "region error" to trigger fineGrainedBackup
+    'github.com/tikv/migration/br/pkg/backup/tikv-region-error=return("region error")',
+]
+
 def main():
     args = parse_args()
-    tester = rawkvTester(args)
-    tester.test_dst_apiv1()
-    tester.test_dst_apiv1ttl()
-    tester.test_dst_apiv2()
+    for failpoint in [''] + FAILPOINTS:
+        tester = rawkvTester(args, failpoints=failpoint)
+        tester.test_dst_apiv1()
+        tester.test_dst_apiv1ttl()
+        tester.test_dst_apiv2()
 
 
 def parse_args():
