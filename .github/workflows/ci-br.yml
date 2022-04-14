@@ -64,7 +64,35 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tikv_version: [v5.0.0, v5.1.0, v5.2.0, v5.3.0, v5.4.0, v6.0.0, nightly]
+        tikv_version: [v6.0.0, nightly]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: install tiup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
+      - name: start tikv cluster
+        run: |
+          # start tikv in apiv1ttl
+          /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &
+          # The first run of `tiup` has to download all components so it'll take longer.
+          sleep 1m 30s
+          # Parse PD address from `tiup` output
+          echo "PD_ADDR=$(cat raw.out | grep -oP '(?<=PD client endpoints: \[)[0-9\.:]+(?=\])')" >> $GITHUB_ENV
+          # Log the output
+          echo "$(cat raw.out)" >&2
+      - name: run integration test
+        run: |
+          cd br
+          make test/integration
+  br-integration-test-5X:
+    # Separate integration tests of v5.X, to distinguish whether failure would be caused by compatibility of old versions.
+    name: br-integration-test-5X-${{ matrix.tikv_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tikv_version: [v5.0.0, v5.1.0, v5.2.0, v5.3.0, v5.4.0]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
