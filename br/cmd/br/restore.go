@@ -5,7 +5,6 @@ package main
 import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/session"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/gluetikv"
 	"github.com/tikv/migration/br/pkg/summary"
@@ -52,8 +51,6 @@ func NewRestoreCommand() *cobra.Command {
 			build.LogInfo(build.BR)
 			utils.LogEnvVariables()
 			task.LogArguments(c)
-			session.DisableStats4Test()
-
 			summary.SetUnit(summary.RestoreUnit)
 			return nil
 		},

@@ -12,7 +12,6 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -59,7 +58,6 @@ type Client struct {
 func NewRestoreClient(
 	g glue.Glue,
 	pdClient pd.Client,
-	store kv.Storage,
 	tlsConf *tls.Config,
 	keepaliveConf keepalive.ClientParameters,
 	isRawKv bool,

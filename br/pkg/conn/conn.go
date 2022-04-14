@@ -16,7 +16,6 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -103,7 +102,6 @@ func NewConnPool(cap int, newConn func(ctx context.Context) (*grpc.ClientConn, e
 type Mgr struct {
 	*pdutil.PdController
 	tlsConf   *tls.Config
-	storage   kv.Storage   // Used to access SQL related interfaces.
 	tikvStore tikv.Storage // Used to access TiKV specific interfaces.
 	grpcClis  struct {
 		mu   sync.Mutex
@@ -270,7 +268,6 @@ func NewMgr(
 
 	mgr := &Mgr{
 		PdController: controller,
-		storage:      storage,
 		tikvStore:    tikvStorage,
 		tlsConf:      tlsConf,
 		ownsStorage:  g.OwnsStorage(),
@@ -390,11 +387,6 @@ func (mgr *Mgr) ResetBackupClient(ctx context.Context, storeID uint64) (backuppb
 	return backuppb.NewBackupClient(conn), nil
 }
 
-// GetStorage returns a kv storage.
-func (mgr *Mgr) GetStorage() kv.Storage {
-	return mgr.storage
-}
-
 // GetTLSConfig returns the tls config.
 func (mgr *Mgr) GetTLSConfig() *tls.Config {
 	return mgr.tlsConf
@@ -420,7 +412,6 @@ func (mgr *Mgr) Close() {
 	// Must close domain before closing storage, otherwise it gets stuck forever.
 	if mgr.ownsStorage {
 		tikv.StoreShuttingDown(1)
-		mgr.storage.Close()
 	}
 
 	mgr.PdController.Close()
