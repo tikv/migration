@@ -214,18 +214,17 @@ func (s *Server) startEtcdLoop() {
 		case <-time.After(etcdCampaignInterval):
 			session, err := concurrency.NewSession(s.etcdClient, concurrency.WithTTL(5))
 			if err != nil {
-				fmt.Println(err)
+				log.Error("create election session fail", zap.Error(err), zap.String("name", s.cfg.Name))
 				continue
 			}
 			election := concurrency.NewElection(session, gcWorkerRootPath)
-
-			fmt.Printf("worker:%s 参加选举\n", s.cfg.Name)
+			log.Info("start campaign for leader", zap.String("worker", s.cfg.Name))
 			if err = election.Campaign(ctx, gcWorkerElectionVal); err != nil {
-				fmt.Println(err)
+				log.Error("campaign fail", zap.Error(err), zap.String("name", s.cfg.Name))
 				continue
 			}
 			s.isLead = true
-			fmt.Printf("worker:%s 选举：成功,Key:%s \n", s.cfg.Name, election.Key())
+			log.Info("current node become etcd leader", zap.String("worker", s.cfg.Name))
 		case <-ctx.Done():
 			s.isLead = false
 			log.Info("server is closed, exit metrics loop")
@@ -250,6 +249,7 @@ func (s *Server) startUpdateGCSafePointLoop() {
 			physical, logical, err := s.pdClient.GetTS(ctx)
 			if err != nil {
 				log.Error("fail to get tso", zap.Error(err))
+				continue
 			}
 			currentTs := ComposeTS(physical, logical)
 			currentTime := GetTimeFromTS(currentTs)
