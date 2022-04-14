@@ -22,7 +22,6 @@ import traceback
 
 
 class rawkvTester:
-    # storage_path_suffix: used for separating backup storages for different test cases.
     def __init__(self, global_args, failpoints=''):
         self.pd = global_args.pd
         self.br = global_args.br
@@ -172,7 +171,7 @@ FAILPOINTS = [
 
 def main():
     args = parse_args()
-    for failpoint in [''].extend(FAILPOINTS):
+    for failpoint in [''] + FAILPOINTS:
         tester = rawkvTester(args, failpoints=failpoint)
         tester.test_dst_apiv1()
         tester.test_dst_apiv1ttl()
