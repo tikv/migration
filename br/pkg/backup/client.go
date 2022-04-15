@@ -5,8 +5,11 @@ package backup
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -17,6 +20,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/util/codec"
@@ -68,10 +72,19 @@ const (
 	RegionUnit ProgressUnit = "region"
 )
 
+type StorageConfig struct {
+	ApiVersion int  `json:"api-version"`
+	EnableTTL  bool `json:"enable-ttl"`
+}
+type StoreConfig struct {
+	Storage StorageConfig `json:"storage"`
+}
+
 // Client is a client instructs TiKV how to do a backup.
 type Client struct {
-	mgr       ClientMgr
-	clusterID uint64
+	mgr        ClientMgr
+	clusterID  uint64
+	httpClient http.Client
 
 	storage storage.ExternalStorage
 	backend *backuppb.StorageBackend
@@ -127,6 +140,43 @@ func (bc *Client) GetTS(ctx context.Context, duration time.Duration, ts uint64) 
 	}
 	log.Info("backup encode timestamp", zap.Uint64("BackupTS", backupTS))
 	return backupTS, nil
+}
+
+func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVersion, error) {
+	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, bc.mgr.GetPDClient(), conn.SkipTiFlash)
+	if err != nil || len(allStores) == 0 {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	} else if len(allStores) == 0 {
+		return kvrpcpb.APIVersion_V1, errors.New("store are empty")
+	}
+	url := fmt.Sprintf("%s://%s/config", "http", allStores[0].StatusAddress)
+	resp, err := bc.httpClient.Get(url)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	var cfg StoreConfig
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	var apiVersion kvrpcpb.APIVersion
+	if cfg.Storage.ApiVersion == 1 {
+		if cfg.Storage.EnableTTL {
+			apiVersion = kvrpcpb.APIVersion_V1TTL
+		} else {
+			apiVersion = kvrpcpb.APIVersion_V1
+		}
+	} else if cfg.Storage.ApiVersion == 2 {
+		apiVersion = kvrpcpb.APIVersion_V2
+	} else {
+		errMsg := fmt.Sprintf("Invalid apiversion %d", cfg.Storage.ApiVersion)
+		return kvrpcpb.APIVersion_V1, errors.New(errMsg)
+	}
+	return apiVersion, nil
 }
 
 // SetLockFile set write lock file.
@@ -292,7 +342,7 @@ func (bc *Client) BackupRange(
 	// Find and backup remaining ranges.
 	// TODO: test fine grained backup.
 	err = bc.fineGrainedBackup(
-		ctx, startKey, endKey, req.StartVersion, req.EndVersion, req.CompressionType, req.CompressionLevel,
+		ctx, req.DstApiVersion, startKey, endKey, req.StartVersion, req.EndVersion, req.CompressionType, req.CompressionLevel,
 		req.RateLimit, req.Concurrency, req.IsRawKv, req.CipherInfo, results, progressCallBack)
 	if err != nil {
 		return errors.Trace(err)
@@ -366,6 +416,7 @@ func (bc *Client) findRegionLeader(ctx context.Context, key []byte, isRawKv bool
 
 func (bc *Client) fineGrainedBackup(
 	ctx context.Context,
+	dstApiVersion kvrpcpb.APIVersion,
 	startKey, endKey []byte,
 	lastBackupTS uint64,
 	backupTS uint64,
@@ -424,7 +475,7 @@ func (bc *Client) fineGrainedBackup(
 				defer wg.Done()
 				for rg := range retry {
 					backoffMs, err :=
-						bc.handleFineGrained(ctx, boFork, rg, lastBackupTS, backupTS,
+						bc.handleFineGrained(ctx, dstApiVersion, boFork, rg, lastBackupTS, backupTS,
 							compressType, compressLevel, rateLimit, concurrency, isRawKv, cipherInfo, respCh)
 					if err != nil {
 						errCh <- err
@@ -562,6 +613,7 @@ func OnBackupResponse(
 
 func (bc *Client) handleFineGrained(
 	ctx context.Context,
+	dstApiVersion kvrpcpb.APIVersion,
 	bo *tikv.Backoffer,
 	rg rtree.Range,
 	lastBackupTS uint64,
@@ -590,6 +642,7 @@ func (bc *Client) handleFineGrained(
 		RateLimit:        rateLimit,
 		Concurrency:      concurrency,
 		IsRawKv:          isRawKv,
+		DstApiVersion:    dstApiVersion,
 		CompressionType:  compressType,
 		CompressionLevel: compressionLevel,
 		CipherInfo:       cipherInfo,

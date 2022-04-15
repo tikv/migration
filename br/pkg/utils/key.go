@@ -10,7 +10,13 @@ import (
 	"strings"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	berrors "github.com/tikv/migration/br/pkg/errors"
+)
+
+const (
+	API_V2_KEY_PREFIX byte = 'r'
+	API_V2_KEY_END    byte = 's'
 )
 
 // ParseKey parse key by given format.
@@ -88,4 +94,30 @@ func CompareEndKey(a, b []byte) int {
 	}
 
 	return bytes.Compare(a, b)
+}
+
+// encode
+func FormatApiV2Key(key []byte, isEnd bool) []byte {
+	if isEnd && len(key) == 0 {
+		return []byte{API_V2_KEY_END}
+	}
+	apiv2Key := []byte{API_V2_KEY_PREFIX}
+	return append(apiv2Key, key...)
+}
+
+// conversion between formated APIVersion key and backupmeta key
+// for example, backup apiv1 -> apiv2, add `r` prefix and `s` for empty end key.
+// apiv2 -> apiv1, remove first byte. This is useful when decode the response keys.
+func ConvertBackupConfigKey(backupKey []byte, isEnd bool, srcApiVer kvrpcpb.APIVersion, dstApiVer kvrpcpb.APIVersion) []byte {
+	if srcApiVer == dstApiVer {
+		return backupKey
+	}
+	if dstApiVer == kvrpcpb.APIVersion_V2 {
+		return FormatApiV2Key(backupKey, isEnd)
+	}
+	if srcApiVer == kvrpcpb.APIVersion_V2 {
+		return backupKey[1:]
+	}
+	// unreachable
+	return nil
 }

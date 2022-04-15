@@ -274,7 +274,7 @@ func TestScatterFinishInTime(t *testing.T) {
 	regionSplitter := restore.NewRegionSplitter(client)
 
 	ctx := context.Background()
-	err := regionSplitter.Split(ctx, ranges, rewriteRules, false, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
+	err := regionSplitter.Split(ctx, ranges, rewriteRules, true, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
 	require.NoError(t, err)
 	regions := client.GetAllRegions()
 	if !validateRegions(regions) {
@@ -330,7 +330,7 @@ func runTestSplitAndScatterWith(t *testing.T, client *TestClient) {
 	regionSplitter := restore.NewRegionSplitter(client)
 
 	ctx := context.Background()
-	err := regionSplitter.Split(ctx, ranges, rewriteRules, false, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
+	err := regionSplitter.Split(ctx, ranges, rewriteRules, true, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
 	require.NoError(t, err)
 	regions := client.GetAllRegions()
 	if !validateRegions(regions) {

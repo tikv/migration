@@ -17,6 +17,7 @@ import (
 	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
+	"github.com/tikv/migration/br/pkg/utils"
 	"go.uber.org/zap"
 )
 
@@ -79,6 +80,11 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
+	curAPIVersion, err := client.GetCurrentTiKVApiVersion(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	cfg.adjustBackupRange(curAPIVersion)
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
 		SendCredentials: cfg.SendCreds,
@@ -130,7 +136,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		}
 		updateCh.Inc()
 	}
-
+	dstApiVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
 	req := backuppb.BackupRequest{
 		ClusterId:        client.GetClusterID(),
 		StartVersion:     0,
@@ -139,7 +145,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		Concurrency:      cfg.Concurrency,
 		IsRawKv:          true,
 		Cf:               "default",
-		DstApiVersion:    kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion]),
+		DstApiVersion:    dstApiVersion,
 		CompressionType:  cfg.CompressionType,
 		CompressionLevel: cfg.CompressionLevel,
 		CipherInfo:       &cfg.CipherInfo,
@@ -152,7 +158,10 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	}
 	// Backup has finished
 	updateCh.Close()
-	rawRanges := []*backuppb.RawRange{{StartKey: backupRange.StartKey, EndKey: backupRange.EndKey, Cf: "default"}}
+	// backup meta range should in DstAPIVersion format
+	metaStartKey := utils.ConvertBackupConfigKey(cfg.StartKey, false, curAPIVersion, dstApiVersion)
+	metaEndKey := utils.ConvertBackupConfigKey(cfg.EndKey, true, curAPIVersion, dstApiVersion)
+	rawRanges := []*backuppb.RawRange{{StartKey: metaStartKey, EndKey: metaEndKey, Cf: "default"}}
 	metaWriter.Update(func(m *backuppb.BackupMeta) {
 		m.StartVersion = req.StartVersion
 		m.EndVersion = req.EndVersion
@@ -161,6 +170,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		m.ClusterId = req.ClusterId
 		m.ClusterVersion = clusterVersion
 		m.BrVersion = brVersion
+		m.ApiVersion = dstApiVersion
 	})
 	err = metaWriter.FinishWriteMetas(ctx, metautil.AppendDataFile)
 	if err != nil {

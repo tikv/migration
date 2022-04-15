@@ -26,7 +26,7 @@ require (
 	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354
 	github.com/pingcap/tidb v1.1.0-beta.0.20211229105350-1e7f0dcc63b9
 	github.com/pingcap/tidb-tools v5.2.2-0.20211019062242-37a8bef2fa17+incompatible
-	github.com/pingcap/tidb/parser v0.0.0-20211229105350-1e7f0dcc63b9
+	github.com/pingcap/tidb/parser v0.0.0-20211229105350-1e7f0dcc63b9 // indirect
 	github.com/pingcap/tipb v0.0.0-20220107024056-3b91949a18a7 // indirect
 	github.com/prometheus/client_golang v1.5.1
 	github.com/spf13/cobra v1.0.0
