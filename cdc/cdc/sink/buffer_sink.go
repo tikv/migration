@@ -15,6 +15,7 @@ package sink
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -122,8 +123,15 @@ func (b *bufferSink) runOnce(ctx context.Context, state *runState) (bool, error)
 	startEmit := time.Now()
 	// find all rows before resolvedTs and emit to backend sink
 	for i := 0; i < batchSize; i++ {
-		keyspanID := batch[i].keyspanID
+		keyspanID, resolvedTs := batch[i].keyspanID, batch[i].resolvedTs
 		rawKVEntries := b.buffer[keyspanID]
+
+		i := sort.Search(len(rawKVEntries), func(i int) bool {
+			return rawKVEntries[i].CRTs > resolvedTs
+		})
+		if i == 0 {
+			continue
+		}
 		state.metricTotalRows.Add(float64(i))
 
 		err := b.Sink.EmitChangedEvents(ctx, rawKVEntries...)
@@ -131,10 +139,9 @@ func (b *bufferSink) runOnce(ctx context.Context, state *runState) (bool, error)
 			b.bufferMu.Unlock()
 			return false, errors.Trace(err)
 		}
-
-		// put remaining rows back to buffer
+		// put remaining rawKVEntries back to buffer
 		// append to a new, fixed slice to avoid lazy GC
-		b.buffer[keyspanID] = []*model.RawKVEntry{}
+		b.buffer[keyspanID] = append(make([]*model.RawKVEntry, 0, len(rawKVEntries[i:])), rawKVEntries[i:]...)
 	}
 	b.bufferMu.Unlock()
 	state.metricEmitRowDuration.Observe(time.Since(startEmit).Seconds())
