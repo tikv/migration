@@ -1,0 +1,61 @@
+name: CI
+on:
+  push:
+    branches: main
+    paths: cdc/**
+  pull_request:
+    branches: main
+    paths: cdc/**
+
+permissions:
+  contents: read
+
+jobs:
+  cdc-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check-static
+        shell: bash
+        run: |
+          cd cdc/
+          make check-static
+  cdc-check-gosec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check-gosec
+        shell: bash
+        run: |
+          cd cdc
+          make check-gosec
+  cdc-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make cdc
+        shell: bash
+        run: |
+          cd cdc
+          make cdc
+  cdc-unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make unit_test
+        shell: bash
+        run: |
+          cd br
+          make unit_test
