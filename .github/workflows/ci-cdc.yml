@@ -54,8 +54,8 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.16.1'
-      - name: make unit_test
+      - name: make unit_test_in_verify_ci
         shell: bash
         run: |
           cd cdc/
-          make unit_test
+          make unit_test_in_verify_ci
