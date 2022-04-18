@@ -82,12 +82,12 @@ func (r *cdcMonitReactor) verifyStartTs() error {
 		actualCheckpointTs := cStatus.CheckpointTs
 
 		for captureID, status := range statuses {
-			for tableID, operation := range status.Operation {
+			for keyspanID, operation := range status.Operation {
 				if operation.Status != model.OperFinished && !operation.Delete {
-					startTs := status.Tables[tableID].StartTs
+					startTs := status.KeySpans[keyspanID].StartTs
 					if startTs < actualCheckpointTs {
 						return errors.Errorf("startTs too small, globalCkpt = %d, startTs = %d, table = %d, capture = %s, cfid = %s",
-							actualCheckpointTs, startTs, tableID, captureID, changfeedID)
+							actualCheckpointTs, startTs, keyspanID, captureID, changfeedID)
 					}
 				}
 			}
