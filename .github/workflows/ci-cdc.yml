@@ -33,7 +33,7 @@ jobs:
       - name: make check-gosec
         shell: bash
         run: |
-          cd cdc
+          cd cdc/
           make check-gosec
   cdc-build:
     runs-on: ubuntu-latest
@@ -45,7 +45,7 @@ jobs:
       - name: make cdc
         shell: bash
         run: |
-          cd cdc
+          cd cdc/
           make cdc
   cdc-unit-test:
     runs-on: ubuntu-latest
@@ -57,5 +57,5 @@ jobs:
       - name: make unit_test
         shell: bash
         run: |
-          cd br
+          cd cdc/
           make unit_test
