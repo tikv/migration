@@ -13,7 +13,19 @@
 
 package cli
 
-/*
+import (
+	"github.com/pingcap/log"
+	"github.com/spf13/cobra"
+	"github.com/tikv/migration/cdc/cdc/model"
+	"github.com/tikv/migration/cdc/pkg/cmd/context"
+	"github.com/tikv/migration/cdc/pkg/cmd/factory"
+	"github.com/tikv/migration/cdc/pkg/cmd/util"
+	cerror "github.com/tikv/migration/cdc/pkg/errors"
+	"github.com/tikv/migration/cdc/pkg/etcd"
+	"github.com/tikv/migration/cdc/pkg/security"
+	"go.uber.org/zap"
+)
+
 // captureTaskStatus holds capture task status.
 type captureTaskStatus struct {
 	CaptureID  string            `json:"capture-id"`
@@ -142,7 +154,5 @@ func newCmdQueryChangefeed(f factory.Factory) *cobra.Command {
 	}
 
 	o.addFlags(command)
-
 	return command
 }
-*/

@@ -89,7 +89,7 @@ func (c *KeySpanMemoryQuota) ConsumeWithBlocking(nBytes uint64, blockCallBack fu
 	return nil
 }
 
-// ForceConsume is called when blocking is not accepkeyspan and the limit can be violated
+// ForceConsume is called when blocking is not acceptable and the limit can be violated
 // for the sake of avoid deadlock. It merely records the increased memory consumption.
 func (c *KeySpanMemoryQuota) ForceConsume(nBytes uint64) error {
 	c.mu.Lock()
