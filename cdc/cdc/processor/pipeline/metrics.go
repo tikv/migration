@@ -18,33 +18,33 @@ import (
 )
 
 var (
-	tableResolvedTsGauge = prometheus.NewGaugeVec(
+	keyspanResolvedTsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
-			Name:      "table_resolved_ts",
+			Name:      "keyspan_resolved_ts",
 			Help:      "local resolved ts of processor",
-		}, []string{"changefeed", "capture", "table"})
+		}, []string{"changefeed", "capture", "keyspan"})
 	txnCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
 			Name:      "txn_count",
 			Help:      "txn count received/executed by this processor",
 		}, []string{"type", "changefeed", "capture"})
-	tableMemoryHistogram = prometheus.NewHistogramVec(
+	keyspanMemoryHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "processor",
-			Name:      "table_memory_consumption",
-			Help:      "estimated memory consumption for a table after the sorter",
+			Name:      "keyspan_memory_consumption",
+			Help:      "estimated memory consumption for a keyspan after the sorter",
 			Buckets:   prometheus.ExponentialBuckets(1*1024*1024 /* mb */, 2, 10),
 		}, []string{"changefeed", "capture"})
 )
 
 // InitMetrics registers all metrics used in processor
 func InitMetrics(registry *prometheus.Registry) {
-	registry.MustRegister(tableResolvedTsGauge)
+	registry.MustRegister(keyspanResolvedTsGauge)
 	registry.MustRegister(txnCounter)
-	registry.MustRegister(tableMemoryHistogram)
+	registry.MustRegister(keyspanMemoryHistogram)
 }

@@ -20,14 +20,14 @@ import (
 var (
 	mounterInputChanSizeGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "mounter",
 			Name:      "input_chan_size",
 			Help:      "mounter input chan size",
 		}, []string{"capture", "changefeed"})
 	mountDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "mounter",
 			Name:      "unmarshal_and_mount",
 			Help:      "Bucketed histogram of processing time (s) of unmarshal and mount in mounter.",
@@ -35,7 +35,7 @@ var (
 		}, []string{"capture", "changefeed"})
 	totalRowsCountGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "mounter",
 			Name:      "total_rows_count",
 			Help:      "The total count of rows that are processed by mounter",

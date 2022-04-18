@@ -57,7 +57,7 @@ const (
     "sync-ddl": false
   },
   "scheduler": {
-    "type": "table-number",
+    "type": "keyspan-number",
     "polling-time": -1
   },
   "consistent": {
@@ -101,14 +101,14 @@ const (
     "key-path": "",
     "cert-allowed-cn": null
   },
-  "per-table-memory-quota": 10485760,
+  "per-keyspan-memory-quota": 10485760,
   "kv-client": {
     "worker-concurrent": 8,
     "worker-pool-size": 0,
     "region-scan-limit": 40
   },
   "debug": {
-    "enable-table-actor": false,
+    "enable-keyspan-actor": false,
     "enable-db-sorter": false,
     "db": {
       "count": 8,
@@ -177,7 +177,7 @@ const (
     "sync-ddl": false
   },
   "scheduler": {
-    "type": "table-number",
+    "type": "keyspan-number",
     "polling-time": -1
   },
   "consistent": {
@@ -225,7 +225,7 @@ const (
     "sync-ddl": false
   },
   "scheduler": {
-    "type": "table-number",
+    "type": "keyspan-number",
     "polling-time": -1
   },
   "consistent": {

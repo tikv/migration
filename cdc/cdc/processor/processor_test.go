@@ -17,17 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
-	"sync/atomic"
 	"testing"
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/model"
-	tablepipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
-	"github.com/tikv/migration/cdc/cdc/redo"
+	keyspanpipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
 	"github.com/tikv/migration/cdc/cdc/scheduler"
 	"github.com/tikv/migration/cdc/cdc/sink"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
@@ -43,131 +39,110 @@ type processorSuite struct{}
 
 var _ = check.Suite(&processorSuite{})
 
-// processor needs to implement TableExecutor.
-var _ scheduler.TableExecutor = (*processor)(nil)
+// processor needs to implement KeySpanExecutor.
+var _ scheduler.KeySpanExecutor = (*processor)(nil)
 
 func newProcessor4Test(
 	ctx cdcContext.Context,
-	c *check.C,
-	createTablePipeline func(ctx cdcContext.Context, tableID model.TableID, replicaInfo *model.TableReplicaInfo) (tablepipeline.TablePipeline, error),
+	_ *check.C,
+	createKeySpanPipeline func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error),
 ) *processor {
 	p := newProcessor(ctx)
 	// disable new scheduler to pass old test cases
 	// TODO refactor the test cases so that new scheduler can be enabled
-	p.newSchedulerEnabled = false
+	// p.newSchedulerEnabled = true
 	p.lazyInit = func(ctx cdcContext.Context) error { return nil }
 	p.sinkManager = &sink.Manager{}
-	p.redoManager = redo.NewDisabledManager()
-	p.createTablePipeline = createTablePipeline
-	p.schemaStorage = &mockSchemaStorage{c: c, resolvedTs: math.MaxUint64}
+	p.agent = &mockAgent{executor: p}
+	p.createKeySpanPipeline = createKeySpanPipeline
 	return p
 }
 
 func initProcessor4Test(ctx cdcContext.Context, c *check.C) (*processor, *orchestrator.ReactorStateTester) {
-	p := newProcessor4Test(ctx, c, func(ctx cdcContext.Context, tableID model.TableID, replicaInfo *model.TableReplicaInfo) (tablepipeline.TablePipeline, error) {
-		return &mockTablePipeline{
-			tableID:      tableID,
-			name:         fmt.Sprintf("`test`.`table%d`", tableID),
-			status:       tablepipeline.TableStatusRunning,
+	p := newProcessor4Test(ctx, c, func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error) {
+		return &mockKeySpanPipeline{
+			keyspanID:    keyspanID,
+			name:         fmt.Sprintf("`test`.`keyspan%d`", keyspanID),
+			status:       keyspanpipeline.KeySpanStatusRunning,
 			resolvedTs:   replicaInfo.StartTs,
 			checkpointTs: replicaInfo.StartTs,
 		}, nil
 	})
 	p.changefeed = orchestrator.NewChangefeedReactorState(ctx.ChangefeedVars().ID)
 	return p, orchestrator.NewReactorStateTester(c, p.changefeed, map[string]string{
-		"/tidb/cdc/capture/" + ctx.GlobalVars().CaptureInfo.ID:                                     `{"id":"` + ctx.GlobalVars().CaptureInfo.ID + `","address":"127.0.0.1:8300"}`,
-		"/tidb/cdc/changefeed/info/" + ctx.ChangefeedVars().ID:                                     `{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":0,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":".","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"table-number","polling-time":-1}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
-		"/tidb/cdc/job/" + ctx.ChangefeedVars().ID:                                                 `{"resolved-ts":0,"checkpoint-ts":0,"admin-job-type":0}`,
-		"/tidb/cdc/task/status/" + ctx.GlobalVars().CaptureInfo.ID + "/" + ctx.ChangefeedVars().ID: `{"tables":{},"operation":null,"admin-job-type":0}`,
+		"/tikv/cdc/capture/" + ctx.GlobalVars().CaptureInfo.ID:                                     `{"id":"` + ctx.GlobalVars().CaptureInfo.ID + `","address":"127.0.0.1:8300"}`,
+		"/tikv/cdc/changefeed/info/" + ctx.ChangefeedVars().ID:                                     `{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":0,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":".","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"keyspan-number","polling-time":-1}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
+		"/tikv/cdc/job/" + ctx.ChangefeedVars().ID:                                                 `{"resolved-ts":0,"checkpoint-ts":0,"admin-job-type":0}`,
+		"/tikv/cdc/task/status/" + ctx.GlobalVars().CaptureInfo.ID + "/" + ctx.ChangefeedVars().ID: `{"keyspans":{},"operation":null,"admin-job-type":0}`,
 	})
 }
 
-type mockTablePipeline struct {
-	tableID      model.TableID
+type mockKeySpanPipeline struct {
+	keyspanID    model.KeySpanID
 	name         string
 	resolvedTs   model.Ts
 	checkpointTs model.Ts
 	barrierTs    model.Ts
 	stopTs       model.Ts
-	status       tablepipeline.TableStatus
+	status       keyspanpipeline.KeySpanStatus
 	canceled     bool
 }
 
-func (m *mockTablePipeline) ID() (tableID int64, markTableID int64) {
-	return m.tableID, 0
+func (m *mockKeySpanPipeline) ID() (keyspanID uint64) {
+	return m.keyspanID
 }
 
-func (m *mockTablePipeline) Name() string {
+func (m *mockKeySpanPipeline) Name() string {
 	return m.name
 }
 
-func (m *mockTablePipeline) ResolvedTs() model.Ts {
+func (m *mockKeySpanPipeline) ResolvedTs() model.Ts {
 	return m.resolvedTs
 }
 
-func (m *mockTablePipeline) CheckpointTs() model.Ts {
+func (m *mockKeySpanPipeline) CheckpointTs() model.Ts {
 	return m.checkpointTs
 }
 
-func (m *mockTablePipeline) UpdateBarrierTs(ts model.Ts) {
+func (m *mockKeySpanPipeline) UpdateBarrierTs(ts model.Ts) {
 	m.barrierTs = ts
 }
 
-func (m *mockTablePipeline) AsyncStop(targetTs model.Ts) bool {
+func (m *mockKeySpanPipeline) AsyncStop(targetTs model.Ts) bool {
 	m.stopTs = targetTs
 	return true
 }
 
-func (m *mockTablePipeline) Workload() model.WorkloadInfo {
+func (m *mockKeySpanPipeline) Workload() model.WorkloadInfo {
 	return model.WorkloadInfo{Workload: 1}
 }
 
-func (m *mockTablePipeline) Status() tablepipeline.TableStatus {
+func (m *mockKeySpanPipeline) Status() keyspanpipeline.KeySpanStatus {
 	return m.status
 }
 
-func (m *mockTablePipeline) Cancel() {
+func (m *mockKeySpanPipeline) Cancel() {
 	if m.canceled {
-		log.Panic("cancel a canceled table pipeline")
+		log.Panic("cancel a canceled keyspan pipeline")
 	}
 	m.canceled = true
 }
 
-func (m *mockTablePipeline) Wait() {
+func (m *mockKeySpanPipeline) Wait() {
 	// do nothing
-}
-
-type mockSchemaStorage struct {
-	// dummy to provide default versions of unimplemented interface methods,
-	// as we only need ResolvedTs() and DoGC() in unit tests.
-	entry.SchemaStorage
-
-	c          *check.C
-	lastGcTs   uint64
-	resolvedTs uint64
-}
-
-func (s *mockSchemaStorage) ResolvedTs() uint64 {
-	return s.resolvedTs
-}
-
-func (s *mockSchemaStorage) DoGC(ts uint64) uint64 {
-	s.c.Assert(s.lastGcTs, check.LessEqual, ts)
-	atomic.StoreUint64(&s.lastGcTs, ts)
-	return ts
 }
 
 type mockAgent struct {
 	// dummy to satisfy the interface
 	processorAgent
 
-	executor         scheduler.TableExecutor
+	executor         scheduler.KeySpanExecutor
 	lastCheckpointTs model.Ts
 	isClosed         bool
 }
 
 func (a *mockAgent) Tick(_ cdcContext.Context) error {
-	if len(a.executor.GetAllCurrentTables()) == 0 {
+	if len(a.executor.GetAllCurrentKeySpans()) == 0 {
 		return nil
 	}
 	a.lastCheckpointTs, _ = a.executor.GetCheckpoint()
@@ -183,7 +158,7 @@ func (a *mockAgent) Close() error {
 	return nil
 }
 
-func (s *processorSuite) TestCheckTablesNum(c *check.C) {
+func (s *processorSuite) TestCheckKeySpansNum(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(true)
 	p, tester := initProcessor4Test(ctx, c)
@@ -214,7 +189,7 @@ func (s *processorSuite) TestCheckTablesNum(c *check.C) {
 		})
 }
 
-func (s *processorSuite) TestHandleTableOperation4SingleTable(c *check.C) {
+func (s *processorSuite) TestHandleKeySpanOperation4SingleKeySpan(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(true)
 	p, tester := initProcessor4Test(ctx, c)
@@ -239,10 +214,10 @@ func (s *processorSuite) TestHandleTableOperation4SingleTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	// add table, in processing
-	// in current implementation of owner, the startTs and BoundaryTs of add table operation should be always equaled.
+	// add keyspan, in processing
+	// in current implementation of owner, the startTs and BoundaryTs of add keyspan operation should be always equaled.
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddTable(66, &model.TableReplicaInfo{StartTs: 60}, 60)
+		status.AddKeySpan(66, &model.KeySpanReplicaInfo{StartTs: 60}, 60)
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -250,38 +225,38 @@ func (s *processorSuite) TestHandleTableOperation4SingleTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
 			66: {StartTs: 60},
 		},
-		Operation: map[int64]*model.TableOperation{
+		Operation: map[uint64]*model.KeySpanOperation{
 			66: {Delete: false, BoundaryTs: 60, Status: model.OperProcessed},
 		},
 	})
 
-	// add table, not finished
+	// add keyspan, not finished
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
 			66: {StartTs: 60},
 		},
-		Operation: map[int64]*model.TableOperation{
+		Operation: map[uint64]*model.KeySpanOperation{
 			66: {Delete: false, BoundaryTs: 60, Status: model.OperProcessed},
 		},
 	})
 
-	// add table, push the resolvedTs
-	table66 := p.tables[66].(*mockTablePipeline)
-	table66.resolvedTs = 101
+	// add keyspan, push the resolvedTs
+	keyspan66 := p.keyspans[66].(*mockKeySpanPipeline)
+	keyspan66.resolvedTs = 101
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
 			66: {StartTs: 60},
 		},
-		Operation: map[int64]*model.TableOperation{
+		Operation: map[uint64]*model.KeySpanOperation{
 			66: {Delete: false, BoundaryTs: 60, Status: model.OperProcessed},
 		},
 	})
@@ -292,10 +267,10 @@ func (s *processorSuite) TestHandleTableOperation4SingleTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
 			66: {StartTs: 60},
 		},
-		Operation: map[int64]*model.TableOperation{
+		Operation: map[uint64]*model.KeySpanOperation{
 			66: {Delete: false, BoundaryTs: 60, Status: model.OperFinished},
 		},
 	})
@@ -303,9 +278,9 @@ func (s *processorSuite) TestHandleTableOperation4SingleTable(c *check.C) {
 	// clear finished operations
 	cleanUpFinishedOpOperation(p.changefeed, p.captureInfo.ID, tester)
 
-	// remove table, in processing
+	// remove keyspan, in processing
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.RemoveTable(66, 120, false)
+		status.RemoveKeySpan(66, 120, false)
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -313,41 +288,41 @@ func (s *processorSuite) TestHandleTableOperation4SingleTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{},
-		Operation: map[int64]*model.TableOperation{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{},
+		Operation: map[uint64]*model.KeySpanOperation{
 			66: {Delete: true, BoundaryTs: 120, Status: model.OperProcessed},
 		},
 	})
-	c.Assert(table66.stopTs, check.Equals, uint64(120))
+	c.Assert(keyspan66.stopTs, check.Equals, uint64(120))
 
-	// remove table, not finished
+	// remove keyspan, not finished
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{},
-		Operation: map[int64]*model.TableOperation{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{},
+		Operation: map[uint64]*model.KeySpanOperation{
 			66: {Delete: true, BoundaryTs: 120, Status: model.OperProcessed},
 		},
 	})
 
-	// remove table, finished
-	table66.status = tablepipeline.TableStatusStopped
-	table66.checkpointTs = 121
+	// remove keyspan, finished
+	keyspan66.status = keyspanpipeline.KeySpanStatusStopped
+	keyspan66.checkpointTs = 121
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{},
-		Operation: map[int64]*model.TableOperation{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{},
+		Operation: map[uint64]*model.KeySpanOperation{
 			66: {Delete: true, BoundaryTs: 121, Status: model.OperFinished},
 		},
 	})
-	c.Assert(table66.canceled, check.IsTrue)
-	c.Assert(p.tables[66], check.IsNil)
+	c.Assert(keyspan66.canceled, check.IsTrue)
+	c.Assert(p.keyspans[66], check.IsNil)
 }
 
-func (s *processorSuite) TestHandleTableOperation4MultiTable(c *check.C) {
+func (s *processorSuite) TestHandleKeySpanOperation4MultiKeySpan(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(true)
 	p, tester := initProcessor4Test(ctx, c)
@@ -373,13 +348,13 @@ func (s *processorSuite) TestHandleTableOperation4MultiTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	// add table, in processing
-	// in current implementation of owner, the startTs and BoundaryTs of add table operation should be always equaled.
+	// add keyspan, in processing
+	// in current implementation of owner, the startTs and BoundaryTs of add keyspan operation should be always equaled.
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddTable(1, &model.TableReplicaInfo{StartTs: 60}, 60)
-		status.AddTable(2, &model.TableReplicaInfo{StartTs: 50}, 50)
-		status.AddTable(3, &model.TableReplicaInfo{StartTs: 40}, 40)
-		status.Tables[4] = &model.TableReplicaInfo{StartTs: 30}
+		status.AddKeySpan(1, &model.KeySpanReplicaInfo{StartTs: 60}, 60)
+		status.AddKeySpan(2, &model.KeySpanReplicaInfo{StartTs: 50}, 50)
+		status.AddKeySpan(3, &model.KeySpanReplicaInfo{StartTs: 40}, 40)
+		status.KeySpans[4] = &model.KeySpanReplicaInfo{StartTs: 30}
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -387,34 +362,34 @@ func (s *processorSuite) TestHandleTableOperation4MultiTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
 			1: {StartTs: 60},
 			2: {StartTs: 50},
 			3: {StartTs: 40},
 			4: {StartTs: 30},
 		},
-		Operation: map[int64]*model.TableOperation{
+		Operation: map[uint64]*model.KeySpanOperation{
 			1: {Delete: false, BoundaryTs: 60, Status: model.OperProcessed},
 			2: {Delete: false, BoundaryTs: 50, Status: model.OperProcessed},
 			3: {Delete: false, BoundaryTs: 40, Status: model.OperProcessed},
 		},
 	})
-	c.Assert(p.tables, check.HasLen, 4)
+	c.Assert(p.keyspans, check.HasLen, 4)
 	c.Assert(p.changefeed.TaskPositions[p.captureInfo.ID].CheckPointTs, check.Equals, uint64(30))
 	c.Assert(p.changefeed.TaskPositions[p.captureInfo.ID].ResolvedTs, check.Equals, uint64(30))
 
-	// add table, push the resolvedTs, finished add table
-	table1 := p.tables[1].(*mockTablePipeline)
-	table2 := p.tables[2].(*mockTablePipeline)
-	table3 := p.tables[3].(*mockTablePipeline)
-	table4 := p.tables[4].(*mockTablePipeline)
-	table1.resolvedTs = 101
-	table2.resolvedTs = 101
-	table3.resolvedTs = 102
-	table4.resolvedTs = 103
-	// removed table 3
+	// add keyspan, push the resolvedTs, finished add keyspan
+	keyspan1 := p.keyspans[1].(*mockKeySpanPipeline)
+	keyspan2 := p.keyspans[2].(*mockKeySpanPipeline)
+	keyspan3 := p.keyspans[3].(*mockKeySpanPipeline)
+	keyspan4 := p.keyspans[4].(*mockKeySpanPipeline)
+	keyspan1.resolvedTs = 101
+	keyspan2.resolvedTs = 101
+	keyspan3.resolvedTs = 102
+	keyspan4.resolvedTs = 103
+	// removed keyspan 3
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.RemoveTable(3, 60, false)
+		status.RemoveKeySpan(3, 60, false)
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -422,51 +397,51 @@ func (s *processorSuite) TestHandleTableOperation4MultiTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
 			1: {StartTs: 60},
 			2: {StartTs: 50},
 			4: {StartTs: 30},
 		},
-		Operation: map[int64]*model.TableOperation{
+		Operation: map[uint64]*model.KeySpanOperation{
 			1: {Delete: false, BoundaryTs: 60, Status: model.OperFinished},
 			2: {Delete: false, BoundaryTs: 50, Status: model.OperFinished},
 			3: {Delete: true, BoundaryTs: 60, Status: model.OperProcessed},
 		},
 	})
-	c.Assert(p.tables, check.HasLen, 4)
-	c.Assert(table3.canceled, check.IsFalse)
-	c.Assert(table3.stopTs, check.Equals, uint64(60))
+	c.Assert(p.keyspans, check.HasLen, 4)
+	c.Assert(keyspan3.canceled, check.IsFalse)
+	c.Assert(keyspan3.stopTs, check.Equals, uint64(60))
 	c.Assert(p.changefeed.TaskPositions[p.captureInfo.ID].ResolvedTs, check.Equals, uint64(101))
 
 	// finish remove operations
-	table3.status = tablepipeline.TableStatusStopped
-	table3.checkpointTs = 65
+	keyspan3.status = keyspanpipeline.KeySpanStatusStopped
+	keyspan3.checkpointTs = 65
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
 			1: {StartTs: 60},
 			2: {StartTs: 50},
 			4: {StartTs: 30},
 		},
-		Operation: map[int64]*model.TableOperation{
+		Operation: map[uint64]*model.KeySpanOperation{
 			1: {Delete: false, BoundaryTs: 60, Status: model.OperFinished},
 			2: {Delete: false, BoundaryTs: 50, Status: model.OperFinished},
 			3: {Delete: true, BoundaryTs: 65, Status: model.OperFinished},
 		},
 	})
-	c.Assert(p.tables, check.HasLen, 3)
-	c.Assert(table3.canceled, check.IsTrue)
+	c.Assert(p.keyspans, check.HasLen, 3)
+	c.Assert(keyspan3.canceled, check.IsTrue)
 
 	// clear finished operations
 	cleanUpFinishedOpOperation(p.changefeed, p.captureInfo.ID, tester)
 
-	// remove table, in processing
+	// remove keyspan, in processing
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.RemoveTable(1, 120, false)
-		status.RemoveTable(4, 120, false)
-		delete(status.Tables, 2)
+		status.RemoveKeySpan(1, 120, false)
+		status.RemoveKeySpan(4, 120, false)
+		delete(status.KeySpans, 2)
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -474,50 +449,50 @@ func (s *processorSuite) TestHandleTableOperation4MultiTable(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{},
-		Operation: map[int64]*model.TableOperation{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{},
+		Operation: map[uint64]*model.KeySpanOperation{
 			1: {Delete: true, BoundaryTs: 120, Status: model.OperProcessed},
 			4: {Delete: true, BoundaryTs: 120, Status: model.OperProcessed},
 		},
 	})
-	c.Assert(table1.stopTs, check.Equals, uint64(120))
-	c.Assert(table4.stopTs, check.Equals, uint64(120))
-	c.Assert(table2.canceled, check.IsTrue)
-	c.Assert(p.tables, check.HasLen, 2)
+	c.Assert(keyspan1.stopTs, check.Equals, uint64(120))
+	c.Assert(keyspan4.stopTs, check.Equals, uint64(120))
+	c.Assert(keyspan2.canceled, check.IsTrue)
+	c.Assert(p.keyspans, check.HasLen, 2)
 
-	// remove table, not finished
+	// remove keyspan, not finished
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{},
-		Operation: map[int64]*model.TableOperation{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{},
+		Operation: map[uint64]*model.KeySpanOperation{
 			1: {Delete: true, BoundaryTs: 120, Status: model.OperProcessed},
 			4: {Delete: true, BoundaryTs: 120, Status: model.OperProcessed},
 		},
 	})
 
-	// remove table, finished
-	table1.status = tablepipeline.TableStatusStopped
-	table1.checkpointTs = 121
-	table4.status = tablepipeline.TableStatusStopped
-	table4.checkpointTs = 122
+	// remove keyspan, finished
+	keyspan1.status = keyspanpipeline.KeySpanStatusStopped
+	keyspan1.checkpointTs = 121
+	keyspan4.status = keyspanpipeline.KeySpanStatusStopped
+	keyspan4.checkpointTs = 122
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{},
-		Operation: map[int64]*model.TableOperation{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{},
+		Operation: map[uint64]*model.KeySpanOperation{
 			1: {Delete: true, BoundaryTs: 121, Status: model.OperFinished},
 			4: {Delete: true, BoundaryTs: 122, Status: model.OperFinished},
 		},
 	})
-	c.Assert(table1.canceled, check.IsTrue)
-	c.Assert(table4.canceled, check.IsTrue)
-	c.Assert(p.tables, check.HasLen, 0)
+	c.Assert(keyspan1.canceled, check.IsTrue)
+	c.Assert(keyspan4.canceled, check.IsTrue)
+	c.Assert(p.keyspans, check.HasLen, 0)
 }
 
-func (s *processorSuite) TestTableExecutor(c *check.C) {
+func (s *processorSuite) TestKeySpanExecutor(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(true)
 	p, tester := initProcessor4Test(ctx, c)
@@ -549,71 +524,71 @@ func (s *processorSuite) TestTableExecutor(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	ok, err := p.AddTable(ctx, 1)
+	ok, err := p.AddKeySpan(ctx, 1, []byte{1}, []byte{2})
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.IsTrue)
-	ok, err = p.AddTable(ctx, 2)
+	ok, err = p.AddKeySpan(ctx, 2, []byte{2}, []byte{3})
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.IsTrue)
-	ok, err = p.AddTable(ctx, 3)
+	ok, err = p.AddKeySpan(ctx, 3, []byte{3}, []byte{4})
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.IsTrue)
-	ok, err = p.AddTable(ctx, 4)
+	ok, err = p.AddKeySpan(ctx, 4, []byte{5}, []byte{6})
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.IsTrue)
 
-	c.Assert(p.tables, check.HasLen, 4)
+	c.Assert(p.keyspans, check.HasLen, 4)
 
 	checkpointTs := p.agent.GetLastSentCheckpointTs()
 	c.Assert(checkpointTs, check.Equals, uint64(0))
 
-	done := p.IsAddTableFinished(ctx, 1)
+	done := p.IsAddKeySpanFinished(ctx, 1)
 	c.Check(done, check.IsFalse)
-	done = p.IsAddTableFinished(ctx, 2)
+	done = p.IsAddKeySpanFinished(ctx, 2)
 	c.Check(done, check.IsFalse)
-	done = p.IsAddTableFinished(ctx, 3)
+	done = p.IsAddKeySpanFinished(ctx, 3)
 	c.Check(done, check.IsFalse)
-	done = p.IsAddTableFinished(ctx, 4)
+	done = p.IsAddKeySpanFinished(ctx, 4)
 	c.Check(done, check.IsFalse)
 
-	c.Assert(p.tables, check.HasLen, 4)
+	c.Assert(p.keyspans, check.HasLen, 4)
 
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	// add table, push the resolvedTs, finished add table
-	table1 := p.tables[1].(*mockTablePipeline)
-	table2 := p.tables[2].(*mockTablePipeline)
-	table3 := p.tables[3].(*mockTablePipeline)
-	table4 := p.tables[4].(*mockTablePipeline)
-	table1.resolvedTs = 101
-	table2.resolvedTs = 101
-	table3.resolvedTs = 102
-	table4.resolvedTs = 103
+	// add keyspan, push the resolvedTs, finished add keyspan
+	keyspan1 := p.keyspans[1].(*mockKeySpanPipeline)
+	keyspan2 := p.keyspans[2].(*mockKeySpanPipeline)
+	keyspan3 := p.keyspans[3].(*mockKeySpanPipeline)
+	keyspan4 := p.keyspans[4].(*mockKeySpanPipeline)
+	keyspan1.resolvedTs = 101
+	keyspan2.resolvedTs = 101
+	keyspan3.resolvedTs = 102
+	keyspan4.resolvedTs = 103
 
-	table1.checkpointTs = 30
-	table2.checkpointTs = 30
-	table3.checkpointTs = 30
-	table4.checkpointTs = 30
+	keyspan1.checkpointTs = 30
+	keyspan2.checkpointTs = 30
+	keyspan3.checkpointTs = 30
+	keyspan4.checkpointTs = 30
 
-	done = p.IsAddTableFinished(ctx, 1)
+	done = p.IsAddKeySpanFinished(ctx, 1)
 	c.Check(done, check.IsTrue)
-	done = p.IsAddTableFinished(ctx, 2)
+	done = p.IsAddKeySpanFinished(ctx, 2)
 	c.Check(done, check.IsTrue)
-	done = p.IsAddTableFinished(ctx, 3)
+	done = p.IsAddKeySpanFinished(ctx, 3)
 	c.Check(done, check.IsTrue)
-	done = p.IsAddTableFinished(ctx, 4)
+	done = p.IsAddKeySpanFinished(ctx, 4)
 	c.Check(done, check.IsTrue)
 
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	table1.checkpointTs = 75
-	table2.checkpointTs = 75
-	table3.checkpointTs = 60
-	table4.checkpointTs = 75
+	keyspan1.checkpointTs = 75
+	keyspan2.checkpointTs = 75
+	keyspan3.checkpointTs = 60
+	keyspan4.checkpointTs = 75
 
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
@@ -628,7 +603,7 @@ func (s *processorSuite) TestTableExecutor(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	ok, err = p.RemoveTable(ctx, 3)
+	ok, err = p.RemoveKeySpan(ctx, 3)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.IsTrue)
 
@@ -636,11 +611,11 @@ func (s *processorSuite) TestTableExecutor(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	c.Assert(p.tables, check.HasLen, 4)
-	c.Assert(table3.canceled, check.IsFalse)
-	c.Assert(table3.stopTs, check.Equals, uint64(60))
+	c.Assert(p.keyspans, check.HasLen, 4)
+	c.Assert(keyspan3.canceled, check.IsFalse)
+	c.Assert(keyspan3.stopTs, check.Equals, uint64(60))
 
-	done = p.IsRemoveTableFinished(ctx, 3)
+	done = p.IsRemoveKeySpanFinished(ctx, 3)
 	c.Assert(done, check.IsFalse)
 
 	_, err = p.Tick(ctx, p.changefeed)
@@ -651,21 +626,21 @@ func (s *processorSuite) TestTableExecutor(c *check.C) {
 	c.Assert(checkpointTs, check.Equals, uint64(60))
 
 	// finish remove operations
-	table3.status = tablepipeline.TableStatusStopped
-	table3.checkpointTs = 65
+	keyspan3.status = keyspanpipeline.KeySpanStatusStopped
+	keyspan3.checkpointTs = 65
 
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	c.Assert(p.tables, check.HasLen, 4)
-	c.Assert(table3.canceled, check.IsFalse)
+	c.Assert(p.keyspans, check.HasLen, 4)
+	c.Assert(keyspan3.canceled, check.IsFalse)
 
-	done = p.IsRemoveTableFinished(ctx, 3)
+	done = p.IsRemoveKeySpanFinished(ctx, 3)
 	c.Assert(done, check.IsTrue)
 
-	c.Assert(p.tables, check.HasLen, 3)
-	c.Assert(table3.canceled, check.IsTrue)
+	c.Assert(p.keyspans, check.HasLen, 3)
+	c.Assert(keyspan3.canceled, check.IsTrue)
 
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
@@ -679,7 +654,7 @@ func (s *processorSuite) TestTableExecutor(c *check.C) {
 	c.Assert(p.agent, check.IsNil)
 }
 
-func (s *processorSuite) TestInitTable(c *check.C) {
+func (s *processorSuite) TestInitKeySpan(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(true)
 	p, tester := initProcessor4Test(ctx, c)
@@ -690,16 +665,16 @@ func (s *processorSuite) TestInitTable(c *check.C) {
 	tester.MustApplyPatches()
 
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables[1] = &model.TableReplicaInfo{StartTs: 20}
-		status.Tables[2] = &model.TableReplicaInfo{StartTs: 30}
+		status.KeySpans[1] = &model.KeySpanReplicaInfo{StartTs: 20}
+		status.KeySpans[2] = &model.KeySpanReplicaInfo{StartTs: 30}
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
-	c.Assert(p.tables[1], check.Not(check.IsNil))
-	c.Assert(p.tables[2], check.Not(check.IsNil))
+	c.Assert(p.keyspans[1], check.Not(check.IsNil))
+	c.Assert(p.keyspans[2], check.Not(check.IsNil))
 }
 
 func (s *processorSuite) TestProcessorError(c *check.C) {
@@ -779,10 +754,10 @@ func (s *processorSuite) TestProcessorClose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	// add tables
+	// add keyspans
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables[1] = &model.TableReplicaInfo{StartTs: 20}
-		status.Tables[2] = &model.TableReplicaInfo{StartTs: 30}
+		status.KeySpans[1] = &model.KeySpanReplicaInfo{StartTs: 20}
+		status.KeySpans[2] = &model.KeySpanReplicaInfo{StartTs: 30}
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -796,10 +771,10 @@ func (s *processorSuite) TestProcessorClose(c *check.C) {
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
-	p.tables[1].(*mockTablePipeline).resolvedTs = 110
-	p.tables[2].(*mockTablePipeline).resolvedTs = 90
-	p.tables[1].(*mockTablePipeline).checkpointTs = 90
-	p.tables[2].(*mockTablePipeline).checkpointTs = 95
+	p.keyspans[1].(*mockKeySpanPipeline).resolvedTs = 110
+	p.keyspans[2].(*mockKeySpanPipeline).resolvedTs = 90
+	p.keyspans[1].(*mockKeySpanPipeline).checkpointTs = 90
+	p.keyspans[2].(*mockKeySpanPipeline).checkpointTs = 95
 	_, err = p.Tick(ctx, p.changefeed)
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
@@ -809,14 +784,14 @@ func (s *processorSuite) TestProcessorClose(c *check.C) {
 		Error:        nil,
 	})
 	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
-		Tables: map[int64]*model.TableReplicaInfo{1: {StartTs: 20}, 2: {StartTs: 30}},
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{1: {StartTs: 20}, 2: {StartTs: 30}},
 	})
 	c.Assert(p.changefeed.Workloads[p.captureInfo.ID], check.DeepEquals, model.TaskWorkload{1: {Workload: 1}, 2: {Workload: 1}})
 
 	c.Assert(p.Close(), check.IsNil)
 	tester.MustApplyPatches()
-	c.Assert(p.tables[1].(*mockTablePipeline).canceled, check.IsTrue)
-	c.Assert(p.tables[2].(*mockTablePipeline).canceled, check.IsTrue)
+	c.Assert(p.keyspans[1].(*mockKeySpanPipeline).canceled, check.IsTrue)
+	c.Assert(p.keyspans[2].(*mockKeySpanPipeline).canceled, check.IsTrue)
 
 	p, tester = initProcessor4Test(ctx, c)
 	// init tick
@@ -824,10 +799,10 @@ func (s *processorSuite) TestProcessorClose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tester.MustApplyPatches()
 
-	// add tables
+	// add keyspans
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables[1] = &model.TableReplicaInfo{StartTs: 20}
-		status.Tables[2] = &model.TableReplicaInfo{StartTs: 30}
+		status.KeySpans[1] = &model.KeySpanReplicaInfo{StartTs: 20}
+		status.KeySpans[2] = &model.KeySpanReplicaInfo{StartTs: 30}
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -848,8 +823,8 @@ func (s *processorSuite) TestProcessorClose(c *check.C) {
 		Code:    "CDC:ErrSinkURIInvalid",
 		Message: "[CDC:ErrSinkURIInvalid]sink uri invalid",
 	})
-	c.Assert(p.tables[1].(*mockTablePipeline).canceled, check.IsTrue)
-	c.Assert(p.tables[2].(*mockTablePipeline).canceled, check.IsTrue)
+	c.Assert(p.keyspans[1].(*mockKeySpanPipeline).canceled, check.IsTrue)
+	c.Assert(p.keyspans[2].(*mockKeySpanPipeline).canceled, check.IsTrue)
 }
 
 func (s *processorSuite) TestPositionDeleted(c *check.C) {
@@ -857,8 +832,8 @@ func (s *processorSuite) TestPositionDeleted(c *check.C) {
 	ctx := cdcContext.NewBackendContext4Test(true)
 	p, tester := initProcessor4Test(ctx, c)
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables[1] = &model.TableReplicaInfo{StartTs: 30}
-		status.Tables[2] = &model.TableReplicaInfo{StartTs: 40}
+		status.KeySpans[1] = &model.KeySpanReplicaInfo{StartTs: 30}
+		status.KeySpans[2] = &model.KeySpanReplicaInfo{StartTs: 40}
 		return status, true, nil
 	})
 	var err error
@@ -900,40 +875,14 @@ func (s *processorSuite) TestPositionDeleted(c *check.C) {
 	})
 }
 
-func (s *processorSuite) TestSchemaGC(c *check.C) {
-	defer testleak.AfterTest(c)()
-	ctx := cdcContext.NewBackendContext4Test(true)
-	p, tester := initProcessor4Test(ctx, c)
-	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables[1] = &model.TableReplicaInfo{StartTs: 30}
-		status.Tables[2] = &model.TableReplicaInfo{StartTs: 40}
-		return status, true, nil
-	})
-
-	var err error
-	// init tick
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	updateChangeFeedPosition(c, tester, "changefeed-id-test", 50, 50)
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	// GC Ts should be (checkpoint - 1).
-	c.Assert(p.schemaStorage.(*mockSchemaStorage).lastGcTs, check.Equals, uint64(49))
-	c.Assert(p.lastSchemaTs, check.Equals, uint64(49))
-}
-
 func cleanUpFinishedOpOperation(state *orchestrator.ChangefeedReactorState, captureID model.CaptureID, tester *orchestrator.ReactorStateTester) {
 	state.PatchTaskStatus(captureID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		if status == nil || status.Operation == nil {
 			return status, false, nil
 		}
-		for tableID, opt := range status.Operation {
+		for keyspanID, opt := range status.Operation {
 			if opt.Status == model.OperFinished {
-				delete(status.Operation, tableID)
+				delete(status.Operation, keyspanID)
 			}
 		}
 		return status, true, nil
@@ -970,54 +919,10 @@ func (s *processorSuite) TestIgnorableError(c *check.C) {
 		{cerror.ErrReactorFinished.GenWithStackByArgs(), true},
 		{cerror.ErrRedoWriterStopped.GenWithStackByArgs(), true},
 		{errors.Trace(context.Canceled), true},
-		{cerror.ErrProcessorTableNotFound.GenWithStackByArgs(), false},
+		{cerror.ErrProcessorKeySpanNotFound.GenWithStackByArgs(), false},
 		{errors.New("test error"), false},
 	}
 	for _, tc := range testCases {
 		c.Assert(isProcessorIgnorableError(tc.err), check.Equals, tc.ignorable)
 	}
-}
-
-func (s *processorSuite) TestUpdateBarrierTs(c *check.C) {
-	defer testleak.AfterTest(c)()
-	ctx := cdcContext.NewBackendContext4Test(true)
-	p, tester := initProcessor4Test(ctx, c)
-	p.changefeed.PatchStatus(func(status *model.ChangeFeedStatus) (*model.ChangeFeedStatus, bool, error) {
-		status.CheckpointTs = 5
-		status.ResolvedTs = 10
-		return status, true, nil
-	})
-	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddTable(1, &model.TableReplicaInfo{StartTs: 5}, 5)
-		return status, true, nil
-	})
-	p.schemaStorage.(*mockSchemaStorage).resolvedTs = 10
-
-	// init tick, add table OperDispatched.
-	_, err := p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-	// tick again, add table OperProcessed.
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	// Global resolved ts has advanced while schema storage stalls.
-	p.changefeed.PatchStatus(func(status *model.ChangeFeedStatus) (*model.ChangeFeedStatus, bool, error) {
-		status.ResolvedTs = 20
-		return status, true, nil
-	})
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-	tb := p.tables[model.TableID(1)].(*mockTablePipeline)
-	c.Assert(tb.barrierTs, check.Equals, uint64(10))
-
-	// Schema storage has advanced too.
-	p.schemaStorage.(*mockSchemaStorage).resolvedTs = 15
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-	tb = p.tables[model.TableID(1)].(*mockTablePipeline)
-	c.Assert(tb.barrierTs, check.Equals, uint64(15))
 }

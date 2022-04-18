@@ -31,7 +31,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/config"
-	"github.com/tikv/migration/cdc/pkg/cyclic"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/filter"
@@ -391,6 +390,7 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 		}
 	}
 
+	/* TiKV CDC don't have tables
 	ineligibleTables, eligibleTables, err := getTables(o.pdAddr, o.credential, o.cfg, o.startTs)
 	if err != nil {
 		return err
@@ -412,7 +412,7 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 	if o.cfg.Cyclic.IsEnabled() && !cyclic.IsTablesPaired(eligibleTables) {
 		return errors.New("normal tables and mark tables are not paired, " +
 			"please run `cdc cli changefeed cyclic create-marktables`")
-	}
+	} */
 
 	info := o.getInfo(cmd)
 

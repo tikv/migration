@@ -83,23 +83,23 @@ func (s *ctxValueSuite) TestTimezoneNotSet(c *check.C) {
 	c.Assert(tz, check.IsNil)
 }
 
-func (s *ctxValueSuite) TestShouldReturnTableInfo(c *check.C) {
+func (s *ctxValueSuite) TestShouldReturnKeySpanInfo(c *check.C) {
 	defer testleak.AfterTest(c)()
-	ctx := PutTableInfoInCtx(context.Background(), 1321, "ello")
-	tableID, tableName := TableIDFromCtx(ctx)
-	c.Assert(tableID, check.Equals, int64(1321))
-	c.Assert(tableName, check.Equals, "ello")
+	ctx := PutKeySpanInfoInCtx(context.Background(), 1321, "ello")
+	keyspanID, keyspanName := KeySpanIDFromCtx(ctx)
+	c.Assert(keyspanID, check.Equals, int64(1321))
+	c.Assert(keyspanName, check.Equals, "ello")
 }
 
-func (s *ctxValueSuite) TestTableInfoNotSet(c *check.C) {
+func (s *ctxValueSuite) TestKeySpanInfoNotSet(c *check.C) {
 	defer testleak.AfterTest(c)()
-	tableID, tableName := TableIDFromCtx(context.Background())
-	c.Assert(tableID, check.Equals, int64(0))
-	c.Assert(tableName, check.Equals, "")
-	ctx := context.WithValue(context.Background(), ctxKeyTableID, 1321)
-	tableID, tableName = TableIDFromCtx(ctx)
-	c.Assert(tableID, check.Equals, int64(0))
-	c.Assert(tableName, check.Equals, "")
+	keyspanID, keyspanName := KeySpanIDFromCtx(context.Background())
+	c.Assert(keyspanID, check.Equals, int64(0))
+	c.Assert(keyspanName, check.Equals, "")
+	ctx := context.WithValue(context.Background(), ctxKeyKeySpanID, 1321)
+	keyspanID, keyspanName = KeySpanIDFromCtx(ctx)
+	c.Assert(keyspanID, check.Equals, int64(0))
+	c.Assert(keyspanName, check.Equals, "")
 }
 
 func (s *ctxValueSuite) TestShouldReturnKVStorage(c *check.C) {

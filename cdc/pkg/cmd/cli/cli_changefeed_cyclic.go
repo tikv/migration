@@ -13,9 +13,10 @@
 
 package cli
 
+/*
 import (
-	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
+	"github.com/spf13/cobra"
 )
 
 // newCmdCyclicChangefeed creates the `cli changefeed cyclic` command.
@@ -29,3 +30,4 @@ func newCmdCyclicChangefeed(f factory.Factory) *cobra.Command {
 
 	return cmds
 }
+*/

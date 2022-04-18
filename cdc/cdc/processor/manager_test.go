@@ -22,7 +22,7 @@ import (
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
 	"github.com/tikv/migration/cdc/cdc/model"
-	tablepipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
+	keyspanpipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
@@ -41,21 +41,21 @@ var _ = check.Suite(&managerSuite{})
 // NewManager4Test creates a new processor manager for test
 func NewManager4Test(
 	c *check.C,
-	createTablePipeline func(ctx cdcContext.Context, tableID model.TableID, replicaInfo *model.TableReplicaInfo) (tablepipeline.TablePipeline, error),
+	createKeySpanPipeline func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error),
 ) *Manager {
 	m := NewManager()
 	m.newProcessor = func(ctx cdcContext.Context) *processor {
-		return newProcessor4Test(ctx, c, createTablePipeline)
+		return newProcessor4Test(ctx, c, createKeySpanPipeline)
 	}
 	return m
 }
 
 func (s *managerSuite) resetSuit(ctx cdcContext.Context, c *check.C) {
-	s.manager = NewManager4Test(c, func(ctx cdcContext.Context, tableID model.TableID, replicaInfo *model.TableReplicaInfo) (tablepipeline.TablePipeline, error) {
-		return &mockTablePipeline{
-			tableID:      tableID,
-			name:         fmt.Sprintf("`test`.`table%d`", tableID),
-			status:       tablepipeline.TableStatusRunning,
+	s.manager = NewManager4Test(c, func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error) {
+		return &mockKeySpanPipeline{
+			keyspanID:    keyspanID,
+			name:         fmt.Sprintf("`test`.`keyspan%d`", keyspanID),
+			status:       keyspanpipeline.KeySpanStatusRunning,
 			resolvedTs:   replicaInfo.StartTs,
 			checkpointTs: replicaInfo.StartTs,
 		}, nil
@@ -64,7 +64,7 @@ func (s *managerSuite) resetSuit(ctx cdcContext.Context, c *check.C) {
 	captureInfoBytes, err := ctx.GlobalVars().CaptureInfo.Marshal()
 	c.Assert(err, check.IsNil)
 	s.tester = orchestrator.NewReactorStateTester(c, s.state, map[string]string{
-		fmt.Sprintf("/tidb/cdc/capture/%s", ctx.GlobalVars().CaptureInfo.ID): string(captureInfoBytes),
+		fmt.Sprintf("/tikv/cdc/capture/%s", ctx.GlobalVars().CaptureInfo.ID): string(captureInfoBytes),
 	})
 }
 
@@ -100,7 +100,7 @@ func (s *managerSuite) TestChangefeed(c *check.C) {
 	})
 	s.state.Changefeeds["test-changefeed"].PatchTaskStatus(ctx.GlobalVars().CaptureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		return &model.TaskStatus{
-			Tables: map[int64]*model.TableReplicaInfo{1: {}},
+			KeySpans: map[uint64]*model.KeySpanReplicaInfo{1: {}},
 		}, true, nil
 	})
 	s.tester.MustApplyPatches()
@@ -151,7 +151,7 @@ func (s *managerSuite) TestDebugInfo(c *check.C) {
 	})
 	s.state.Changefeeds["test-changefeed"].PatchTaskStatus(ctx.GlobalVars().CaptureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		return &model.TaskStatus{
-			Tables: map[int64]*model.TableReplicaInfo{1: {}},
+			KeySpans: map[uint64]*model.KeySpanReplicaInfo{1: {}},
 		}, true, nil
 	})
 	s.tester.MustApplyPatches()
@@ -205,7 +205,7 @@ func (s *managerSuite) TestClose(c *check.C) {
 	})
 	s.state.Changefeeds["test-changefeed"].PatchTaskStatus(ctx.GlobalVars().CaptureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		return &model.TaskStatus{
-			Tables: map[int64]*model.TableReplicaInfo{1: {}},
+			KeySpans: map[uint64]*model.KeySpanReplicaInfo{1: {}},
 		}, true, nil
 	})
 	s.tester.MustApplyPatches()

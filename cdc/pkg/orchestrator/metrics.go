@@ -18,7 +18,7 @@ import "github.com/prometheus/client_golang/prometheus"
 var (
 	etcdTxnSize = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "etcd_worker",
 			Name:      "etcd_txn_size_bytes",
 			Help:      "Bucketed histogram of a etcd txn size.",
@@ -27,7 +27,7 @@ var (
 
 	etcdTxnExecDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "etcd_worker",
 			Name:      "etcd_txn_exec_duration",
 			Help:      "Bucketed histogram of processing time (s) of a etcd txn.",
@@ -36,7 +36,7 @@ var (
 
 	etcdWorkerTickDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "etcd_worker",
 			Name:      "tick_reactor_duration",
 			Help:      "Bucketed histogram of etcdWorker tick reactor time (s).",

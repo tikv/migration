@@ -30,42 +30,42 @@ var _ ScheduleDispatcherCommunicator = (*mockScheduleDispatcherCommunicator)(nil
 
 type mockScheduleDispatcherCommunicator struct {
 	mock.Mock
-	addTableRecords    map[model.CaptureID][]model.TableID
-	removeTableRecords map[model.CaptureID][]model.TableID
+	addKeySpanRecords    map[model.CaptureID][]model.KeySpanID
+	removeKeySpanRecords map[model.CaptureID][]model.KeySpanID
 }
 
 func NewMockScheduleDispatcherCommunicator() *mockScheduleDispatcherCommunicator {
 	return &mockScheduleDispatcherCommunicator{
-		addTableRecords:    map[model.CaptureID][]model.TableID{},
-		removeTableRecords: map[model.CaptureID][]model.TableID{},
+		addKeySpanRecords:    map[model.CaptureID][]model.KeySpanID{},
+		removeKeySpanRecords: map[model.CaptureID][]model.KeySpanID{},
 	}
 }
 
 func (m *mockScheduleDispatcherCommunicator) Reset() {
-	m.addTableRecords = map[model.CaptureID][]model.TableID{}
-	m.removeTableRecords = map[model.CaptureID][]model.TableID{}
+	m.addKeySpanRecords = map[model.CaptureID][]model.KeySpanID{}
+	m.removeKeySpanRecords = map[model.CaptureID][]model.KeySpanID{}
 	m.Mock.ExpectedCalls = nil
 	m.Mock.Calls = nil
 }
 
-func (m *mockScheduleDispatcherCommunicator) DispatchTable(
+func (m *mockScheduleDispatcherCommunicator) DispatchKeySpan(
 	ctx cdcContext.Context,
 	changeFeedID model.ChangeFeedID,
-	tableID model.TableID,
+	keyspanID model.KeySpanID,
 	captureID model.CaptureID,
 	isDelete bool,
 ) (done bool, err error) {
-	log.Info("dispatch table called",
+	log.Info("dispatch keyspan called",
 		zap.String("changefeed-id", changeFeedID),
-		zap.Int64("table-id", tableID),
+		zap.Uint64("keyspan-id", keyspanID),
 		zap.String("capture-id", captureID),
 		zap.Bool("is-delete", isDelete))
 	if !isDelete {
-		m.addTableRecords[captureID] = append(m.addTableRecords[captureID], tableID)
+		m.addKeySpanRecords[captureID] = append(m.addKeySpanRecords[captureID], keyspanID)
 	} else {
-		m.removeTableRecords[captureID] = append(m.removeTableRecords[captureID], tableID)
+		m.removeKeySpanRecords[captureID] = append(m.removeKeySpanRecords[captureID], keyspanID)
 	}
-	args := m.Called(ctx, changeFeedID, tableID, captureID, isDelete)
+	args := m.Called(ctx, changeFeedID, keyspanID, captureID, isDelete)
 	return args.Bool(0), args.Error(1)
 }
 
@@ -90,7 +90,7 @@ var defaultMockCaptureInfos = map[model.CaptureID]*model.CaptureInfo{
 	},
 }
 
-func TestDispatchTable(t *testing.T) {
+func TestDispatchKeySpan(t *testing.T) {
 	t.Parallel()
 
 	ctx := cdcContext.NewBackendContext4Test(false)
@@ -99,61 +99,61 @@ func TestDispatchTable(t *testing.T) {
 
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-1").Return(true, nil)
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-2").Return(true, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.TableID{}, []model.TableID{}, []model.TableID{})
-	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.TableID{}, []model.TableID{}, []model.TableID{})
+	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.KeySpanID{}, []model.KeySpanID{}, []model.KeySpanID{})
+	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.KeySpanID{}, []model.KeySpanID{}, []model.KeySpanID{})
 
 	communicator.Reset()
-	// Injects a dispatch table failure
-	communicator.On("DispatchTable", mock.Anything, "cf-1", mock.Anything, mock.Anything, false).
+	// Injects a dispatch keyspan failure
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", mock.Anything, mock.Anything, false).
 		Return(false, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(1), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(1), mock.Anything, false).
 		Return(true, nil)
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(2), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(2), mock.Anything, false).
 		Return(true, nil)
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(3), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(3), mock.Anything, false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
-	require.NotEqual(t, 0, len(communicator.addTableRecords["capture-1"]))
-	require.NotEqual(t, 0, len(communicator.addTableRecords["capture-2"]))
-	require.Equal(t, 0, len(communicator.removeTableRecords["capture-1"]))
-	require.Equal(t, 0, len(communicator.removeTableRecords["capture-2"]))
+	require.NotEqual(t, 0, len(communicator.addKeySpanRecords["capture-1"]))
+	require.NotEqual(t, 0, len(communicator.addKeySpanRecords["capture-2"]))
+	require.Equal(t, 0, len(communicator.removeKeySpanRecords["capture-1"]))
+	require.Equal(t, 0, len(communicator.removeKeySpanRecords["capture-2"]))
 
 	dispatcher.OnAgentCheckpoint("capture-1", 2000, 2000)
 	dispatcher.OnAgentCheckpoint("capture-1", 2001, 2001)
 
 	communicator.ExpectedCalls = nil
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 
 	communicator.AssertExpectations(t)
 
-	for captureID, tables := range communicator.addTableRecords {
-		for _, tableID := range tables {
-			dispatcher.OnAgentFinishedTableOperation(captureID, tableID)
+	for captureID, keyspans := range communicator.addKeySpanRecords {
+		for _, keyspanID := range keyspans {
+			dispatcher.OnAgentFinishedKeySpanOperation(captureID, keyspanID)
 		}
 	}
 
 	communicator.Reset()
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1000), checkpointTs)
 	require.Equal(t, model.Ts(1000), resolvedTs)
@@ -161,7 +161,7 @@ func TestDispatchTable(t *testing.T) {
 	dispatcher.OnAgentCheckpoint("capture-1", 1100, 1400)
 	dispatcher.OnAgentCheckpoint("capture-2", 1200, 1300)
 	communicator.Reset()
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1100), checkpointTs)
 	require.Equal(t, model.Ts(1300), resolvedTs)
@@ -177,7 +177,7 @@ func TestSyncCaptures(t *testing.T) {
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-1").Return(false, nil)
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-2").Return(false, nil)
 
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
@@ -185,30 +185,30 @@ func TestSyncCaptures(t *testing.T) {
 	communicator.Reset()
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-1").Return(true, nil)
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-2").Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 
-	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.TableID{1, 2, 3}, []model.TableID{4, 5}, []model.TableID{6, 7})
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
-	require.NoError(t, err)
-	require.Equal(t, CheckpointCannotProceed, checkpointTs)
-	require.Equal(t, CheckpointCannotProceed, resolvedTs)
-
-	communicator.Reset()
-	dispatcher.OnAgentFinishedTableOperation("capture-1", 4)
-	dispatcher.OnAgentFinishedTableOperation("capture-1", 5)
-	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.TableID(nil), []model.TableID(nil), []model.TableID(nil))
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
+	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.KeySpanID{1, 2, 3}, []model.KeySpanID{4, 5}, []model.KeySpanID{6, 7})
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 
 	communicator.Reset()
-	dispatcher.OnAgentFinishedTableOperation("capture-1", 6)
-	dispatcher.OnAgentFinishedTableOperation("capture-1", 7)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-1", 4)
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-1", 5)
+	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.KeySpanID(nil), []model.KeySpanID(nil), []model.KeySpanID(nil))
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
+	require.NoError(t, err)
+	require.Equal(t, CheckpointCannotProceed, checkpointTs)
+	require.Equal(t, CheckpointCannotProceed, resolvedTs)
+
+	communicator.Reset()
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-1", 6)
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-1", 7)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3, 4, 5}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1500), checkpointTs)
 	require.Equal(t, model.Ts(1500), resolvedTs)
@@ -225,16 +225,16 @@ func TestSyncUnknownCapture(t *testing.T) {
 	dispatcher.captureStatus = map[model.CaptureID]*captureStatus{} // empty capture status
 
 	// Sends a sync from an unknown capture
-	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.TableID{1, 2, 3}, []model.TableID{4, 5}, []model.TableID{6, 7})
+	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.KeySpanID{1, 2, 3}, []model.KeySpanID{4, 5}, []model.KeySpanID{6, 7})
 
 	// We expect the `Sync` to be ignored.
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3, 4, 5}, mockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3, 4, 5}, mockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 }
 
-func TestRemoveTable(t *testing.T) {
+func TestRemoveKeySpan(t *testing.T) {
 	t.Parallel()
 
 	ctx := cdcContext.NewBackendContext4Test(false)
@@ -252,48 +252,48 @@ func TestRemoveTable(t *testing.T) {
 			ResolvedTs:   1500,
 		},
 	}
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   1,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-2",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
 
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1500), checkpointTs)
 	require.Equal(t, model.Ts(1500), resolvedTs)
 
-	// Inject a dispatch table failure
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(3), "capture-1", true).
+	// Inject a dispatch keyspan failure
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(3), "capture-1", true).
 		Return(false, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.TableID{1, 2}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(3), "capture-1", true).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(3), "capture-1", true).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.TableID{1, 2}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	dispatcher.OnAgentFinishedTableOperation("capture-1", 3)
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-1", 3)
 	communicator.Reset()
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.TableID{1, 2}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1500), checkpointTs)
 	require.Equal(t, model.Ts(1500), resolvedTs)
@@ -325,25 +325,25 @@ func TestCaptureGone(t *testing.T) {
 			ResolvedTs:   1500,
 		},
 	}
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   1,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-2",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
 
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(2), "capture-1", false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(2), "capture-1", false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3}, mockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3}, mockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
@@ -368,33 +368,33 @@ func TestCaptureRestarts(t *testing.T) {
 			ResolvedTs:   1500,
 		},
 	}
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   1,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-2",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
 
-	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.TableID{}, []model.TableID{}, []model.TableID{})
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(2), "capture-2", false).
+	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.KeySpanID{}, []model.KeySpanID{}, []model.KeySpanID{})
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(2), "capture-2", false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1500, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 }
 
-func TestCaptureGoneWhileMovingTable(t *testing.T) {
+func TestCaptureGoneWhileMovingKeySpan(t *testing.T) {
 	t.Parallel()
 
 	mockCaptureInfos := map[model.CaptureID]*model.CaptureInfo{
@@ -423,39 +423,39 @@ func TestCaptureGoneWhileMovingTable(t *testing.T) {
 			ResolvedTs:   1550,
 		},
 	}
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   1,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 1,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-2",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
 
-	dispatcher.MoveTable(1, "capture-2")
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(1), "capture-1", true).
+	dispatcher.MoveKeySpan(1, "capture-2")
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(1), "capture-1", true).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3}, mockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3}, mockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
 	delete(mockCaptureInfos, "capture-2")
-	dispatcher.OnAgentFinishedTableOperation("capture-1", 1)
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-1", 1)
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(1), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(1), mock.Anything, false).
 		Return(true, nil)
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(2), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(2), mock.Anything, false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3}, mockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3}, mockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
@@ -501,31 +501,31 @@ func TestRebalance(t *testing.T) {
 		},
 	}
 	for i := 1; i <= 6; i++ {
-		dispatcher.tables.AddTableRecord(&util.TableRecord{
-			TableID:   model.TableID(i),
+		dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+			KeySpanID: model.KeySpanID(i),
 			CaptureID: fmt.Sprintf("capture-%d", (i+1)%2+1),
-			Status:    util.RunningTable,
+			Status:    util.RunningKeySpan,
 		})
 	}
 
 	dispatcher.Rebalance()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
 		Return(false, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6}, mockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6}, mockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
-	communicator.AssertNumberOfCalls(t, "DispatchTable", 1)
+	communicator.AssertNumberOfCalls(t, "DispatchKeySpan", 1)
 
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6}, mockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6}, mockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
-	communicator.AssertNumberOfCalls(t, "DispatchTable", 2)
+	communicator.AssertNumberOfCalls(t, "DispatchKeySpan", 2)
 	communicator.AssertExpectations(t)
 }
 
@@ -568,14 +568,14 @@ func TestIgnoreEmptyCapture(t *testing.T) {
 		},
 	}
 	for i := 1; i <= 6; i++ {
-		dispatcher.tables.AddTableRecord(&util.TableRecord{
-			TableID:   model.TableID(i),
+		dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+			KeySpanID: model.KeySpanID(i),
 			CaptureID: fmt.Sprintf("capture-%d", (i+1)%2+1),
-			Status:    util.RunningTable,
+			Status:    util.RunningKeySpan,
 		})
 	}
 
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6}, mockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6}, mockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1300), checkpointTs)
 	require.Equal(t, model.Ts(1550), resolvedTs)
@@ -601,17 +601,17 @@ func TestIgnoreDeadCapture(t *testing.T) {
 		},
 	}
 	for i := 1; i <= 6; i++ {
-		dispatcher.tables.AddTableRecord(&util.TableRecord{
-			TableID:   model.TableID(i),
+		dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+			KeySpanID: model.KeySpanID(i),
 			CaptureID: fmt.Sprintf("capture-%d", (i+1)%2+1),
-			Status:    util.RunningTable,
+			Status:    util.RunningKeySpan,
 		})
 	}
 
 	// A dead capture sends very old watermarks.
 	// They should be ignored.
 	dispatcher.OnAgentCheckpoint("capture-3", 1000, 1000)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1300), checkpointTs)
 	require.Equal(t, model.Ts(1550), resolvedTs)
@@ -638,29 +638,29 @@ func TestIgnoreUnsyncedCaptures(t *testing.T) {
 	}
 
 	for i := 1; i <= 6; i++ {
-		dispatcher.tables.AddTableRecord(&util.TableRecord{
-			TableID:   model.TableID(i),
+		dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+			KeySpanID: model.KeySpanID(i),
 			CaptureID: fmt.Sprintf("capture-%d", (i+1)%2+1),
-			Status:    util.RunningTable,
+			Status:    util.RunningKeySpan,
 		})
 	}
 
 	dispatcher.OnAgentCheckpoint("capture-2", 1000, 1000)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 
 	communicator.Reset()
-	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.TableID{2, 4, 6}, []model.TableID{}, []model.TableID{})
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6}, defaultMockCaptureInfos)
+	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.KeySpanID{2, 4, 6}, []model.KeySpanID{}, []model.KeySpanID{})
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1300), checkpointTs)
 	require.Equal(t, model.Ts(1500), resolvedTs)
 	communicator.AssertExpectations(t)
 }
 
-func TestRebalanceWhileAddingTable(t *testing.T) {
+func TestRebalanceWhileAddingKeySpan(t *testing.T) {
 	t.Parallel()
 
 	ctx := cdcContext.NewBackendContext4Test(false)
@@ -679,16 +679,16 @@ func TestRebalanceWhileAddingTable(t *testing.T) {
 		},
 	}
 	for i := 1; i <= 6; i++ {
-		dispatcher.tables.AddTableRecord(&util.TableRecord{
-			TableID:   model.TableID(i),
+		dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+			KeySpanID: model.KeySpanID(i),
 			CaptureID: "capture-1",
-			Status:    util.RunningTable,
+			Status:    util.RunningKeySpan,
 		})
 	}
 
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(7), "capture-2", false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(7), "capture-2", false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6, 7}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6, 7}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
@@ -696,25 +696,25 @@ func TestRebalanceWhileAddingTable(t *testing.T) {
 
 	dispatcher.Rebalance()
 	communicator.Reset()
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6, 7}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6, 7}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	dispatcher.OnAgentFinishedTableOperation("capture-2", model.TableID(7))
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-2", model.KeySpanID(7))
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3, 4, 5, 6, 7}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3, 4, 5, 6, 7}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
-	communicator.AssertNumberOfCalls(t, "DispatchTable", 2)
+	communicator.AssertNumberOfCalls(t, "DispatchKeySpan", 2)
 	communicator.AssertExpectations(t)
 }
 
-func TestManualMoveTableWhileAddingTable(t *testing.T) {
+func TestManualMoveKeySpanWhileAddingKeySpan(t *testing.T) {
 	t.Parallel()
 
 	ctx := cdcContext.NewBackendContext4Test(false)
@@ -732,46 +732,46 @@ func TestManualMoveTableWhileAddingTable(t *testing.T) {
 			ResolvedTs:   1550,
 		},
 	}
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   2,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 2,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
-	dispatcher.tables.AddTableRecord(&util.TableRecord{
-		TableID:   3,
+	dispatcher.keyspans.AddKeySpanRecord(&util.KeySpanRecord{
+		KeySpanID: 3,
 		CaptureID: "capture-1",
-		Status:    util.RunningTable,
+		Status:    util.RunningKeySpan,
 	})
 
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(1), "capture-2", false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(1), "capture-2", false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 
-	dispatcher.MoveTable(1, "capture-1")
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	dispatcher.MoveKeySpan(1, "capture-1")
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	dispatcher.OnAgentFinishedTableOperation("capture-2", 1)
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-2", 1)
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(1), "capture-2", true).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(1), "capture-2", true).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	dispatcher.OnAgentFinishedTableOperation("capture-2", 1)
+	dispatcher.OnAgentFinishedKeySpanOperation("capture-2", 1)
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(1), "capture-1", false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(1), "capture-1", false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.TableID{1, 2, 3}, defaultMockCaptureInfos)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1300, []model.KeySpanID{1, 2, 3}, defaultMockCaptureInfos)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
@@ -781,12 +781,12 @@ func TestManualMoveTableWhileAddingTable(t *testing.T) {
 func TestAutoRebalanceOnCaptureOnline(t *testing.T) {
 	// This test case tests the following scenario:
 	// 1. Capture-1 and Capture-2 are online.
-	// 2. Owner dispatches three tables to these two captures.
+	// 2. Owner dispatches three keyspans to these two captures.
 	// 3. While the pending dispatches are in progress, Capture-3 goes online.
 	// 4. Capture-1 and Capture-2 finish the dispatches.
 	//
 	// We expect that the workload is eventually balanced by migrating
-	// a table to Capture-3.
+	// a keyspan to Capture-3.
 
 	t.Parallel()
 
@@ -807,37 +807,37 @@ func TestAutoRebalanceOnCaptureOnline(t *testing.T) {
 
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-1").Return(true, nil)
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-2").Return(true, nil)
-	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, captureList)
+	checkpointTs, resolvedTs, err := dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, captureList)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.TableID{}, []model.TableID{}, []model.TableID{})
-	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.TableID{}, []model.TableID{}, []model.TableID{})
+	dispatcher.OnAgentSyncTaskStatuses("capture-1", []model.KeySpanID{}, []model.KeySpanID{}, []model.KeySpanID{})
+	dispatcher.OnAgentSyncTaskStatuses("capture-2", []model.KeySpanID{}, []model.KeySpanID{}, []model.KeySpanID{})
 
 	communicator.Reset()
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(1), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(1), mock.Anything, false).
 		Return(true, nil)
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(2), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(2), mock.Anything, false).
 		Return(true, nil)
-	communicator.On("DispatchTable", mock.Anything, "cf-1", model.TableID(3), mock.Anything, false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", model.KeySpanID(3), mock.Anything, false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, captureList)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, captureList)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
-	require.NotEqual(t, 0, len(communicator.addTableRecords["capture-1"]))
-	require.NotEqual(t, 0, len(communicator.addTableRecords["capture-2"]))
-	require.Equal(t, 0, len(communicator.removeTableRecords["capture-1"]))
-	require.Equal(t, 0, len(communicator.removeTableRecords["capture-2"]))
+	require.NotEqual(t, 0, len(communicator.addKeySpanRecords["capture-1"]))
+	require.NotEqual(t, 0, len(communicator.addKeySpanRecords["capture-2"]))
+	require.Equal(t, 0, len(communicator.removeKeySpanRecords["capture-1"]))
+	require.Equal(t, 0, len(communicator.removeKeySpanRecords["capture-2"]))
 
 	dispatcher.OnAgentCheckpoint("capture-1", 2000, 2000)
 	dispatcher.OnAgentCheckpoint("capture-1", 2001, 2001)
 
 	communicator.ExpectedCalls = nil
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, captureList)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, captureList)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
@@ -850,47 +850,47 @@ func TestAutoRebalanceOnCaptureOnline(t *testing.T) {
 	}
 	communicator.ExpectedCalls = nil
 	communicator.On("Announce", mock.Anything, "cf-1", "capture-3").Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, captureList)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, captureList)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
 	communicator.ExpectedCalls = nil
-	dispatcher.OnAgentSyncTaskStatuses("capture-3", []model.TableID{}, []model.TableID{}, []model.TableID{})
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, captureList)
+	dispatcher.OnAgentSyncTaskStatuses("capture-3", []model.KeySpanID{}, []model.KeySpanID{}, []model.KeySpanID{})
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, captureList)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	for captureID, tables := range communicator.addTableRecords {
-		for _, tableID := range tables {
-			dispatcher.OnAgentFinishedTableOperation(captureID, tableID)
+	for captureID, keyspans := range communicator.addKeySpanRecords {
+		for _, keyspanID := range keyspans {
+			dispatcher.OnAgentFinishedKeySpanOperation(captureID, keyspanID)
 		}
 	}
 
 	communicator.Reset()
-	var removeTableFromCapture model.CaptureID
-	communicator.On("DispatchTable", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
+	var removeKeySpanFromCapture model.CaptureID
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", mock.Anything, mock.Anything, true).
 		Return(true, nil).Run(func(args mock.Arguments) {
-		removeTableFromCapture = args.Get(3).(model.CaptureID)
+		removeKeySpanFromCapture = args.Get(3).(model.CaptureID)
 	})
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, captureList)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, captureList)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)
 	communicator.AssertExpectations(t)
 
-	removedTableID := communicator.removeTableRecords[removeTableFromCapture][0]
+	removedKeySpanID := communicator.removeKeySpanRecords[removeKeySpanFromCapture][0]
 
-	dispatcher.OnAgentFinishedTableOperation(removeTableFromCapture, removedTableID)
+	dispatcher.OnAgentFinishedKeySpanOperation(removeKeySpanFromCapture, removedKeySpanID)
 	dispatcher.OnAgentCheckpoint("capture-1", 1100, 1400)
 	dispatcher.OnAgentCheckpoint("capture-2", 1200, 1300)
 	communicator.ExpectedCalls = nil
-	communicator.On("DispatchTable", mock.Anything, "cf-1", removedTableID, "capture-3", false).
+	communicator.On("DispatchKeySpan", mock.Anything, "cf-1", removedKeySpanID, "capture-3", false).
 		Return(true, nil)
-	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.TableID{1, 2, 3}, captureList)
+	checkpointTs, resolvedTs, err = dispatcher.Tick(ctx, 1000, []model.KeySpanID{1, 2, 3}, captureList)
 	require.NoError(t, err)
 	require.Equal(t, CheckpointCannotProceed, checkpointTs)
 	require.Equal(t, CheckpointCannotProceed, resolvedTs)

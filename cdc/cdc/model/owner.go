@@ -123,42 +123,42 @@ func (tp *TaskPosition) Clone() *TaskPosition {
 	return ret
 }
 
-// MoveTableStatus represents for the status of a MoveTableJob
-type MoveTableStatus int
+// MoveKeySpanStatus represents for the status of a MoveKeySpanJob
+type MoveKeySpanStatus int
 
-// All MoveTable status
+// All MoveKeySpan status
 const (
-	MoveTableStatusNone MoveTableStatus = iota
-	MoveTableStatusDeleted
-	MoveTableStatusFinished
+	MoveKeySpanStatusNone MoveKeySpanStatus = iota
+	MoveKeySpanStatusDeleted
+	MoveKeySpanStatusFinished
 )
 
-// MoveTableJob records a move operation of a table
-type MoveTableJob struct {
-	From             CaptureID
-	To               CaptureID
-	TableID          TableID
-	TableReplicaInfo *TableReplicaInfo
-	Status           MoveTableStatus
+// MoveKeySpanJob records a move operation of a keyspan
+type MoveKeySpanJob struct {
+	From               CaptureID
+	To                 CaptureID
+	KeySpanID          KeySpanID
+	KeySpanReplicaInfo *KeySpanReplicaInfo
+	Status             MoveKeySpanStatus
 }
 
-// All TableOperation flags
+// All KeySpanOperation flags
 const (
-	// Move means after the delete operation, the table will be re added.
+	// Move means after the delete operation, the kyespan will be re added.
 	// This field is necessary since we must persist enough information to
-	// restore complete table operation in case of processor or owner crashes.
-	OperFlagMoveTable uint64 = 1 << iota
+	// restore complete keyspan operation in case of processor or owner crashes.
+	OperFlagMoveKeySpan uint64 = 1 << iota
 )
 
-// All TableOperation status
+// All KeySpanOperation status
 const (
 	OperDispatched uint64 = iota
 	OperProcessed
 	OperFinished
 )
 
-// TableOperation records the current information of a table migration
-type TableOperation struct {
+// KeySpanOperation records the current information of a keyspan migration
+type KeySpanOperation struct {
 	Delete bool   `json:"delete"`
 	Flag   uint64 `json:"flag,omitempty"`
 	// if the operation is a delete operation, BoundaryTs is checkpoint ts
@@ -167,19 +167,19 @@ type TableOperation struct {
 	Status     uint64 `json:"status,omitempty"`
 }
 
-// TableProcessed returns whether the table has been processed by processor
-func (o *TableOperation) TableProcessed() bool {
+// KeySpanProcessed returns whether the keyspan has been processed by processor
+func (o *KeySpanOperation) KeySpanProcessed() bool {
 	return o.Status == OperProcessed || o.Status == OperFinished
 }
 
-// TableApplied returns whether the table has finished the startup procedure.
-// Returns true if table has been processed by processor and resolved ts reaches global resolved ts.
-func (o *TableOperation) TableApplied() bool {
+// KeySpanApplied returns whether the keyspan has finished the startup procedure.
+// Returns true if keyspan has been processed by processor and resolved ts reaches global resolved ts.
+func (o *KeySpanOperation) KeySpanApplied() bool {
 	return o.Status == OperFinished
 }
 
 // Clone returns a deep-clone of the struct
-func (o *TableOperation) Clone() *TableOperation {
+func (o *KeySpanOperation) Clone() *KeySpanOperation {
 	if o == nil {
 		return nil
 	}
@@ -189,9 +189,9 @@ func (o *TableOperation) Clone() *TableOperation {
 
 // TaskWorkload records the workloads of a task
 // the value of the struct is the workload
-type TaskWorkload map[TableID]WorkloadInfo
+type TaskWorkload map[KeySpanID]WorkloadInfo
 
-// WorkloadInfo records the workload info of a table
+// WorkloadInfo records the workload info of a keyspan
 type WorkloadInfo struct {
 	Workload uint64 `json:"workload"`
 }
@@ -212,14 +212,16 @@ func (w *TaskWorkload) Marshal() (string, error) {
 	return string(data), cerror.WrapError(cerror.ErrMarshalFailed, err)
 }
 
-// TableReplicaInfo records the table replica info
-type TableReplicaInfo struct {
-	StartTs     Ts      `json:"start-ts"`
-	MarkTableID TableID `json:"mark-table-id"`
+// KeySpanReplicaInfo records the keyspan replica info
+type KeySpanReplicaInfo struct {
+	StartTs Ts `json:"start-ts"`
+	Start   []byte
+	End     []byte
+	// MarkKeySpanID KeySpanID `json:"mark-keyspan-id"`
 }
 
-// Clone clones a TableReplicaInfo
-func (i *TableReplicaInfo) Clone() *TableReplicaInfo {
+// Clone clones a KeySpanReplicaInfo
+func (i *KeySpanReplicaInfo) Clone() *KeySpanReplicaInfo {
 	if i == nil {
 		return nil
 	}
@@ -229,11 +231,11 @@ func (i *TableReplicaInfo) Clone() *TableReplicaInfo {
 
 // TaskStatus records the task information of a capture
 type TaskStatus struct {
-	// Table information list, containing tables that processor should process, updated by ownrer, processor is read only.
-	Tables       map[TableID]*TableReplicaInfo `json:"tables"`
-	Operation    map[TableID]*TableOperation   `json:"operation"` // Deprecated
-	AdminJobType AdminJobType                  `json:"admin-job-type"`
-	ModRevision  int64                         `json:"-"`
+	// KeySpan information list, containing keyspans that processor should process, updated by ownrer, processor is read only.
+	KeySpans     map[KeySpanID]*KeySpanReplicaInfo `json:"keyspans"`
+	Operation    map[KeySpanID]*KeySpanOperation   `json:"operation"` // Deprecated
+	AdminJobType AdminJobType                      `json:"admin-job-type"`
+	ModRevision  int64                             `json:"-"`
 }
 
 // String implements fmt.Stringer interface.
@@ -242,46 +244,46 @@ func (ts *TaskStatus) String() string {
 	return data
 }
 
-// RemoveTable remove the table in TableInfos and add a remove table operation.
-func (ts *TaskStatus) RemoveTable(id TableID, boundaryTs Ts, isMoveTable bool) (*TableReplicaInfo, bool) {
-	if ts.Tables == nil {
+// RemoveKeySpan remove the keyspan in KeySpanInfos and add a remove keyspan operation.
+func (ts *TaskStatus) RemoveKeySpan(id KeySpanID, boundaryTs Ts, isMoveKeySpan bool) (*KeySpanReplicaInfo, bool) {
+	if ts.KeySpans == nil {
 		return nil, false
 	}
-	table, exist := ts.Tables[id]
+	keyspan, exist := ts.KeySpans[id]
 	if !exist {
 		return nil, false
 	}
-	delete(ts.Tables, id)
-	log.Info("remove a table", zap.Int64("tableId", id), zap.Uint64("boundaryTs", boundaryTs), zap.Bool("isMoveTable", isMoveTable))
+	delete(ts.KeySpans, id)
+	log.Info("remove a keyspan", zap.Uint64("keyspanId", id), zap.Uint64("boundaryTs", boundaryTs), zap.Bool("isMoveKeySpan", isMoveKeySpan))
 	if ts.Operation == nil {
-		ts.Operation = make(map[TableID]*TableOperation)
+		ts.Operation = make(map[KeySpanID]*KeySpanOperation)
 	}
-	op := &TableOperation{
+	op := &KeySpanOperation{
 		Delete:     true,
 		BoundaryTs: boundaryTs,
 	}
-	if isMoveTable {
-		op.Flag |= OperFlagMoveTable
+	if isMoveKeySpan {
+		op.Flag |= OperFlagMoveKeySpan
 	}
 	ts.Operation[id] = op
-	return table, true
+	return keyspan, true
 }
 
-// AddTable add the table in TableInfos and add a add table operation.
-func (ts *TaskStatus) AddTable(id TableID, table *TableReplicaInfo, boundaryTs Ts) {
-	if ts.Tables == nil {
-		ts.Tables = make(map[TableID]*TableReplicaInfo)
+// AddKeySpan add the keyspan in KeySpanInfos and add a add kyespan operation.
+func (ts *TaskStatus) AddKeySpan(id KeySpanID, keyspan *KeySpanReplicaInfo, boundaryTs Ts) {
+	if ts.KeySpans == nil {
+		ts.KeySpans = make(map[KeySpanID]*KeySpanReplicaInfo)
 	}
-	_, exist := ts.Tables[id]
+	_, exist := ts.KeySpans[id]
 	if exist {
 		return
 	}
-	ts.Tables[id] = table
-	log.Info("add a table", zap.Int64("tableId", id), zap.Uint64("boundaryTs", boundaryTs))
+	ts.KeySpans[id] = keyspan
+	log.Info("add a keyspan", zap.Uint64("keyspanId", id), zap.Uint64("boundaryTs", boundaryTs))
 	if ts.Operation == nil {
-		ts.Operation = make(map[TableID]*TableOperation)
+		ts.Operation = make(map[KeySpanID]*KeySpanOperation)
 	}
-	ts.Operation[id] = &TableOperation{
+	ts.Operation[id] = &KeySpanOperation{
 		Delete:     false,
 		BoundaryTs: boundaryTs,
 		Status:     OperDispatched,
@@ -291,7 +293,7 @@ func (ts *TaskStatus) AddTable(id TableID, table *TableReplicaInfo, boundaryTs T
 // SomeOperationsUnapplied returns true if there are some operations not applied
 func (ts *TaskStatus) SomeOperationsUnapplied() bool {
 	for _, o := range ts.Operation {
-		if !o.TableApplied() {
+		if !o.KeySpanApplied() {
 			return true
 		}
 	}
@@ -302,7 +304,7 @@ func (ts *TaskStatus) SomeOperationsUnapplied() bool {
 func (ts *TaskStatus) AppliedTs() Ts {
 	appliedTs := uint64(math.MaxUint64)
 	for _, o := range ts.Operation {
-		if !o.TableApplied() {
+		if !o.KeySpanApplied() {
 			if appliedTs > o.BoundaryTs {
 				appliedTs = o.BoundaryTs
 			}
@@ -316,16 +318,15 @@ func (ts *TaskStatus) Snapshot(cfID ChangeFeedID, captureID CaptureID, checkpoin
 	snap := &ProcInfoSnap{
 		CfID:      cfID,
 		CaptureID: captureID,
-		Tables:    make(map[TableID]*TableReplicaInfo, len(ts.Tables)),
+		KeySpans:  make(map[KeySpanID]*KeySpanReplicaInfo, len(ts.KeySpans)),
 	}
-	for tableID, table := range ts.Tables {
+	for keyspanID, keyspan := range ts.KeySpans {
 		ts := checkpointTs
-		if ts < table.StartTs {
-			ts = table.StartTs
+		if ts < keyspan.StartTs {
+			ts = keyspan.StartTs
 		}
-		snap.Tables[tableID] = &TableReplicaInfo{
-			StartTs:     ts,
-			MarkTableID: table.MarkTableID,
+		snap.KeySpans[keyspanID] = &KeySpanReplicaInfo{
+			StartTs: ts,
 		}
 	}
 	return snap
@@ -347,14 +348,14 @@ func (ts *TaskStatus) Unmarshal(data []byte) error {
 // Clone returns a deep-clone of the struct
 func (ts *TaskStatus) Clone() *TaskStatus {
 	clone := *ts
-	tables := make(map[TableID]*TableReplicaInfo, len(ts.Tables))
-	for tableID, table := range ts.Tables {
-		tables[tableID] = table.Clone()
+	keyspans := make(map[KeySpanID]*KeySpanReplicaInfo, len(ts.KeySpans))
+	for keyspanID, keyspan := range ts.KeySpans {
+		keyspans[keyspanID] = keyspan.Clone()
 	}
-	clone.Tables = tables
-	operation := make(map[TableID]*TableOperation, len(ts.Operation))
-	for tableID, opt := range ts.Operation {
-		operation[tableID] = opt.Clone()
+	clone.KeySpans = keyspans
+	operation := make(map[KeySpanID]*KeySpanOperation, len(ts.Operation))
+	for keyspanID, opt := range ts.Operation {
+		operation[keyspanID] = opt.Clone()
 	}
 	clone.Operation = operation
 	return &clone
@@ -366,8 +367,8 @@ type CaptureID = string
 // ChangeFeedID is the type for change feed ID
 type ChangeFeedID = string
 
-// TableID is the ID of the table
-type TableID = int64
+// KeySpanID is the ID of the KeySpan
+type KeySpanID = uint64
 
 // SchemaID is the ID of the schema
 type SchemaID = int64
@@ -443,7 +444,7 @@ func (status *ChangeFeedStatus) Unmarshal(data []byte) error {
 
 // ProcInfoSnap holds most important replication information of a processor
 type ProcInfoSnap struct {
-	CfID      string                        `json:"changefeed-id"`
-	CaptureID string                        `json:"capture-id"`
-	Tables    map[TableID]*TableReplicaInfo `json:"-"`
+	CfID      string                            `json:"changefeed-id"`
+	CaptureID string                            `json:"capture-id"`
+	KeySpans  map[KeySpanID]*KeySpanReplicaInfo `json:"-"`
 }

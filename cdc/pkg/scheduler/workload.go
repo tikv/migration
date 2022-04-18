@@ -38,33 +38,33 @@ func (w workloads) AlignCapture(captureIDs map[model.CaptureID]struct{}) {
 	}
 }
 
-func (w workloads) SetTable(captureID model.CaptureID, tableID model.TableID, workload model.WorkloadInfo) {
+func (w workloads) SetKeySpan(captureID model.CaptureID, keyspanID model.KeySpanID, workload model.WorkloadInfo) {
 	captureWorkloads, exist := w[captureID]
 	if !exist {
 		captureWorkloads = make(model.TaskWorkload)
 		w[captureID] = captureWorkloads
 	}
-	captureWorkloads[tableID] = workload
+	captureWorkloads[keyspanID] = workload
 }
 
-func (w workloads) RemoveTable(captureID model.CaptureID, tableID model.TableID) {
+func (w workloads) RemoveKeySpan(captureID model.CaptureID, keyspanID model.KeySpanID) {
 	captureWorkloads, exist := w[captureID]
 	if !exist {
 		return
 	}
-	delete(captureWorkloads, tableID)
+	delete(captureWorkloads, keyspanID)
 }
 
-func (w workloads) AvgEachTable() uint64 {
+func (w workloads) AvgEachKeySpan() uint64 {
 	var totalWorkload uint64
-	var totalTable uint64
+	var totalKeySpan uint64
 	for _, captureWorkloads := range w {
 		for _, workload := range captureWorkloads {
 			totalWorkload += workload.Workload
 		}
-		totalTable += uint64(len(captureWorkloads))
+		totalKeySpan += uint64(len(captureWorkloads))
 	}
-	return totalWorkload / totalTable
+	return totalWorkload / totalKeySpan
 }
 
 func (w workloads) Skewness() float64 {
@@ -107,8 +107,8 @@ func (w workloads) Clone() workloads {
 	cloneWorkloads := make(map[model.CaptureID]model.TaskWorkload, len(w))
 	for captureID, captureWorkloads := range w {
 		cloneCaptureWorkloads := make(model.TaskWorkload, len(captureWorkloads))
-		for tableID, workload := range captureWorkloads {
-			cloneCaptureWorkloads[tableID] = workload
+		for keyspanID, workload := range captureWorkloads {
+			cloneCaptureWorkloads[keyspanID] = workload
 		}
 		cloneWorkloads[captureID] = cloneCaptureWorkloads
 	}

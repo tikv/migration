@@ -24,27 +24,29 @@ import (
 // This file contains a communication protocol between the Owner and the Processor.
 // FIXME a detailed documentation on the interaction will be added later in a separate file.
 
-// DispatchTableTopic returns a message topic for dispatching a table.
-func DispatchTableTopic(changefeedID ChangeFeedID) p2p.Topic {
+// DispatchKeySpanTopic returns a message topic for dispatching a keyspan.
+func DispatchKeySpanTopic(changefeedID ChangeFeedID) p2p.Topic {
 	return fmt.Sprintf("dispatch/%s", changefeedID)
 }
 
-// DispatchTableMessage is the message body for dispatching a table.
-type DispatchTableMessage struct {
-	OwnerRev int64   `json:"owner-rev"`
-	ID       TableID `json:"id"`
-	IsDelete bool    `json:"is-delete"`
+// DispatchKeySpanMessage is the message body for dispatching a keyspan.
+type DispatchKeySpanMessage struct {
+	OwnerRev int64     `json:"owner-rev"`
+	ID       KeySpanID `json:"id"`
+	IsDelete bool      `json:"is-delete"`
+	Start    []byte    `json:"start"`
+	End      []byte    `json:"end"`
 }
 
-// DispatchTableResponseTopic returns a message topic for the result of
-// dispatching a table. It is sent from the Processor to the Owner.
-func DispatchTableResponseTopic(changefeedID ChangeFeedID) p2p.Topic {
+// DispatchKeySpanResponseTopic returns a message topic for the result of
+// dispatching a keyspan. It is sent from the Processor to the Owner.
+func DispatchKeySpanResponseTopic(changefeedID ChangeFeedID) p2p.Topic {
 	return fmt.Sprintf("dispatch-resp/%s", changefeedID)
 }
 
-// DispatchTableResponseMessage is the message body for the result of dispatching a table.
-type DispatchTableResponseMessage struct {
-	ID TableID `json:"id"`
+// DispatchKeySpanResponseMessage is the message body for the result of dispatching a keyspan.
+type DispatchKeySpanResponseMessage struct {
+	ID KeySpanID `json:"id"`
 }
 
 // AnnounceTopic returns a message topic for announcing an ownership change.
@@ -69,9 +71,9 @@ func SyncTopic(changefeedID ChangeFeedID) p2p.Topic {
 type SyncMessage struct {
 	// Sends the processor's version for compatibility check
 	ProcessorVersion string
-	Running          []TableID
-	Adding           []TableID
-	Removing         []TableID
+	Running          []KeySpanID
+	Adding           []KeySpanID
+	Removing         []KeySpanID
 }
 
 // Marshal serializes the message into MsgPack format.
