@@ -33,42 +33,42 @@ const (
 	defaultSyncResolvedBatch = 64
 )
 
-// TableStatus is status of the table pipeline
-type TableStatus int32
+// KeySpanStatus is status of the keyspan pipeline
+type KeySpanStatus int32
 
-// TableStatus for table pipeline
+// KeySpanStatus for keyspan pipeline
 const (
-	TableStatusInitializing TableStatus = iota
-	TableStatusRunning
-	TableStatusStopped
+	KeySpanStatusInitializing KeySpanStatus = iota
+	KeySpanStatusRunning
+	KeySpanStatusStopped
 )
 
-func (s TableStatus) String() string {
+func (s KeySpanStatus) String() string {
 	switch s {
-	case TableStatusInitializing:
+	case KeySpanStatusInitializing:
 		return "Initializing"
-	case TableStatusRunning:
+	case KeySpanStatusRunning:
 		return "Running"
-	case TableStatusStopped:
+	case KeySpanStatusStopped:
 		return "Stopped"
 	}
 	return "Unknown"
 }
 
-// Load TableStatus with THREAD-SAFE
-func (s *TableStatus) Load() TableStatus {
-	return TableStatus(atomic.LoadInt32((*int32)(s)))
+// Load KeySpanStatus with THREAD-SAFE
+func (s *KeySpanStatus) Load() KeySpanStatus {
+	return KeySpanStatus(atomic.LoadInt32((*int32)(s)))
 }
 
-// Store TableStatus with THREAD-SAFE
-func (s *TableStatus) Store(new TableStatus) {
+// Store KeySpanStatus with THREAD-SAFE
+func (s *KeySpanStatus) Store(new KeySpanStatus) {
 	atomic.StoreInt32((*int32)(s), int32(new))
 }
 
 type sinkNode struct {
-	sink    sink.Sink
-	status  TableStatus
-	tableID model.TableID
+	sink      sink.Sink
+	status    KeySpanStatus
+	keyspanID model.KeySpanID
 
 	resolvedTs   model.Ts
 	checkpointTs model.Ts
@@ -76,19 +76,19 @@ type sinkNode struct {
 	barrierTs    model.Ts
 
 	eventBuffer []*model.PolymorphicEvent
-	rowBuffer   []*model.RowChangedEvent
+	rawKVBuffer []*model.RawKVEntry
 
-	flowController tableFlowController
+	flowController keyspanFlowController
 
-	replicaConfig    *config.ReplicaConfig
-	isTableActorMode bool
+	replicaConfig      *config.ReplicaConfig
+	isKeySpanActorMode bool
 }
 
-func newSinkNode(tableID model.TableID, sink sink.Sink, startTs model.Ts, targetTs model.Ts, flowController tableFlowController) *sinkNode {
+func newSinkNode(keyspanID model.KeySpanID, sink sink.Sink, startTs model.Ts, targetTs model.Ts, flowController keyspanFlowController) *sinkNode {
 	return &sinkNode{
-		tableID:      tableID,
+		keyspanID:    keyspanID,
 		sink:         sink,
-		status:       TableStatusInitializing,
+		status:       KeySpanStatusInitializing,
 		targetTs:     targetTs,
 		resolvedTs:   startTs,
 		checkpointTs: startTs,
@@ -100,38 +100,38 @@ func newSinkNode(tableID model.TableID, sink sink.Sink, startTs model.Ts, target
 
 func (n *sinkNode) ResolvedTs() model.Ts   { return atomic.LoadUint64(&n.resolvedTs) }
 func (n *sinkNode) CheckpointTs() model.Ts { return atomic.LoadUint64(&n.checkpointTs) }
-func (n *sinkNode) Status() TableStatus    { return n.status.Load() }
+func (n *sinkNode) Status() KeySpanStatus  { return n.status.Load() }
 
 func (n *sinkNode) Init(ctx pipeline.NodeContext) error {
 	n.replicaConfig = ctx.ChangefeedVars().Info.Config
 	return n.InitWithReplicaConfig(false, ctx.ChangefeedVars().Info.Config)
 }
 
-func (n *sinkNode) InitWithReplicaConfig(isTableActorMode bool, replicaConfig *config.ReplicaConfig) error {
+func (n *sinkNode) InitWithReplicaConfig(isKeySpanActorMode bool, replicaConfig *config.ReplicaConfig) error {
 	n.replicaConfig = replicaConfig
-	n.isTableActorMode = isTableActorMode
+	n.isKeySpanActorMode = isKeySpanActorMode
 	return nil
 }
 
 // stop is called when sink receives a stop command or checkpointTs reaches targetTs.
-// In this method, the builtin table sink will be closed by calling `Close`, and
+// In this method, the builtin keyspan sink will be closed by calling `Close`, and
 // no more events can be sent to this sink node afterwards.
 func (n *sinkNode) stop(ctx context.Context) (err error) {
-	// table stopped status must be set after underlying sink is closed
-	defer n.status.Store(TableStatusStopped)
+	// keyspan stopped status must be set after underlying sink is closed
+	defer n.status.Store(KeySpanStatusStopped)
 	err = n.sink.Close(ctx)
 	if err != nil {
 		return
 	}
-	log.Info("sink is closed", zap.Int64("tableID", n.tableID))
-	err = cerror.ErrTableProcessorStoppedSafely.GenWithStackByArgs()
+	log.Info("sink is closed", zap.Uint64("keyspanID", n.keyspanID))
+	err = cerror.ErrKeySpanProcessorStoppedSafely.GenWithStackByArgs()
 	return
 }
 
 func (n *sinkNode) flushSink(ctx context.Context, resolvedTs model.Ts) (err error) {
 	defer func() {
 		if err != nil {
-			n.status.Store(TableStatusStopped)
+			n.status.Store(KeySpanStatusStopped)
 			return
 		}
 		if n.checkpointTs >= n.targetTs {
@@ -150,19 +150,19 @@ func (n *sinkNode) flushSink(ctx context.Context, resolvedTs model.Ts) (err erro
 	if err := n.emitRow2Sink(ctx); err != nil {
 		return errors.Trace(err)
 	}
-	checkpointTs, err := n.sink.FlushRowChangedEvents(ctx, n.tableID, resolvedTs)
+	checkpointTs, err := n.sink.FlushChangedEvents(ctx, n.keyspanID, resolvedTs)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
 	// we must call flowController.Release immediately after we call
-	// FlushRowChangedEvents to prevent deadlock cause by checkpointTs
+	// FlushChangedEvents to prevent deadlock cause by checkpointTs
 	// fall back
 	n.flowController.Release(checkpointTs)
 
 	// the checkpointTs may fall back in some situation such as:
-	//   1. This table is newly added to the processor
-	//   2. There is one table in the processor that has a smaller
+	//   1. This keyspan is newly added to the processor
+	//   2. There is one keyspan in the processor that has a smaller
 	//   checkpointTs than this one
 	if checkpointTs <= n.checkpointTs {
 		return nil
@@ -173,40 +173,12 @@ func (n *sinkNode) flushSink(ctx context.Context, resolvedTs model.Ts) (err erro
 }
 
 func (n *sinkNode) emitEvent(ctx context.Context, event *model.PolymorphicEvent) error {
-	if event == nil || event.Row == nil {
+	if event == nil {
 		log.Warn("skip emit nil event", zap.Any("event", event))
 		return nil
 	}
 
-	colLen := len(event.Row.Columns)
-	preColLen := len(event.Row.PreColumns)
-	// Some transactions could generate empty row change event, such as
-	// begin; insert into t (id) values (1); delete from t where id=1; commit;
-	// Just ignore these row changed events
-	if colLen == 0 && preColLen == 0 {
-		log.Warn("skip emit empty row event", zap.Any("event", event))
-		return nil
-	}
-
-	// This indicates that it is an update event,
-	// and after enable old value internally by default(but disable in the configuration).
-	// We need to handle the update event to be compatible with the old format.
-	if !n.replicaConfig.EnableOldValue && colLen != 0 && preColLen != 0 && colLen == preColLen {
-		if shouldSplitUpdateEvent(event) {
-			deleteEvent, insertEvent, err := splitUpdateEvent(event)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			// NOTICE: Please do not change the order, the delete event always comes before the insert event.
-			n.eventBuffer = append(n.eventBuffer, deleteEvent, insertEvent)
-		} else {
-			// If the handle key columns are not updated, PreColumns is directly ignored.
-			event.Row.PreColumns = nil
-			n.eventBuffer = append(n.eventBuffer, event)
-		}
-	} else {
-		n.eventBuffer = append(n.eventBuffer, event)
-	}
+	n.eventBuffer = append(n.eventBuffer, event)
 
 	if len(n.eventBuffer) >= defaultSyncResolvedBatch {
 		if err := n.emitRow2Sink(ctx); err != nil {
@@ -216,81 +188,17 @@ func (n *sinkNode) emitEvent(ctx context.Context, event *model.PolymorphicEvent)
 	return nil
 }
 
-// shouldSplitUpdateEvent determines if the split event is needed to align the old format based on
-// whether the handle key column has been modified.
-// If the handle key column is modified,
-// we need to use splitUpdateEvent to split the update event into a delete and an insert event.
-func shouldSplitUpdateEvent(updateEvent *model.PolymorphicEvent) bool {
-	// nil event will never be split.
-	if updateEvent == nil {
-		return false
-	}
-
-	handleKeyCount := 0
-	equivalentHandleKeyCount := 0
-	for i := range updateEvent.Row.Columns {
-		if updateEvent.Row.Columns[i].Flag.IsHandleKey() && updateEvent.Row.PreColumns[i].Flag.IsHandleKey() {
-			handleKeyCount++
-			colValueString := model.ColumnValueString(updateEvent.Row.Columns[i].Value)
-			preColValueString := model.ColumnValueString(updateEvent.Row.PreColumns[i].Value)
-			if colValueString == preColValueString {
-				equivalentHandleKeyCount++
-			}
-		}
-	}
-
-	// If the handle key columns are not updated, so we do **not** need to split the event row.
-	return !(handleKeyCount == equivalentHandleKeyCount)
-}
-
-// splitUpdateEvent splits an update event into a delete and an insert event.
-func splitUpdateEvent(updateEvent *model.PolymorphicEvent) (*model.PolymorphicEvent, *model.PolymorphicEvent, error) {
-	if updateEvent == nil {
-		return nil, nil, errors.New("nil event cannot be split")
-	}
-
-	// If there is an update to handle key columns,
-	// we need to split the event into two events to be compatible with the old format.
-	// NOTICE: Here we don't need a full deep copy because our two events need Columns and PreColumns respectively,
-	// so it won't have an impact and no more full deep copy wastes memory.
-	deleteEvent := *updateEvent
-	deleteEventRow := *updateEvent.Row
-	deleteEventRowKV := *updateEvent.RawKV
-	deleteEvent.Row = &deleteEventRow
-	deleteEvent.RawKV = &deleteEventRowKV
-
-	deleteEvent.Row.Columns = nil
-	for i := range deleteEvent.Row.PreColumns {
-		// NOTICE: Only the handle key pre column is retained in the delete event.
-		if !deleteEvent.Row.PreColumns[i].Flag.IsHandleKey() {
-			deleteEvent.Row.PreColumns[i] = nil
-		}
-	}
-	// Align with the old format if old value disabled.
-	deleteEvent.Row.TableInfoVersion = 0
-
-	insertEvent := *updateEvent
-	insertEventRow := *updateEvent.Row
-	insertEventRowKV := *updateEvent.RawKV
-	insertEvent.Row = &insertEventRow
-	insertEvent.RawKV = &insertEventRowKV
-	// NOTICE: clean up pre cols for insert event.
-	insertEvent.Row.PreColumns = nil
-
-	return &deleteEvent, &insertEvent, nil
-}
-
 // clear event buffer and row buffer.
 // Also, it dereferences data that are held by buffers.
 func (n *sinkNode) clearBuffers() {
 	// Do not hog memory.
-	if cap(n.rowBuffer) > defaultSyncResolvedBatch {
-		n.rowBuffer = make([]*model.RowChangedEvent, 0, defaultSyncResolvedBatch)
+	if cap(n.rawKVBuffer) > defaultSyncResolvedBatch {
+		n.rawKVBuffer = make([]*model.RawKVEntry, 0, defaultSyncResolvedBatch)
 	} else {
-		for i := range n.rowBuffer {
-			n.rowBuffer[i] = nil
+		for i := range n.rawKVBuffer {
+			n.rawKVBuffer[i] = nil
 		}
-		n.rowBuffer = n.rowBuffer[:0]
+		n.rawKVBuffer = n.rawKVBuffer[:0]
 	}
 
 	if cap(n.eventBuffer) > defaultSyncResolvedBatch {
@@ -305,14 +213,14 @@ func (n *sinkNode) clearBuffers() {
 
 func (n *sinkNode) emitRow2Sink(ctx context.Context) error {
 	for _, ev := range n.eventBuffer {
-		n.rowBuffer = append(n.rowBuffer, ev.Row)
+		n.rawKVBuffer = append(n.rawKVBuffer, ev.RawKV)
 	}
 	failpoint.Inject("ProcessorSyncResolvedPreEmit", func() {
 		log.Info("Prepare to panic for ProcessorSyncResolvedPreEmit")
 		time.Sleep(10 * time.Second)
 		panic("ProcessorSyncResolvedPreEmit")
 	})
-	err := n.sink.EmitRowChangedEvents(ctx, n.rowBuffer...)
+	err := n.sink.EmitChangedEvents(ctx, n.rawKVBuffer...)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -327,15 +235,15 @@ func (n *sinkNode) Receive(ctx pipeline.NodeContext) error {
 }
 
 func (n *sinkNode) HandleMessage(ctx context.Context, msg pipeline.Message) (bool, error) {
-	if n.status == TableStatusStopped {
-		return false, cerror.ErrTableProcessorStoppedSafely.GenWithStackByArgs()
+	if n.status == KeySpanStatusStopped {
+		return false, cerror.ErrKeySpanProcessorStoppedSafely.GenWithStackByArgs()
 	}
 	switch msg.Tp {
 	case pipeline.MessageTypePolymorphicEvent:
 		event := msg.PolymorphicEvent
 		if event.RawKV.OpType == model.OpTypeResolved {
-			if n.status == TableStatusInitializing {
-				n.status.Store(TableStatusRunning)
+			if n.status == KeySpanStatusInitializing {
+				n.status.Store(KeySpanStatusRunning)
 			}
 			failpoint.Inject("ProcessorSyncResolvedError", func() {
 				failpoint.Return(false, errors.New("processor sync resolved injected error"))
@@ -369,7 +277,7 @@ func (n *sinkNode) HandleMessage(ctx context.Context, msg pipeline.Message) (boo
 }
 
 func (n *sinkNode) Destroy(ctx pipeline.NodeContext) error {
-	n.status.Store(TableStatusStopped)
+	n.status.Store(KeySpanStatusStopped)
 	n.flowController.Abort()
 	return n.sink.Close(ctx)
 }

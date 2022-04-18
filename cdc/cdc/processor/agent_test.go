@@ -50,8 +50,8 @@ type agentTestSuite struct {
 	etcdClient   *clientv3.Client
 	etcdKVClient *mockEtcdKVClient
 
-	tableExecutor      *pscheduler.MockTableExecutor
-	dispatchResponseCh chan *model.DispatchTableResponseMessage
+	keyspanExecutor    *pscheduler.MockKeySpanExecutor
+	dispatchResponseCh chan *model.DispatchKeySpanResponseMessage
 	syncCh             chan *model.SyncMessage
 	checkpointCh       chan *model.CheckpointMessage
 
@@ -72,13 +72,13 @@ func newAgentTestSuite(t *testing.T) *agentTestSuite {
 	ownerMessageClient := cluster.Nodes[ownerCaptureID].Router.GetClient(processorCaptureID)
 	require.NotNil(t, ownerMessageClient)
 
-	dispatchResponseCh := make(chan *model.DispatchTableResponseMessage, 1)
-	_, err := ownerMessageServer.SyncAddHandler(ctx, model.DispatchTableResponseTopic("cf-1"),
-		&model.DispatchTableResponseMessage{},
+	dispatchResponseCh := make(chan *model.DispatchKeySpanResponseMessage, 1)
+	_, err := ownerMessageServer.SyncAddHandler(ctx, model.DispatchKeySpanResponseTopic("cf-1"),
+		&model.DispatchKeySpanResponseMessage{},
 		func(senderID string, msg interface{}) error {
 			require.Equal(t, processorCaptureID, senderID)
-			require.IsType(t, &model.DispatchTableResponseMessage{}, msg)
-			dispatchResponseCh <- msg.(*model.DispatchTableResponseMessage)
+			require.IsType(t, &model.DispatchKeySpanResponseMessage{}, msg)
+			dispatchResponseCh <- msg.(*model.DispatchKeySpanResponseMessage)
 			return nil
 		},
 	)
@@ -128,7 +128,7 @@ func (s *agentTestSuite) CreateAgent(t *testing.T) (*agentImpl, error) {
 	cdcEtcdClient := etcd.NewCDCEtcdClient(s.ctx, s.etcdClient)
 	messageServer := s.cluster.Nodes["capture-1"].Server
 	messageRouter := s.cluster.Nodes["capture-1"].Router
-	s.tableExecutor = pscheduler.NewMockTableExecutor(t)
+	s.keyspanExecutor = pscheduler.NewMockKeySpanExecutor(t)
 
 	ctx := cdcContext.NewContext(s.ctx, &cdcContext.GlobalVars{
 		EtcdClient:    &cdcEtcdClient,
@@ -137,7 +137,7 @@ func (s *agentTestSuite) CreateAgent(t *testing.T) (*agentImpl, error) {
 	})
 	s.cdcCtx = ctx
 
-	ret, err := newAgent(ctx, messageServer, messageRouter, s.tableExecutor, "cf-1")
+	ret, err := newAgent(ctx, messageServer, messageRouter, s.keyspanExecutor, "cf-1")
 	if err != nil {
 		return nil, err
 	}
@@ -209,26 +209,26 @@ func TestAgentBasics(t *testing.T) {
 		}, syncMsg)
 	}
 
-	_, err = suite.ownerMessageClient.SendMessage(suite.ctx, model.DispatchTableTopic("cf-1"), &model.DispatchTableMessage{
+	_, err = suite.ownerMessageClient.SendMessage(suite.ctx, model.DispatchKeySpanTopic("cf-1"), &model.DispatchKeySpanMessage{
 		OwnerRev: 1,
 		ID:       1,
 		IsDelete: false,
 	})
 	require.NoError(t, err)
 
-	// Test Point 3: Accept an incoming DispatchTableMessage, and the AddTable method in TableExecutor can return false.
-	suite.tableExecutor.On("AddTable", mock.Anything, model.TableID(1)).Return(false, nil).Once()
-	suite.tableExecutor.On("AddTable", mock.Anything, model.TableID(1)).Return(true, nil).Run(
+	// Test Point 3: Accept an incoming DispatchKeySpanMessage, and the AddKeySpan method in KeySpanExecutor can return false.
+	suite.keyspanExecutor.On("AddKeySpan", mock.Anything, model.KeySpanID(1)).Return(false, nil).Once()
+	suite.keyspanExecutor.On("AddKeySpan", mock.Anything, model.KeySpanID(1)).Return(true, nil).Run(
 		func(_ mock.Arguments) {
-			delete(suite.tableExecutor.Adding, 1)
-			suite.tableExecutor.Running[1] = struct{}{}
+			delete(suite.keyspanExecutor.Adding, 1)
+			suite.keyspanExecutor.Running[1] = struct{}{}
 		}).Once()
-	suite.tableExecutor.On("GetCheckpoint").Return(model.Ts(1000), model.Ts(1000))
+	suite.keyspanExecutor.On("GetCheckpoint").Return(model.Ts(1000), model.Ts(1000))
 
 	require.Eventually(t, func() bool {
 		err = agent.Tick(suite.cdcCtx)
 		require.NoError(t, err)
-		if len(suite.tableExecutor.Running) != 1 {
+		if len(suite.keyspanExecutor.Running) != 1 {
 			return false
 		}
 		select {
@@ -245,24 +245,24 @@ func TestAgentBasics(t *testing.T) {
 		return false
 	}, 5*time.Second, 100*time.Millisecond)
 
-	suite.tableExecutor.AssertExpectations(t)
-	suite.tableExecutor.ExpectedCalls = nil
-	suite.tableExecutor.Calls = nil
+	suite.keyspanExecutor.AssertExpectations(t)
+	suite.keyspanExecutor.ExpectedCalls = nil
+	suite.keyspanExecutor.Calls = nil
 
-	// Test Point 4: Accept an incoming DispatchTableMessage, and the AddTable method in TableExecutor can return true.
+	// Test Point 4: Accept an incoming DispatchKeySpanMessage, and the AddKeySpan method in KeySpanExecutor can return true.
 	err = agent.Tick(suite.cdcCtx)
 	require.NoError(t, err)
 
-	suite.tableExecutor.AssertExpectations(t)
-	suite.tableExecutor.ExpectedCalls = nil
-	suite.tableExecutor.Calls = nil
+	suite.keyspanExecutor.AssertExpectations(t)
+	suite.keyspanExecutor.ExpectedCalls = nil
+	suite.keyspanExecutor.Calls = nil
 
 	require.Eventually(t, func() bool {
 		select {
 		case <-suite.ctx.Done():
 			return false
 		case msg := <-suite.dispatchResponseCh:
-			require.Equal(t, &model.DispatchTableResponseMessage{
+			require.Equal(t, &model.DispatchKeySpanResponseMessage{
 				ID: 1,
 			}, msg)
 			return true

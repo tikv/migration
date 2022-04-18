@@ -52,7 +52,7 @@ func (s *Server) startStatusHTTP(lis net.Listener) error {
 	router.POST("/capture/owner/resign", gin.WrapF(s.handleResignOwner))
 	router.POST("/capture/owner/admin", gin.WrapF(s.handleChangefeedAdmin))
 	router.POST("/capture/owner/rebalance_trigger", gin.WrapF(s.handleRebalanceTrigger))
-	router.POST("/capture/owner/move_table", gin.WrapF(s.handleMoveTable))
+	router.POST("/capture/owner/move_keyspan", gin.WrapF(s.handleMoveKeySpan))
 	router.POST("/capture/owner/changefeed/query", gin.WrapF(s.handleChangefeedQuery))
 	router.POST("/admin/log", gin.WrapF(handleAdminLogLevel))
 

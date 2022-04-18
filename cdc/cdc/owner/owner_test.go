@@ -54,13 +54,7 @@ func createOwner4Test(ctx cdcContext.Context, c *check.C) (*Owner, *orchestrator
 			return safePoint, nil
 		},
 	}
-	owner := NewOwner4Test(func(ctx cdcContext.Context, startTs uint64) (DDLPuller, error) {
-		return &mockDDLPuller{resolvedTs: startTs - 1}, nil
-	}, func() DDLSink {
-		return &mockDDLSink{}
-	},
-		ctx.GlobalVars().PDClient,
-	)
+	owner := NewOwner4Test(ctx.GlobalVars().PDClient)
 	state := orchestrator.NewGlobalState()
 	tester := orchestrator.NewReactorStateTester(c, state, nil)
 
@@ -230,49 +224,6 @@ func (s *ownerSuite) TestFixChangefeedState(c *check.C) {
 	c.Assert(owner.changefeeds[changefeedID].state.Info.State, check.Equals, model.StateStopped)
 }
 
-func (s *ownerSuite) TestFixChangefeedSinkProtocol(c *check.C) {
-	defer testleak.AfterTest(c)()
-	ctx := cdcContext.NewBackendContext4Test(false)
-	owner, state, tester := createOwner4Test(ctx, c)
-	// We need to do bootstrap.
-	owner.bootstrapped = false
-	changefeedID := "test-changefeed"
-	// Unknown protocol.
-	changefeedInfo := &model.ChangeFeedInfo{
-		State:          model.StateNormal,
-		AdminJobType:   model.AdminStop,
-		StartTs:        oracle.GoTimeToTS(time.Now()),
-		CreatorVersion: "5.3.0",
-		SinkURI:        "kafka://127.0.0.1:9092/ticdc-test2?protocol=random",
-		Config: &config.ReplicaConfig{
-			Sink: &config.SinkConfig{Protocol: config.ProtocolDefault.String()},
-		},
-	}
-	changefeedStr, err := changefeedInfo.Marshal()
-	c.Assert(err, check.IsNil)
-	cdcKey := etcd.CDCKey{
-		Tp:           etcd.CDCKeyTypeChangefeedInfo,
-		ChangefeedID: changefeedID,
-	}
-	tester.MustUpdate(cdcKey.String(), []byte(changefeedStr))
-	// For the first tick, we do a bootstrap, and it tries to fix the meta information.
-	_, err = owner.Tick(ctx, state)
-	tester.MustApplyPatches()
-	c.Assert(err, check.IsNil)
-	c.Assert(owner.bootstrapped, check.IsTrue)
-	c.Assert(owner.changefeeds, check.Not(check.HasKey), changefeedID)
-
-	// Start tick normally.
-	_, err = owner.Tick(ctx, state)
-	tester.MustApplyPatches()
-	c.Assert(err, check.IsNil)
-	c.Assert(owner.changefeeds, check.HasKey, changefeedID)
-	// The meta information is fixed correctly.
-	c.Assert(owner.changefeeds[changefeedID].state.Info.SinkURI,
-		check.Equals,
-		"kafka://127.0.0.1:9092/ticdc-test2?protocol=open-protocol")
-}
-
 func (s *ownerSuite) TestCheckClusterVersion(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(false)
@@ -280,7 +231,7 @@ func (s *ownerSuite) TestCheckClusterVersion(c *check.C) {
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	defer cancel()
 
-	tester.MustUpdate("/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300","version":"v6.0.0"}`))
+	tester.MustUpdate("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300","version":"v6.0.0"}`))
 
 	changefeedID := "test-changefeed"
 	changefeedInfo := &model.ChangeFeedInfo{
@@ -301,7 +252,7 @@ func (s *ownerSuite) TestCheckClusterVersion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(owner.changefeeds, check.Not(check.HasKey), changefeedID)
 
-	tester.MustUpdate("/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+	tester.MustUpdate("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
 		[]byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300","version":"`+ctx.GlobalVars().CaptureInfo.Version+`"}`))
 
 	// check the tick is not skipped and the changefeed will be handled normally
@@ -349,7 +300,7 @@ func (s *ownerSuite) TestAdminJob(c *check.C) {
 			tp:              ownerJobTypeManualSchedule,
 			changefeedID:    "test-changefeed3",
 			targetCaptureID: "test-caputre1",
-			tableID:         10,
+			keyspanID:       10,
 		}, {
 			tp:              ownerJobTypeDebugInfo,
 			debugInfoWriter: &buf,
@@ -388,7 +339,7 @@ func (s *ownerSuite) TestUpdateGCSafePoint(c *check.C) {
 		}
 	changefeedID1 := "changefeed-test1"
 	tester.MustUpdate(
-		fmt.Sprintf("/tidb/cdc/changefeed/info/%s", changefeedID1),
+		fmt.Sprintf("/tikv/cdc/changefeed/info/%s", changefeedID1),
 		[]byte(`{"config":{"cyclic-replication":{}},"state":"failed"}`))
 	tester.MustApplyPatches()
 	state.Changefeeds[changefeedID1].PatchStatus(
@@ -428,7 +379,7 @@ func (s *ownerSuite) TestUpdateGCSafePoint(c *check.C) {
 	// add another changefeed, it must update GC safepoint.
 	changefeedID2 := "changefeed-test2"
 	tester.MustUpdate(
-		fmt.Sprintf("/tidb/cdc/changefeed/info/%s", changefeedID2),
+		fmt.Sprintf("/tikv/cdc/changefeed/info/%s", changefeedID2),
 		[]byte(`{"config":{"cyclic-replication":{}},"state":"normal"}`))
 	tester.MustApplyPatches()
 	state.Changefeeds[changefeedID1].PatchStatus(
@@ -552,4 +503,47 @@ WorkLoop:
 	c.Assert(errIn, check.IsNil)
 	c.Assert(infos[cf1], check.NotNil)
 	c.Assert(infos[cf2], check.IsNil)
+}
+
+func (s *ownerSuite) TestFixChangefeedSinkProtocol(c *check.C) {
+	defer testleak.AfterTest(c)()
+	ctx := cdcContext.NewBackendContext4Test(false)
+	owner, state, tester := createOwner4Test(ctx, c)
+	// We need to do bootstrap.
+	owner.bootstrapped = false
+	changefeedID := "test-changefeed"
+	// Unknown protocol.
+	changefeedInfo := &model.ChangeFeedInfo{
+		State:          model.StateNormal,
+		AdminJobType:   model.AdminStop,
+		StartTs:        oracle.GoTimeToTS(time.Now()),
+		CreatorVersion: "5.3.0",
+		SinkURI:        "tikv://127.0.0.1:1234",
+		Config: &config.ReplicaConfig{
+			Sink: &config.SinkConfig{Protocol: config.ProtocolDefault.String()},
+		},
+	}
+	changefeedStr, err := changefeedInfo.Marshal()
+	c.Assert(err, check.IsNil)
+	cdcKey := etcd.CDCKey{
+		Tp:           etcd.CDCKeyTypeChangefeedInfo,
+		ChangefeedID: changefeedID,
+	}
+	tester.MustUpdate(cdcKey.String(), []byte(changefeedStr))
+	// For the first tick, we do a bootstrap, and it tries to fix the meta information.
+	_, err = owner.Tick(ctx, state)
+	tester.MustApplyPatches()
+	c.Assert(err, check.IsNil)
+	c.Assert(owner.bootstrapped, check.IsTrue)
+	c.Assert(owner.changefeeds, check.Not(check.HasKey), changefeedID)
+
+	// Start tick normally.
+	_, err = owner.Tick(ctx, state)
+	tester.MustApplyPatches()
+	c.Assert(err, check.IsNil)
+	c.Assert(owner.changefeeds, check.HasKey, changefeedID)
+	// The meta information is fixed correctly.
+	c.Assert(owner.changefeeds[changefeedID].state.Info.SinkURI,
+		check.Equals,
+		"tikv://127.0.0.1:1234")
 }

@@ -158,7 +158,7 @@ func (s *etcdSuite) TestGetPutTaskStatus(c *check.C) {
 	defer s.TearDownTest(c)
 	ctx := context.Background()
 	info := &model.TaskStatus{
-		Tables: map[model.TableID]*model.TableReplicaInfo{
+		KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{
 			1: {StartTs: 100},
 		},
 	}

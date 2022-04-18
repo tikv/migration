@@ -18,7 +18,7 @@ import (
 	"github.com/tikv/migration/cdc/cdc/model"
 )
 
-// Scheduler is an abstraction for anything that provide the schedule table feature
+// Scheduler is an abstraction for anything that provide the schedule keyspan feature
 type Scheduler interface {
 	// ResetWorkloads resets the workloads info of the capture
 	ResetWorkloads(captureID model.CaptureID, workloads model.TaskWorkload)
@@ -30,19 +30,19 @@ type Scheduler interface {
 	// returns  * the skewness after rebalance
 	//          * the move jobs need by rebalance
 	CalRebalanceOperates(targetSkewness float64) (
-		skewness float64, moveTableJobs map[model.TableID]*model.MoveTableJob)
-	// DistributeTables distributes the new tables to the captures
-	// returns the operations of the new tables
-	DistributeTables(tableIDs map[model.TableID]model.Ts) map[model.CaptureID]map[model.TableID]*model.TableOperation
+		skewness float64, moveKeySpanJobs map[model.KeySpanID]*model.MoveKeySpanJob)
+	// DistributeKeySpans distributes the new keyspans to the captures
+	// returns the operations of the new keyspans
+	DistributeKeySpans(keyspanIDs map[model.KeySpanID]model.Ts) map[model.CaptureID]map[model.KeySpanID]*model.KeySpanOperation
 }
 
 // NewScheduler creates a new Scheduler
 func NewScheduler(tp string) Scheduler {
 	switch tp {
-	case "table-number":
-		return newTableNumberScheduler()
+	case "keyspan-number":
+		return newKeySpanNumberScheduler()
 	default:
 		log.Info("invalid scheduler type, using default scheduler")
-		return newTableNumberScheduler()
+		return newKeySpanNumberScheduler()
 	}
 }

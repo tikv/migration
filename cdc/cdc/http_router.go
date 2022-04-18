@@ -64,8 +64,8 @@ func newRouter(captureHandler capture.HTTPHandler) *gin.Engine {
 		changefeedGroup.POST("/:changefeed_id/pause", captureHandler.PauseChangefeed)
 		changefeedGroup.POST("/:changefeed_id/resume", captureHandler.ResumeChangefeed)
 		changefeedGroup.DELETE("/:changefeed_id", captureHandler.RemoveChangefeed)
-		changefeedGroup.POST("/:changefeed_id/tables/rebalance_table", captureHandler.RebalanceTable)
-		changefeedGroup.POST("/:changefeed_id/tables/move_table", captureHandler.MoveTable)
+		changefeedGroup.POST("/:changefeed_id/keyspans/rebalance_keyspan", captureHandler.RebalanceKeySpan)
+		changefeedGroup.POST("/:changefeed_id/keyspans/move_keyspan", captureHandler.MoveKeySpan)
 	}
 
 	// owner API

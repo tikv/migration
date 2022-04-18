@@ -37,7 +37,7 @@ func (s *stateSuite) TestCheckCaptureAlive(c *check.C) {
 	stateTester := NewReactorStateTester(c, state, nil)
 	state.CheckCaptureAlive("6bbc01c8-0605-4f86-a0f9-b3119109b225")
 	c.Assert(stateTester.ApplyPatches(), check.ErrorMatches, ".*[CDC:ErrLeaseExpired].*")
-	err := stateTester.Update("/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`))
+	err := stateTester.Update("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`))
 	c.Assert(err, check.IsNil)
 	state.CheckCaptureAlive("6bbc01c8-0605-4f86-a0f9-b3119109b225")
 	stateTester.MustApplyPatches()
@@ -56,18 +56,18 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 		{ // common case
 			changefeedID: "test1",
 			updateKey: []string{
-				"/tidb/cdc/changefeed/info/test1",
-				"/tidb/cdc/job/test1",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/changefeed/info/test1",
+				"/tikv/cdc/job/test1",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
 			},
 			updateValue: []string{
-				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"table-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
+				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"keyspan-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
 				`{"resolved-ts":421980720003809281,"checkpoint-ts":421980719742451713,"admin-job-type":0}`,
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
-				`{"tables":{"45":{"start-ts":421980685886554116,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
 				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
 			},
@@ -88,14 +88,14 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 						Mounter:          &config.MounterConfig{WorkerNum: 16},
 						Sink:             &config.SinkConfig{Protocol: "open-protocol"},
 						Cyclic:           &config.CyclicConfig{},
-						Scheduler:        &config.SchedulerConfig{Tp: "table-number", PollingTime: -1},
+						Scheduler:        &config.SchedulerConfig{Tp: "keyspan-number", PollingTime: -1},
 						Consistent:       &config.ConsistentConfig{Level: "normal", Storage: "local"},
 					},
 				},
 				Status: &model.ChangeFeedStatus{CheckpointTs: 421980719742451713, ResolvedTs: 421980720003809281},
 				TaskStatuses: map[model.CaptureID]*model.TaskStatus{
 					"6bbc01c8-0605-4f86-a0f9-b3119109b225": {
-						Tables: map[int64]*model.TableReplicaInfo{45: {StartTs: 421980685886554116}},
+						KeySpans: map[uint64]*model.KeySpanReplicaInfo{45: {StartTs: 421980685886554116}},
 					},
 				},
 				TaskPositions: map[model.CaptureID]*model.TaskPosition{
@@ -109,26 +109,26 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 		{ // test multiple capture
 			changefeedID: "test1",
 			updateKey: []string{
-				"/tidb/cdc/changefeed/info/test1",
-				"/tidb/cdc/job/test1",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
-				"/tidb/cdc/task/position/666777888/test1",
-				"/tidb/cdc/task/status/666777888/test1",
-				"/tidb/cdc/task/workload/666777888/test1",
-				"/tidb/cdc/capture/666777888",
+				"/tikv/cdc/changefeed/info/test1",
+				"/tikv/cdc/job/test1",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/task/position/666777888/test1",
+				"/tikv/cdc/task/status/666777888/test1",
+				"/tikv/cdc/task/workload/666777888/test1",
+				"/tikv/cdc/capture/666777888",
 			},
 			updateValue: []string{
-				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"table-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
+				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"keyspan-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
 				`{"resolved-ts":421980720003809281,"checkpoint-ts":421980719742451713,"admin-job-type":0}`,
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
-				`{"tables":{"45":{"start-ts":421980685886554116,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
 				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
 				`{"checkpoint-ts":11332244,"resolved-ts":312321,"count":8,"error":null}`,
-				`{"tables":{"46":{"start-ts":412341234,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"46":{"start-ts":412341234,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"46":{"workload":3}}`,
 				`{"id":"666777888","address":"127.0.0.1:8300"}`,
 			},
@@ -149,17 +149,17 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 						Mounter:          &config.MounterConfig{WorkerNum: 16},
 						Sink:             &config.SinkConfig{Protocol: "open-protocol"},
 						Cyclic:           &config.CyclicConfig{},
-						Scheduler:        &config.SchedulerConfig{Tp: "table-number", PollingTime: -1},
+						Scheduler:        &config.SchedulerConfig{Tp: "keyspan-number", PollingTime: -1},
 						Consistent:       &config.ConsistentConfig{Level: "normal", Storage: "local"},
 					},
 				},
 				Status: &model.ChangeFeedStatus{CheckpointTs: 421980719742451713, ResolvedTs: 421980720003809281},
 				TaskStatuses: map[model.CaptureID]*model.TaskStatus{
 					"6bbc01c8-0605-4f86-a0f9-b3119109b225": {
-						Tables: map[int64]*model.TableReplicaInfo{45: {StartTs: 421980685886554116}},
+						KeySpans: map[uint64]*model.KeySpanReplicaInfo{45: {StartTs: 421980685886554116}},
 					},
 					"666777888": {
-						Tables: map[int64]*model.TableReplicaInfo{46: {StartTs: 412341234}},
+						KeySpans: map[uint64]*model.KeySpanReplicaInfo{46: {StartTs: 412341234}},
 					},
 				},
 				TaskPositions: map[model.CaptureID]*model.TaskPosition{
@@ -175,23 +175,23 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 		{ // testing changefeedID not match
 			changefeedID: "test1",
 			updateKey: []string{
-				"/tidb/cdc/changefeed/info/test1",
-				"/tidb/cdc/job/test1",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
-				"/tidb/cdc/changefeed/info/test-fake",
-				"/tidb/cdc/job/test-fake",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-fake",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-fake",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-fake",
+				"/tikv/cdc/changefeed/info/test1",
+				"/tikv/cdc/job/test1",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/changefeed/info/test-fake",
+				"/tikv/cdc/job/test-fake",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-fake",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-fake",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test-fake",
 			},
 			updateValue: []string{
-				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"table-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
+				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"keyspan-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
 				`{"resolved-ts":421980720003809281,"checkpoint-ts":421980719742451713,"admin-job-type":0}`,
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
-				`{"tables":{"45":{"start-ts":421980685886554116,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
 				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
 				`fake value`,
@@ -217,14 +217,14 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 						Mounter:          &config.MounterConfig{WorkerNum: 16},
 						Sink:             &config.SinkConfig{Protocol: "open-protocol"},
 						Cyclic:           &config.CyclicConfig{},
-						Scheduler:        &config.SchedulerConfig{Tp: "table-number", PollingTime: -1},
+						Scheduler:        &config.SchedulerConfig{Tp: "keyspan-number", PollingTime: -1},
 						Consistent:       &config.ConsistentConfig{Level: "normal", Storage: "local"},
 					},
 				},
 				Status: &model.ChangeFeedStatus{CheckpointTs: 421980719742451713, ResolvedTs: 421980720003809281},
 				TaskStatuses: map[model.CaptureID]*model.TaskStatus{
 					"6bbc01c8-0605-4f86-a0f9-b3119109b225": {
-						Tables: map[int64]*model.TableReplicaInfo{45: {StartTs: 421980685886554116}},
+						KeySpans: map[uint64]*model.KeySpanReplicaInfo{45: {StartTs: 421980685886554116}},
 					},
 				},
 				TaskPositions: map[model.CaptureID]*model.TaskPosition{
@@ -238,33 +238,33 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 		{ // testing value is nil
 			changefeedID: "test1",
 			updateKey: []string{
-				"/tidb/cdc/changefeed/info/test1",
-				"/tidb/cdc/job/test1",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
-				"/tidb/cdc/task/position/666777888/test1",
-				"/tidb/cdc/task/status/666777888/test1",
-				"/tidb/cdc/task/workload/666777888/test1",
-				"/tidb/cdc/changefeed/info/test1",
-				"/tidb/cdc/job/test1",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
-				"/tidb/cdc/task/workload/666777888/test1",
-				"/tidb/cdc/task/status/666777888/test1",
+				"/tikv/cdc/changefeed/info/test1",
+				"/tikv/cdc/job/test1",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/task/position/666777888/test1",
+				"/tikv/cdc/task/status/666777888/test1",
+				"/tikv/cdc/task/workload/666777888/test1",
+				"/tikv/cdc/changefeed/info/test1",
+				"/tikv/cdc/job/test1",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/task/workload/666777888/test1",
+				"/tikv/cdc/task/status/666777888/test1",
 			},
 			updateValue: []string{
-				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"table-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
+				`{"sink-uri":"blackhole://","opts":{},"create-time":"2020-02-02T00:00:00.000000+00:00","start-ts":421980685886554116,"target-ts":0,"admin-job-type":0,"sort-engine":"memory","sort-dir":"","config":{"case-sensitive":true,"enable-old-value":false,"force-replicate":false,"check-gc-safe-point":true,"filter":{"rules":["*.*"],"ignore-txn-start-ts":null,"ddl-allow-list":null},"mounter":{"worker-num":16},"sink":{"dispatchers":null,"protocol":"open-protocol"},"cyclic-replication":{"enable":false,"replica-id":0,"filter-replica-ids":null,"id-buckets":0,"sync-ddl":false},"scheduler":{"type":"keyspan-number","polling-time":-1},"consistent":{"level":"normal","storage":"local"}},"state":"normal","history":null,"error":null,"sync-point-enabled":false,"sync-point-interval":600000000000}`,
 				`{"resolved-ts":421980720003809281,"checkpoint-ts":421980719742451713,"admin-job-type":0}`,
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
-				`{"tables":{"45":{"start-ts":421980685886554116,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
 				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
 				`{"checkpoint-ts":11332244,"resolved-ts":312321,"count":8,"error":null}`,
-				`{"tables":{"46":{"start-ts":412341234,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"46":{"start-ts":412341234,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"46":{"workload":3}}`,
 				``,
 				``,
@@ -289,22 +289,22 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 		{ // testing the same key case
 			changefeedID: "test1",
 			updateKey: []string{
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/status/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
 			},
 			updateValue: []string{
-				`{"tables":{"45":{"start-ts":421980685886554116,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
-				`{"tables":{"46":{"start-ts":421980685886554116,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"46":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				``,
-				`{"tables":{"47":{"start-ts":421980685886554116,"mark-table-id":0}},"operation":null,"admin-job-type":0}`,
+				`{"keyspans":{"47":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 			},
 			expected: ChangefeedReactorState{
 				ID: "test1",
 				TaskStatuses: map[model.CaptureID]*model.TaskStatus{
 					"6bbc01c8-0605-4f86-a0f9-b3119109b225": {
-						Tables: map[int64]*model.TableReplicaInfo{47: {StartTs: 421980685886554116}},
+						KeySpans: map[uint64]*model.KeySpanReplicaInfo{47: {StartTs: 421980685886554116}},
 					},
 				},
 				TaskPositions: map[model.CaptureID]*model.TaskPosition{},
@@ -470,39 +470,39 @@ func (s *stateSuite) TestPatchTaskStatus(c *check.C) {
 	state.PatchTaskStatus(captureID1, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		c.Assert(status, check.IsNil)
 		return &model.TaskStatus{
-			Tables: map[model.TableID]*model.TableReplicaInfo{45: {StartTs: 1}},
+			KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{45: {StartTs: 1}},
 		}, true, nil
 	})
 	state.PatchTaskStatus(captureID2, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		c.Assert(status, check.IsNil)
 		return &model.TaskStatus{
-			Tables: map[model.TableID]*model.TableReplicaInfo{46: {StartTs: 1}},
+			KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{46: {StartTs: 1}},
 		}, true, nil
 	})
 	stateTester.MustApplyPatches()
 	c.Assert(state.TaskStatuses, check.DeepEquals, map[model.CaptureID]*model.TaskStatus{
-		captureID1: {Tables: map[model.TableID]*model.TableReplicaInfo{45: {StartTs: 1}}},
-		captureID2: {Tables: map[model.TableID]*model.TableReplicaInfo{46: {StartTs: 1}}},
+		captureID1: {KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{45: {StartTs: 1}}},
+		captureID2: {KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{46: {StartTs: 1}}},
 	})
 	state.PatchTaskStatus(captureID1, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables[46] = &model.TableReplicaInfo{StartTs: 2}
+		status.KeySpans[46] = &model.KeySpanReplicaInfo{StartTs: 2}
 		return status, true, nil
 	})
 	state.PatchTaskStatus(captureID2, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables[46].StartTs++
+		status.KeySpans[46].StartTs++
 		return status, true, nil
 	})
 	stateTester.MustApplyPatches()
 	c.Assert(state.TaskStatuses, check.DeepEquals, map[model.CaptureID]*model.TaskStatus{
-		captureID1: {Tables: map[model.TableID]*model.TableReplicaInfo{45: {StartTs: 1}, 46: {StartTs: 2}}},
-		captureID2: {Tables: map[model.TableID]*model.TableReplicaInfo{46: {StartTs: 2}}},
+		captureID1: {KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{45: {StartTs: 1}, 46: {StartTs: 2}}},
+		captureID2: {KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{46: {StartTs: 2}}},
 	})
 	state.PatchTaskStatus(captureID2, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		return nil, true, nil
 	})
 	stateTester.MustApplyPatches()
 	c.Assert(state.TaskStatuses, check.DeepEquals, map[model.CaptureID]*model.TaskStatus{
-		captureID1: {Tables: map[model.TableID]*model.TableReplicaInfo{45: {StartTs: 1}, 46: {StartTs: 2}}},
+		captureID1: {KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{45: {StartTs: 1}, 46: {StartTs: 2}}},
 	})
 }
 
@@ -556,12 +556,12 @@ func (s *stateSuite) TestGlobalStateUpdate(c *check.C) {
 	}{
 		{ // common case
 			updateKey: []string{
-				"/tidb/cdc/owner/22317526c4fc9a37",
-				"/tidb/cdc/owner/22317526c4fc9a38",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test2",
-				"/tidb/cdc/task/workload/55551111/test2",
+				"/tikv/cdc/owner/22317526c4fc9a37",
+				"/tikv/cdc/owner/22317526c4fc9a38",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test2",
+				"/tikv/cdc/task/workload/55551111/test2",
 			},
 			updateValue: []string{
 				`6bbc01c8-0605-4f86-a0f9-b3119109b225`,
@@ -600,16 +600,16 @@ func (s *stateSuite) TestGlobalStateUpdate(c *check.C) {
 		},
 		{ // testing remove changefeed
 			updateKey: []string{
-				"/tidb/cdc/owner/22317526c4fc9a37",
-				"/tidb/cdc/owner/22317526c4fc9a38",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test2",
-				"/tidb/cdc/task/workload/55551111/test2",
-				"/tidb/cdc/owner/22317526c4fc9a37",
-				"/tidb/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
-				"/tidb/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test2",
-				"/tidb/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/owner/22317526c4fc9a37",
+				"/tikv/cdc/owner/22317526c4fc9a38",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test2",
+				"/tikv/cdc/task/workload/55551111/test2",
+				"/tikv/cdc/owner/22317526c4fc9a37",
+				"/tikv/cdc/task/position/6bbc01c8-0605-4f86-a0f9-b3119109b225/test1",
+				"/tikv/cdc/task/workload/6bbc01c8-0605-4f86-a0f9-b3119109b225/test2",
+				"/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
 			},
 			updateValue: []string{
 				`6bbc01c8-0605-4f86-a0f9-b3119109b225`,

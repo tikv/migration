@@ -168,15 +168,15 @@ func TestParseCfg(t *testing.T) {
 			KeyPath:       "cc",
 			CertAllowedCN: []string{"dd", "ee"},
 		},
-		PerTableMemoryQuota: 10 * 1024 * 1024, // 10M
+		PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10M
 		KVClient: &config.KVClientConfig{
 			WorkerConcurrent: 8,
 			WorkerPoolSize:   0,
 			RegionScanLimit:  40,
 		},
 		Debug: &config.DebugConfig{
-			EnableTableActor: false,
-			EnableDBSorter:   false,
+			EnableKeySpanActor: false,
+			EnableDBSorter:     false,
 			DB: &config.DBConfig{
 				Count:                       8,
 				Concurrency:                 128,
@@ -306,16 +306,16 @@ server-worker-pool-size = 16
 			NumWorkerPoolGoroutine: 5,
 			SortDir:                config.DefaultSortDir,
 		},
-		Security:            &config.SecurityConfig{},
-		PerTableMemoryQuota: 10 * 1024 * 1024, // 10M
+		Security:              &config.SecurityConfig{},
+		PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10M
 		KVClient: &config.KVClientConfig{
 			WorkerConcurrent: 8,
 			WorkerPoolSize:   0,
 			RegionScanLimit:  40,
 		},
 		Debug: &config.DebugConfig{
-			EnableTableActor: false,
-			EnableDBSorter:   false,
+			EnableKeySpanActor: false,
+			EnableDBSorter:     false,
 			DB: &config.DBConfig{
 				Count:                       5,
 				Concurrency:                 6,
@@ -444,15 +444,15 @@ cert-allowed-cn = ["dd","ee"]
 			KeyPath:       "cc",
 			CertAllowedCN: []string{"dd", "ee"},
 		},
-		PerTableMemoryQuota: 10 * 1024 * 1024, // 10M
+		PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10M
 		KVClient: &config.KVClientConfig{
 			WorkerConcurrent: 8,
 			WorkerPoolSize:   0,
 			RegionScanLimit:  40,
 		},
 		Debug: &config.DebugConfig{
-			EnableTableActor: false,
-			EnableDBSorter:   false,
+			EnableKeySpanActor: false,
+			EnableDBSorter:     false,
 			DB: &config.DBConfig{
 				Count:                       8,
 				Concurrency:                 128,
@@ -507,8 +507,8 @@ unknown3 = 3
 	err = o.validate()
 	require.Nil(t, err)
 	require.Equal(t, &config.DebugConfig{
-		EnableTableActor: false,
-		EnableDBSorter:   false,
+		EnableKeySpanActor: false,
+		EnableDBSorter:     false,
 		DB: &config.DBConfig{
 			Count:                       8,
 			Concurrency:                 128,

@@ -47,10 +47,10 @@ func TestExtractKeySuffix(t *testing.T) {
 		expect string
 		hasErr bool
 	}{
-		{"/tidb/cdc/capture/info/6a6c6dd290bc8732", "6a6c6dd290bc8732", false},
-		{"/tidb/cdc/capture/info/6a6c6dd290bc8732/", "", false},
-		{"/tidb/cdc", "cdc", false},
-		{"/tidb", "tidb", false},
+		{"/tikv/cdc/capture/info/6a6c6dd290bc8732", "6a6c6dd290bc8732", false},
+		{"/tikv/cdc/capture/info/6a6c6dd290bc8732/", "", false},
+		{"/tikv/cdc", "cdc", false},
+		{"/tikv", "tikv", false},
 		{"", "", true},
 	}
 	for _, tc := range testCases {

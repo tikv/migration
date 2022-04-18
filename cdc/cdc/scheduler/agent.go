@@ -39,28 +39,29 @@ type Agent interface {
 	GetLastSentCheckpointTs() (checkpointTs model.Ts)
 }
 
-// TableExecutor is an abstraction for "Processor".
+// KeySpanExecutor is an abstraction for "Processor".
 //
 // This interface is so designed that it would be the least problematic
 // to adapt the current Processor implementation to it.
 // TODO find a way to make the semantics easier to understand.
-type TableExecutor interface {
-	AddTable(ctx context.Context, tableID model.TableID) (done bool, err error)
-	RemoveTable(ctx context.Context, tableID model.TableID) (done bool, err error)
-	IsAddTableFinished(ctx context.Context, tableID model.TableID) (done bool)
-	IsRemoveTableFinished(ctx context.Context, tableID model.TableID) (done bool)
+// TODO: modify
+type KeySpanExecutor interface {
+	AddKeySpan(ctx context.Context, keyspanID model.KeySpanID, start []byte, end []byte) (done bool, err error)
+	RemoveKeySpan(ctx context.Context, keyspanID model.KeySpanID) (done bool, err error)
+	IsAddKeySpanFinished(ctx context.Context, keyspanID model.KeySpanID) (done bool)
+	IsRemoveKeySpanFinished(ctx context.Context, keyspanID model.KeySpanID) (done bool)
 
-	// GetAllCurrentTables should return all tables that are being run,
+	// GetAllCurrentKeySpans should return all keyspans that are being run,
 	// being added and being removed.
 	//
 	// NOTE: two subsequent calls to the method should return the same
-	// result, unless there is a call to AddTable, RemoveTable, IsAddTableFinished
-	// or IsRemoveTableFinished in between two calls to this method.
-	GetAllCurrentTables() []model.TableID
+	// result, unless there is a call to AddKeySpan, RemoveKeySpan, IsAddKeySpanFinished
+	// or IsRemoveKeySpanFinished in between two calls to this method.
+	GetAllCurrentKeySpans() []model.KeySpanID
 
 	// GetCheckpoint returns the local checkpoint-ts and resolved-ts of
 	// the processor. Its calculation should take into consideration all
-	// tables that would have been returned if GetAllCurrentTables had been
+	// keyspans that would have been returned if GetAllCurrentKeySpans had been
 	// called immediately before.
 	GetCheckpoint() (checkpointTs, resolvedTs model.Ts)
 }
@@ -69,10 +70,10 @@ type TableExecutor interface {
 // and should be able to know whether there are any messages not yet acknowledged
 // by the owner.
 type ProcessorMessenger interface {
-	// FinishTableOperation notifies the owner that a table operation has finished.
-	FinishTableOperation(ctx context.Context, tableID model.TableID) (done bool, err error)
+	// FinishKeySpanOperation notifies the owner that a keyspan operation has finished.
+	FinishKeySpanOperation(ctx context.Context, keyspanID model.KeySpanID) (done bool, err error)
 	// SyncTaskStatuses informs the owner of the processor's current internal state.
-	SyncTaskStatuses(ctx context.Context, running, adding, removing []model.TableID) (done bool, err error)
+	SyncTaskStatuses(ctx context.Context, running, adding, removing []model.KeySpanID) (done bool, err error)
 	// SendCheckpoint sends the owner the processor's local watermarks, i.e., checkpoint-ts and resolved-ts.
 	SendCheckpoint(ctx context.Context, checkpointTs model.Ts, resolvedTs model.Ts) (done bool, err error)
 
@@ -92,9 +93,9 @@ type BaseAgentConfig struct {
 
 // BaseAgent is an implementation of Agent.
 // It implements the basic logic and is useful only if the Processor
-// implements its own TableExecutor and ProcessorMessenger.
+// implements its own KeySpanExecutor and ProcessorMessenger.
 type BaseAgent struct {
-	executor     TableExecutor
+	executor     KeySpanExecutor
 	communicator ProcessorMessenger
 
 	// pendingOpsMu protects pendingOps.
@@ -105,9 +106,9 @@ type BaseAgent struct {
 	// the Deque stores *agentOperation.
 	pendingOps deque.Deque
 
-	// tableOperations is a map from tableID to the operation
+	// keyspanOperations is a map from keyspanID to the operation
 	// that is currently being processed.
-	tableOperations map[model.TableID]*agentOperation
+	keyspanOperations map[model.KeySpanID]*agentOperation
 
 	// needSyncNow indicates that the agent needs to send the
 	// current owner a sync message as soon as possible.
@@ -131,22 +132,22 @@ type BaseAgent struct {
 // NewBaseAgent creates a new BaseAgent.
 func NewBaseAgent(
 	changeFeedID model.ChangeFeedID,
-	executor TableExecutor,
+	executor KeySpanExecutor,
 	messenger ProcessorMessenger,
 	config *BaseAgentConfig,
 ) *BaseAgent {
 	logger := log.L().With(zap.String("changefeed-id", changeFeedID))
 	return &BaseAgent{
-		pendingOps:       deque.NewDeque(),
-		tableOperations:  map[model.TableID]*agentOperation{},
-		logger:           logger,
-		executor:         executor,
-		ownerInfo:        &ownerInfo{},
-		communicator:     messenger,
-		needSyncNow:      atomic.NewBool(true),
-		checkpointSender: newCheckpointSender(messenger, logger, config.SendCheckpointTsInterval),
-		ownerHasChanged:  atomic.NewBool(false),
-		config:           config,
+		pendingOps:        deque.NewDeque(),
+		keyspanOperations: map[model.KeySpanID]*agentOperation{},
+		logger:            logger,
+		executor:          executor,
+		ownerInfo:         &ownerInfo{},
+		communicator:      messenger,
+		needSyncNow:       atomic.NewBool(true),
+		checkpointSender:  newCheckpointSender(messenger, logger, config.SendCheckpointTsInterval),
+		ownerHasChanged:   atomic.NewBool(false),
+		config:            config,
 	}
 }
 
@@ -159,8 +160,10 @@ const (
 )
 
 type agentOperation struct {
-	TableID  model.TableID
-	IsDelete bool
+	KeySpanID model.KeySpanID
+	IsDelete  bool
+	Start     []byte
+	End       []byte
 
 	status agentOperationStatus
 }
@@ -204,11 +207,11 @@ func (a *BaseAgent) Tick(ctx context.Context) error {
 
 	opsToApply := a.popPendingOps()
 	for _, op := range opsToApply {
-		if _, ok := a.tableOperations[op.TableID]; ok {
+		if _, ok := a.keyspanOperations[op.KeySpanID]; ok {
 			a.logger.DPanic("duplicate operation", zap.Any("op", op))
-			return cerrors.ErrProcessorDuplicateOperations.GenWithStackByArgs(op.TableID)
+			return cerrors.ErrProcessorDuplicateOperations.GenWithStackByArgs(op.KeySpanID)
 		}
-		a.tableOperations[op.TableID] = op
+		a.keyspanOperations[op.KeySpanID] = op
 	}
 
 	if err := a.processOperations(ctx); err != nil {
@@ -238,27 +241,27 @@ func (a *BaseAgent) popPendingOps() (opsToApply []*agentOperation) {
 
 // sendSync needs to be called with a.pendingOpsMu held.
 func (a *BaseAgent) sendSync(ctx context.Context) (bool, error) {
-	var adding, removing, running []model.TableID
-	for _, op := range a.tableOperations {
+	var adding, removing, running []model.KeySpanID
+	for _, op := range a.keyspanOperations {
 		if !op.IsDelete {
-			adding = append(adding, op.TableID)
+			adding = append(adding, op.KeySpanID)
 		} else {
-			removing = append(removing, op.TableID)
+			removing = append(removing, op.KeySpanID)
 		}
 	}
-	for _, tableID := range a.executor.GetAllCurrentTables() {
-		if _, ok := a.tableOperations[tableID]; ok {
-			// Tables with a pending operation is not in the Running state.
+	for _, keyspanID := range a.executor.GetAllCurrentKeySpans() {
+		if _, ok := a.keyspanOperations[keyspanID]; ok {
+			// KeySpans with a pending operation is not in the Running state.
 			continue
 		}
-		running = append(running, tableID)
+		running = append(running, keyspanID)
 	}
 
-	// We are sorting these so that there content can be predictable in tests.
+	// We are sorting these so that there content can be predickeysapn in tests.
 	// TODO try to find a better way.
-	util.SortTableIDs(running)
-	util.SortTableIDs(adding)
-	util.SortTableIDs(removing)
+	util.SortKeySpanIDs(running)
+	util.SortKeySpanIDs(adding)
+	util.SortKeySpanIDs(removing)
 	done, err := a.communicator.SyncTaskStatuses(ctx, running, adding, removing)
 	if err != nil {
 		return false, errors.Trace(err)
@@ -266,15 +269,15 @@ func (a *BaseAgent) sendSync(ctx context.Context) (bool, error) {
 	return done, nil
 }
 
-// processOperations tries to make progress on each pending table operations.
-// It queries the executor for the current status of each table.
+// processOperations tries to make progress on each pending keyspan operations.
+// It queries the executor for the current status of each keyspan.
 func (a *BaseAgent) processOperations(ctx context.Context) error {
-	for tableID, op := range a.tableOperations {
+	for keyspanID, op := range a.keyspanOperations {
 		switch op.status {
 		case operationReceived:
 			if !op.IsDelete {
-				// add table
-				done, err := a.executor.AddTable(ctx, op.TableID)
+				// add keyspan
+				done, err := a.executor.AddKeySpan(ctx, op.KeySpanID, op.Start, op.End)
 				if err != nil {
 					return errors.Trace(err)
 				}
@@ -282,8 +285,8 @@ func (a *BaseAgent) processOperations(ctx context.Context) error {
 					break
 				}
 			} else {
-				// delete table
-				done, err := a.executor.RemoveTable(ctx, op.TableID)
+				// delete keyspan
+				done, err := a.executor.RemoveKeySpan(ctx, op.KeySpanID)
 				if err != nil {
 					return errors.Trace(err)
 				}
@@ -296,9 +299,9 @@ func (a *BaseAgent) processOperations(ctx context.Context) error {
 		case operationProcessed:
 			var done bool
 			if !op.IsDelete {
-				done = a.executor.IsAddTableFinished(ctx, op.TableID)
+				done = a.executor.IsAddKeySpanFinished(ctx, op.KeySpanID)
 			} else {
-				done = a.executor.IsRemoveTableFinished(ctx, op.TableID)
+				done = a.executor.IsRemoveKeySpanFinished(ctx, op.KeySpanID)
 			}
 			if !done {
 				break
@@ -306,12 +309,12 @@ func (a *BaseAgent) processOperations(ctx context.Context) error {
 			op.status = operationFinished
 			fallthrough
 		case operationFinished:
-			done, err := a.communicator.FinishTableOperation(ctx, op.TableID)
+			done, err := a.communicator.FinishKeySpanOperation(ctx, op.KeySpanID)
 			if err != nil {
 				return errors.Trace(err)
 			}
 			if done {
-				delete(a.tableOperations, tableID)
+				delete(a.keyspanOperations, keyspanID)
 			}
 		}
 	}
@@ -320,9 +323,9 @@ func (a *BaseAgent) processOperations(ctx context.Context) error {
 
 func (a *BaseAgent) sendCheckpoint(ctx context.Context) error {
 	checkpointProvider := func() (checkpointTs, resolvedTs model.Ts, ok bool) {
-		// We cannot have a meaningful checkpoint for a processor running NO table.
-		if len(a.executor.GetAllCurrentTables()) == 0 {
-			a.logger.Debug("no table is running, skip sending checkpoint")
+		// We cannot have a meaningful checkpoint for a processor running NO keyspan.
+		if len(a.executor.GetAllCurrentKeySpans()) == 0 {
+			a.logger.Debug("no keyspan is running, skip sending checkpoint")
 			return 0, 0, false // false indicates no available checkpoint
 		}
 		checkpointTs, resolvedTs = a.executor.GetCheckpoint()
@@ -341,12 +344,14 @@ func (a *BaseAgent) sendCheckpoint(ctx context.Context) error {
 func (a *BaseAgent) OnOwnerDispatchedTask(
 	ownerCaptureID model.CaptureID,
 	ownerRev int64,
-	tableID model.TableID,
+	keyspanID model.KeySpanID,
+	start []byte,
+	end []byte,
 	isDelete bool,
 ) {
 	if !a.updateOwnerInfo(ownerCaptureID, ownerRev) {
 		a.logger.Info("task from stale owner ignored",
-			zap.Int64("table-id", tableID),
+			zap.Uint64("keyspan-id", keyspanID),
 			zap.Bool("is-delete", isDelete))
 		return
 	}
@@ -355,9 +360,11 @@ func (a *BaseAgent) OnOwnerDispatchedTask(
 	defer a.pendingOpsMu.Unlock()
 
 	op := &agentOperation{
-		TableID:  tableID,
-		IsDelete: isDelete,
-		status:   operationReceived,
+		KeySpanID: keyspanID,
+		IsDelete:  isDelete,
+		Start:     start,
+		End:       end,
+		status:    operationReceived,
 	}
 	a.pendingOps.PushBack(op)
 
