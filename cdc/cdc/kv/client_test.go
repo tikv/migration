@@ -3404,7 +3404,7 @@ func (s *clientSuite) TestRegionWorkerExitWhenIsIdle(c *check.C) {
 
 	select {
 	case <-server1Stopped:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		c.Error("stream is not terminated by cdc kv client")
 	}
 	cancel()

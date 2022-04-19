@@ -8,6 +8,7 @@ require (
 	github.com/Shopify/sarama v1.27.2
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/benbjohnson/clock v1.1.0
+	github.com/bradleyjkemp/grpc-tools v0.2.7
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/cockroachdb/pebble v0.0.0-20210719141320-8c3bd06debb5
@@ -30,6 +31,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/integralist/go-findroot v0.0.0-20160518114804-ac90681525dc
 	github.com/jarcoal/httpmock v1.0.5
+	github.com/jmoiron/sqlx v1.3.5
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8
 	github.com/mattn/go-colorable v0.1.11 // indirect
@@ -77,6 +79,7 @@ require (
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.40.0
 	sigs.k8s.io/yaml v1.2.0 // indirect
+	upper.io/db.v3 v3.8.0+incompatible
 )
 
 replace (

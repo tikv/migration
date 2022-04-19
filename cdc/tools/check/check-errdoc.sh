@@ -16,6 +16,8 @@ set -euo pipefail
 
 cd -P .
 
-cp errors.toml /tmp/errors.toml.before
-./tools/bin/errdoc-gen --source . --module github.com/migration/cdc/cdc --output errors.toml --ignore proto
-diff -q errors.toml /tmp/errors.toml.before
+TMP=$(mktemp -t errors.toml.before.XXXXXXXXXX)
+
+cp errors.toml ${TMP}
+./tools/bin/errdoc-gen --source . --module github.com/tikv/migration/cdc --output errors.toml --ignore proto
+diff -q errors.toml ${TMP}
