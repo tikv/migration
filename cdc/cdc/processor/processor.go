@@ -574,6 +574,10 @@ func (p *processor) handleKeySpanOperation(ctx cdcContext.Context) error {
 				if replicaInfo.StartTs != opt.BoundaryTs {
 					log.Warn("the startTs and BoundaryTs of add keyspan operation should be always equaled", zap.Any("replicaInfo", replicaInfo))
 				}
+
+				if !p.checkRelatedKeyspans(opt.RelatedKeySpans) {
+					continue
+				}
 				err := p.addKeySpan(ctx, keyspanID, replicaInfo)
 				if err != nil {
 					return errors.Trace(err)
@@ -611,6 +615,23 @@ func (p *processor) handleKeySpanOperation(ctx cdcContext.Context) error {
 		}
 	}
 	return nil
+}
+
+func (p *processor) checkRelatedKeyspans(relatedKeySpans []model.KeySpanID) bool {
+
+	allTaskStatus := map[model.KeySpanID]uint64{}
+	for _, taskStatus := range p.changefeed.TaskStatuses {
+		for keyspanID, operation := range taskStatus.Operation {
+			allTaskStatus[keyspanID] = operation.Status
+		}
+	}
+
+	for _, keyspanID := range relatedKeySpans {
+		if status, ok := allTaskStatus[keyspanID]; ok && status != model.OperFinished {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *processor) sendError(err error) {

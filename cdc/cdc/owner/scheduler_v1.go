@@ -45,6 +45,8 @@ type schedulerJob struct {
 	// if the operation is an add operation, boundaryTs is start ts
 	BoundaryTs    uint64
 	TargetCapture model.CaptureID
+
+	RelatedKeySpans []model.KeySpanID
 }
 
 type moveKeySpanJob struct {
@@ -54,7 +56,7 @@ type moveKeySpanJob struct {
 
 type oldScheduler struct {
 	state             *orchestrator.ChangefeedReactorState
-	currentKeySpansID []model.KeySpanID
+	currentKeySpanIDs []model.KeySpanID
 	currentKeySpans   map[model.KeySpanID]regionspan.Span
 	captures          map[model.CaptureID]*model.CaptureInfo
 
@@ -84,13 +86,16 @@ func (s *oldScheduler) Tick(
 ) (shouldUpdateState bool, err error) {
 
 	s.state = state
-	s.currentKeySpansID, s.currentKeySpans, err = s.updateCurrentKeySpans(ctx)
+	currentKeySpanIDs, currentKeySpans, err := s.updateCurrentKeySpans(ctx)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
 
+	relatedKeySpans := s.computeRelatedKeySpans(currentKeySpans)
+	s.currentKeySpanIDs, s.currentKeySpans = currentKeySpanIDs, currentKeySpans
+
 	s.cleanUpFinishedOperations()
-	pendingJob, err := s.syncKeySpansWithCurrentKeySpans()
+	pendingJob, err := s.syncKeySpansWithCurrentKeySpans(relatedKeySpans)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -111,6 +116,32 @@ func (s *oldScheduler) Tick(
 	shouldUpdateState = shouldUpdateStateInMoveKeySpan && shouldUpdateState
 	s.lastTickCaptureCount = len(captures)
 	return shouldUpdateState, nil
+}
+
+func (s *oldScheduler) computeRelatedKeySpans(currentKeySpans map[model.KeySpanID]regionspan.Span) map[model.KeySpanID][]model.KeySpanID {
+	oldKeySpans := s.currentKeySpans
+
+	newKeySpans := []model.KeySpanID{}
+	needRemovedKeySpans := []model.KeySpanID{}
+
+	for keyspanID := range oldKeySpans {
+		if _, ok := currentKeySpans[keyspanID]; !ok {
+			needRemovedKeySpans = append(needRemovedKeySpans, keyspanID)
+		}
+	}
+
+	for keyspanID := range currentKeySpans {
+		if _, ok := oldKeySpans[keyspanID]; !ok {
+			newKeySpans = append(newKeySpans, keyspanID)
+		}
+	}
+
+	relatedKeySpans := map[model.KeySpanID][]model.KeySpanID{}
+	for _, keyspanID := range newKeySpans {
+		relatedKeySpans[keyspanID] = needRemovedKeySpans
+	}
+
+	return relatedKeySpans
 }
 
 func (s *oldScheduler) MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID) {
@@ -246,25 +277,26 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 
 // syncKeySpansWithCurrentKeySpans iterates all current keyspans to check whether it should be listened or not.
 // this function will return schedulerJob to make sure all keyspans will be listened.
-func (s *oldScheduler) syncKeySpansWithCurrentKeySpans() ([]*schedulerJob, error) {
+func (s *oldScheduler) syncKeySpansWithCurrentKeySpans(relatedKeySpans map[model.KeySpanID][]model.KeySpanID) ([]*schedulerJob, error) {
 	var pendingJob []*schedulerJob
 	allKeySpanListeningNow, err := s.keyspan2CaptureIndex()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	globalCheckpointTs := s.state.Status.CheckpointTs
-	for _, keyspanID := range s.currentKeySpansID {
+	for _, keyspanID := range s.currentKeySpanIDs {
 		if _, exist := allKeySpanListeningNow[keyspanID]; exist {
 			delete(allKeySpanListeningNow, keyspanID)
 			continue
 		}
 		// For each keyspan which should be listened but is not, add an adding-keyspan job to the pending job list
 		pendingJob = append(pendingJob, &schedulerJob{
-			Tp:         schedulerJobTypeAddKeySpan,
-			KeySpanID:  keyspanID,
-			Start:      s.currentKeySpans[keyspanID].Start,
-			End:        s.currentKeySpans[keyspanID].End,
-			BoundaryTs: globalCheckpointTs,
+			Tp:              schedulerJobTypeAddKeySpan,
+			KeySpanID:       keyspanID,
+			Start:           s.currentKeySpans[keyspanID].Start,
+			End:             s.currentKeySpans[keyspanID].End,
+			BoundaryTs:      globalCheckpointTs,
+			RelatedKeySpans: relatedKeySpans[keyspanID],
 		})
 	}
 	// The remaining keyspans are the keyspans which should be not listened
@@ -300,7 +332,7 @@ func (s *oldScheduler) handleJobs(jobs []*schedulerJob) {
 					StartTs: job.BoundaryTs,
 					Start:   job.Start,
 					End:     job.End,
-				}, job.BoundaryTs)
+				}, job.BoundaryTs, job.RelatedKeySpans)
 			case schedulerJobTypeRemoveKeySpan:
 				failpoint.Inject("OwnerRemoveKeySpanError", func() {
 					// just skip removing this keyspan

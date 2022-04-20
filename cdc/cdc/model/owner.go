@@ -165,6 +165,8 @@ type KeySpanOperation struct {
 	// if the operation is a add operation, BoundaryTs is start ts
 	BoundaryTs uint64 `json:"boundary_ts"`
 	Status     uint64 `json:"status,omitempty"`
+
+	RelatedKeySpans []uint64 `json:"related_key_spans"`
 }
 
 // KeySpanProcessed returns whether the keyspan has been processed by processor
@@ -270,7 +272,7 @@ func (ts *TaskStatus) RemoveKeySpan(id KeySpanID, boundaryTs Ts, isMoveKeySpan b
 }
 
 // AddKeySpan add the keyspan in KeySpanInfos and add a add kyespan operation.
-func (ts *TaskStatus) AddKeySpan(id KeySpanID, keyspan *KeySpanReplicaInfo, boundaryTs Ts) {
+func (ts *TaskStatus) AddKeySpan(id KeySpanID, keyspan *KeySpanReplicaInfo, boundaryTs Ts, relatedKeySpans []KeySpanID) {
 	if ts.KeySpans == nil {
 		ts.KeySpans = make(map[KeySpanID]*KeySpanReplicaInfo)
 	}
@@ -284,9 +286,10 @@ func (ts *TaskStatus) AddKeySpan(id KeySpanID, keyspan *KeySpanReplicaInfo, boun
 		ts.Operation = make(map[KeySpanID]*KeySpanOperation)
 	}
 	ts.Operation[id] = &KeySpanOperation{
-		Delete:     false,
-		BoundaryTs: boundaryTs,
-		Status:     OperDispatched,
+		Delete:          false,
+		BoundaryTs:      boundaryTs,
+		Status:          OperDispatched,
+		RelatedKeySpans: relatedKeySpans,
 	}
 }
 
