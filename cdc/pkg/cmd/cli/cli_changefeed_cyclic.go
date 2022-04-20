@@ -12,22 +12,3 @@
 // limitations under the License.
 
 package cli
-
-/*
-import (
-	"github.com/tikv/migration/cdc/pkg/cmd/factory"
-	"github.com/spf13/cobra"
-)
-
-// newCmdCyclicChangefeed creates the `cli changefeed cyclic` command.
-func newCmdCyclicChangefeed(f factory.Factory) *cobra.Command {
-	cmds := &cobra.Command{
-		Use:   "cyclic",
-		Short: "(Experimental) Utility about cyclic replication",
-	}
-
-	cmds.AddCommand(newCmdCyclicCreateMarktables(f))
-
-	return cmds
-}
-*/

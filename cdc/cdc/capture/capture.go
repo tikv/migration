@@ -31,7 +31,6 @@ import (
 	"github.com/tikv/migration/cdc/cdc/owner"
 	"github.com/tikv/migration/cdc/cdc/processor"
 
-	// ssystem "github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
@@ -223,15 +222,13 @@ func (c *Capture) Run(ctx context.Context) error {
 
 func (c *Capture) run(stdCtx context.Context) error {
 	ctx := cdcContext.NewContext(stdCtx, &cdcContext.GlobalVars{
-		PDClient:     c.pdClient,
-		KVStorage:    c.kvStorage,
-		CaptureInfo:  c.info,
-		EtcdClient:   c.etcdClient,
-		GrpcPool:     c.grpcPool,
-		RegionCache:  c.regionCache,
-		TimeAcquirer: c.TimeAcquirer,
-		// KeySpanActorSystem: c.keyspanActorSystem,
-		// SorterSystem:       c.sorterSystem,
+		PDClient:      c.pdClient,
+		KVStorage:     c.kvStorage,
+		CaptureInfo:   c.info,
+		EtcdClient:    c.etcdClient,
+		GrpcPool:      c.grpcPool,
+		RegionCache:   c.regionCache,
+		TimeAcquirer:  c.TimeAcquirer,
 		MessageServer: c.MessageServer,
 		MessageRouter: c.MessageRouter,
 	})
