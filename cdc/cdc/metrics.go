@@ -15,7 +15,6 @@ package cdc
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tikv/migration/cdc/cdc/entry"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/owner"
 	"github.com/tikv/migration/cdc/cdc/processor"
@@ -37,20 +36,12 @@ func init() {
 	kv.InitMetrics(registry)
 	puller.InitMetrics(registry)
 	sink.InitMetrics(registry)
-	entry.InitMetrics(registry)
 	processor.InitMetrics(registry)
 	keyspanpipeline.InitMetrics(registry)
 	owner.InitMetrics(registry)
 	etcd.InitMetrics(registry)
 	initServerMetrics(registry)
-	// actor.InitMetrics(registry)
 	orchestrator.InitMetrics(registry)
 	p2p.InitMetrics(registry)
-	// Sorter metrics
-	// sorter.InitMetrics(registry)
-	// memory.InitMetrics(registry)
-	// unified.InitMetrics(registry)
-	// leveldb.InitMetrics(registry)
-	// redowriter.InitMetrics(registry)
 	db.InitMetrics(registry)
 }
