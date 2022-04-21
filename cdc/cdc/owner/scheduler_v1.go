@@ -46,7 +46,7 @@ type schedulerJob struct {
 	BoundaryTs    uint64
 	TargetCapture model.CaptureID
 
-	RelatedKeySpans []model.KeySpanID
+	RelatedKeySpans []model.KeySpanLocation
 }
 
 type moveKeySpanJob struct {
@@ -91,11 +91,11 @@ func (s *oldScheduler) Tick(
 		return false, errors.Trace(err)
 	}
 
-	relatedKeySpans := s.computeRelatedKeySpans(currentKeySpans)
+	newKeySpans, needRemoveKeySpans := s.diffCurrentKeySpans(currentKeySpans)
 	s.currentKeySpanIDs, s.currentKeySpans = currentKeySpanIDs, currentKeySpans
 
 	s.cleanUpFinishedOperations()
-	pendingJob, err := s.syncKeySpansWithCurrentKeySpans(relatedKeySpans)
+	pendingJob, err := s.syncKeySpansWithCurrentKeySpans(newKeySpans, needRemoveKeySpans)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -118,30 +118,25 @@ func (s *oldScheduler) Tick(
 	return shouldUpdateState, nil
 }
 
-func (s *oldScheduler) computeRelatedKeySpans(currentKeySpans map[model.KeySpanID]regionspan.Span) map[model.KeySpanID][]model.KeySpanID {
+func (s *oldScheduler) diffCurrentKeySpans(currentKeySpans map[model.KeySpanID]regionspan.Span) (map[model.KeySpanID]struct{}, []model.KeySpanID) {
 	oldKeySpans := s.currentKeySpans
 
-	newKeySpans := []model.KeySpanID{}
-	needRemovedKeySpans := []model.KeySpanID{}
+	newKeySpans := map[model.KeySpanID]struct{}{}
+	needRemoveKeySpans := []model.KeySpanID{}
 
 	for keyspanID := range oldKeySpans {
 		if _, ok := currentKeySpans[keyspanID]; !ok {
-			needRemovedKeySpans = append(needRemovedKeySpans, keyspanID)
+			needRemoveKeySpans = append(needRemoveKeySpans, keyspanID)
 		}
 	}
 
 	for keyspanID := range currentKeySpans {
 		if _, ok := oldKeySpans[keyspanID]; !ok {
-			newKeySpans = append(newKeySpans, keyspanID)
+			newKeySpans[keyspanID] = struct{}{}
 		}
 	}
 
-	relatedKeySpans := map[model.KeySpanID][]model.KeySpanID{}
-	for _, keyspanID := range newKeySpans {
-		relatedKeySpans[keyspanID] = needRemovedKeySpans
-	}
-
-	return relatedKeySpans
+	return newKeySpans, needRemoveKeySpans
 }
 
 func (s *oldScheduler) MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID) {
@@ -277,27 +272,41 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 
 // syncKeySpansWithCurrentKeySpans iterates all current keyspans to check whether it should be listened or not.
 // this function will return schedulerJob to make sure all keyspans will be listened.
-func (s *oldScheduler) syncKeySpansWithCurrentKeySpans(relatedKeySpans map[model.KeySpanID][]model.KeySpanID) ([]*schedulerJob, error) {
+func (s *oldScheduler) syncKeySpansWithCurrentKeySpans(newKeySpans map[model.KeySpanID]struct{}, needRemoveKeySpans []model.KeySpanID) ([]*schedulerJob, error) {
 	var pendingJob []*schedulerJob
 	allKeySpanListeningNow, err := s.keyspan2CaptureIndex()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	relatedKeySpans := make([]model.KeySpanLocation, 0, len(needRemoveKeySpans))
+	for _, keyspanID := range needRemoveKeySpans {
+		if captureID, ok := allKeySpanListeningNow[keyspanID]; ok {
+			location := model.KeySpanLocation{
+				CaptureID: captureID,
+				KeySpanID: keyspanID,
+			}
+			relatedKeySpans = append(relatedKeySpans, location)
+		}
+	}
+
 	globalCheckpointTs := s.state.Status.CheckpointTs
 	for _, keyspanID := range s.currentKeySpanIDs {
 		if _, exist := allKeySpanListeningNow[keyspanID]; exist {
 			delete(allKeySpanListeningNow, keyspanID)
 			continue
 		}
+		job := &schedulerJob{
+			Tp:         schedulerJobTypeAddKeySpan,
+			KeySpanID:  keyspanID,
+			Start:      s.currentKeySpans[keyspanID].Start,
+			End:        s.currentKeySpans[keyspanID].End,
+			BoundaryTs: globalCheckpointTs,
+		}
+		if _, ok := newKeySpans[keyspanID]; ok {
+			job.RelatedKeySpans = relatedKeySpans
+		}
 		// For each keyspan which should be listened but is not, add an adding-keyspan job to the pending job list
-		pendingJob = append(pendingJob, &schedulerJob{
-			Tp:              schedulerJobTypeAddKeySpan,
-			KeySpanID:       keyspanID,
-			Start:           s.currentKeySpans[keyspanID].Start,
-			End:             s.currentKeySpans[keyspanID].End,
-			BoundaryTs:      globalCheckpointTs,
-			RelatedKeySpans: relatedKeySpans[keyspanID],
-		})
+		pendingJob = append(pendingJob, job)
 	}
 	// The remaining keyspans are the keyspans which should be not listened
 	keyspansThatShouldNotBeListened := allKeySpanListeningNow

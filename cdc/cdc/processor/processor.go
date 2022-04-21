@@ -617,19 +617,14 @@ func (p *processor) handleKeySpanOperation(ctx cdcContext.Context) error {
 	return nil
 }
 
-func (p *processor) checkRelatedKeyspans(relatedKeySpans []model.KeySpanID) bool {
-
-	allTaskStatus := map[model.KeySpanID]uint64{}
-	for _, taskStatus := range p.changefeed.TaskStatuses {
-		for keyspanID, operation := range taskStatus.Operation {
-			allTaskStatus[keyspanID] = operation.Status
+func (p *processor) checkRelatedKeyspans(relatedKeySpans []model.KeySpanLocation) bool {
+	for _, location := range relatedKeySpans {
+		if taskStatus, ok := p.changefeed.TaskStatuses[location.CaptureID]; ok {
+			if operation, ok := taskStatus.Operation[location.KeySpanID]; ok && operation.Status != model.OperFinished {
+				return false
+			}
 		}
-	}
 
-	for _, keyspanID := range relatedKeySpans {
-		if status, ok := allTaskStatus[keyspanID]; ok && status != model.OperFinished {
-			return false
-		}
 	}
 	return true
 }
