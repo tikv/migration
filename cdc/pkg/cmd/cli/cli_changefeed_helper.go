@@ -59,60 +59,6 @@ func confirmLargeDataGap(cmd *cobra.Command, currentPhysical int64, startTs uint
 	return nil
 }
 
-/*
-// confirmIgnoreIneligibleTables confirm if user need to ignore ineligible tables.
-func confirmIgnoreIneligibleTables(cmd *cobra.Command) error {
-	cmd.Printf("Could you agree to ignore those tables, and continue to replicate [Y/N]\n")
-	var yOrN string
-	_, err := fmt.Scan(&yOrN)
-	if err != nil {
-		return err
-	}
-	if strings.ToLower(strings.TrimSpace(yOrN)) != "y" {
-		cmd.Printf("No changefeed is created because you don't want to ignore some tables.\n")
-		return errors.NewNoStackError("abort changefeed create or resume")
-	}
-
-	return nil
-}
-
-// getTables returns ineligibleTables and eligibleTables by filter.
-func getTables(cliPdAddr string, credential *security.Credential, cfg *config.ReplicaConfig, startTs uint64) (ineligibleTables, eligibleTables []model.TableName, err error) {
-	kvStore, err := kv.CreateTiStore(cliPdAddr, credential)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	meta, err := kv.GetSnapshotMeta(kvStore, startTs)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	filter, err := filter.NewFilter(cfg)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	snap, err := entry.NewSingleSchemaSnapshotFromMeta(meta, startTs, false)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	for _, tableInfo := range snap.Tables() {
-		if filter.ShouldIgnoreTable(tableInfo.TableName.Schema, tableInfo.TableName.Table) {
-			continue
-		}
-		if !tableInfo.IsEligible(false) {
-			ineligibleTables = append(ineligibleTables, tableInfo.TableName)
-		} else {
-			eligibleTables = append(eligibleTables, tableInfo.TableName)
-		}
-	}
-
-	return
-}
-*/
-
 // sendOwnerChangefeedQuery sends owner changefeed query request.
 func sendOwnerChangefeedQuery(ctx context.Context, etcdClient *etcd.CDCEtcdClient,
 	id model.ChangeFeedID, credential *security.Credential,

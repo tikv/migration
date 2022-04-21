@@ -77,23 +77,9 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 
 	// init replicaConfig
 	replicaConfig := config.GetDefaultReplicaConfig()
-	/*
-		replicaConfig.ForceReplicate = changefeedConfig.ForceReplicate
-		if changefeedConfig.MounterWorkerNum != 0 {
-			replicaConfig.Mounter.WorkerNum = changefeedConfig.MounterWorkerNum
-		}
-	*/
 	if changefeedConfig.SinkConfig != nil {
 		replicaConfig.Sink = changefeedConfig.SinkConfig
 	}
-	/*
-		if len(changefeedConfig.IgnoreTxnStartTs) != 0 {
-			replicaConfig.Filter.IgnoreTxnStartTs = changefeedConfig.IgnoreTxnStartTs
-		}
-		if len(changefeedConfig.FilterRules) != 0 {
-			replicaConfig.Filter.Rules = changefeedConfig.FilterRules
-		}
-	*/
 
 	captureInfos, err := capture.owner.StatusProvider().GetCaptures(ctx)
 	if err != nil {

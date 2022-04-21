@@ -413,13 +413,6 @@ func (p *processor) lazyInitImpl(ctx cdcContext.Context) error {
 	}()
 
 	var err error
-	/*
-		p.filter, err = filter.NewFilter(p.changefeed.Info.Config)
-		if err != nil {
-			return errors.Trace(err)
-		}
-	*/
-
 	stdCtx := util.PutChangefeedIDInCtx(ctx, p.changefeed.ID)
 	stdCtx = util.PutCaptureAddrInCtx(stdCtx, p.captureInfo.AdvertiseAddr)
 
@@ -430,15 +423,6 @@ func (p *processor) lazyInitImpl(ctx cdcContext.Context) error {
 
 	// TODO(neil) find a better way to let sink know cyclic is enabled.
 	// TODO: it's useless for tikv cdc.
-	/*
-		if p.changefeed.Info.Config.Cyclic.IsEnabled() {
-			cyclicCfg, err := p.changefeed.Info.Config.Cyclic.Marshal()
-			if err != nil {
-				return errors.Trace(err)
-			}
-			opts[mark.OptCyclicConfig] = cyclicCfg
-		}
-	*/
 	opts[sink.OptChangefeedID] = p.changefeed.ID
 	opts[sink.OptCaptureAddr] = ctx.GlobalVars().CaptureInfo.AdvertiseAddr
 	s, err := sink.New(stdCtx, p.changefeed.ID, p.changefeed.Info.SinkURI, p.changefeed.Info.Config, opts, errCh)
