@@ -73,7 +73,7 @@ const (
 )
 
 type StorageConfig struct {
-	ApiVersion int  `json:"api-version"`
+	APIVersion int  `json:"api-version"`
 	EnableTTL  bool `json:"enable-ttl"`
 }
 type StoreConfig struct {
@@ -164,16 +164,16 @@ func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVers
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
 	}
 	var apiVersion kvrpcpb.APIVersion
-	if cfg.Storage.ApiVersion == 1 {
+	if cfg.Storage.APIVersion == 1 {
 		if cfg.Storage.EnableTTL {
 			apiVersion = kvrpcpb.APIVersion_V1TTL
 		} else {
 			apiVersion = kvrpcpb.APIVersion_V1
 		}
-	} else if cfg.Storage.ApiVersion == 2 {
+	} else if cfg.Storage.APIVersion == 2 {
 		apiVersion = kvrpcpb.APIVersion_V2
 	} else {
-		errMsg := fmt.Sprintf("Invalid apiversion %d", cfg.Storage.ApiVersion)
+		errMsg := fmt.Sprintf("Invalid apiversion %d", cfg.Storage.APIVersion)
 		return kvrpcpb.APIVersion_V1, errors.New(errMsg)
 	}
 	return apiVersion, nil
@@ -416,7 +416,7 @@ func (bc *Client) findRegionLeader(ctx context.Context, key []byte, isRawKv bool
 
 func (bc *Client) fineGrainedBackup(
 	ctx context.Context,
-	dstApiVersion kvrpcpb.APIVersion,
+	dstAPIVersion kvrpcpb.APIVersion,
 	startKey, endKey []byte,
 	lastBackupTS uint64,
 	backupTS uint64,
@@ -475,7 +475,7 @@ func (bc *Client) fineGrainedBackup(
 				defer wg.Done()
 				for rg := range retry {
 					backoffMs, err :=
-						bc.handleFineGrained(ctx, dstApiVersion, boFork, rg, lastBackupTS, backupTS,
+						bc.handleFineGrained(ctx, dstAPIVersion, boFork, rg, lastBackupTS, backupTS,
 							compressType, compressLevel, rateLimit, concurrency, isRawKv, cipherInfo, respCh)
 					if err != nil {
 						errCh <- err
@@ -613,7 +613,7 @@ func OnBackupResponse(
 
 func (bc *Client) handleFineGrained(
 	ctx context.Context,
-	dstApiVersion kvrpcpb.APIVersion,
+	dstAPIVersion kvrpcpb.APIVersion,
 	bo *tikv.Backoffer,
 	rg rtree.Range,
 	lastBackupTS uint64,
@@ -642,7 +642,7 @@ func (bc *Client) handleFineGrained(
 		RateLimit:        rateLimit,
 		Concurrency:      concurrency,
 		IsRawKv:          isRawKv,
-		DstApiVersion:    dstApiVersion,
+		DstApiVersion:    dstAPIVersion,
 		CompressionType:  compressType,
 		CompressionLevel: compressionLevel,
 		CipherInfo:       cipherInfo,

@@ -136,7 +136,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		}
 		updateCh.Inc()
 	}
-	dstApiVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
+	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
 	req := backuppb.BackupRequest{
 		ClusterId:        client.GetClusterID(),
 		StartVersion:     0,
@@ -145,7 +145,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		Concurrency:      cfg.Concurrency,
 		IsRawKv:          true,
 		Cf:               "default",
-		DstApiVersion:    dstApiVersion,
+		DstApiVersion:    dstAPIVersion,
 		CompressionType:  cfg.CompressionType,
 		CompressionLevel: cfg.CompressionLevel,
 		CipherInfo:       &cfg.CipherInfo,
@@ -159,8 +159,8 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	// Backup has finished
 	updateCh.Close()
 	// backup meta range should in DstAPIVersion format
-	metaStartKey := utils.ConvertBackupConfigKey(cfg.StartKey, false, curAPIVersion, dstApiVersion)
-	metaEndKey := utils.ConvertBackupConfigKey(cfg.EndKey, true, curAPIVersion, dstApiVersion)
+	metaStartKey := utils.ConvertBackupConfigKey(cfg.StartKey, false, curAPIVersion, dstAPIVersion)
+	metaEndKey := utils.ConvertBackupConfigKey(cfg.EndKey, true, curAPIVersion, dstAPIVersion)
 	rawRanges := []*backuppb.RawRange{{StartKey: metaStartKey, EndKey: metaEndKey, Cf: "default"}}
 	metaWriter.Update(func(m *backuppb.BackupMeta) {
 		m.StartVersion = req.StartVersion
@@ -170,7 +170,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		m.ClusterId = req.ClusterId
 		m.ClusterVersion = clusterVersion
 		m.BrVersion = brVersion
-		m.ApiVersion = dstApiVersion
+		m.ApiVersion = dstAPIVersion
 	})
 	err = metaWriter.FinishWriteMetas(ctx, metautil.AppendDataFile)
 	if err != nil {

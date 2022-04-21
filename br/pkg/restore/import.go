@@ -204,7 +204,7 @@ type FileImporter struct {
 	rateLimit    uint64
 
 	isRawKvMode        bool
-	sstApiVersion      kvrpcpb.APIVersion
+	sstAPIVersion      kvrpcpb.APIVersion
 	rawStartKey        []byte
 	rawEndKey          []byte
 	supportMultiIngest bool
@@ -224,7 +224,7 @@ func NewFileImporter(
 		backend:       backend,
 		importClient:  importClient,
 		isRawKvMode:   isRawKvMode,
-		sstApiVersion: apiVersion,
+		sstAPIVersion: apiVersion,
 		rateLimit:     rateLimit,
 	}
 }
@@ -466,7 +466,7 @@ func (importer *FileImporter) downloadRawKVSST(
 	// Empty rule
 	var rule import_sstpb.RewriteRule
 	sstMeta := GetSSTMetaFromFile(id, file, regionInfo.Region, &rule)
-	sstMeta.ApiVersion = importer.sstApiVersion
+	sstMeta.ApiVersion = importer.sstAPIVersion
 
 	// Cut the SST file's range to fit in the restoring range.
 	if bytes.Compare(importer.rawStartKey, sstMeta.Range.GetStart()) > 0 {
