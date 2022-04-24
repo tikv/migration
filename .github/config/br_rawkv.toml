@@ -8,7 +8,7 @@ pd-store-heartbeat-tick-interval = "5s"
 split-region-check-tick-interval = "1s"
 
 [storage]
-enable-ttl = true
+enable-ttl = false
 
 [rocksdb]
 max-open-files = 10000

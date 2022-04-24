@@ -174,8 +174,8 @@ def main():
     for failpoint in [''] + FAILPOINTS:
         tester = rawkvTester(args, failpoints=failpoint)
         tester.test_dst_apiv1()
-        tester.test_dst_apiv1ttl()
-        tester.test_dst_apiv2()
+        # tester.test_dst_apiv1ttl()// does not support back/restore from v1->v1ttl
+        # tester.test_dst_apiv2()
 
 
 def parse_args():
