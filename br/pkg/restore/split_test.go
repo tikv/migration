@@ -313,24 +313,27 @@ func TestScatterFinishInTime(t *testing.T) {
 //   [, aay), [aay, bba), [bba, bbf), [bbf, bbh), [bbh, bbj),
 //   [bbj, cca), [cca, xxe), [xxe, xxz), [xxz, )
 func TestSplitAndScatter(t *testing.T) {
-	t.Run("BatchScatter", func(t *testing.T) {
-		client := initTestClient()
-		client.InstallBatchScatterSupport()
-		runTestSplitAndScatterWith(t, client)
-	})
-	t.Run("BackwardCompatibility", func(t *testing.T) {
-		client := initTestClient()
-		runTestSplitAndScatterWith(t, client)
-	})
+	for _, needEncodeKey := range []bool{false, true} {
+		t.Run("BatchScatter", func(t *testing.T) {
+			client := initTestClient()
+			client.InstallBatchScatterSupport()
+			runTestSplitAndScatterWith(t, client, needEncodeKey)
+		})
+		t.Run("BackwardCompatibility", func(t *testing.T) {
+			client := initTestClient()
+			runTestSplitAndScatterWith(t, client, needEncodeKey)
+		})
+	}
+
 }
 
-func runTestSplitAndScatterWith(t *testing.T, client *TestClient) {
+func runTestSplitAndScatterWith(t *testing.T, client *TestClient, needEncodeKey bool) {
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
 	regionSplitter := restore.NewRegionSplitter(client)
 
 	ctx := context.Background()
-	err := regionSplitter.Split(ctx, ranges, rewriteRules, true, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
+	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
 	require.NoError(t, err)
 	regions := client.GetAllRegions()
 	if !validateRegions(regions) {
