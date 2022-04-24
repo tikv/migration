@@ -173,9 +173,10 @@ def main():
     args = parse_args()
     for failpoint in [''] + FAILPOINTS:
         tester = rawkvTester(args, failpoints=failpoint)
-        # tester.test_dst_apiv1()
+        # tester.test_dst_apiv1() // does not support v1ttl --> v1
         tester.test_dst_apiv1ttl()
-        tester.test_dst_apiv2()
+        # v1ttl -> v2 is not supported in current TiKV, enable this after V1/V1ttl -> V2 is enabled.
+        # tester.test_dst_apiv2()
 
 
 def parse_args():
