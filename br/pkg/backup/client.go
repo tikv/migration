@@ -174,7 +174,9 @@ func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVers
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
 	}
 	var apiVersion kvrpcpb.APIVersion
-	if cfg.Storage.APIVersion == 1 {
+	if cfg.Storage.APIVersion == 0 { // in old version without apiversion config. it's 0.
+		apiVersion = kvrpcpb.APIVersion_V1
+	} else if cfg.Storage.APIVersion == 1 {
 		if cfg.Storage.EnableTTL {
 			apiVersion = kvrpcpb.APIVersion_V1TTL
 		} else {
