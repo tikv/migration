@@ -169,6 +169,7 @@ func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVers
 	if err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
 	}
+	fmt.Printf("%s", body)
 	var cfg StoreConfig
 	if err := json.Unmarshal(body, &cfg); err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
