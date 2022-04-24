@@ -16,7 +16,7 @@ import (
 
 const (
 	APIV2KeyPrefix    byte = 'r'
-	APIV2KeyPrefixEnd byte = 's'
+	APIV2KeyPrefixEnd byte = APIV2KeyPrefix + 1
 )
 
 // ParseKey parse key by given format.
@@ -96,8 +96,13 @@ func CompareEndKey(a, b []byte) int {
 	return bytes.Compare(a, b)
 }
 
+type KeyRange struct {
+	Start []byte
+	End   []byte
+}
+
 // encode
-func FormatAPIV2Key(key []byte, isEnd bool) []byte {
+func formatAPIV2Key(key []byte, isEnd bool) []byte {
 	if isEnd && len(key) == 0 {
 		return []byte{APIV2KeyPrefixEnd}
 	}
@@ -105,18 +110,32 @@ func FormatAPIV2Key(key []byte, isEnd bool) []byte {
 	return append(apiv2Key, key...)
 }
 
-// conversion between formated APIVersion key and backupmeta key
+// FormatAPIV2KeyRange convert user key to APIV2 format.
+func FormatAPIV2KeyRange(startKey, endKey []byte) *KeyRange {
+	return &KeyRange{
+		Start: formatAPIV2Key(startKey, false),
+		End:   formatAPIV2Key(endKey, true),
+	}
+}
+
+// ConvertBackupConfigKeyRange do conversion between formated APIVersion key and backupmeta key
 // for example, backup apiv1 -> apiv2, add `r` prefix and `s` for empty end key.
-// apiv2 -> apiv1, remove first byte. This is useful when decode the response keys.
-func ConvertBackupConfigKey(backupKey []byte, isEnd bool, srcAPIVer kvrpcpb.APIVersion, dstAPIVer kvrpcpb.APIVersion) []byte {
+// apiv2 -> apiv1, remove first byte.
+func ConvertBackupConfigKeyRange(startKey, endKey []byte, srcAPIVer, dstAPIVer kvrpcpb.APIVersion) *KeyRange {
 	if srcAPIVer == dstAPIVer {
-		return backupKey
+		return &KeyRange{
+			Start: startKey,
+			End:   endKey,
+		}
 	}
 	if dstAPIVer == kvrpcpb.APIVersion_V2 {
-		return FormatAPIV2Key(backupKey, isEnd)
+		return FormatAPIV2KeyRange(startKey, endKey)
 	}
 	if srcAPIVer == kvrpcpb.APIVersion_V2 {
-		return backupKey[1:]
+		return &KeyRange{
+			Start: startKey[1:],
+			End:   endKey[1:],
+		}
 	}
 	// unreachable
 	return nil

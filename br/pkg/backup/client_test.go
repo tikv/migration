@@ -46,7 +46,7 @@ func (r *testBackup) SetUpSuite(c *C) {
 	mockMgr := &conn.Mgr{PdController: &pdutil.PdController{}}
 	mockMgr.SetPDClient(r.mockPDClient)
 	mockMgr.SetHTTP([]string{"test"}, nil)
-	r.backupClient, err = backup.NewBackupClient(r.ctx, mockMgr)
+	r.backupClient, err = backup.NewBackupClient(r.ctx, mockMgr, nil)
 	c.Assert(err, IsNil)
 
 	base := c.MkDir()

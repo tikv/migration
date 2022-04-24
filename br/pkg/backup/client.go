@@ -4,6 +4,7 @@ package backup
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -85,6 +86,7 @@ type Client struct {
 	mgr        ClientMgr
 	clusterID  uint64
 	httpClient http.Client
+	schema     string
 
 	storage storage.ExternalStorage
 	backend *backuppb.StorageBackend
@@ -93,14 +95,22 @@ type Client struct {
 }
 
 // NewBackupClient returns a new backup client.
-func NewBackupClient(ctx context.Context, mgr ClientMgr) (*Client, error) {
+func NewBackupClient(ctx context.Context, mgr ClientMgr, config *tls.Config) (*Client, error) {
 	log.Info("new backup client")
 	pdClient := mgr.GetPDClient()
 	clusterID := pdClient.GetClusterID(ctx)
-	return &Client{
+	client := Client{
 		clusterID: clusterID,
 		mgr:       mgr,
-	}, nil
+		schema:    "http",
+	}
+	if config != nil {
+		client.httpClient = http.Client{
+			Transport: &http.Transport{TLSClientConfig: config},
+		}
+		client.schema = "https"
+	}
+	return &client, nil
 }
 
 // GetTS returns the latest timestamp.
@@ -144,12 +154,12 @@ func (bc *Client) GetTS(ctx context.Context, duration time.Duration, ts uint64) 
 
 func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVersion, error) {
 	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, bc.mgr.GetPDClient(), conn.SkipTiFlash)
-	if err != nil || len(allStores) == 0 {
+	if err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
 	} else if len(allStores) == 0 {
 		return kvrpcpb.APIVersion_V1, errors.New("store are empty")
 	}
-	url := fmt.Sprintf("%s://%s/config", "http", allStores[0].StatusAddress)
+	url := fmt.Sprintf("%s://%s/config", bc.schema, allStores[0].StatusAddress)
 	resp, err := bc.httpClient.Get(url)
 	if err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)

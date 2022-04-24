@@ -465,9 +465,9 @@ FindRegion:
 }
 
 func TestNeedSplit(t *testing.T) {
-	for _, isRawKv := range []bool{false, true} {
+	for _, needEncodeKey := range []bool{false, true} {
 		encode := func(in []byte) []byte {
-			if isRawKv {
+			if !needEncodeKey {
 				return in
 			}
 			return codec.EncodeBytes([]byte{}, in)
@@ -482,17 +482,17 @@ func TestNeedSplit(t *testing.T) {
 			},
 		}
 		// Out of region
-		require.Nil(t, restore.NeedSplit([]byte("a"), regions, isRawKv))
+		require.Nil(t, restore.NeedSplit([]byte("a"), regions, needEncodeKey))
 		// Region start key
-		require.Nil(t, restore.NeedSplit([]byte("b"), regions, isRawKv))
+		require.Nil(t, restore.NeedSplit([]byte("b"), regions, needEncodeKey))
 		// In region
-		region := restore.NeedSplit([]byte("c"), regions, isRawKv)
+		region := restore.NeedSplit([]byte("c"), regions, needEncodeKey)
 		require.Equal(t, 0, bytes.Compare(region.Region.GetStartKey(), encode([]byte("b"))))
 		require.Equal(t, 0, bytes.Compare(region.Region.GetEndKey(), encode([]byte("d"))))
 		// Region end key
-		require.Nil(t, restore.NeedSplit([]byte("d"), regions, isRawKv))
+		require.Nil(t, restore.NeedSplit([]byte("d"), regions, needEncodeKey))
 		// Out of region
-		require.Nil(t, restore.NeedSplit([]byte("e"), regions, isRawKv))
+		require.Nil(t, restore.NeedSplit([]byte("e"), regions, needEncodeKey))
 	}
 }
 

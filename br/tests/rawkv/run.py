@@ -114,7 +114,7 @@ class rawkvTester:
             'GO_FAILPOINTS': self.failpoints,
         }
         self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", storage_dir,
-                "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
+                "--start", start_key, "--end", end_key, "--format", "hex",
                 "--check-requirements=false", "-L", "debug", **env)
 
 

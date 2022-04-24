@@ -76,7 +76,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	}
 	defer mgr.Close()
 
-	client, err := backup.NewBackupClient(ctx, mgr)
+	client, err := backup.NewBackupClient(ctx, mgr, mgr.GetTLSConfig())
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -159,9 +159,8 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	// Backup has finished
 	updateCh.Close()
 	// backup meta range should in DstAPIVersion format
-	metaStartKey := utils.ConvertBackupConfigKey(cfg.StartKey, false, curAPIVersion, dstAPIVersion)
-	metaEndKey := utils.ConvertBackupConfigKey(cfg.EndKey, true, curAPIVersion, dstAPIVersion)
-	rawRanges := []*backuppb.RawRange{{StartKey: metaStartKey, EndKey: metaEndKey, Cf: "default"}}
+	metaRange := utils.ConvertBackupConfigKeyRange(cfg.StartKey, cfg.EndKey, curAPIVersion, dstAPIVersion)
+	rawRanges := []*backuppb.RawRange{{StartKey: metaRange.Start, EndKey: metaRange.End, Cf: "default"}}
 	metaWriter.Update(func(m *backuppb.BackupMeta) {
 		m.StartVersion = req.StartVersion
 		m.EndVersion = req.EndVersion

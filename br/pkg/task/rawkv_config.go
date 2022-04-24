@@ -39,8 +39,12 @@ type RawKvConfig struct {
 
 // ParseBackupConfigFromFlags parses the backup-related flags from the flag set.
 func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
-	err := cfg.ParseFromFlags(flags, true)
+	err := cfg.ParseFromFlags(flags)
 	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if err = cfg.parseDstAPIVersion(flags); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -64,7 +68,7 @@ func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
 }
 
 // ParseFromFlags parses the raw kv backup&restore common flags from the flag set.
-func (cfg *RawKvConfig) ParseFromFlags(flags *pflag.FlagSet, parseAPIVer bool) error {
+func (cfg *RawKvConfig) ParseFromFlags(flags *pflag.FlagSet) error {
 	// parse key format.
 	format, err := flags.GetString(flagKeyFormat)
 	if err != nil {
@@ -94,13 +98,6 @@ func (cfg *RawKvConfig) ParseFromFlags(flags *pflag.FlagSet, parseAPIVer bool) e
 	// verify whether start key < end key.
 	if len(cfg.StartKey) > 0 && len(cfg.EndKey) > 0 && bytes.Compare(cfg.StartKey, cfg.EndKey) >= 0 {
 		return errors.Annotate(berrors.ErrBackupInvalidRange, "endKey must be greater than startKey")
-	}
-
-	if parseAPIVer {
-		// parse and verify destination API version.
-		if err = cfg.parseDstAPIVersion(flags); err != nil {
-			return err
-		}
 	}
 
 	// parse other configs.
@@ -162,7 +159,7 @@ func (cfg *RawKvConfig) parseCompressionType(s string) (backuppb.CompressionType
 
 func (cfg *RawKvConfig) adjustBackupRange(curAPIVersion kvrpcpb.APIVersion) {
 	if curAPIVersion == kvrpcpb.APIVersion_V2 {
-		cfg.StartKey = utils.FormatAPIV2Key(cfg.StartKey, false)
-		cfg.EndKey = utils.FormatAPIV2Key(cfg.EndKey, true)
+		keyRange := utils.FormatAPIV2KeyRange(cfg.StartKey, cfg.EndKey)
+		cfg.StartKey, cfg.EndKey = keyRange.Start, keyRange.End
 	}
 }
