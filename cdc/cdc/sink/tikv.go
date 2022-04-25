@@ -63,6 +63,7 @@ func createTiKVSink(
 	opts map[string]string,
 	errCh chan error,
 ) (*tikvSink, error) {
+
 	workerNum := defaultConcurrency
 	if s, ok := opts["concurrency"]; ok {
 		c, _ := strconv.Atoi(s)
@@ -119,8 +120,8 @@ func (k *tikvSink) dispatch(entry *model.RawKVEntry) uint32 {
 }
 
 func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
-	// log.Debug("(rawkv)tikvSink::EmitRowChangedEvents", zap.Any("events", events))
 	rowsCount := 0
+
 	for _, rawKVEntry := range rawKVEntries {
 		workerIdx := k.dispatch(rawKVEntry)
 		select {
@@ -133,12 +134,14 @@ func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model
 		}
 		rowsCount++
 	}
+
 	k.statistics.AddRowsCount(rowsCount)
 	return nil
 }
 
 func (k *tikvSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
-	log.Debug("(rawkv)tikvSink::FlushRowChangedEvents", zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", k.checkpointTs))
+	log.Debug("tikvSink::FlushRowChangedEvents", zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", k.checkpointTs))
+
 	if resolvedTs <= k.checkpointTs {
 		return k.checkpointTs, nil
 	}
@@ -178,11 +181,6 @@ func (k *tikvSink) EmitCheckpointTs(ctx context.Context, ts uint64) error {
 	return nil
 }
 
-func (k *tikvSink) EmitDDLEvent(ctx context.Context, ddl *model.DDLEvent) error {
-	return nil
-}
-
-// Initialize registers Avro schemas for all tables
 func (k *tikvSink) Initialize(ctx context.Context, tableInfo []*model.SimpleTableInfo) error {
 	// No longer need it for now
 	return nil
@@ -214,12 +212,34 @@ type innerBatch struct {
 	OpType model.OpType
 	Keys   [][]byte
 	Values [][]byte
+	TTL    []uint64
 }
 
 type tikvBatcher struct {
-	Batches  map[model.OpType]*innerBatch
-	count    int
-	byteSize int64
+	Batches        map[model.OpType]*innerBatch
+	BatchesWithTTL map[model.OpType]*innerBatch
+	count          int
+	byteSize       int64
+}
+
+func NewTiKVBatcher() *tikvBatcher {
+	tikvBatcher := &tikvBatcher{}
+	tikvBatcher.Batches[model.OpTypePut] = &innerBatch{
+		OpType: model.OpTypePut,
+		Keys:   [][]byte{},
+		Values: [][]byte{},
+	}
+	tikvBatcher.Batches[model.OpTypeDelete] = &innerBatch{
+		OpType: model.OpTypePut,
+		Keys:   [][]byte{},
+		Values: [][]byte{},
+	}
+	tikvBatcher.BatchesWithTTL[model.OpTypePut] = &innerBatch{
+		OpType: model.OpTypePut,
+		Keys:   [][]byte{},
+		Values: [][]byte{},
+	}
+	return tikvBatcher
 }
 
 func (b *tikvBatcher) Count() int {
@@ -231,32 +251,56 @@ func (b *tikvBatcher) ByteSize() int64 {
 }
 
 func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
-	log.Debug("(rawkv)tikvBatch::Append", zap.Any("event", entry))
+	log.Debug("tikvBatch::Append", zap.Any("event", entry))
 
-	opType := entry.OpType
-	_, ok := b.Batches[opType]
-	if !ok {
-		b.Batches[opType] = &innerBatch{
-			OpType: opType,
-			Keys:   [][]byte{entry.Key},
-			Values: [][]byte{entry.Value},
+	var batcher *innerBatch
+	var ok bool
+	if entry.ExpiredTs == 0 {
+		batcher, ok = b.Batches[entry.OpType]
+		if !ok {
+			log.Info("Unknow operate type, support put and delete", zap.Int("OpType", int(entry.OpType)))
+			return
 		}
+	} else {
+		batcher, ok = b.BatchesWithTTL[entry.OpType]
+		if !ok {
+			log.Info("Unknow operate type, only support put", zap.Int("OpType", int(entry.OpType)))
+			return
+		}
+		// Maybe lose precision
+		batcher.TTL = append(batcher.TTL, entry.ExpiredTs-uint64(time.Now().Unix()))
 	}
-	b.Batches[opType].Keys = append(b.Batches[opType].Keys, entry.Key[1:])
-	b.Batches[opType].Values = append(b.Batches[opType].Values, entry.Value[1:])
+
+	key, value := entry.Key[1:], entry.Value
+	batcher.Keys = append(batcher.Keys, key)
+	batcher.Values = append(batcher.Values, value)
 
 	b.count += 1
-	b.byteSize += int64(len(entry.Key) + len(entry.Value))
+	b.byteSize += int64(len(key) + len(value))
 }
 
 func (b *tikvBatcher) Reset() {
-	b.Batches = map[model.OpType]*innerBatch{}
+	b.Batches[model.OpTypePut] = &innerBatch{
+		OpType: model.OpTypePut,
+		Keys:   [][]byte{},
+		Values: [][]byte{},
+	}
+	b.Batches[model.OpTypeDelete] = &innerBatch{
+		OpType: model.OpTypePut,
+		Keys:   [][]byte{},
+		Values: [][]byte{},
+	}
+	b.BatchesWithTTL[model.OpTypePut] = &innerBatch{
+		OpType: model.OpTypePut,
+		Keys:   [][]byte{},
+		Values: [][]byte{},
+	}
 	b.count = 0
 	b.byteSize = 0
 }
 
 func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
-	log.Info("(rawkv)tikvSink worker start", zap.Uint32("workerIdx", workerIdx))
+	log.Info("tikvSink worker start", zap.Uint32("workerIdx", workerIdx))
 	input := k.workerInput[workerIdx]
 
 	cli, err := rawkv.NewClient(ctx, k.pdAddr, k.config.Security)
@@ -268,20 +312,18 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
 
-	batcher := tikvBatcher{
-		Batches: map[model.OpType]*innerBatch{},
-	}
+	batcher := NewTiKVBatcher()
 
 	flushToTiKV := func() error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
-			log.Debug("(rawkv)tikvSink::flushToTiKV", zap.Any("batches", batcher.Batches))
+			log.Debug("tikvSink::flushToTiKV", zap.Any("batches", batcher.Batches))
 			thisBatchSize := batcher.Count()
 			if thisBatchSize == 0 {
 				return 0, nil
 			}
 
+			var err error
 			for _, batch := range batcher.Batches {
-				var err error
 				if batch.OpType == model.OpTypePut {
 					err = cli.BatchPut(ctx, batch.Keys, batch.Values, nil)
 				} else if batch.OpType == model.OpTypeDelete {
@@ -290,8 +332,12 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 				if err != nil {
 					return 0, err
 				}
-				log.Debug("(rawkv)TiKVSink flushed", zap.Int("thisBatchSize", thisBatchSize), zap.Any("batch", batch))
 			}
+
+			for _, batch := range batcher.BatchesWithExpiredTs {
+				err = cli.BatchPutWithTTL(ctx, batch.Keys, batch.Values, batch.TTL)
+			}
+			log.Debug("TiKVSink flushed", zap.Int("thisBatchSize", thisBatchSize))
 			batcher.Reset()
 			return thisBatchSize, nil
 		})
@@ -313,7 +359,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		}
 		if e.rawKVEntry == nil {
 			if e.resolvedTs != 0 {
-				log.Debug("(rawkv)tikvSink::runWorker push workerResolvedTs", zap.Uint32("workerIdx", workerIdx), zap.Uint64("event.resolvedTs", e.resolvedTs))
+				log.Debug("tikvSink::runWorker push workerResolvedTs", zap.Uint32("workerIdx", workerIdx), zap.Uint64("event.resolvedTs", e.resolvedTs))
 				if err := flushToTiKV(); err != nil {
 					return errors.Trace(err)
 				}
@@ -323,7 +369,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 			}
 			continue
 		}
-		log.Debug("(rawkv)tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
+		log.Debug("tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
 		batcher.Append(e.rawKVEntry)
 
 		if batcher.ByteSize() >= defaultTikvByteSizeLimit {

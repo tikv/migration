@@ -38,13 +38,6 @@ type Sink interface {
 	// FIXME: some sink implementation, they should be.
 	EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error
 
-	// EmitDDLEvent sends DDL Event to Sink
-	// EmitDDLEvent should execute DDL to downstream synchronously
-	//
-	// EmitDDLEvent is thread-safe.
-	// FIXME: some sink implementation, they should be.
-	// EmitDDLEvent(ctx context.Context, ddl *model.DDLEvent) error
-
 	// FlushRowChangedEvents flushes each row which of commitTs less than or
 	// equal to `resolvedTs` into downstream.
 	// TiCDC guarantees that all the Events whose commitTs is less than or
