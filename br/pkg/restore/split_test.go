@@ -268,13 +268,19 @@ func (b *assertRetryLessThanBackoffer) Attempt() int {
 }
 
 func TestScatterFinishInTime(t *testing.T) {
+	for _, needEncodeKey := range []bool{false, true} {
+		ScatterFinishInTimeImpl(t, needEncodeKey)
+	}
+}
+
+func ScatterFinishInTimeImpl(t *testing.T, needEncodeKey bool) {
 	client := initTestClient()
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
 	regionSplitter := restore.NewRegionSplitter(client)
 
 	ctx := context.Background()
-	err := regionSplitter.Split(ctx, ranges, rewriteRules, true, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
+	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
 	require.NoError(t, err)
 	regions := client.GetAllRegions()
 	if !validateRegions(regions) {
