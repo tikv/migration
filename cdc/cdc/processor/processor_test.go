@@ -217,7 +217,7 @@ func (s *processorSuite) TestHandleKeySpanOperation4SingleKeySpan(c *check.C) {
 	// add keyspan, in processing
 	// in current implementation of owner, the startTs and BoundaryTs of add keyspan operation should be always equaled.
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddKeySpan(66, &model.KeySpanReplicaInfo{StartTs: 60}, 60)
+		status.AddKeySpan(66, &model.KeySpanReplicaInfo{StartTs: 60}, 60, []model.KeySpanLocation{})
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -351,9 +351,9 @@ func (s *processorSuite) TestHandleKeySpanOperation4MultiKeySpan(c *check.C) {
 	// add keyspan, in processing
 	// in current implementation of owner, the startTs and BoundaryTs of add keyspan operation should be always equaled.
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddKeySpan(1, &model.KeySpanReplicaInfo{StartTs: 60}, 60)
-		status.AddKeySpan(2, &model.KeySpanReplicaInfo{StartTs: 50}, 50)
-		status.AddKeySpan(3, &model.KeySpanReplicaInfo{StartTs: 40}, 40)
+		status.AddKeySpan(1, &model.KeySpanReplicaInfo{StartTs: 60}, 60, []model.KeySpanLocation{})
+		status.AddKeySpan(2, &model.KeySpanReplicaInfo{StartTs: 50}, 50, []model.KeySpanLocation{})
+		status.AddKeySpan(3, &model.KeySpanReplicaInfo{StartTs: 40}, 40, []model.KeySpanLocation{})
 		status.KeySpans[4] = &model.KeySpanReplicaInfo{StartTs: 30}
 		return status, true, nil
 	})
