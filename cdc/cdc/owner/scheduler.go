@@ -119,7 +119,6 @@ func newScheduler(ctx context.Context, startTs uint64) (scheduler, error) {
 func (s *schedulerV2) Tick(
 	ctx context.Context,
 	state *orchestrator.ChangefeedReactorState,
-	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (checkpoint, resolvedTs model.Ts, err error) {
 	if err := s.checkForHandlerErrors(ctx); err != nil {
