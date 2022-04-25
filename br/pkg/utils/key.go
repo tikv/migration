@@ -101,7 +101,6 @@ type KeyRange struct {
 	End   []byte
 }
 
-// encode
 func formatAPIV2Key(key []byte, isEnd bool) []byte {
 	if isEnd && len(key) == 0 {
 		return []byte{APIV2KeyPrefixEnd}
