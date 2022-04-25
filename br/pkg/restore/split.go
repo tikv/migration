@@ -97,8 +97,13 @@ func (rs *RegionSplitter) Split(
 	if errSplit != nil {
 		return errors.Trace(errSplit)
 	}
-	minKey := codec.EncodeBytes(sortedRanges[0].StartKey)
-	maxKey := codec.EncodeBytes(sortedRanges[len(sortedRanges)-1].EndKey)
+	minKey := sortedRanges[0].StartKey
+	maxKey := sortedRanges[len(sortedRanges)-1].EndKey
+	if needEncodeKey {
+		minKey = codec.EncodeBytes(sortedRanges[0].StartKey)
+		maxKey = codec.EncodeBytes(sortedRanges[len(sortedRanges)-1].EndKey)
+	}
+
 	interval := SplitRetryInterval
 	scatterRegions := make([]*RegionInfo, 0)
 SplitRegions:
