@@ -19,8 +19,10 @@ import (
 
 	"github.com/pingcap/check"
 	"github.com/tikv/migration/cdc/cdc/model"
+	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
@@ -57,10 +59,10 @@ func (s *schedulerSuite) addCapture(captureID model.CaptureID) {
 	s.tester.MustApplyPatches()
 }
 
-func (s *schedulerSuite) finishTableOperation(captureID model.CaptureID, tableIDs ...model.TableID) {
+func (s *schedulerSuite) finishKeySpanOperation(captureID model.CaptureID, keyspanIDs ...model.KeySpanID) {
 	s.state.PatchTaskStatus(captureID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		for _, tableID := range tableIDs {
-			status.Operation[tableID].Status = model.OperFinished
+		for _, keyspanID := range keyspanIDs {
+			status.Operation[keyspanID].Status = model.OperFinished
 		}
 		return status, true, nil
 	})
@@ -68,11 +70,11 @@ func (s *schedulerSuite) finishTableOperation(captureID model.CaptureID, tableID
 		if workload == nil {
 			workload = make(model.TaskWorkload)
 		}
-		for _, tableID := range tableIDs {
-			if s.state.TaskStatuses[captureID].Operation[tableID].Delete {
-				delete(workload, tableID)
+		for _, keyspanID := range keyspanIDs {
+			if s.state.TaskStatuses[captureID].Operation[keyspanID].Delete {
+				delete(workload, keyspanID)
 			} else {
-				workload[tableID] = model.WorkloadInfo{
+				workload[keyspanID] = model.WorkloadInfo{
 					Workload: 1,
 				}
 			}
@@ -89,7 +91,11 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	captureID := "test-capture-0"
 	s.addCapture(captureID)
 
-	_, _ = s.scheduler.Tick(s.state, []model.TableID{}, s.captures)
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
+	_, _ = s.scheduler.Tick(ctx, s.state, s.captures)
 
 	// Manually simulate the scenario where the corresponding key was deleted in the etcd
 	key := &etcd.CDCKey{
@@ -104,56 +110,73 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	captureID = "test-capture-1"
 	s.addCapture(captureID)
 
-	// add three tables
-	shouldUpdateState, err := s.scheduler.Tick(s.state, []model.TableID{1, 2, 3, 4}, s.captures)
+	// add three keyspans
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3, 4}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+			4: {Start: []byte{'4'}, End: []byte{'5'}},
+		}, nil
+	}
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0}, 2: {StartTs: 0}, 3: {StartTs: 0}, 4: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 		3: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 	})
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1, 2, 3, 4}, s.captures)
+
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4},
+
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
 
-	// two tables finish adding operation
-	s.finishTableOperation(captureID, 2, 3)
+	// two keyspans finish adding operation
+	s.finishKeySpanOperation(captureID, 2, 3)
 
-	// remove table 1,2 and add table 4,5
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{3, 4, 5}, s.captures)
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{3, 4, 5}, map[model.KeySpanID]regionspan.Span{
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+			4: {Start: []byte{'4'}, End: []byte{'5'}},
+			5: {Start: []byte{'5'}, End: []byte{'6'}},
+		}, nil
+	}
+	// remove keyspan 1,2 and add keyspan 4,5
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		3: {StartTs: 0}, 4: {StartTs: 0}, 5: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
 		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 		5: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 	})
 
-	// move a non exist table to a non exist capture
-	s.scheduler.MoveTable(2, "fake-capture")
-	// move tables to a non exist capture
-	s.scheduler.MoveTable(3, "fake-capture")
-	s.scheduler.MoveTable(4, "fake-capture")
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{3, 4, 5}, s.captures)
+	// move a non exist keyspan to a non exist capture
+	s.scheduler.MoveKeySpan(2, "fake-capture")
+	// move keyspans to a non exist capture
+	s.scheduler.MoveKeySpan(3, "fake-capture")
+	s.scheduler.MoveKeySpan(4, "fake-capture")
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		4: {StartTs: 0}, 5: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
 		3: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
@@ -162,124 +185,139 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	})
 
 	// finish all operations
-	s.finishTableOperation(captureID, 1, 2, 3, 4, 5)
+	s.finishKeySpanOperation(captureID, 1, 2, 3, 4, 5)
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{3, 4, 5}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		4: {StartTs: 0}, 5: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{})
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 
-	// table 3 is missing by expected, because the table was trying to move to a invalid capture
-	// and the move will failed, the table 3 will be add in next tick
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{3, 4, 5}, s.captures)
+	// keyspan 3 is missing by expected, because the keyspan was trying to move to a invalid capture
+	// and the move will failed, the keyspan 3 will be add in next tick
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		4: {StartTs: 0}, 5: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{})
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{3, 4, 5}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{3, 4, 5},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		3: {StartTs: 0}, 4: {StartTs: 0}, 5: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		3: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 	})
 }
 
-func (s *schedulerSuite) TestScheduleMoveTable(c *check.C) {
+func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	defer testleak.AfterTest(c)()
 	s.reset(c)
 	captureID1 := "test-capture-1"
 	captureID2 := "test-capture-2"
 	s.addCapture(captureID1)
 
-	// add a table
-	shouldUpdateState, err := s.scheduler.Tick(s.state, []model.TableID{1}, s.captures)
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
+	// add a keyspan
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+		}, nil
+	}
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID1].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 	})
 
-	s.finishTableOperation(captureID1, 1)
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1}, s.captures)
+	s.finishKeySpanOperation(captureID1, 1)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
 
 	s.addCapture(captureID2)
 
-	// add a table
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1, 2}, s.captures)
+	// add a keyspan
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+		}, nil
+	}
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID1].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{})
-	c.Assert(s.state.TaskStatuses[captureID2].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
+	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		2: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 	})
 
-	s.finishTableOperation(captureID2, 2)
+	s.finishKeySpanOperation(captureID2, 2)
 
-	s.scheduler.MoveTable(2, captureID1)
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1, 2}, s.captures)
+	s.scheduler.MoveKeySpan(2, captureID1)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID1].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{})
-	c.Assert(s.state.TaskStatuses[captureID2].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{})
-	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
+	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{})
+	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
 	})
 
-	s.finishTableOperation(captureID2, 2)
+	s.finishKeySpanOperation(captureID2, 2)
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1, 2}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID1].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{})
-	c.Assert(s.state.TaskStatuses[captureID2].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{})
-	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{})
+	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
+	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{})
+	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1, 2}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	c.Assert(s.state.TaskStatuses[captureID1].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{
+	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0}, 2: {StartTs: 0},
 	})
-	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{
+	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
 	})
-	c.Assert(s.state.TaskStatuses[captureID2].Tables, check.DeepEquals, map[model.TableID]*model.TableReplicaInfo{})
-	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.TableID]*model.TableOperation{})
+	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{})
+	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 }
 
 func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
@@ -293,26 +331,40 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 	s.addCapture(captureID3)
 
 	s.state.PatchTaskStatus(captureID1, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.Tables = make(map[model.TableID]*model.TableReplicaInfo)
-		status.Tables[1] = &model.TableReplicaInfo{StartTs: 1}
-		status.Tables[2] = &model.TableReplicaInfo{StartTs: 1}
-		status.Tables[3] = &model.TableReplicaInfo{StartTs: 1}
-		status.Tables[4] = &model.TableReplicaInfo{StartTs: 1}
-		status.Tables[5] = &model.TableReplicaInfo{StartTs: 1}
-		status.Tables[6] = &model.TableReplicaInfo{StartTs: 1}
+		status.KeySpans = make(map[model.KeySpanID]*model.KeySpanReplicaInfo)
+		status.KeySpans[1] = &model.KeySpanReplicaInfo{StartTs: 1}
+		status.KeySpans[2] = &model.KeySpanReplicaInfo{StartTs: 1}
+		status.KeySpans[3] = &model.KeySpanReplicaInfo{StartTs: 1}
+		status.KeySpans[4] = &model.KeySpanReplicaInfo{StartTs: 1}
+		status.KeySpans[5] = &model.KeySpanReplicaInfo{StartTs: 1}
+		status.KeySpans[6] = &model.KeySpanReplicaInfo{StartTs: 1}
 		return status, true, nil
 	})
 	s.tester.MustApplyPatches()
 
-	// rebalance table
-	shouldUpdateState, err := s.scheduler.Tick(s.state, []model.TableID{1, 2, 3, 4, 5, 6}, s.captures)
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
+	// rebalance keyspan
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3, 4, 5, 6}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'1'}},
+			2: {Start: []byte{'2'}, End: []byte{'2'}},
+			3: {Start: []byte{'3'}, End: []byte{'3'}},
+			4: {Start: []byte{'4'}, End: []byte{'4'}},
+			5: {Start: []byte{'5'}, End: []byte{'5'}},
+			6: {Start: []byte{'6'}, End: []byte{'6'}},
+		}, nil
+	}
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4, 5, 6},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	// 4 tables remove in capture 1, this 4 tables will be added to another capture in next tick
-	c.Assert(s.state.TaskStatuses[captureID1].Tables, check.HasLen, 2)
-	c.Assert(s.state.TaskStatuses[captureID2].Tables, check.HasLen, 0)
-	c.Assert(s.state.TaskStatuses[captureID3].Tables, check.HasLen, 0)
+	// 4 keyspans remove in capture 1, this 4 keyspans will be added to another capture in next tick
+	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.HasLen, 2)
+	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.HasLen, 0)
+	c.Assert(s.state.TaskStatuses[captureID3].KeySpans, check.HasLen, 0)
 
 	s.state.PatchTaskStatus(captureID1, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 		for _, opt := range status.Operation {
@@ -323,35 +375,35 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 	s.state.PatchTaskWorkload(captureID1, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
 		c.Assert(workload, check.IsNil)
 		workload = make(model.TaskWorkload)
-		for tableID := range s.state.TaskStatuses[captureID1].Tables {
-			workload[tableID] = model.WorkloadInfo{Workload: 1}
+		for keyspanID := range s.state.TaskStatuses[captureID1].KeySpans {
+			workload[keyspanID] = model.WorkloadInfo{Workload: 1}
 		}
 		return workload, true, nil
 	})
 	s.tester.MustApplyPatches()
 
 	// clean finished operation
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1, 2, 3, 4, 5, 6}, s.captures)
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4, 5, 6},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
-	// 4 tables add to another capture in this tick
+	// 4 keyspans add to another capture in this tick
 	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.HasLen, 0)
 
-	// rebalance table
-	shouldUpdateState, err = s.scheduler.Tick(s.state, []model.TableID{1, 2, 3, 4, 5, 6}, s.captures)
+	// rebalance keyspan
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4, 5, 6},
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
-	// 4 tables add to another capture in this tick
-	c.Assert(s.state.TaskStatuses[captureID1].Tables, check.HasLen, 2)
-	c.Assert(s.state.TaskStatuses[captureID2].Tables, check.HasLen, 2)
-	c.Assert(s.state.TaskStatuses[captureID3].Tables, check.HasLen, 2)
-	tableIDs := make(map[model.TableID]struct{})
+	// 4 keyspans add to another capture in this tick
+	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.HasLen, 2)
+	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.HasLen, 2)
+	c.Assert(s.state.TaskStatuses[captureID3].KeySpans, check.HasLen, 2)
+	keyspanIDs := make(map[model.KeySpanID]struct{})
 	for _, status := range s.state.TaskStatuses {
-		for tableID := range status.Tables {
-			tableIDs[tableID] = struct{}{}
+		for keyspanID := range status.KeySpans {
+			keyspanIDs[keyspanID] = struct{}{}
 		}
 	}
-	c.Assert(tableIDs, check.DeepEquals, map[model.TableID]struct{}{1: {}, 2: {}, 3: {}, 4: {}, 5: {}, 6: {}})
+	c.Assert(keyspanIDs, check.DeepEquals, map[model.KeySpanID]struct{}{1: {}, 2: {}, 3: {}, 4: {}, 5: {}, 6: {}})
 }

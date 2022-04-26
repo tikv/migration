@@ -22,7 +22,7 @@ import (
 
 const (
 	// EtcdKeyBase is the common prefix of the keys in CDC
-	EtcdKeyBase = "/tidb/cdc"
+	EtcdKeyBase = "/tikv/cdc"
 	ownerKey    = "/owner"
 	captureKey  = "/capture"
 
@@ -56,7 +56,7 @@ const (
  we can parse a raw etcd key:
  ```
  	k := new(CDCKey)
- 	rawKey := "/tidb/cdc/changefeed/info/test/changefeed"
+ 	rawKey := "/tikv/cdc/changefeed/info/test/changefeed"
 	err := k.Parse(rawKey)
  	c.Assert(k, check.DeepEquals, &CDCKey{
 			Tp:           CDCKeyTypeChangefeedInfo,
@@ -70,7 +70,7 @@ const (
 			Tp:           CDCKeyTypeChangefeedInfo,
 			ChangefeedID: "test/changefeed",
 	}
- 	c.Assert(k.String(), check.Equals, "/tidb/cdc/changefeed/info/test/changefeed")
+ 	c.Assert(k.String(), check.Equals, "/tikv/cdc/changefeed/info/test/changefeed")
  ```
 
 */

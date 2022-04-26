@@ -125,7 +125,8 @@ func (rc *Client) InitBackupMeta(
 
 	metaClient := NewSplitClient(rc.pdClient, rc.tlsConf, rc.backupMeta.IsRawKv)
 	importCli := NewImportClient(metaClient, rc.tlsConf, rc.keepaliveConf)
-	rc.fileImporter = NewFileImporter(metaClient, importCli, backend, rc.backupMeta.IsRawKv, rc.rateLimit)
+	rc.fileImporter = NewFileImporter(metaClient, importCli, backend, rc.backupMeta.IsRawKv,
+		rc.backupMeta.ApiVersion, rc.rateLimit)
 	return rc.fileImporter.CheckMultiIngestSupport(c, rc.pdClient)
 }
 

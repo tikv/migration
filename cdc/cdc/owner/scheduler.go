@@ -14,6 +14,7 @@
 package owner
 
 import (
+	"fmt"
 	"sync/atomic"
 
 	"github.com/pingcap/errors"
@@ -22,17 +23,19 @@ import (
 	pscheduler "github.com/tikv/migration/cdc/cdc/scheduler"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/context"
+	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/p2p"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/version"
 	"go.uber.org/zap"
 )
 
-// scheduler is an interface for scheduling tables.
-// Since in our design, we do not record checkpoints per table,
+// scheduler is an interface for scheduling keyspans.
+// Since in our design, we do not record checkpoints per keyspan,
 // how we calculate the global watermarks (checkpoint-ts and resolved-ts)
-// is heavily coupled with how tables are scheduled.
+// is heavily coupled with how keyspans are scheduled.
 // That is why we have a scheduler interface that also reports the global watermarks.
 type scheduler interface {
 	// Tick is called periodically from the owner, and returns
@@ -40,12 +43,11 @@ type scheduler interface {
 	Tick(
 		ctx context.Context,
 		state *orchestrator.ChangefeedReactorState,
-		currentTables []model.TableID,
 		captures map[model.CaptureID]*model.CaptureInfo,
 	) (newCheckpointTs, newResolvedTs model.Ts, err error)
 
-	// MoveTable is used to trigger manual table moves.
-	MoveTable(tableID model.TableID, target model.CaptureID)
+	// MoveKeySpan is used to trigger manual keyspan moves.
+	MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID)
 
 	// Rebalance is used to trigger manual workload rebalances.
 	Rebalance()
@@ -64,6 +66,10 @@ type schedulerV2 struct {
 	handlerErrChs []<-chan error
 
 	stats *schedulerStats
+
+	currentKeySpansID     []model.KeySpanID
+	currentKeySpans       map[model.KeySpanID]regionspan.Span
+	updateCurrentKeySpans func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
 }
 
 // NewSchedulerV2 creates a new schedulerV2
@@ -75,10 +81,11 @@ func NewSchedulerV2(
 	messageRouter p2p.MessageRouter,
 ) (*schedulerV2, error) {
 	ret := &schedulerV2{
-		changeFeedID:  changeFeedID,
-		messageServer: messageServer,
-		messageRouter: messageRouter,
-		stats:         &schedulerStats{},
+		changeFeedID:          changeFeedID,
+		messageServer:         messageServer,
+		messageRouter:         messageRouter,
+		stats:                 &schedulerStats{},
+		updateCurrentKeySpans: updateCurrentKeySpansImpl,
 	}
 	ret.BaseScheduleDispatcher = pscheduler.NewBaseScheduleDispatcher(changeFeedID, ret, checkpointTs)
 	if err := ret.registerPeerMessageHandlers(ctx); err != nil {
@@ -112,28 +119,41 @@ func newScheduler(ctx context.Context, startTs uint64) (scheduler, error) {
 func (s *schedulerV2) Tick(
 	ctx context.Context,
 	state *orchestrator.ChangefeedReactorState,
-	currentTables []model.TableID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (checkpoint, resolvedTs model.Ts, err error) {
 	if err := s.checkForHandlerErrors(ctx); err != nil {
 		return pscheduler.CheckpointCannotProceed, pscheduler.CheckpointCannotProceed, errors.Trace(err)
 	}
-	return s.BaseScheduleDispatcher.Tick(ctx, state.Status.CheckpointTs, currentTables, captures)
+	s.currentKeySpansID, s.currentKeySpans, err = s.updateCurrentKeySpans(ctx)
+	if err != nil {
+		return pscheduler.CheckpointCannotProceed, pscheduler.CheckpointCannotProceed, errors.Trace(err)
+	}
+	log.Debug("current key spans ID", zap.Any("currentKeySpansID", s.currentKeySpansID))
+	return s.BaseScheduleDispatcher.Tick(ctx, state.Status.CheckpointTs, s.currentKeySpansID, captures)
 }
 
-func (s *schedulerV2) DispatchTable(
+func (s *schedulerV2) DispatchKeySpan(
 	ctx context.Context,
 	changeFeedID model.ChangeFeedID,
-	tableID model.TableID,
+	keyspanID model.KeySpanID,
 	captureID model.CaptureID,
 	isDelete bool,
 ) (done bool, err error) {
-	topic := model.DispatchTableTopic(changeFeedID)
-	message := &model.DispatchTableMessage{
+	topic := model.DispatchKeySpanTopic(changeFeedID)
+	message := &model.DispatchKeySpanMessage{
 		OwnerRev: ctx.GlobalVars().OwnerRevision,
-		ID:       tableID,
+		ID:       keyspanID,
 		IsDelete: isDelete,
 	}
+
+	if !isDelete {
+		message.Start = s.currentKeySpans[keyspanID].Start
+		message.End = s.currentKeySpans[keyspanID].End
+		fmt.Println(message.Start, message.End)
+	}
+	log.Debug("try to send message",
+		zap.String("topic", topic),
+		zap.Any("message", message))
 
 	ok, err := s.trySendMessage(ctx, captureID, topic, message)
 	if err != nil {
@@ -234,12 +254,12 @@ func (s *schedulerV2) registerPeerMessageHandlers(ctx context.Context) (ret erro
 
 	errCh, err := s.messageServer.SyncAddHandler(
 		ctx,
-		model.DispatchTableResponseTopic(s.changeFeedID),
-		&model.DispatchTableResponseMessage{},
+		model.DispatchKeySpanResponseTopic(s.changeFeedID),
+		&model.DispatchKeySpanResponseMessage{},
 		func(sender string, messageI interface{}) error {
-			message := messageI.(*model.DispatchTableResponseMessage)
+			message := messageI.(*model.DispatchKeySpanResponseMessage)
 			s.stats.RecordDispatchResponse()
-			s.OnAgentFinishedTableOperation(sender, message.ID)
+			s.OnAgentFinishedKeySpanOperation(sender, message.ID)
 			return nil
 		})
 	if err != nil {
@@ -287,7 +307,7 @@ func (s *schedulerV2) registerPeerMessageHandlers(ctx context.Context) (ret erro
 func (s *schedulerV2) deregisterPeerMessageHandlers(ctx context.Context) {
 	err := s.messageServer.SyncRemoveHandler(
 		ctx,
-		model.DispatchTableResponseTopic(s.changeFeedID))
+		model.DispatchKeySpanResponseTopic(s.changeFeedID))
 	if err != nil {
 		log.Error("failed to remove peer message handler", zap.Error(err))
 	}

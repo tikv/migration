@@ -33,17 +33,17 @@ func TestWorkloads(t *testing.T) {
 		4: model.WorkloadInfo{Workload: 1},
 		3: model.WorkloadInfo{Workload: 2},
 	})
-	w.SetTable("capture2", 5, model.WorkloadInfo{Workload: 8})
-	w.SetTable("capture3", 6, model.WorkloadInfo{Workload: 1})
-	w.RemoveTable("capture1", 4)
-	w.RemoveTable("capture5", 4)
-	w.RemoveTable("capture1", 1)
+	w.SetKeySpan("capture2", 5, model.WorkloadInfo{Workload: 8})
+	w.SetKeySpan("capture3", 6, model.WorkloadInfo{Workload: 1})
+	w.RemoveKeySpan("capture1", 4)
+	w.RemoveKeySpan("capture5", 4)
+	w.RemoveKeySpan("capture1", 1)
 	require.Equal(t, w, workloads{
 		"capture1": {2: model.WorkloadInfo{Workload: 2}},
 		"capture2": {4: model.WorkloadInfo{Workload: 1}, 3: model.WorkloadInfo{Workload: 2}, 5: model.WorkloadInfo{Workload: 8}},
 		"capture3": {6: model.WorkloadInfo{Workload: 1}},
 	})
-	require.Equal(t, w.AvgEachTable(), uint64(2+1+2+8+1)/5)
+	require.Equal(t, w.AvgEachKeySpan(), uint64(2+1+2+8+1)/5)
 	require.Equal(t, w.SelectIdleCapture(), "capture3")
 
 	require.Equal(t, fmt.Sprintf("%.2f%%", w.Skewness()*100), "96.36%")

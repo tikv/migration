@@ -27,6 +27,7 @@ import (
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/p2p"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/version"
 )
 
@@ -72,6 +73,14 @@ func TestSchedulerBasics(t *testing.T) {
 		mockOwnerNode.Router)
 	require.NoError(t, err)
 
+	sched.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+		}, nil
+	}
+
 	for atomic.LoadInt64(&sched.stats.AnnounceSentCount) < numNodes {
 		checkpointTs, resolvedTs, err := sched.Tick(ctx, &orchestrator.ChangefeedReactorState{
 			ID: "cf-1",
@@ -79,7 +88,7 @@ func TestSchedulerBasics(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)
@@ -97,8 +106,8 @@ func TestSchedulerBasics(t *testing.T) {
 		t,
 		mockOwnerNode.ID,
 		mockCluster,
-		model.DispatchTableTopic("cf-1"),
-		&model.DispatchTableMessage{})
+		model.DispatchKeySpanTopic("cf-1"),
+		&model.DispatchKeySpanMessage{})
 
 	for id, ch := range announceCh {
 		var msg interface{}
@@ -134,12 +143,12 @@ func TestSchedulerBasics(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)
 	}
-	log.Info("Tables have been dispatched")
+	log.Info("KeySpans have been dispatched")
 
 	for id, ch := range dispatchCh {
 		var msg interface{}
@@ -149,17 +158,17 @@ func TestSchedulerBasics(t *testing.T) {
 		case msg = <-ch:
 		}
 
-		require.IsType(t, &model.DispatchTableMessage{}, msg)
-		dispatchTableMessage := msg.(*model.DispatchTableMessage)
-		require.Equal(t, int64(1), dispatchTableMessage.OwnerRev)
-		require.False(t, dispatchTableMessage.IsDelete)
-		require.Contains(t, []model.TableID{1, 2, 3}, dispatchTableMessage.ID)
+		require.IsType(t, &model.DispatchKeySpanMessage{}, msg)
+		dispatchKeySpanMessage := msg.(*model.DispatchKeySpanMessage)
+		require.Equal(t, int64(1), dispatchKeySpanMessage.OwnerRev)
+		require.False(t, dispatchKeySpanMessage.IsDelete)
+		require.Contains(t, []model.KeySpanID{1, 2, 3}, dispatchKeySpanMessage.ID)
 
 		_, err := mockCluster.Nodes[id].Router.GetClient(mockOwnerNode.ID).SendMessage(
 			ctx,
-			model.DispatchTableResponseTopic("cf-1"),
-			&model.DispatchTableResponseMessage{
-				ID: dispatchTableMessage.ID,
+			model.DispatchKeySpanResponseTopic("cf-1"),
+			&model.DispatchKeySpanResponseMessage{
+				ID: dispatchKeySpanMessage.ID,
 			})
 		require.NoError(t, err)
 	}
@@ -174,7 +183,7 @@ func TestSchedulerBasics(t *testing.T) {
 			ResolvedTs:   1000,
 			CheckpointTs: 1000,
 		},
-	}, []model.TableID{1, 2, 3}, mockCaptures)
+	}, mockCaptures)
 	require.NoError(t, err)
 	require.Equal(t, model.Ts(1000), checkpointTs)
 	require.Equal(t, model.Ts(1000), resolvedTs)
@@ -227,6 +236,14 @@ func TestSchedulerNoPeer(t *testing.T) {
 		mockOwnerNode.Router)
 	require.NoError(t, err)
 
+	sched.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1, 2, 3}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'2'}},
+			2: {Start: []byte{'2'}, End: []byte{'3'}},
+			3: {Start: []byte{'3'}, End: []byte{'4'}},
+		}, nil
+	}
+
 	// Ticks the scheduler 10 times. It should not panic.
 	for i := 0; i < 10; i++ {
 		checkpointTs, resolvedTs, err := sched.Tick(ctx, &orchestrator.ChangefeedReactorState{
@@ -235,7 +252,7 @@ func TestSchedulerNoPeer(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)
@@ -251,7 +268,7 @@ func TestSchedulerNoPeer(t *testing.T) {
 				ResolvedTs:   1000,
 				CheckpointTs: 1000,
 			},
-		}, []model.TableID{1, 2, 3}, mockCaptures)
+		}, mockCaptures)
 		require.NoError(t, err)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, checkpointTs)
 		require.Equal(t, pscheduler.CheckpointCannotProceed, resolvedTs)

@@ -23,8 +23,8 @@ import (
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/cdc/processor/pipeline/system"
-	ssystem "github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
+
+	// ssystem "github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/p2p"
@@ -38,15 +38,15 @@ import (
 // the lifecycle of vars in the GlobalVars should be aligned with the ticdc server process.
 // All field in Vars should be READ-ONLY and THREAD-SAFE
 type GlobalVars struct {
-	PDClient         pd.Client
-	KVStorage        tidbkv.Storage
-	CaptureInfo      *model.CaptureInfo
-	EtcdClient       *etcd.CDCEtcdClient
-	GrpcPool         kv.GrpcPool
-	RegionCache      *tikv.RegionCache
-	TimeAcquirer     pdtime.TimeAcquirer
-	TableActorSystem *system.System
-	SorterSystem     *ssystem.System
+	PDClient     pd.Client
+	KVStorage    tidbkv.Storage
+	CaptureInfo  *model.CaptureInfo
+	EtcdClient   *etcd.CDCEtcdClient
+	GrpcPool     kv.GrpcPool
+	RegionCache  *tikv.RegionCache
+	TimeAcquirer pdtime.TimeAcquirer
+	// KeySpanActorSystem *system.System
+	// SorterSystem       *ssystem.System
 
 	// OwnerRevision is the Etcd revision when the owner got elected.
 	OwnerRevision int64

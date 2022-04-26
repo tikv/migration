@@ -154,6 +154,5 @@ func newCmdQueryChangefeed(f factory.Factory) *cobra.Command {
 	}
 
 	o.addFlags(command)
-
 	return command
 }

@@ -24,7 +24,7 @@ import (
 var (
 	etcdHealthCheckDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "server",
 			Name:      "etcd_health_check_duration",
 			Help:      "Bucketed histogram of processing time (s) of flushing events in processor",
@@ -33,7 +33,7 @@ var (
 
 	goGC = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "server",
 			Name:      "go_gc",
 			Help:      "The value of GOGC",
@@ -41,7 +41,7 @@ var (
 
 	goMaxProcs = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "server",
 			Name:      "go_max_procs",
 			Help:      "The value of GOMAXPROCS",

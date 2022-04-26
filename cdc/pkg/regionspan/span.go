@@ -23,7 +23,13 @@ import (
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/codec"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
+	"github.com/twmb/murmur3"
 	"go.uber.org/zap"
+)
+
+const (
+	RawKvStartKey = byte('r')
+	RawKvEndKey   = byte('s')
 )
 
 // Span represents an arbitrary kv range
@@ -35,6 +41,15 @@ type Span struct {
 // String returns a string that encodes Span in hex format.
 func (s Span) String() string {
 	return fmt.Sprintf("[%s, %s)", hex.EncodeToString(s.Start), hex.EncodeToString(s.End))
+}
+
+func (s Span) ID() uint64 {
+	buf := make([]byte, 0, len(s.Start)+len(s.End))
+	buf = append(buf, s.Start...)
+	buf = append(buf, s.End...)
+	h := murmur3.New64()
+	h.Write(buf)
+	return h.Sum64()
 }
 
 // UpperBoundKey represents the maximum value.

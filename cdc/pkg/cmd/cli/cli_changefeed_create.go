@@ -31,7 +31,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/config"
-	"github.com/tikv/migration/cdc/pkg/cyclic"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/filter"
@@ -389,29 +388,6 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 		if err := confirmLargeDataGap(cmd, currentPhysical, o.startTs); err != nil {
 			return err
 		}
-	}
-
-	ineligibleTables, eligibleTables, err := getTables(o.pdAddr, o.credential, o.cfg, o.startTs)
-	if err != nil {
-		return err
-	}
-
-	if len(ineligibleTables) != 0 {
-		if o.cfg.ForceReplicate {
-			cmd.Printf("[WARN] force to replicate some ineligible tables, %#v\n", ineligibleTables)
-		} else {
-			cmd.Printf("[WARN] some tables are not eligible to replicate, %#v\n", ineligibleTables)
-			if !o.commonChangefeedOptions.noConfirm {
-				if err := confirmIgnoreIneligibleTables(cmd); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	if o.cfg.Cyclic.IsEnabled() && !cyclic.IsTablesPaired(eligibleTables) {
-		return errors.New("normal tables and mark tables are not paired, " +
-			"please run `cdc cli changefeed cyclic create-marktables`")
 	}
 
 	info := o.getInfo(cmd)

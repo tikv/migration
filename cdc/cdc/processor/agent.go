@@ -80,7 +80,7 @@ func newAgent(
 	ctx context.Context,
 	messageServer *p2p.MessageServer,
 	messageRouter p2p.MessageRouter,
-	executor scheduler.TableExecutor,
+	executor scheduler.KeySpanExecutor,
 	changeFeedID model.ChangeFeedID,
 ) (processorAgent, error) {
 	ret := &agentImpl{
@@ -126,7 +126,7 @@ func newAgent(
 		}
 		// We tolerate the situation where there is no owner.
 		// If we are registered in Etcd, an elected Owner will have to
-		// contact us before it can schedule any table.
+		// contact us before it can schedule any keyspan.
 		log.Info("no owner found. We will wait for an owner to contact us.",
 			zap.String("changefeed-id", changeFeedID),
 			zap.Error(err))
@@ -158,14 +158,14 @@ func (a *agentImpl) Tick(ctx context.Context) error {
 	return nil
 }
 
-func (a *agentImpl) FinishTableOperation(
+func (a *agentImpl) FinishKeySpanOperation(
 	ctx context.Context,
-	tableID model.TableID,
+	keyspanID model.KeySpanID,
 ) (bool, error) {
 	done, err := a.trySendMessage(
 		ctx, a.ownerCaptureID,
-		model.DispatchTableResponseTopic(a.changeFeed),
-		&model.DispatchTableResponseMessage{ID: tableID})
+		model.DispatchKeySpanResponseTopic(a.changeFeed),
+		&model.DispatchKeySpanResponseMessage{ID: keyspanID})
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -174,7 +174,7 @@ func (a *agentImpl) FinishTableOperation(
 
 func (a *agentImpl) SyncTaskStatuses(
 	ctx context.Context,
-	running, adding, removing []model.TableID,
+	running, adding, removing []model.KeySpanID,
 ) (bool, error) {
 	done, err := a.trySendMessage(
 		ctx,
@@ -235,7 +235,7 @@ func (a *agentImpl) Barrier(_ context.Context) (done bool) {
 	if a.ownerCaptureID == "" {
 		// We should wait for the first owner to contact us.
 		// We need to wait for the sync request anyways, and
-		// there would not be any table to replicate for now.
+		// there would not be any keyspan to replicate for now.
 		log.Debug("waiting for owner to request sync",
 			zap.String("changefeed-id", a.changeFeed))
 		return false
@@ -330,15 +330,17 @@ func (a *agentImpl) registerPeerMessageHandlers() (ret error) {
 
 	errCh, err := a.messageServer.SyncAddHandler(
 		ctx,
-		model.DispatchTableTopic(a.changeFeed),
-		&model.DispatchTableMessage{},
+		model.DispatchKeySpanTopic(a.changeFeed),
+		&model.DispatchKeySpanMessage{},
 		func(sender string, value interface{}) error {
 			ownerCapture := sender
-			message := value.(*model.DispatchTableMessage)
+			message := value.(*model.DispatchKeySpanMessage)
 			a.OnOwnerDispatchedTask(
 				ownerCapture,
 				message.OwnerRev,
 				message.ID,
+				message.Start,
+				message.End,
 				message.IsDelete)
 			return nil
 		})
@@ -370,7 +372,7 @@ func (a *agentImpl) deregisterPeerMessageHandlers() error {
 	ctx, cancel := stdContext.WithTimeout(stdContext.Background(), messageHandlerOperationsTimeout)
 	defer cancel()
 
-	err := a.messageServer.SyncRemoveHandler(ctx, model.DispatchTableTopic(a.changeFeed))
+	err := a.messageServer.SyncRemoveHandler(ctx, model.DispatchKeySpanTopic(a.changeFeed))
 	if err != nil {
 		return errors.Trace(err)
 	}

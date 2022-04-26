@@ -20,7 +20,7 @@ import (
 var (
 	execBatchHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "txn_batch_size",
 			Help:      "Bucketed histogram of batch size of a txn.",
@@ -28,7 +28,7 @@ var (
 		}, []string{"capture", "changefeed"})
 	execTxnHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "txn_exec_duration",
 			Help:      "Bucketed histogram of processing time (s) of a txn.",
@@ -36,7 +36,7 @@ var (
 		}, []string{"capture", "changefeed"})
 	execDDLHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "ddl_exec_duration",
 			Help:      "Bucketed histogram of processing time (s) of a ddl.",
@@ -44,14 +44,14 @@ var (
 		}, []string{"capture", "changefeed"})
 	executionErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "execution_error",
 			Help:      "total count of execution errors",
 		}, []string{"capture", "changefeed"})
 	conflictDetectDurationHis = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "conflict_detect_duration",
 			Help:      "Bucketed histogram of conflict detect time (s) for single DML statement",
@@ -59,45 +59,45 @@ var (
 		}, []string{"capture", "changefeed"})
 	bucketSizeCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "bucket_size",
 			Help:      "size of the DML bucket",
 		}, []string{"capture", "changefeed", "bucket"})
 	totalRowsCountGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "total_rows_count",
 			Help:      "The total count of rows that are processed by sink",
 		}, []string{"capture", "changefeed"})
 	totalFlushedRowsCountGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "total_flushed_rows_count",
 			Help:      "The total count of rows that are flushed by sink",
 		}, []string{"capture", "changefeed"})
 	flushRowChangedDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "flush_event_duration_seconds",
 			Help:      "Bucketed histogram of processing time (s) of flushing events in processor",
 			Buckets:   prometheus.ExponentialBuckets(0.002 /* 2ms */, 2, 20),
 		}, []string{"capture", "changefeed", "type"})
 
-	tableSinkTotalRowsCountCounter = prometheus.NewCounterVec(
+	keyspanSinkTotalEventsCountCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
-			Name:      "table_sink_total_rows_count",
-			Help:      "The total count of rows that are processed by table sink",
+			Name:      "keyspan_sink_total_event_count",
+			Help:      "The total count of rows that are processed by keyspan sink",
 		}, []string{"capture", "changefeed"})
 
 	bufferSinkTotalRowsCountCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "ticdc",
+			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "buffer_sink_total_rows_count",
 			Help:      "The total count of rows that are processed by buffer sink",
@@ -115,6 +115,6 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(totalRowsCountGauge)
 	registry.MustRegister(totalFlushedRowsCountGauge)
 	registry.MustRegister(flushRowChangedDuration)
-	registry.MustRegister(tableSinkTotalRowsCountCounter)
+	registry.MustRegister(keyspanSinkTotalEventsCountCounter)
 	registry.MustRegister(bufferSinkTotalRowsCountCounter)
 }

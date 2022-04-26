@@ -22,21 +22,21 @@ const unknownPeerLabel = "unknown"
 
 var (
 	serverStreamCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_server",
 		Name:      "cur_stream_count",
 		Help:      "count of concurrent streams handled by the message server",
 	}, []string{"from"})
 
 	serverMessageCount = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_server",
 		Name:      "message_count",
 		Help:      "count of messages received",
 	}, []string{"from"})
 
 	serverMessageBatchHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_server",
 		Name:      "message_batch_size",
 		Help:      "size in number of messages of message batches received",
@@ -45,7 +45,7 @@ var (
 
 	// serverMessageBatchBytesHistogram records the wire sizes as reported by protobuf.
 	serverMessageBatchBytesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_server",
 		Name:      "message_batch_bytes",
 		Help:      "size in bytes of message batches received",
@@ -54,7 +54,7 @@ var (
 
 	// serverMessageBytesHistogram records the wire sizes as reported by protobuf.
 	serverMessageBytesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_server",
 		Name:      "message_bytes",
 		Help:      "size in bytes of messages received",
@@ -62,40 +62,40 @@ var (
 	}, []string{"from"})
 
 	serverAckCount = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_server",
 		Name:      "ack_count",
 		Help:      "count of ack messages sent",
 	}, []string{"to"})
 
 	serverRepeatedMessageCount = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_server",
 		Name:      "repeated_count",
 		Help:      "count of received repeated messages",
 	}, []string{"from", "topic"})
 
 	grpcClientMetrics = grpc_prometheus.NewClientMetrics(func(opts *prometheus.CounterOpts) {
-		opts.Namespace = "ticdc"
+		opts.Namespace = "tikv_cdc"
 		opts.Subsystem = "message_client"
 	})
 
 	clientCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_client",
 		Name:      "client_count",
 		Help:      "count of messaging clients",
 	}, []string{"to"})
 
 	clientMessageCount = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_client",
 		Name:      "message_count",
 		Help:      "count of messages sent",
 	}, []string{"to"})
 
 	clientAckCount = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "message_client",
 		Name:      "ack_count",
 		Help:      "count of ack messages received",

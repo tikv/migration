@@ -28,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tikv/migration/cdc/cdc/capture"
 	"github.com/tikv/migration/cdc/cdc/kv"
-	"github.com/tikv/migration/cdc/cdc/sorter/unified"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
@@ -260,10 +259,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	wg.Go(func() error {
 		return s.etcdHealthChecker(cctx)
-	})
-
-	wg.Go(func() error {
-		return unified.RunWorkerPool(cctx)
 	})
 
 	wg.Go(func() error {

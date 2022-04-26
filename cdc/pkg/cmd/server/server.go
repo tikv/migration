@@ -23,10 +23,11 @@ import (
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
 	ticonfig "github.com/pingcap/tidb/config"
+	"github.com/tikv/migration/cdc/cdc"
+
+	//	"github.com/tikv/migration/cdc/cdc/sorter/unified"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/tikv/migration/cdc/cdc"
-	"github.com/tikv/migration/cdc/cdc/sorter/unified"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -132,7 +133,7 @@ func (o *options) run(cmd *cobra.Command) error {
 		return errors.Annotate(err, "run server")
 	}
 	server.Close()
-	unified.CleanUp()
+	// unified.CleanUp()
 	log.Info("cdc server exits successfully")
 
 	return nil

@@ -456,6 +456,16 @@ error = '''
 kafka send message failed
 '''
 
+["CDC:ErrKeySpanListenReplicated"]
+error = '''
+A keyspan(%d) is being replicated by at least two processors(%s, %s), please report a bug
+'''
+
+["CDC:ErrKeySpanProcessorStoppedSafely"]
+error = '''
+keyspan processor stopped safely
+'''
+
 ["CDC:ErrLeaseExpired"]
 error = '''
 owner lease expired 
@@ -743,7 +753,7 @@ prewrite not match, key: %s, start-ts: %d, commit-ts: %d, type: %s, optype: %s
 
 ["CDC:ErrProcessorDuplicateOperations"]
 error = '''
-table processor duplicate operation, table-id: %d
+keyspan processor duplicate operation, keyspan-id: %d
 '''
 
 ["CDC:ErrProcessorEtcdWatch"]
@@ -751,14 +761,14 @@ error = '''
 etcd watch returns error
 '''
 
+["CDC:ErrProcessorKeySpanNotFound"]
+error = '''
+keyspan not found in processor cache
+'''
+
 ["CDC:ErrProcessorSortDir"]
 error = '''
 sort dir error
-'''
-
-["CDC:ErrProcessorTableNotFound"]
-error = '''
-table not found in processor cache
 '''
 
 ["CDC:ErrProcessorUnknown"]
@@ -959,16 +969,6 @@ The TCP server has been closed
 ["CDC:ErrTableIneligible"]
 error = '''
 some tables are not eligible to replicate(%v), if you want to ignore these tables, please set ignore_ineligible_table to true
-'''
-
-["CDC:ErrTableListenReplicated"]
-error = '''
-A table(%d) is being replicated by at least two processors(%s, %s), please report a bug
-'''
-
-["CDC:ErrTableProcessorStoppedSafely"]
-error = '''
-table processor stopped safely
 '''
 
 ["CDC:ErrTargetTsBeforeStartTs"]

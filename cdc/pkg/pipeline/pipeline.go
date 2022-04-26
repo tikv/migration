@@ -96,7 +96,7 @@ func (p *Pipeline) driveRunner(ctx context.Context, previousRunner, runner runne
 	err := runner.run(ctx)
 	if err != nil {
 		ctx.Throw(err)
-		if cerror.ErrTableProcessorStoppedSafely.NotEqual(err) {
+		if cerror.ErrKeySpanProcessorStoppedSafely.NotEqual(err) {
 			log.Error("found error when running the node", zap.String("name", runner.getName()), zap.Error(err))
 		}
 	}

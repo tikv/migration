@@ -12,8 +12,3 @@
 // limitations under the License.
 
 package actor
-
-// InsertMailbox4Test add a mailbox into router. Test only.
-func (r *Router) InsertMailbox4Test(id ID, mb Mailbox) {
-	r.procs.Store(id, &proc{mb: mb})
-}

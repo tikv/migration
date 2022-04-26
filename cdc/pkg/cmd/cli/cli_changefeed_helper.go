@@ -24,13 +24,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc"
-	"github.com/tikv/migration/cdc/cdc/entry"
-	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
-	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/httputil"
 	"github.com/tikv/migration/cdc/pkg/security"
 )
@@ -61,58 +57,6 @@ func confirmLargeDataGap(cmd *cobra.Command, currentPhysical int64, startTs uint
 	}
 
 	return nil
-}
-
-// confirmIgnoreIneligibleTables confirm if user need to ignore ineligible tables.
-func confirmIgnoreIneligibleTables(cmd *cobra.Command) error {
-	cmd.Printf("Could you agree to ignore those tables, and continue to replicate [Y/N]\n")
-	var yOrN string
-	_, err := fmt.Scan(&yOrN)
-	if err != nil {
-		return err
-	}
-	if strings.ToLower(strings.TrimSpace(yOrN)) != "y" {
-		cmd.Printf("No changefeed is created because you don't want to ignore some tables.\n")
-		return errors.NewNoStackError("abort changefeed create or resume")
-	}
-
-	return nil
-}
-
-// getTables returns ineligibleTables and eligibleTables by filter.
-func getTables(cliPdAddr string, credential *security.Credential, cfg *config.ReplicaConfig, startTs uint64) (ineligibleTables, eligibleTables []model.TableName, err error) {
-	kvStore, err := kv.CreateTiStore(cliPdAddr, credential)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	meta, err := kv.GetSnapshotMeta(kvStore, startTs)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	filter, err := filter.NewFilter(cfg)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	snap, err := entry.NewSingleSchemaSnapshotFromMeta(meta, startTs, false /* explicitTables */)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	for _, tableInfo := range snap.Tables() {
-		if filter.ShouldIgnoreTable(tableInfo.TableName.Schema, tableInfo.TableName.Table) {
-			continue
-		}
-		if !tableInfo.IsEligible(false /* forceReplicate */) {
-			ineligibleTables = append(ineligibleTables, tableInfo.TableName)
-		} else {
-			eligibleTables = append(eligibleTables, tableInfo.TableName)
-		}
-	}
-
-	return
 }
 
 // sendOwnerChangefeedQuery sends owner changefeed query request.
