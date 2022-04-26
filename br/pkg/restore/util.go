@@ -114,10 +114,11 @@ func SplitRanges(
 	rewriteRules *RewriteRules,
 	updateCh glue.Progress,
 	isRawKv bool,
+	needEncodeKey bool,
 ) error {
 	splitter := NewRegionSplitter(NewSplitClient(client.GetPDClient(), client.GetTLSConfig(), isRawKv))
 
-	return splitter.Split(ctx, ranges, rewriteRules, isRawKv, func(keys [][]byte) {
+	return splitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(keys [][]byte) {
 		for range keys {
 			updateCh.Inc()
 		}
