@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"gc-worker/server/config"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,6 +12,7 @@ import (
 	"github.com/docker/go-units"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/tikv/migration/gc-worker/server/config"
 	pd "github.com/tikv/pd/client"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/clientv3/concurrency"
@@ -85,7 +85,7 @@ func CreateServer(ctx context.Context, cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	err = s.createEtcdClient(ctx)
+	err = s.createEtcdClient()
 	if err != nil {
 		log.Error("create pd client fail", zap.Error(err))
 		return nil, err
@@ -118,7 +118,7 @@ func (s *Server) createPdClient(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) createEtcdClient(ctx context.Context) error {
+func (s *Server) createEtcdClient() error {
 	endpoints := strings.Split(s.cfg.EtcdEndpoint, ",")
 	log.Info("create etcd v3 client", zap.Strings("endpoints", endpoints), zap.Reflect("cert", s.cfg.Security))
 
@@ -186,11 +186,6 @@ func ComposeTS(physical, logical int64) uint64 {
 // ExtractPhysical returns a ts's physical part.
 func ExtractPhysical(ts uint64) int64 {
 	return int64(ts >> physicalShiftBits)
-}
-
-// ExtractLogical return a ts's logical part.
-func ExtractLogical(ts uint64) int64 {
-	return int64(ts & logicalBits)
 }
 
 // GetPhysical returns physical from an instant time with millisecond precision.

@@ -16,8 +16,6 @@ package config
 
 import (
 	"flag"
-	"net/url"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/pingcap/errors"
@@ -172,20 +170,4 @@ func (c *Config) GetZapLogProperties() *log.ZapProperties {
 // GetConfigFile gets the config file.
 func (c *Config) GetConfigFile() string {
 	return c.configFile
-}
-
-// parseUrls parse a string into multiple urls.
-func parseUrls(s string) ([]url.URL, error) {
-	items := strings.Split(s, ",")
-	urls := make([]url.URL, 0, len(items))
-	for _, item := range items {
-		u, err := url.Parse(item)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		urls = append(urls, *u)
-	}
-
-	return urls, nil
 }

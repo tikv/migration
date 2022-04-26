@@ -1,4 +1,4 @@
-module gc-worker
+module github.com/tikv/migration/gc-worker
 
 go 1.16
 

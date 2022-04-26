@@ -17,13 +17,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"gc-worker/server"
-	"gc-worker/server/config"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/pingcap/log"
+	"github.com/tikv/migration/gc-worker/server"
+	"github.com/tikv/migration/gc-worker/server/config"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +32,7 @@ func main() {
 	err := cfg.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Printf("parse cmd flags error, %v", err)
-		log.Fatal("parse cmd flags error", zap.Error(err))
+		log.Error("parse cmd flags error", zap.Error(err))
 		exit(1)
 	}
 
@@ -47,7 +47,7 @@ func main() {
 		log.ReplaceGlobals(cfg.GetZapLogger(), cfg.GetZapLogProperties())
 	} else {
 		fmt.Printf("initialize logger error, %v", err)
-		log.Fatal("initialize logger error", zap.Error(err))
+		log.Error("initialize logger error", zap.Error(err))
 		exit(1)
 	}
 	// Flushing any buffered log entries
@@ -60,7 +60,7 @@ func main() {
 	svr, err := server.CreateServer(ctx, cfg)
 	if err != nil {
 		fmt.Printf("fail to start GCWorker, %v", err)
-		log.Fatal("create server failed", zap.Error(err))
+		log.Error("create server failed", zap.Error(err))
 		exit(1)
 	}
 
