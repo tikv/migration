@@ -1,9 +1,12 @@
+// Copyright 2022 PingCAP, Inc. Licensed under Apache-2.0.
+
 package server
 
 import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -12,7 +15,6 @@ import (
 	"github.com/docker/go-units"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/tikv/migration/gc-worker/server/config"
 	pd "github.com/tikv/pd/client"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/clientv3/concurrency"
@@ -30,7 +32,6 @@ const (
 	etcdCampaignInterval  = 10 * 1000 * 1000        // 1 ms
 
 	physicalShiftBits = 18
-	logicalBits       = (1 << physicalShiftBits) - 1
 )
 
 var (
@@ -52,13 +53,13 @@ func PrintGCWorkerInfo() {
 type Server struct {
 	// Server state.
 	isServing int64
-	isLead    bool
+	isLead    int64
 
 	// Server start timestamp
 	startTimestamp int64
 
 	// Configs and initial fields.
-	cfg *config.Config
+	cfg *Config
 
 	ctx              context.Context
 	serverLoopCtx    context.Context
@@ -70,7 +71,7 @@ type Server struct {
 }
 
 // CreateServer creates the UNINITIALIZED pd server with given configuration.
-func CreateServer(ctx context.Context, cfg *config.Config) (*Server, error) {
+func CreateServer(ctx context.Context, cfg *Config) (*Server, error) {
 	log.Info("GCWorker Config", zap.Reflect("config", cfg))
 
 	s := &Server{
@@ -139,6 +140,15 @@ func (s *Server) createEtcdClient() error {
 
 // Close closes the server.
 func (s *Server) Close() {
+	if s.etcdClient != nil {
+		if err := s.etcdClient.Close(); err != nil {
+			log.Error("close etcd client meet error", zap.Error(err))
+		}
+	}
+	if s.pdClient != nil {
+		s.pdClient.Close()
+	}
+
 	if !atomic.CompareAndSwapInt64(&s.isServing, 1, 0) {
 		// server is already closed
 		return
@@ -147,22 +157,16 @@ func (s *Server) Close() {
 	log.Info("closing server")
 	s.stopServerLoop()
 
-	if s.etcdClient != nil {
-		if err := s.etcdClient.Close(); err != nil {
-			log.Error("close etcd client meet error", zap.Error(err))
-		}
-	}
-
-	if s.pdClient != nil {
-		s.pdClient.Close()
-	}
-
 	log.Info("closed server")
 }
 
 // checks whether server is closed or not.
 func (s *Server) IsServing() bool {
 	return atomic.LoadInt64(&s.isServing) != 0
+}
+
+func (s *Server) IsLead() bool {
+	return atomic.LoadInt64(&s.isLead) != 0
 }
 
 func (s *Server) StartServer() {
@@ -218,14 +222,44 @@ func (s *Server) startEtcdLoop() {
 				log.Error("campaign fail", zap.Error(err), zap.String("name", s.cfg.Name))
 				continue
 			}
-			s.isLead = true
+			atomic.StoreInt64(&s.isLead, 1)
 			log.Info("current node become etcd leader", zap.String("worker", s.cfg.Name))
 		case <-ctx.Done():
-			s.isLead = false
-			log.Info("server is closed, exit metrics loop")
+			atomic.StoreInt64(&s.isLead, 0)
+			log.Info("server is closed, exit etcd loop")
 			return
 		}
 	}
+}
+
+func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
+	ttl := int64(time.Hour / time.Second)
+	serviceSafePoint, err := s.pdClient.UpdateServiceGCSafePoint(ctx, "gc", ttl, math.MaxUint64)
+	if err != nil {
+		log.Error("update service gc safepoint fails", zap.Error(err))
+		return errors.Trace(err)
+	}
+	physical, logical, err := s.pdClient.GetTS(ctx)
+	if err != nil {
+		log.Error("fail to get tso", zap.Error(err))
+		return errors.Trace(err)
+	}
+	currentTs := ComposeTS(physical, logical)
+	currentTime := GetTimeFromTS(currentTs)
+	safePointTime := currentTime.Add(-*gcLifetime)
+	gcSafePoint := ComposeTS(GetPhysical(safePointTime), 0)
+	safePoint, err := s.pdClient.UpdateGCSafePoint(ctx, gcSafePoint)
+	if err != nil {
+		log.Error("update gc safepoint fails", zap.Error(err))
+		return errors.Trace(err)
+	}
+	log.Info("update gc safepoint", zap.Int64("tso physical", physical),
+		zap.Int64("tso logical", logical),
+		zap.Uint64("gc sp", gcSafePoint),
+		zap.Uint64("service sp", serviceSafePoint),
+		zap.Uint64("return gc sp", safePoint))
+	return nil
+
 }
 
 func (s *Server) startUpdateGCSafePointLoop() {
@@ -236,38 +270,17 @@ func (s *Server) startUpdateGCSafePointLoop() {
 	for {
 		select {
 		case <-time.After(updateGCPointInterval):
-			if !s.IsServing() || !s.isLead {
+			if !s.IsServing() || !s.IsLead() {
 				log.Info("current node is not serving or not lead.",
-					zap.Bool("serving", s.IsServing()), zap.Bool("isLead", s.isLead))
+					zap.Bool("serving", s.IsServing()), zap.Bool("isLead", s.IsLead()))
 				continue
 			}
-			physical, logical, err := s.pdClient.GetTS(ctx)
-			if err != nil {
-				log.Error("fail to get tso", zap.Error(err))
+			if err := s.updateRawGCSafePoint(ctx); err != nil {
 				continue
 			}
-			currentTs := ComposeTS(physical, logical)
-			currentTime := GetTimeFromTS(currentTs)
-			safePointTime := currentTime.Add(-*gcLifetime)
-			gcworkerSafePoint := ComposeTS(GetPhysical(safePointTime), 0)
-			ttl := int64(time.Hour / time.Second)
-			serviceSafePoint, err := s.pdClient.UpdateServiceGCSafePoint(ctx, "gc", ttl, gcworkerSafePoint)
-			if err != nil {
-				log.Error("update service gc safepoint fails", zap.Error(err))
-				continue
-			}
-			safePoint, err := s.pdClient.UpdateGCSafePoint(ctx, serviceSafePoint)
-			if err != nil {
-				log.Error("update gc safepoint fails", zap.Error(err))
-				continue
-			}
-			log.Info("update gc safepoint", zap.Int64("tso physical", physical),
-				zap.Int64("tso logical", logical),
-				zap.Uint64("gcworker sp", gcworkerSafePoint),
-				zap.Uint64("service sp", serviceSafePoint),
-				zap.Uint64("gc sp", safePoint))
+
 		case <-ctx.Done():
-			log.Info("server is closed, exit metrics loop")
+			log.Info("server is closed, exit update gcSafePoint loop")
 			return
 		}
 	}

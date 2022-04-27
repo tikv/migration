@@ -1,3 +1,17 @@
+# Copyright 2022 PingCAP, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Build pd-server, pd-ctl, pd-recover
 default: build
 
@@ -10,8 +24,8 @@ DIRECTORIES    := $(PACKAGES) | sed 's|github.com/tikv/migration/gc-worker/||'
 build: gc-worker
 
 gc-worker: 
-	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BUILD_BIN_PATH)/gc-worker cmd/*.go
-
+	CGO_ENABLED=1 $(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BUILD_BIN_PATH)/gc-worker cmd/*.go
+ 
 check: check/golangci-lint check/gosec
 
 check/golangci-lint: tools/bin/golangci-lint

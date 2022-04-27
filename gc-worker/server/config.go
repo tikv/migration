@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package server
 
 import (
 	"flag"
@@ -76,12 +76,6 @@ func NewConfig() *Config {
 const (
 	defaultName      = "gc-worker"
 	defaultLogFormat = "text"
-)
-
-// Special keys for Labels
-const (
-	// ZoneLabel is the name of the key which indicates DC location of this PD server.
-	ZoneLabel = "zone"
 )
 
 // configFromFile loads config from file.

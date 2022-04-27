@@ -16,6 +16,7 @@ require (
 	github.com/pingcap/kvproto v0.0.0-20220330070404-8c4cd3f93748 // indirect
 	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354
 	github.com/sirupsen/logrus v1.4.2 // indirect
+	github.com/stretchr/testify v1.7.0
 	github.com/tikv/pd v1.1.0-beta.0.20211118054146-02848d2660ee
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 	go.uber.org/zap v1.19.1
