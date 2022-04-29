@@ -30,7 +30,7 @@ func main() {
 	cfg := server.NewConfig()
 	err := cfg.Parse(os.Args[1:])
 	if err != nil {
-		fmt.Printf("parse cmd flags error, %v", err)
+		fmt.Printf("parse cmd flags error, %v.\n", err)
 		exit(1)
 	}
 
@@ -44,7 +44,7 @@ func main() {
 	if err == nil {
 		log.ReplaceGlobals(cfg.GetZapLogger(), cfg.GetZapLogProperties())
 	} else {
-		fmt.Printf("initialize logger error, %v", err)
+		fmt.Printf("initialize logger error, %v.\n", err)
 		exit(1)
 	}
 	// Flushing any buffered log entries
@@ -56,7 +56,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	svr, err := server.CreateServer(ctx, cfg)
 	if err != nil {
-		fmt.Printf("fail to start GCWorker, %v", err)
+		fmt.Printf("fail to start GCWorker, %v.\n", err)
 		exit(1)
 	}
 

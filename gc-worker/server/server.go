@@ -16,9 +16,7 @@ package server
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,6 +26,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/pkg/tsoutil"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/clientv3/concurrency"
 	"go.uber.org/zap"
@@ -35,31 +34,21 @@ import (
 )
 
 const (
-	etcdTimeout = time.Second * 3
+	etcdTimeout = time.Duration(3) * time.Second
 	// gcWorkerRootPath for all gcworker servers.
-	gcWorkerRootPath      = "/gc-worker/selection"
-	gcWorkerElectionVal   = "local"
-	maxMsgSize            = int(128 * units.MiB)
-	updateGCPointInterval = 10 * 1000 * 1000 * 1000 // 10 minutes
-	etcdCampaignInterval  = 10 * 1000 * 1000        // 1 ms
-
-	physicalShiftBits = 18
-)
-
-var (
-	// EtcdStartTimeout the timeout of the startup etcd.
-	EtcdStartTimeout = time.Minute * 5
-	gcLifetime       = flag.Duration("lifetime", time.Minute*10, "Time during which the data should be kept. default: 10m")
+	gcWorkerRootPath    = "/gc-worker/selection"
+	gcWorkerElectionVal = "local"
+	maxMsgSize          = int(128 * units.MiB)
 )
 
 // LogPDInfo prints the PD version information.
 func LogGCWorkerInfo() {
-	log.Info("Welcome to GC-Worker for TiKV")
+	log.Info("Welcome to GC-Worker for TiKV.")
 }
 
 // PrintPDInfo prints the PD version information without log info.
 func PrintGCWorkerInfo() {
-	fmt.Printf("GC Worker for TiKV version 0.1.0")
+	fmt.Printf("GC Worker for TiKV version 0.1.0.\n")
 }
 
 type Server struct {
@@ -77,7 +66,7 @@ type Server struct {
 	serverLoopCtx    context.Context
 	serverLoopCancel func()
 	serverLoopWg     sync.WaitGroup
-	// etcd client
+
 	etcdClient *clientv3.Client
 	pdClient   pd.Client
 }
@@ -132,8 +121,12 @@ func (s *Server) createPdClient(ctx context.Context) error {
 }
 
 func (s *Server) createEtcdClient() error {
+	if len(s.cfg.EtcdEndpoint) == 0 {
+		return errors.New("No etcd enpoint is specified")
+	}
 	endpoints := strings.Split(s.cfg.EtcdEndpoint, ",")
-	log.Info("create etcd v3 client", zap.Strings("endpoints", endpoints), zap.Reflect("cert", s.cfg.Security))
+	log.Info("create etcd v3 client", zap.Strings("endpoints", endpoints),
+		zap.Reflect("cert", s.cfg.TlsConfig))
 
 	lgc := zap.NewProductionConfig()
 	lgc.Encoding = log.ZapEncodingName
@@ -194,27 +187,6 @@ func (s *Server) stopServerLoop() {
 	s.serverLoopWg.Wait()
 }
 
-// ComposeTS creates a ts from physical and logical parts.
-func ComposeTS(physical, logical int64) uint64 {
-	return uint64((physical << physicalShiftBits) + logical)
-}
-
-// ExtractPhysical returns a ts's physical part.
-func ExtractPhysical(ts uint64) int64 {
-	return int64(ts >> physicalShiftBits)
-}
-
-// GetPhysical returns physical from an instant time with millisecond precision.
-func GetPhysical(t time.Time) int64 {
-	return t.UnixNano() / int64(time.Millisecond)
-}
-
-// GetTimeFromTS extracts time.Time from a timestamp.
-func GetTimeFromTS(ts uint64) time.Time {
-	ms := ExtractPhysical(ts)
-	return time.Unix(ms/1e3, (ms%1e3)*1e6)
-}
-
 func (s *Server) startEtcdLoop() {
 	defer s.serverLoopWg.Done()
 	ctx, cancel := context.WithCancel(s.serverLoopCtx)
@@ -222,7 +194,7 @@ func (s *Server) startEtcdLoop() {
 
 	for {
 		select {
-		case <-time.After(etcdCampaignInterval):
+		case <-time.After(s.cfg.EtcdElectionInterval.Duration):
 			session, err := concurrency.NewSession(s.etcdClient, concurrency.WithTTL(5))
 			if err != nil {
 				log.Error("create election session fail", zap.Error(err), zap.String("name", s.cfg.Name))
@@ -244,34 +216,61 @@ func (s *Server) startEtcdLoop() {
 	}
 }
 
-func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
-	ttl := int64(time.Hour / time.Second)
-	serviceSafePoint, err := s.pdClient.UpdateServiceGCSafePoint(ctx, "gc", ttl, math.MaxUint64)
-	if err != nil {
-		log.Error("update service gc safepoint fails", zap.Error(err))
-		return errors.Trace(err)
-	}
+func (s *Server) getGCWorkerSafePoint(ctx context.Context) (uint64, error) {
 	physical, logical, err := s.pdClient.GetTS(ctx)
 	if err != nil {
 		log.Error("fail to get tso", zap.Error(err))
-		return errors.Trace(err)
+		return 0, errors.Trace(err)
 	}
-	currentTs := ComposeTS(physical, logical)
-	currentTime := GetTimeFromTS(currentTs)
-	safePointTime := currentTime.Add(-*gcLifetime)
-	gcSafePoint := ComposeTS(GetPhysical(safePointTime), 0)
-	safePoint, err := s.pdClient.UpdateGCSafePoint(ctx, gcSafePoint)
-	if err != nil {
-		log.Error("update gc safepoint fails", zap.Error(err))
-		return errors.Trace(err)
-	}
-	log.Info("update gc safepoint", zap.Int64("tso physical", physical),
-		zap.Int64("tso logical", logical),
-		zap.Uint64("gc sp", gcSafePoint),
-		zap.Uint64("service sp", serviceSafePoint),
-		zap.Uint64("return gc sp", safePoint))
-	return nil
+	currentTs := tsoutil.ComposeTS(physical, logical)
+	unixTime, _ := tsoutil.ParseTS(currentTs)
+	safePointTime := unixTime.Add(-s.cfg.GCLifeTime.Duration)
+	gcSafePoint := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(safePointTime, 0))
+	return gcSafePoint, nil
+}
 
+func (s *Server) calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint uint64) uint64 {
+	if serviceSafePoint < gcWorkerSafePoint {
+		return serviceSafePoint
+	}
+	return gcWorkerSafePoint
+}
+
+func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
+	allServiceGroups, err := s.pdClient.GetServiceGroup(ctx)
+	if err != nil {
+		log.Error("get service group from gc failed", zap.Error(err))
+		return errors.Trace(err)
+	}
+
+	gcWorkerSafePoint, err := s.getGCWorkerSafePoint(ctx)
+	if err != nil {
+		log.Error("calc gc-worker safe point fails.", zap.Error(err))
+		return errors.Trace(err)
+	}
+
+	// TODO: Different service group may need different update frequency.
+	for _, serviceGroup := range allServiceGroups {
+		serviceSafePoint, revision, err := s.pdClient.GetMinServiceSafePointByServiceGroup(ctx, serviceGroup)
+		if err != nil {
+			log.Error("get min service safe point fails.", zap.Error(err),
+				zap.String("serviceGroup", serviceGroup))
+			continue
+		}
+		gcSafePoint := s.calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint)
+		succeed, newSafePoint, revisionValid, err := s.pdClient.UpdateGCSafePointByServiceGroup(ctx, serviceGroup,
+			gcSafePoint, revision)
+		if err != nil {
+			log.Error("update gc safepoint fails", zap.Error(err))
+			return errors.Trace(err)
+		}
+		log.Info("update gc safepoint finish", zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
+			zap.Uint64("serviceSafePoint", serviceSafePoint),
+			zap.Uint64("newSafePoint", newSafePoint),
+			zap.Bool("succeed", succeed),
+			zap.Bool("revisionValid", revisionValid))
+	}
+	return nil
 }
 
 func (s *Server) startUpdateGCSafePointLoop() {
@@ -281,7 +280,7 @@ func (s *Server) startUpdateGCSafePointLoop() {
 
 	for {
 		select {
-		case <-time.After(updateGCPointInterval):
+		case <-time.After(s.cfg.SafePointUpdateInterval.Duration):
 			if !s.IsServing() || !s.IsLead() {
 				log.Info("current node is not serving or not lead.",
 					zap.Bool("serving", s.IsServing()), zap.Bool("isLead", s.IsLead()))

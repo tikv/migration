@@ -27,6 +27,33 @@ import (
 	"go.etcd.io/etcd/embed"
 )
 
+func CreateAndStartTestServer(ctx context.Context, num uint32, cfg *Config) []*Server {
+	ret := []*Server{}
+	for i := 0; i < int(num); i++ {
+		s := &Server{
+			cfg:            cfg,
+			ctx:            ctx,
+			startTimestamp: time.Now().Unix(),
+		}
+		if err := s.createEtcdClient(); err != nil {
+			return nil
+		}
+		ret = append(ret, s)
+	}
+	return ret
+}
+
+func CloseAllServers(servers []*Server) {
+	if servers == nil || len(servers) == 0 {
+		return
+	}
+	for _, server := range servers {
+		if server != nil {
+			server.Close()
+		}
+	}
+}
+
 func TestServer(t *testing.T) {
 	etcdCfg := NewTestSingleConfig()
 	etcd, err := embed.StartEtcd(etcdCfg)
@@ -39,22 +66,25 @@ func TestServer(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s := &Server{
-		cfg:            cfg,
-		ctx:            ctx,
-		startTimestamp: time.Now().Unix(),
+	servers := CreateAndStartTestServer(ctx, 3, cfg)
+	defer CloseAllServers(servers)
+	require.NotEqual(t, servers, nil)
+	for _, server := range servers {
+		require.NotEqual(t, server, nil)
+		server.StartServer()
+		time.Sleep(time.Second * 1)
+		require.Equal(t, server.IsServing(), true)
 	}
-	err = s.createEtcdClient()
-	require.Equal(t, err, nil)
-	defer s.Close()
 
-	s.StartServer()
-	require.Equal(t, s.IsServing(), true)
-
-	time.Sleep(time.Duration(5) * time.Second)
-	require.Equal(t, s.IsLead(), true)
-	s.Close()
-	require.Equal(t, s.IsServing(), false)
+	time.Sleep(time.Duration(1) * time.Second)
+	leaderNum := 0
+	for _, server := range servers {
+		if server.IsLead() {
+			leaderNum += 1
+		}
+	}
+	// only one server can be the leader
+	require.Equal(t, leaderNum, 1)
 }
 
 // NewTestSingleConfig is used to create a etcd config for the unit test purpose.

@@ -16,23 +16,22 @@ package server
 
 import (
 	"flag"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/tikv/pd/pkg/typeutil"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-// SecurityConfig indicates the security configuration for pd server
-type SecurityConfig struct {
-	// grpcutil.TLSConfig  //TODO support security config
-	// RedactInfoLog indicates that whether enabling redact log
-	RedactInfoLog bool `toml:"redact-info-log" json:"redact-info-log"`
+type TLSConfig struct {
+	CA   string `json:"ca" toml:"ca"`
+	Cert string `json:"cert" toml:"cert"`
+	Key  string `json:"key" toml:"key"`
 }
 
-// Config is the pd server configuration.
-// NOTE: This type is exported by HTTP API. Please pay more attention when modifying it.
 type Config struct {
 	flagSet *flag.FlagSet
 
@@ -43,7 +42,10 @@ type Config struct {
 	PdAddrs      string `toml:"pd" json:"pd"`
 	EtcdEndpoint string `toml:"etcd" json:"etcd"`
 
-	Security SecurityConfig `toml:"security" json:"security"`
+	SafePointUpdateInterval typeutil.Duration `toml:"safepoint-update-interval" json:"safepoint-update-interval"`
+	EtcdElectionInterval    typeutil.Duration `toml:"etcd-election-interval" json:"etcd-election-interval"`
+	GCLifeTime              typeutil.Duration `toml:"gc-life-time" json:"gc-life-time"`
+	TlsConfig               TLSConfig         `toml:"security" json:"security"`
 
 	// Log related config.
 	Log log.Config `toml:"log" json:"log"`
@@ -63,25 +65,43 @@ func NewConfig() *Config {
 	fs.BoolVar(&cfg.Version, "V", false, "print version information and exit")
 	fs.BoolVar(&cfg.Version, "version", false, "print version information and exit")
 
-	fs.StringVar(&cfg.configFile, "config", "", "config file")
-
+	fs.DurationVar(&cfg.SafePointUpdateInterval.Duration, "safepoint-update-interval",
+		defaultUpdateSafePointInterval, "update interval of gc safepoint")
+	fs.DurationVar(&cfg.EtcdElectionInterval.Duration, "etcd-election-interval",
+		defaultEtcdElectionInterval, "update interval of etcd election")
+	fs.DurationVar(&cfg.GCLifeTime.Duration, "gc-life-time",
+		defaultGCLifeTime, "gc life time")
 	fs.StringVar(&cfg.PdAddrs, "pd", "", "specify pd address (usage: pd '${pd-addrs}'")
 	fs.StringVar(&cfg.EtcdEndpoint, "etcd", "", "specify etcd endpoints")
 	fs.StringVar(&cfg.Log.Level, "L", "info", "log level: debug, info, warn, error, fatal (default 'info')")
 	fs.StringVar(&cfg.Log.File.Filename, "log-file", "gc_worker.log", "log file path")
 
+	fs.StringVar(&cfg.configFile, "config", "", "config file")
 	return cfg
 }
 
 const (
-	defaultName      = "gc-worker"
-	defaultLogFormat = "text"
+	defaultName                    = "gc-worker"
+	defaultLogFormat               = "text"
+	defaultUpdateSafePointInterval = time.Duration(10) * time.Second      // 10 s
+	defaultEtcdElectionInterval    = time.Duration(10) * time.Millisecond // 10 ms
+	defaultGCLifeTime              = time.Duration(10) * time.Minute      // 10 minutes
 )
 
 // configFromFile loads config from file.
-func (c *Config) configFromFile(path string) (*toml.MetaData, error) {
+func (c *Config) configFromFile(path string) error {
 	meta, err := toml.DecodeFile(path, c)
-	return &meta, errors.WithStack(err)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if len(meta.Undecoded()) != 0 {
+		undecodeStr := "There is undecoded bytes in config file:"
+		for _, undecodedKey := range meta.Undecoded() {
+			undecodeStr += undecodedKey.String()
+		}
+		return errors.New(undecodeStr)
+	}
+	return errors.WithStack(err)
 }
 
 func adjustString(v *string, defValue string) {
@@ -90,20 +110,42 @@ func adjustString(v *string, defValue string) {
 	}
 }
 
+func adjustDuration(d *typeutil.Duration, defValue time.Duration) {
+	if d.Nanoseconds() == 0 {
+		*d = typeutil.Duration{Duration: defValue}
+	}
+}
+
 // Validate is used to validate if some configurations are right.
 func (c *Config) Validate() error {
+	if c.Version {
+		return nil
+	}
+	if len(c.PdAddrs) == 0 {
+		return errors.New("no pd address is parsed.")
+	}
+	if len(c.EtcdEndpoint) == 0 {
+		return errors.New("no etcd enpoint is parsed.")
+	}
 	return nil
 }
 
 // Adjust is used to adjust the configurations.
-func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
-	if err := c.Validate(); err != nil {
-		return err
-	}
+func (c *Config) Adjust() error {
 	adjustString(&c.Name, defaultName)
+	// reuse pd's etcd server as server
+	adjustString(&c.EtcdEndpoint, c.PdAddrs)
+
+	adjustDuration(&c.SafePointUpdateInterval, defaultUpdateSafePointInterval)
+	adjustDuration(&c.EtcdElectionInterval, defaultEtcdElectionInterval)
+	adjustDuration(&c.GCLifeTime, defaultGCLifeTime)
 
 	if len(c.Log.Format) == 0 {
 		c.Log.Format = defaultLogFormat
+	}
+
+	if err := c.Validate(); err != nil {
+		return err
 	}
 
 	return nil
@@ -118,9 +160,8 @@ func (c *Config) Parse(arguments []string) error {
 	}
 
 	// Load config file if specified.
-	var meta *toml.MetaData
 	if c.configFile != "" {
-		meta, err = c.configFromFile(c.configFile)
+		err = c.configFromFile(c.configFile)
 		if err != nil {
 			return err
 		}
@@ -136,7 +177,7 @@ func (c *Config) Parse(arguments []string) error {
 		return errors.Errorf("'%s' is an invalid flag", c.flagSet.Arg(0))
 	}
 
-	err = c.Adjust(meta, false)
+	err = c.Adjust()
 	return err
 }
 
