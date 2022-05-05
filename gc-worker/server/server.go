@@ -36,7 +36,7 @@ import (
 const (
 	etcdTimeout = time.Duration(3) * time.Second
 	// etcdElectionPath for all gcworker servers.
-	etcdElectionPath = "/gc-worker/selection"
+	etcdElectionPath = "/gc-worker/election"
 	etcdElectionVal  = "local"
 	maxPdMsgSize     = int(128 * units.MiB)
 )
