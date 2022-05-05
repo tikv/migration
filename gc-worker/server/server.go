@@ -35,10 +35,10 @@ import (
 
 const (
 	etcdTimeout = time.Duration(3) * time.Second
-	// gcWorkerRootPath for all gcworker servers.
-	gcWorkerRootPath    = "/gc-worker/selection"
-	gcWorkerElectionVal = "local"
-	maxMsgSize          = int(128 * units.MiB)
+	// etcdElectionPath for all gcworker servers.
+	etcdElectionPath = "/gc-worker/selection"
+	etcdElectionVal  = "local"
+	maxPdMsgSize     = int(128 * units.MiB)
 )
 
 // LogPDInfo prints the PD version information.
@@ -83,13 +83,13 @@ func CreateServer(ctx context.Context, cfg *Config) (*Server, error) {
 
 	err := s.createPdClient(ctx)
 	if err != nil {
-		log.Error("create pd client fail", zap.Error(err))
+		log.Error("create pd client fail", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return nil, err
 	}
 
 	err = s.createEtcdClient()
 	if err != nil {
-		log.Error("create pd client fail", zap.Error(err))
+		log.Error("create pd client fail", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return nil, err
 	}
 	return s, nil
@@ -103,8 +103,8 @@ func (s *Server) createPdClient(ctx context.Context) error {
 	addrs := strings.Split(s.cfg.PdAddrs, ",")
 	securityOption := pd.SecurityOption{}
 	maxCallMsgSize := []grpc.DialOption{
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize)),
-		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxPdMsgSize)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxPdMsgSize)),
 	}
 	pdClient, err := pd.NewClientWithContext(
 		ctx, addrs, securityOption,
@@ -113,7 +113,7 @@ func (s *Server) createPdClient(ctx context.Context) error {
 		pd.WithMaxErrorRetry(3),
 	)
 	if err != nil {
-		log.Error("fail to create pd client", zap.Error(err))
+		log.Error("fail to create pd client", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return errors.Trace(err)
 	}
 	s.pdClient = pdClient
@@ -126,7 +126,7 @@ func (s *Server) createEtcdClient() error {
 	}
 	endpoints := strings.Split(s.cfg.EtcdEndpoint, ",")
 	log.Info("create etcd v3 client", zap.Strings("endpoints", endpoints),
-		zap.Reflect("cert", s.cfg.TlsConfig))
+		zap.Reflect("cert", s.cfg.TlsConfig), zap.String("worker", s.cfg.Name))
 
 	lgc := zap.NewProductionConfig()
 	lgc.Encoding = log.ZapEncodingName
@@ -147,7 +147,7 @@ func (s *Server) createEtcdClient() error {
 func (s *Server) Close() {
 	if s.etcdClient != nil {
 		if err := s.etcdClient.Close(); err != nil {
-			log.Error("close etcd client meet error", zap.Error(err))
+			log.Error("close etcd client meet error", zap.Error(err), zap.String("worker", s.cfg.Name))
 		}
 	}
 	if s.pdClient != nil {
@@ -159,10 +159,10 @@ func (s *Server) Close() {
 		return
 	}
 
-	log.Info("closing server")
+	log.Info("closing server", zap.String("worker", s.cfg.Name))
 	s.stopServerLoop()
 
-	log.Info("closed server")
+	log.Info("closed server", zap.String("worker", s.cfg.Name))
 }
 
 // checks whether server is closed or not.
@@ -200,17 +200,20 @@ func (s *Server) startEtcdLoop() {
 				log.Error("create election session fail", zap.Error(err), zap.String("name", s.cfg.Name))
 				continue
 			}
-			election := concurrency.NewElection(session, gcWorkerRootPath)
+			election := concurrency.NewElection(session, etcdElectionPath)
 			log.Info("start campaign for leader", zap.String("worker", s.cfg.Name))
-			if err = election.Campaign(ctx, gcWorkerElectionVal); err != nil {
+			if err = election.Campaign(ctx, etcdElectionVal); err != nil {
 				log.Error("campaign fail", zap.Error(err), zap.String("name", s.cfg.Name))
 				continue
 			}
 			atomic.StoreInt64(&s.isLead, 1)
 			log.Info("current node become etcd leader", zap.String("worker", s.cfg.Name))
+			<-session.Done()
+			atomic.StoreInt64(&s.isLead, 0)
+			log.Info("etcd election session expired", zap.String("worker", s.cfg.Name))
 		case <-ctx.Done():
 			atomic.StoreInt64(&s.isLead, 0)
-			log.Info("server is closed, exit etcd loop")
+			log.Info("server is closed, exit etcd loop", zap.String("worker", s.cfg.Name))
 			return
 		}
 	}
@@ -239,13 +242,13 @@ func (s *Server) calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint uint64) 
 func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 	allServiceGroups, err := s.pdClient.GetServiceGroup(ctx)
 	if err != nil {
-		log.Error("get service group from gc failed", zap.Error(err))
+		log.Error("get service group from gc failed", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return errors.Trace(err)
 	}
 
 	gcWorkerSafePoint, err := s.getGCWorkerSafePoint(ctx)
 	if err != nil {
-		log.Error("calc gc-worker safe point fails.", zap.Error(err))
+		log.Error("calc gc-worker safe point fails.", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return errors.Trace(err)
 	}
 
@@ -254,21 +257,22 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 		serviceSafePoint, revision, err := s.pdClient.GetMinServiceSafePointByServiceGroup(ctx, serviceGroup)
 		if err != nil {
 			log.Error("get min service safe point fails.", zap.Error(err),
-				zap.String("serviceGroup", serviceGroup))
+				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name))
 			continue
 		}
 		gcSafePoint := s.calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint)
 		succeed, newSafePoint, revisionValid, err := s.pdClient.UpdateGCSafePointByServiceGroup(ctx, serviceGroup,
 			gcSafePoint, revision)
 		if err != nil {
-			log.Error("update gc safepoint fails", zap.Error(err))
+			log.Error("update gc safepoint fails", zap.Error(err), zap.String("worker", s.cfg.Name))
 			return errors.Trace(err)
 		}
 		log.Info("update gc safepoint finish", zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
 			zap.Uint64("serviceSafePoint", serviceSafePoint),
 			zap.Uint64("newSafePoint", newSafePoint),
 			zap.Bool("succeed", succeed),
-			zap.Bool("revisionValid", revisionValid))
+			zap.Bool("revisionValid", revisionValid),
+			zap.String("worker", s.cfg.Name))
 	}
 	return nil
 }
@@ -282,7 +286,7 @@ func (s *Server) startUpdateGCSafePointLoop() {
 		select {
 		case <-time.After(s.cfg.SafePointUpdateInterval.Duration):
 			if !s.IsServing() || !s.IsLead() {
-				log.Info("current node is not serving or not lead.",
+				log.Info("current node is not serving or not lead", zap.String("worker", s.cfg.Name),
 					zap.Bool("serving", s.IsServing()), zap.Bool("isLead", s.IsLead()))
 				continue
 			}
@@ -291,7 +295,7 @@ func (s *Server) startUpdateGCSafePointLoop() {
 			}
 
 		case <-ctx.Done():
-			log.Info("server is closed, exit update gcSafePoint loop")
+			log.Info("server is closed, exit update gcSafePoint loop", zap.String("worker", s.cfg.Name))
 			return
 		}
 	}

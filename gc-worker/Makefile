@@ -19,12 +19,12 @@ GO             := GO111MODULE=on go
 BUILD_BIN_PATH := $(shell pwd)/bin
 PACKAGES       := go list ./...
 DIRECTORIES    := $(PACKAGES) | sed 's|github.com/tikv/migration/gc-worker/||'
-
+TEST_PARALLEL  := 8
 #### Build ####
 build: gc-worker
 
 gc-worker: 
-	CGO_ENABLED=1 $(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BUILD_BIN_PATH)/gc-worker cmd/*.go
+	$(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BUILD_BIN_PATH)/gc-worker cmd/*.go
  
 check: check/golangci-lint check/gosec
 
@@ -37,6 +37,9 @@ tools/bin/golangci-lint:
 check/gosec:
 	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
 	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
+
+test:
+	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES))
 
 #### Clean up ####
 
