@@ -23,7 +23,7 @@ When GC-Worker is built successfully, you can find binary in the bin directory.
 tiup playground --mode tikv-slim
 
 # start GC-Worker process in three different nodes
-bin/gc-worker --name gc-worker0 --pd pd0:2379 --etcd etcd:3788 \
+bin/gc-worker --name gc-worker0 --pd pd0:2379 \
     --L info --log-file "/logs/gc-worker0.log"
 
 ```
