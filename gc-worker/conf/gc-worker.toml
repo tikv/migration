@@ -1,4 +1,4 @@
-# Importer Configuration.
+# GC worker Configuration.
 
 name = "gc-worker0"
 
@@ -9,9 +9,9 @@ etcd-election-interval = "10ms"
 gc-life-time = "10m"
 
 [security]
-ca = "abc"
-cert = "def"
-key = "hij"
+ca = "security_ca"
+cert = "security_cert"
+key = "security_key"
 
 [log]
 level = "info"
