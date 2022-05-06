@@ -65,7 +65,7 @@ type Config struct {
 	SafePointUpdateInterval typeutil.Duration `toml:"safepoint-update-interval" json:"safepoint-update-interval"`
 	EtcdElectionInterval    typeutil.Duration `toml:"etcd-election-interval" json:"etcd-election-interval"`
 	GCLifeTime              typeutil.Duration `toml:"gc-life-time" json:"gc-life-time"`
-	TlsConfig               TLSConfig         `toml:"security" json:"security"`
+	TLSConfig               TLSConfig         `toml:"security" json:"security"`
 
 	// Log related config.
 	Log log.Config `toml:"log" json:"log"`
@@ -141,10 +141,10 @@ func (c *Config) Validate() error {
 		return nil
 	}
 	if len(c.PdAddrs) == 0 {
-		return errors.New("no pd address is parsed.")
+		return errors.New("no pd address is parsed")
 	}
 	if len(c.EtcdEndpoint) == 0 {
-		return errors.New("no etcd enpoint is parsed.")
+		return errors.New("no etcd enpoint is parsed")
 	}
 	return nil
 }
@@ -164,11 +164,7 @@ func (c *Config) Adjust() error {
 		c.Log.Format = defaultLogFormat
 	}
 
-	if err := c.Validate(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.Validate()
 }
 
 // Parse parses flag definitions from the argument list.

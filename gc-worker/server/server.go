@@ -108,9 +108,9 @@ func (s *Server) GetServerName() string {
 func (s *Server) createPdClient(ctx context.Context) error {
 	addrs := strings.Split(s.cfg.PdAddrs, ",")
 	securityOption := pd.SecurityOption{
-		SSLCABytes:   []byte(s.cfg.TlsConfig.CA),
-		SSLCertBytes: []byte(s.cfg.TlsConfig.Cert),
-		SSLKEYBytes:  []byte(s.cfg.TlsConfig.Key),
+		SSLCABytes:   []byte(s.cfg.TLSConfig.CA),
+		SSLCertBytes: []byte(s.cfg.TLSConfig.Cert),
+		SSLKEYBytes:  []byte(s.cfg.TLSConfig.Key),
 	}
 	maxCallMsgSize := []grpc.DialOption{
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxPdMsgSize)),
@@ -136,11 +136,11 @@ func (s *Server) createEtcdClient() error {
 	}
 	endpoints := strings.Split(s.cfg.EtcdEndpoint, ",")
 	log.Info("create etcd v3 client", zap.Strings("endpoints", endpoints),
-		zap.Reflect("cert", s.cfg.TlsConfig), zap.String("worker", s.cfg.Name))
+		zap.Reflect("cert", s.cfg.TLSConfig), zap.String("worker", s.cfg.Name))
 
 	lgc := zap.NewProductionConfig()
 	lgc.Encoding = log.ZapEncodingName
-	tlsCfg, err := s.cfg.TlsConfig.ToTLSConfig()
+	tlsCfg, err := s.cfg.TLSConfig.ToTLSConfig()
 	if err != nil {
 		log.Error("tls config is invalid", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return err

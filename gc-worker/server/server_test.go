@@ -44,7 +44,7 @@ func CreateAndStartTestServer(ctx context.Context, num uint32, cfg *Config) []*S
 }
 
 func CloseAllServers(servers []*Server) {
-	if servers == nil || len(servers) == 0 {
+	if len(servers) == 0 {
 		return
 	}
 	for _, server := range servers {
