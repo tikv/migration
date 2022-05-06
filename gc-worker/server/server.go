@@ -36,19 +36,25 @@ import (
 const (
 	etcdTimeout = time.Duration(3) * time.Second
 	// etcdElectionPath for all gcworker servers.
-	etcdElectionPath = "/gc-worker/election"
-	etcdElectionVal  = "local"
-	maxPdMsgSize     = int(128 * units.MiB)
+	etcdElectionPath        = "/gc-worker/election"
+	etcdElectionVal         = "local"
+	maxPdMsgSize            = int(128 * units.MiB)
+	updateSafePointRetryCnt = int(10)
 )
 
-// LogPDInfo prints the PD version information.
+// The version info is set in Makefile
+var (
+	GCWorkerVersion = "None"
+)
+
+// LogGCWorkerInfo prints the GC-Worker version information.
 func LogGCWorkerInfo() {
-	log.Info("Welcome to GC-Worker for TiKV.")
+	log.Info("Welcome to GC-Worker for TiKV.", zap.String("version", GCWorkerVersion))
 }
 
-// PrintPDInfo prints the PD version information without log info.
+// PrintGCWorkerInfo prints the GC-Worker version information without log info.
 func PrintGCWorkerInfo() {
-	fmt.Printf("GC Worker for TiKV version 0.1.0.\n")
+	fmt.Println("GC-Worker for TiKV Release Version:", GCWorkerVersion)
 }
 
 type Server struct {
@@ -101,7 +107,11 @@ func (s *Server) GetServerName() string {
 
 func (s *Server) createPdClient(ctx context.Context) error {
 	addrs := strings.Split(s.cfg.PdAddrs, ",")
-	securityOption := pd.SecurityOption{}
+	securityOption := pd.SecurityOption{
+		SSLCABytes:   []byte(s.cfg.TlsConfig.CA),
+		SSLCertBytes: []byte(s.cfg.TlsConfig.Cert),
+		SSLKEYBytes:  []byte(s.cfg.TlsConfig.Key),
+	}
 	maxCallMsgSize := []grpc.DialOption{
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxPdMsgSize)),
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxPdMsgSize)),
@@ -130,10 +140,15 @@ func (s *Server) createEtcdClient() error {
 
 	lgc := zap.NewProductionConfig()
 	lgc.Encoding = log.ZapEncodingName
+	tlsCfg, err := s.cfg.TlsConfig.ToTLSConfig()
+	if err != nil {
+		log.Error("tls config is invalid", zap.Error(err), zap.String("worker", s.cfg.Name))
+		return err
+	}
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: etcdTimeout,
-		TLS:         nil,
+		TLS:         tlsCfg,
 		LogConfig:   &lgc,
 	})
 	if err != nil {
@@ -239,6 +254,39 @@ func (s *Server) calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint uint64) 
 	return gcWorkerSafePoint
 }
 
+func (s *Server) updateServiceGroupSafePointWithRetry(ctx context.Context, serviceGroup string, gcWorkerSafePoint uint64) error {
+	succeed := false
+	for i := 0; i < updateSafePointRetryCnt; i++ {
+		serviceSafePoint, revision, err := s.pdClient.GetMinServiceSafePointByServiceGroup(ctx, serviceGroup)
+		if err != nil {
+			log.Error("get min service safe point fails.", zap.Error(err),
+				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name))
+			return errors.Trace(err)
+		}
+		gcSafePoint := s.calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint)
+		succeed, newSafePoint, _, err := s.pdClient.UpdateGCSafePointByServiceGroup(ctx, serviceGroup,
+			gcSafePoint, revision)
+		if !succeed {
+			log.Info("update gc safepoint fail", zap.String("serviceGroup", serviceGroup),
+				zap.Int("retryCnt", i), zap.String("worker", s.cfg.Name), zap.Error(err))
+			continue
+		}
+		log.Info("update gc safepoint succeed", zap.String("serviceGroup", serviceGroup),
+			zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
+			zap.Uint64("serviceSafePoint", serviceSafePoint),
+			zap.Uint64("newSafePoint", newSafePoint),
+			zap.Int("retryCnt", i),
+			zap.String("worker", s.cfg.Name))
+		break
+	}
+	if !succeed {
+		log.Error("update gc safepoint fail", zap.String("serviceGroup", serviceGroup),
+			zap.String("worker", s.cfg.Name))
+		return errors.Errorf("update %s gc safepoint fail", s.cfg.Name)
+	}
+	return nil
+}
+
 func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 	allServiceGroups, err := s.pdClient.GetServiceGroup(ctx)
 	if err != nil {
@@ -254,25 +302,7 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 
 	// TODO: Different service group may need different update frequency.
 	for _, serviceGroup := range allServiceGroups {
-		serviceSafePoint, revision, err := s.pdClient.GetMinServiceSafePointByServiceGroup(ctx, serviceGroup)
-		if err != nil {
-			log.Error("get min service safe point fails.", zap.Error(err),
-				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name))
-			continue
-		}
-		gcSafePoint := s.calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint)
-		succeed, newSafePoint, revisionValid, err := s.pdClient.UpdateGCSafePointByServiceGroup(ctx, serviceGroup,
-			gcSafePoint, revision)
-		if err != nil {
-			log.Error("update gc safepoint fails", zap.Error(err), zap.String("worker", s.cfg.Name))
-			return errors.Trace(err)
-		}
-		log.Info("update gc safepoint finish", zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
-			zap.Uint64("serviceSafePoint", serviceSafePoint),
-			zap.Uint64("newSafePoint", newSafePoint),
-			zap.Bool("succeed", succeed),
-			zap.Bool("revisionValid", revisionValid),
-			zap.String("worker", s.cfg.Name))
+		s.updateServiceGroupSafePointWithRetry(ctx, serviceGroup, gcWorkerSafePoint)
 	}
 	return nil
 }

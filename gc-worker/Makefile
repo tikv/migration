@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Build pd-server, pd-ctl, pd-recover
 default: build
 
 GO             := GO111MODULE=on go
@@ -20,6 +19,10 @@ BUILD_BIN_PATH := $(shell pwd)/bin
 PACKAGES       := go list ./...
 DIRECTORIES    := $(PACKAGES) | sed 's|github.com/tikv/migration/gc-worker/||'
 TEST_PARALLEL  := 8
+
+GCWORKER_PKG   := github.com/tikv/migration/gc-worker
+
+LDFLAGS += -X "$(GCWORKER_PKG)/server.GCWorkerVersion=$(shell git describe --tags --dirty --always)"
 #### Build ####
 build: gc-worker
 

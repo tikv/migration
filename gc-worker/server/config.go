@@ -15,13 +15,16 @@
 package server
 
 import (
+	"crypto/tls"
 	"flag"
+	"os"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"github.com/tikv/pd/pkg/typeutil"
+	"go.etcd.io/etcd/pkg/transport"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -30,6 +33,23 @@ type TLSConfig struct {
 	CA   string `json:"ca" toml:"ca"`
 	Cert string `json:"cert" toml:"cert"`
 	Key  string `json:"key" toml:"key"`
+}
+
+// ToTLSConfig generate tls.Config.
+func (tls *TLSConfig) ToTLSConfig() (*tls.Config, error) {
+	if tls.CA == "" {
+		return nil, nil
+	}
+	tlsInfo := transport.TLSInfo{
+		CertFile:      tls.Cert,
+		KeyFile:       tls.Key,
+		TrustedCAFile: tls.CA,
+	}
+	tlsConfig, err := tlsInfo.ClientConfig()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return tlsConfig, nil
 }
 
 type Config struct {
@@ -81,7 +101,6 @@ func NewConfig() *Config {
 }
 
 const (
-	defaultName                    = "gc-worker"
 	defaultLogFormat               = "text"
 	defaultUpdateSafePointInterval = time.Duration(10) * time.Second      // 10 s
 	defaultEtcdElectionInterval    = time.Duration(10) * time.Millisecond // 10 ms
@@ -132,7 +151,8 @@ func (c *Config) Validate() error {
 
 // Adjust is used to adjust the configurations.
 func (c *Config) Adjust() error {
-	adjustString(&c.Name, defaultName)
+	hostName, _ := os.Hostname() // error is ignored.
+	adjustString(&c.Name, hostName)
 	// reuse pd's etcd server as server
 	adjustString(&c.EtcdEndpoint, c.PdAddrs)
 

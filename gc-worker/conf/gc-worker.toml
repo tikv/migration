@@ -1,17 +1,24 @@
 # GC worker Configuration.
 
-name = "gc-worker0"
+# empty name will be replace by host name.
+name = ""
 
+# pd's advertise address
 pd = ""
+# if etcd is not specified, pd will be used as etcd.
 etcd = ""
+# interval for updating gc safepoint
 safepoint-update-interval = "10s"
+# interval for etcd election
 etcd-election-interval = "10ms"
+# the gc-worker safepoint is pd.ts - `gc-life-time`
 gc-life-time = "10m"
 
+# security settings is used to connect pd and etcd server.
 [security]
-ca = "security_ca"
-cert = "security_cert"
-key = "security_key"
+ca = ""
+cert = ""
+key = ""
 
 [log]
 level = "info"
