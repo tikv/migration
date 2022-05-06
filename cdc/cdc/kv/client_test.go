@@ -3345,8 +3345,6 @@ func (s *clientSuite) TestRegionWorkerExitWhenIsIdle(c *check.C) {
 	server1, addr1 := newMockService(ctx, c, srv1, wg)
 	srv1.recvLoop = func(server cdcpb.ChangeData_EventFeedServer) {
 		defer func() {
-			close(ch1)
-			server1.Stop()
 			server1Stopped <- struct{}{}
 		}()
 		for {
@@ -3357,6 +3355,13 @@ func (s *clientSuite) TestRegionWorkerExitWhenIsIdle(c *check.C) {
 			}
 		}
 	}
+
+	defer func() {
+		// Don't place in `srv1.recvLoop`.
+		// `srv1.recvLoop` is possible to be called more than once.
+		close(ch1)
+		server1.Stop()
+	}()
 
 	rpcClient, cluster, pdClient, err := testutils.NewMockTiKV("", mockcopr.NewCoprRPCHandler())
 	c.Assert(err, check.IsNil)

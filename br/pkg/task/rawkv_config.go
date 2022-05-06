@@ -44,6 +44,10 @@ func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
 		return errors.Trace(err)
 	}
 
+	if err = cfg.parseDstAPIVersion(flags); err != nil {
+		return errors.Trace(err)
+	}
+
 	compressionCfg, err := cfg.parseCompressionFlags(flags)
 	if err != nil {
 		return errors.Trace(err)
@@ -94,11 +98,6 @@ func (cfg *RawKvConfig) ParseFromFlags(flags *pflag.FlagSet) error {
 	// verify whether start key < end key.
 	if len(cfg.StartKey) > 0 && len(cfg.EndKey) > 0 && bytes.Compare(cfg.StartKey, cfg.EndKey) >= 0 {
 		return errors.Annotate(berrors.ErrBackupInvalidRange, "endKey must be greater than startKey")
-	}
-
-	// parse and verify destination API version.
-	if err = cfg.parseDstAPIVersion(flags); err != nil {
-		return err
 	}
 
 	// parse other configs.
@@ -156,4 +155,11 @@ func (cfg *RawKvConfig) parseCompressionType(s string) (backuppb.CompressionType
 		return backuppb.CompressionType_UNKNOWN, errors.Annotatef(berrors.ErrInvalidArgument, "invalid compression type '%s'", s)
 	}
 	return ct, nil
+}
+
+func (cfg *RawKvConfig) adjustBackupRange(curAPIVersion kvrpcpb.APIVersion) {
+	if curAPIVersion == kvrpcpb.APIVersion_V2 {
+		keyRange := utils.FormatAPIV2KeyRange(cfg.StartKey, cfg.EndKey)
+		cfg.StartKey, cfg.EndKey = keyRange.Start, keyRange.End
+	}
 }

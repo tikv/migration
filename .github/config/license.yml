@@ -28,4 +28,7 @@ header:
     - .golangci.yml
     - 'cdc/'
     - 'br/'
+    - 'gc-worker/go.sum'
+    - 'gc-worker/README.md'
+    - 'gc-worker/conf/gc-worker.toml'
   comment: on-failure

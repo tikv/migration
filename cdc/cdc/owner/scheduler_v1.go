@@ -502,7 +502,6 @@ type schedulerV1CompatWrapper struct {
 func (w *schedulerV1CompatWrapper) Tick(
 	ctx cdcContext.Context,
 	state *orchestrator.ChangefeedReactorState,
-	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (newCheckpointTs, newResolvedTs model.Ts, err error) {
 
