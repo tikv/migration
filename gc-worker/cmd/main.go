@@ -47,8 +47,6 @@ func main() {
 		fmt.Printf("initialize logger error, %v.\n", err)
 		exit(1)
 	}
-	// Flushing any buffered log entries
-	defer log.Sync()
 
 	server.LogGCWorkerInfo()
 
@@ -90,6 +88,6 @@ func main() {
 }
 
 func exit(code int) {
-	log.Sync()
+	_ = log.Sync()
 	os.Exit(code)
 }
