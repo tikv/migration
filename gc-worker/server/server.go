@@ -280,8 +280,6 @@ func (s *Server) updateServiceGroupSafePointWithRetry(ctx context.Context, servi
 		break
 	}
 	if !succeed {
-		log.Error("update gc safepoint fail", zap.String("serviceGroup", serviceGroup),
-			zap.String("worker", s.cfg.Name))
 		return errors.Errorf("update %s gc safepoint fail", s.cfg.Name)
 	}
 	return nil
@@ -302,7 +300,11 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 
 	// TODO: Different service group may need different update frequency.
 	for _, serviceGroup := range allServiceGroups {
-		s.updateServiceGroupSafePointWithRetry(ctx, serviceGroup, gcWorkerSafePoint)
+		err = s.updateServiceGroupSafePointWithRetry(ctx, serviceGroup, gcWorkerSafePoint)
+		if err != nil {
+			log.Error("update gc safepoint fail, will retry next time.",
+				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name))
+		}
 	}
 	return nil
 }
