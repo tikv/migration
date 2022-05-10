@@ -136,7 +136,7 @@ func (s *changefeedSuite) TestRemoveChangefeed(c *check.C) {
 		ID:   ctx.ChangefeedVars().ID,
 		Info: info,
 	})
-	testChangefeedReleaseResource(c, ctx, cancel, dir, true /*expectedInitialized*/)
+	testChangefeedReleaseResource(c, ctx, cancel, true /*expectedInitialized*/)
 }
 
 func (s *changefeedSuite) TestRemovePausedChangefeed(c *check.C) {
@@ -155,14 +155,13 @@ func (s *changefeedSuite) TestRemovePausedChangefeed(c *check.C) {
 		ID:   ctx.ChangefeedVars().ID,
 		Info: info,
 	})
-	testChangefeedReleaseResource(c, ctx, cancel, dir, false /*expectedInitialized*/)
+	testChangefeedReleaseResource(c, ctx, cancel, false /*expectedInitialized*/)
 }
 
 func testChangefeedReleaseResource(
 	c *check.C,
 	ctx cdcContext.Context,
 	cancel context.CancelFunc,
-	redoLogDir string,
 	expectedInitialized bool,
 ) {
 	cf, state, captures, tester := createChangefeed4Test(ctx, c)

@@ -43,7 +43,7 @@ func TestWorkloads(t *testing.T) {
 		"capture2": {4: model.WorkloadInfo{Workload: 1}, 3: model.WorkloadInfo{Workload: 2}, 5: model.WorkloadInfo{Workload: 8}},
 		"capture3": {6: model.WorkloadInfo{Workload: 1}},
 	})
-	require.Equal(t, w.AvgEachKeySpan(), uint64(2+1+2+8+1)/5)
+	require.Equal(t, w.AvgEachKeySpan(), int64(2+1+2+8+1)/5)
 	require.Equal(t, w.SelectIdleCapture(), "capture3")
 
 	require.Equal(t, fmt.Sprintf("%.2f%%", w.Skewness()*100), "96.36%")
