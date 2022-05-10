@@ -51,7 +51,7 @@ func (c *MockPDClient) Close() {}
 
 func (c *MockPDClient) GetTS(context.Context) (int64, int64, error) {
 	unixTime := time.Now()
-	ts := tsoutil.GenerateTimestamp(unixTime, c.tsLogical.Add(1)) // set logical as 0
+	ts := tsoutil.GenerateTimestamp(unixTime, c.tsLogical.Add(1)) // logical is not accurate here
 	return ts.Physical, ts.Logical, nil
 }
 
