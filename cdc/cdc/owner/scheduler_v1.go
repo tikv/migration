@@ -30,6 +30,7 @@ import (
 )
 
 type schedulerJobType string
+type updateCurrentKeySpansFunc func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
 
 const (
 	schedulerJobTypeAddKeySpan    schedulerJobType = "ADD"
@@ -65,13 +66,13 @@ type oldScheduler struct {
 	needRebalanceNextTick bool
 	lastTickCaptureCount  int
 
-	updateCurrentKeySpans func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
+	updateCurrentKeySpans updateCurrentKeySpansFunc
 }
 
-func newSchedulerV1() scheduler {
+func newSchedulerV1(f updateCurrentKeySpansFunc) scheduler {
 	return &schedulerV1CompatWrapper{&oldScheduler{
 		moveKeySpanTargets:    make(map[model.KeySpanID]model.CaptureID),
-		updateCurrentKeySpans: updateCurrentKeySpansImpl,
+		updateCurrentKeySpans: f,
 	}}
 }
 
@@ -81,11 +82,11 @@ func newSchedulerV1() scheduler {
 func (s *oldScheduler) Tick(
 	ctx cdcContext.Context,
 	state *orchestrator.ChangefeedReactorState,
-	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (shouldUpdateState bool, err error) {
-
 	s.state = state
+	s.captures = captures
+
 	currentKeySpanIDs, currentKeySpans, err := s.updateCurrentKeySpans(ctx)
 	if err != nil {
 		return false, errors.Trace(err)
@@ -210,7 +211,7 @@ func (s *oldScheduler) keyspan2CaptureIndex() (map[model.KeySpanID]model.Capture
 // If the TargetCapture of a job is not set, it chooses a capture with the minimum workload(minimum number of keyspans)
 // and sets the TargetCapture to the capture.
 func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
-	workloads := make(map[model.CaptureID]uint64)
+	workloads := make(map[model.CaptureID]int64)
 
 	for captureID := range s.captures {
 		workloads[captureID] = 0
@@ -244,9 +245,11 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 		}
 	}
 
+	count := 0
 	getMinWorkloadCapture := func() model.CaptureID {
+		count++
 		minCapture := ""
-		minWorkLoad := uint64(math.MaxUint64)
+		minWorkLoad := int64(math.MaxInt64)
 		for captureID, workload := range workloads {
 			if workload < minWorkLoad {
 				minCapture = captureID
@@ -491,6 +494,10 @@ func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[m
 	return currentKeySpansID, currentKeySpans, nil
 }
 
+func updateCurrentKeySpansImpl4Test(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	return nil, nil, nil
+}
+
 // schedulerV1CompatWrapper is used to wrap the old scheduler to
 // support the compatibility with the new scheduler.
 // It incorporates watermark calculations into the scheduler, which
@@ -502,7 +509,6 @@ type schedulerV1CompatWrapper struct {
 func (w *schedulerV1CompatWrapper) Tick(
 	ctx cdcContext.Context,
 	state *orchestrator.ChangefeedReactorState,
-	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (newCheckpointTs, newResolvedTs model.Ts, err error) {
 
@@ -548,6 +554,11 @@ func (w *schedulerV1CompatWrapper) calculateWatermarks(
 			}
 		}
 	}
+
+	if resolvedTs == model.Ts(math.MaxUint64) {
+		return schedulerv2.CheckpointCannotProceed, 0
+	}
+
 	checkpointTs := resolvedTs
 	for _, position := range state.TaskPositions {
 		if checkpointTs > position.CheckPointTs {
