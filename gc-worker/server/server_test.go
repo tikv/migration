@@ -23,10 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/gcpb"
-	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/pingcap/kvproto/pkg/pdpb"
 	"github.com/stretchr/testify/require"
 	pd "github.com/tikv/pd/client"
 	"github.com/tikv/pd/pkg/tempurl"
@@ -41,6 +38,7 @@ const (
 )
 
 type MockPDClient struct {
+	pd.Client
 	tsLogical atomic.Uint64
 	// SafePoint set by `UpdateGCSafePoint`. Not to be confused with SafePointKV.
 	gcSafePoint map[string]uint64
@@ -49,122 +47,12 @@ type MockPDClient struct {
 	serviceSafePoints map[string]map[string]uint64
 }
 
-func (c *MockPDClient) LoadGlobalConfig(ctx context.Context, names []string) ([]pd.GlobalConfigItem, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) StoreGlobalConfig(ctx context.Context, items []pd.GlobalConfigItem) error {
-	return nil
-}
-
-func (c *MockPDClient) WatchGlobalConfig(ctx context.Context) (chan []pd.GlobalConfigItem, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetClusterID(ctx context.Context) uint64 {
-	return 1
-}
-
-func (c *MockPDClient) GetLocalTS(ctx context.Context, dcLocation string) (int64, int64, error) {
-	return c.GetTS(ctx)
-}
-
-func (c *MockPDClient) GetTSAsync(ctx context.Context) pd.TSFuture {
-	return &mockTSFuture{c, ctx, false}
-}
-
-func (c *MockPDClient) GetLocalTSAsync(ctx context.Context, dcLocation string) pd.TSFuture {
-	return c.GetTSAsync(ctx)
-}
-
-type mockTSFuture struct {
-	pdc  *MockPDClient
-	ctx  context.Context
-	used bool
-}
-
-func (m *mockTSFuture) Wait() (int64, int64, error) {
-	if m.used {
-		return 0, 0, errors.New("cannot wait tso twice")
-	}
-	m.used = true
-	return m.pdc.GetTS(m.ctx)
-}
-
-func (c *MockPDClient) GetRegion(ctx context.Context, key []byte, opts ...pd.GetRegionOption) (*pd.Region, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetRegionFromMember(ctx context.Context, key []byte, memberURLs []string) (*pd.Region, error) {
-	return &pd.Region{}, nil
-}
-
-func (c *MockPDClient) GetPrevRegion(ctx context.Context, key []byte, opts ...pd.GetRegionOption) (*pd.Region, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetRegionByID(ctx context.Context, regionID uint64, opts ...pd.GetRegionOption) (*pd.Region, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) ScanRegions(ctx context.Context, startKey []byte, endKey []byte, limit int) ([]*pd.Region, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetStore(ctx context.Context, storeID uint64) (*metapb.Store, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetAllStores(ctx context.Context, opts ...pd.GetStoreOption) ([]*metapb.Store, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) UpdateGCSafePoint(ctx context.Context, safePoint uint64) (uint64, error) {
-	return 0, nil
-}
-
-func (c *MockPDClient) UpdateServiceGCSafePoint(ctx context.Context, serviceID string, ttl int64, safePoint uint64) (uint64, error) {
-	return 0, nil
-}
-
-func (c *MockPDClient) Close() {
-}
-
-func (c *MockPDClient) ScatterRegion(ctx context.Context, regionID uint64) error {
-	return nil
-}
-
-func (c *MockPDClient) ScatterRegions(ctx context.Context, regionsID []uint64, opts ...pd.RegionsOption) (*pdpb.ScatterRegionResponse, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) SplitRegions(ctx context.Context, splitKeys [][]byte, opts ...pd.RegionsOption) (*pdpb.SplitRegionsResponse, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetOperator(ctx context.Context, regionID uint64) (*pdpb.GetOperatorResponse, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetAllMembers(ctx context.Context) ([]*pdpb.Member, error) {
-	return nil, nil
-}
-
-func (c *MockPDClient) GetLeaderAddr() string { return "mockpd" }
-
-func (c *MockPDClient) UpdateOption(option pd.DynamicOption, value interface{}) error {
-	return nil
-}
+func (c *MockPDClient) Close() {}
 
 func (c *MockPDClient) GetTS(context.Context) (int64, int64, error) {
 	unixTime := time.Now()
 	ts := tsoutil.GenerateTimestamp(unixTime, c.tsLogical.Add(1)) // set logical as 0
 	return ts.Physical, ts.Logical, nil
-}
-
-// SplitAndScatterRegions split regions by given split keys and scatter new regions
-func (c *MockPDClient) SplitAndScatterRegions(ctx context.Context, splitKeys [][]byte, opts ...pd.RegionsOption) (*pdpb.SplitAndScatterRegionsResponse, error) {
-	return nil, nil
 }
 
 // GetGCAllServiceGroups returns a list containing all service groups that has safe point in pd
@@ -204,10 +92,10 @@ func (c *MockPDClient) UpdateGCServiceSafePointByServiceGroup(ctx context.Contex
 // GetGCAllServiceGroupSafePoints returns GC safe point for all service groups
 func (c *MockPDClient) GetGCAllServiceGroupSafePoints(ctx context.Context) ([]*gcpb.ServiceGroupSafePoint, error) {
 	ret := make([]*gcpb.ServiceGroupSafePoint, 0)
-	for i, s := range c.gcSafePoint {
+	for serviceGroup, safePoint := range c.gcSafePoint {
 		ret = append(ret, &gcpb.ServiceGroupSafePoint{
-			ServiceGroupId: []byte(i),
-			SafePoint:      s,
+			ServiceGroupId: []byte(serviceGroup),
+			SafePoint:      safePoint,
 		})
 	}
 	return ret, nil
@@ -360,9 +248,6 @@ func TestUpdateGcSafePoint(t *testing.T) {
 	}
 	defer s.Close()
 	s.pdClient = mockPdClient
-	// curTs := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(time.Now(), 0))
-	// expectTs := time.Now().Add(-cfg.GCLifeTime.Duration)
-	// expectGcSafePoint := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(expectTs, 0))
 	mockPdClient.UpdateGCServiceSafePointByServiceGroup(ctx, defaultServiceGroup, "cdc", math.MaxInt64, 100)
 	err := s.updateRawGCSafePoint(ctx)
 	require.NoError(t, err)
