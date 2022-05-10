@@ -15,7 +15,6 @@ package owner
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/pingcap/check"
@@ -105,6 +104,7 @@ func (s *changefeedSuite) TestHandleError(c *check.C) {
 	ctx := cdcContext.NewBackendContext4Test(true)
 	cf, state, captures, tester := createChangefeed4Test(ctx, c)
 	defer cf.Close(ctx)
+
 	// pre check
 	cf.Tick(ctx, state, captures)
 	tester.MustApplyPatches()
@@ -185,7 +185,4 @@ func testChangefeedReleaseResource(
 	err := cf.tick(ctx, state, captures)
 	c.Assert(err, check.IsNil)
 	cancel()
-	// check redo log dir is deleted
-	_, err = os.Stat(redoLogDir)
-	c.Assert(os.IsNotExist(err), check.IsTrue)
 }

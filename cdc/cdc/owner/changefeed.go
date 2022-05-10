@@ -44,6 +44,7 @@ type changefeed struct {
 	feedStateManager *feedStateManager
 	gcManager        gc.Manager
 	initialized      bool
+
 	// isRemoved is true if the changefeed is removed
 	isRemoved bool
 
@@ -83,6 +84,7 @@ func newChangefeed4Test(
 	id model.ChangeFeedID, gcManager gc.Manager,
 ) *changefeed {
 	c := newChangefeed(id, gcManager)
+	c.newScheduler = newScheduler4Test
 	return c
 }
 

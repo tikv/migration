@@ -195,7 +195,7 @@ type TaskWorkload map[KeySpanID]WorkloadInfo
 
 // WorkloadInfo records the workload info of a keyspan
 type WorkloadInfo struct {
-	Workload uint64 `json:"workload"`
+	Workload int64 `json:"workload"`
 }
 
 // Unmarshal unmarshals into *TaskWorkload from json marshal byte slice
@@ -219,7 +219,6 @@ type KeySpanReplicaInfo struct {
 	StartTs Ts `json:"start-ts"`
 	Start   []byte
 	End     []byte
-	// MarkKeySpanID KeySpanID `json:"mark-keyspan-id"`
 }
 
 // Clone clones a KeySpanReplicaInfo
