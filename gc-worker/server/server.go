@@ -248,29 +248,31 @@ func (s *Server) getGCWorkerSafePoint(ctx context.Context) (uint64, error) {
 }
 
 func (s *Server) calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint uint64) uint64 {
-	if serviceSafePoint < gcWorkerSafePoint {
+	// `serviceSafePoint == 0` means no service is registered. Just use gc safe point.
+	if serviceSafePoint > 0 && serviceSafePoint < gcWorkerSafePoint {
 		return serviceSafePoint
 	}
 	return gcWorkerSafePoint
 }
 
 func (s *Server) updateServiceGroupSafePointWithRetry(ctx context.Context, serviceGroup string, gcWorkerSafePoint uint64) error {
-	succeed := false
+	updateSucceed := false
 	for i := 0; i < updateSafePointRetryCnt; i++ {
-		serviceSafePoint, revision, err := s.pdClient.GetMinServiceSafePointByServiceGroup(ctx, serviceGroup)
+		serviceSafePoint, revision, err := s.pdClient.GetGCMinServiceSafePointByServiceGroup(ctx, serviceGroup)
 		if err != nil {
 			log.Error("get min service safe point fails.", zap.Error(err),
 				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name))
 			return errors.Trace(err)
 		}
 		gcSafePoint := s.calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint)
-		succeed, newSafePoint, _, err := s.pdClient.UpdateGCSafePointByServiceGroup(ctx, serviceGroup,
+		succeed, newSafePoint, err := s.pdClient.UpdateGCSafePointByServiceGroup(ctx, serviceGroup,
 			gcSafePoint, revision)
-		if !succeed {
+		if !succeed || err != nil {
 			log.Info("update gc safepoint fail", zap.String("serviceGroup", serviceGroup),
 				zap.Int("retryCnt", i), zap.String("worker", s.cfg.Name), zap.Error(err))
 			continue
 		}
+		updateSucceed = true
 		log.Info("update gc safepoint succeed", zap.String("serviceGroup", serviceGroup),
 			zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
 			zap.Uint64("serviceSafePoint", serviceSafePoint),
@@ -279,17 +281,21 @@ func (s *Server) updateServiceGroupSafePointWithRetry(ctx context.Context, servi
 			zap.String("worker", s.cfg.Name))
 		break
 	}
-	if !succeed {
+	if !updateSucceed {
 		return errors.Errorf("update %s gc safepoint fail", s.cfg.Name)
 	}
 	return nil
 }
 
 func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
-	allServiceGroups, err := s.pdClient.GetServiceGroup(ctx)
+	allServiceGroups, err := s.pdClient.GetGCAllServiceGroups(ctx)
 	if err != nil {
 		log.Error("get service group from gc failed", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return errors.Trace(err)
+	}
+	if len(allServiceGroups) == 0 {
+		log.Warn("service group is empty", zap.String("worker", s.cfg.Name))
+		return nil
 	}
 
 	gcWorkerSafePoint, err := s.getGCWorkerSafePoint(ctx)
@@ -303,7 +309,8 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 		err = s.updateServiceGroupSafePointWithRetry(ctx, serviceGroup, gcWorkerSafePoint)
 		if err != nil {
 			log.Error("update gc safepoint fail, will retry next time.",
-				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name))
+				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name),
+				zap.Error(err))
 		}
 	}
 	return nil
