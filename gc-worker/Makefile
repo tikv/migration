@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-default: build
+default: release
 
 GO             := GO111MODULE=on go
 BUILD_BIN_PATH := $(shell pwd)/bin
@@ -24,11 +24,12 @@ GCWORKER_PKG   := github.com/tikv/migration/gc-worker
 
 LDFLAGS += -X "$(GCWORKER_PKG)/server.GCWorkerVersion=$(shell git describe --tags --dirty --always)"
 #### Build ####
-build: gc-worker
+build:
+	$(GO) build -tags codes -gcflags 'all=-N -l' -ldflags '$(LDFLAGS)' -o $(BUILD_BIN_PATH)/gc-worker cmd/*.go
 
-gc-worker: 
-	$(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BUILD_BIN_PATH)/gc-worker cmd/*.go
- 
+release:
+	$(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BUILD_BIN_PATH)/gc-worker cmd/*.go
+
 check: check/golangci-lint check/gosec
 
 check/golangci-lint: tools/bin/golangci-lint
