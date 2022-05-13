@@ -320,7 +320,7 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 		log.Error("calc gc-worker safe point fails.", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return errors.Trace(err)
 	}
-	serviceSafePoint, err := s.pdClient.UpdateServiceGCSafePoint(ctx, gcWorkerServiceId, gcWorkerSafePointTtl, gcWorkerSafePoint)
+	serviceSafePoint, err := s.pdClient.UpdateServiceGCSafePoint(ctx, gcWorkerServiceID, gcWorkerSafePointTTL, gcWorkerSafePoint)
 	if err != nil {
 		log.Error("update service gc safepoint fails", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return errors.Trace(err)
