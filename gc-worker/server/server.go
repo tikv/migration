@@ -37,12 +37,11 @@ import (
 const (
 	etcdTimeout = time.Duration(3) * time.Second
 	// etcdElectionPath for all gcworker servers.
-	etcdElectionPath        = "/gc-worker/election"
-	etcdElectionVal         = "local"
-	maxPdMsgSize            = int(128 * units.MiB)
-	updateSafePointRetryCnt = int(10)
-	gcWorkerSafePointTtl    = math.MaxInt64 // Sets TTL to MAX to make it permanently valid.
-	gcWorkerServiceId       = "gc_worker"   // MUST be same with definition in PD
+	etcdElectionPath     = "/gc-worker/election"
+	etcdElectionVal      = "local"
+	maxPdMsgSize         = int(128 * units.MiB)
+	gcWorkerSafePointTTL = math.MaxInt64 // Sets TTL to MAX to make it permanently valid.
+	gcWorkerServiceID    = "gc_worker"   // MUST be same with definition in PD
 )
 
 // The version info is set in Makefile
