@@ -42,7 +42,7 @@ const (
 	maxPdMsgSize            = int(128 * units.MiB)
 	updateSafePointRetryCnt = int(10)
 	gcWorkerSafePointTtl    = math.MaxInt64 // Sets TTL to MAX to make it permanently valid.
-	gcWorkerServiceId       = "gc_worker"
+	gcWorkerServiceId       = "gc_worker"   // MUST be same with definition in PD
 )
 
 // The version info is set in Makefile

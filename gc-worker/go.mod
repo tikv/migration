@@ -25,6 +25,7 @@ require (
 	github.com/tikv/pd v1.1.0-beta.0.20220428091252-fc74bea31d5d
 	github.com/tikv/pd/client v0.0.0-20220428091252-fc74bea31d5d
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
+	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.20.0
 	google.golang.org/grpc v1.43.0
 )
