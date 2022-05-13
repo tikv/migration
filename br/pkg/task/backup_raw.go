@@ -12,6 +12,7 @@ import (
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/backup"
+	"github.com/tikv/migration/br/pkg/checksum"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/rtree"
@@ -150,9 +151,14 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		CompressionLevel: cfg.CompressionLevel,
 		CipherInfo:       &cfg.CipherInfo,
 	}
+	finalChecksum := checksum.Checksum{}
+
+	saveChecksumFunc := func(crc64Xor, totalKvs, totalBytes uint64) {
+		finalChecksum.UpdateChecksum(crc64Xor, totalKvs, totalBytes)
+	}
 	metaWriter := metautil.NewMetaWriter(client.GetStorage(), metautil.MetaFileSize, false, &cfg.CipherInfo)
 	metaWriter.StartWriteMetasAsync(ctx, metautil.AppendDataFile)
-	err = client.BackupRange(ctx, backupRange.StartKey, backupRange.EndKey, req, metaWriter, progressCallBack)
+	err = client.BackupRange(ctx, backupRange.StartKey, backupRange.EndKey, req, metaWriter, progressCallBack, saveChecksumFunc)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -182,6 +188,24 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	err = metaWriter.FlushBackupMeta(ctx)
 	if err != nil {
 		return errors.Trace(err)
+	}
+	if cfg.Checksum {
+		updateCh = g.StartProgress(
+			ctx, cmdName+"-checksum", int64(approximateRegions), !cfg.LogProgress)
+
+		progressCallBack = func(unit backup.ProgressUnit) {
+			if unit == backup.RangeUnit {
+				return
+			}
+			updateCh.Inc()
+		}
+		err = checksum.NewChecksumExecutor(metaRange.Start, metaRange.End,
+			&finalChecksum, mgr.GetPDClient(), cfg.ChecksumConcurrency, checksum.StorageChecksumCommand).
+			Execute(ctx, progressCallBack)
+		updateCh.Close()
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
 
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())

@@ -23,6 +23,7 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
+	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/tikv/client-go/v2/oracle"
@@ -47,17 +48,11 @@ import (
 // ClientMgr manages connections needed by backup.
 type ClientMgr interface {
 	GetBackupClient(ctx context.Context, storeID uint64) (backuppb.BackupClient, error)
+	GetTiKVClient(ctx context.Context, storeID uint64) (tikvpb.TikvClient, error)
 	ResetBackupClient(ctx context.Context, storeID uint64) (backuppb.BackupClient, error)
 	GetPDClient() pd.Client
 	GetLockResolver() *txnlock.LockResolver
 	Close()
-}
-
-// Checksum is the checksum of some backup files calculated by CollectChecksums.
-type Checksum struct {
-	Crc64Xor   uint64
-	TotalKvs   uint64
-	TotalBytes uint64
 }
 
 // ProgressUnit represents the unit of progress.
@@ -295,7 +290,7 @@ func (bc *Client) BackupRanges(
 		sk, ek := r.StartKey, r.EndKey
 		workerPool.ApplyOnErrorGroup(eg, func() error {
 			elctx := logutil.ContextWithField(ectx, logutil.RedactAny("range-sn", id))
-			err := bc.BackupRange(elctx, sk, ek, req, metaWriter, progressCallBack)
+			err := bc.BackupRange(elctx, sk, ek, req, metaWriter, progressCallBack, nil)
 			if err != nil {
 				// The error due to context cancel, stack trace is meaningless, the stack shall be suspended (also clear)
 				if errors.Cause(err) == context.Canceled {
@@ -317,6 +312,7 @@ func (bc *Client) BackupRange(
 	req backuppb.BackupRequest,
 	metaWriter *metautil.MetaWriter,
 	progressCallBack func(ProgressUnit),
+	checksumCallBack func(crc64Xor, totalKvs, totalBytes uint64),
 ) (err error) {
 	start := time.Now()
 	defer func() {
@@ -345,7 +341,7 @@ func (bc *Client) BackupRange(
 	push := newPushDown(bc.mgr, len(allStores))
 
 	var results rtree.RangeTree
-	results, err = push.pushBackup(ctx, req, allStores, progressCallBack)
+	results, err = push.pushBackup(ctx, req, allStores, progressCallBack, checksumCallBack)
 	if err != nil {
 		return errors.Trace(err)
 	}
