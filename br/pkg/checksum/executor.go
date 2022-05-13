@@ -148,7 +148,7 @@ func (exec *ChecksumExecutor) doChecksumOnRegion(
 	if resp.GetError() != "" {
 		return errors.New(resp.GetError())
 	}
-	progressCallBack(backup.RangeUnit)
+	progressCallBack(backup.RegionUnit)
 	exec.mutex.Lock()
 	defer exec.mutex.Unlock()
 	finalChecksum.UpdateChecksum(resp.GetChecksum(), resp.GetTotalKvs(), resp.GetTotalBytes())

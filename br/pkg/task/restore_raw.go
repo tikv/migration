@@ -9,6 +9,8 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
+	"github.com/tikv/migration/br/pkg/backup"
+	"github.com/tikv/migration/br/pkg/checksum"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
@@ -121,6 +123,27 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 
 	// Restore has finished.
 	updateCh.Close()
+
+	finalChecksum := checksum.Checksum{}
+	for _, file := range files {
+		finalChecksum.UpdateChecksum(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+	}
+
+	if cfg.Checksum {
+		updateCh = g.StartProgress(
+			ctx, cmdName+"-checksum", int64(len(files)), !cfg.LogProgress)
+
+		progressCallBack := func(unit backup.ProgressUnit) {
+			updateCh.Inc()
+		}
+		err = checksum.NewChecksumExecutor(cfg.StartKey, cfg.EndKey,
+			&finalChecksum, mgr.GetPDClient(), cfg.ChecksumConcurrency, checksum.StorageChecksumCommand).
+			Execute(ctx, progressCallBack)
+		updateCh.Close()
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
 
 	// Set task summary to success status.
 	summary.SetSuccessStatus(true)

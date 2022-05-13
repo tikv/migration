@@ -192,11 +192,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if cfg.Checksum {
 		updateCh = g.StartProgress(
 			ctx, cmdName+"-checksum", int64(approximateRegions), !cfg.LogProgress)
-
 		progressCallBack = func(unit backup.ProgressUnit) {
-			if unit == backup.RangeUnit {
-				return
-			}
 			updateCh.Inc()
 		}
 		err = checksum.NewChecksumExecutor(metaRange.Start, metaRange.End,
