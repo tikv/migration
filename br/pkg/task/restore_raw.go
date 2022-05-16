@@ -137,8 +137,8 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 			updateCh.Inc()
 		}
 		err = checksum.NewChecksumExecutor(cfg.StartKey, cfg.EndKey,
-			&finalChecksum, mgr.GetPDClient(), cfg.ChecksumConcurrency, checksum.StorageChecksumCommand).
-			Execute(ctx, progressCallBack)
+			backupMeta.ApiVersion, mgr.GetPDClient(), cfg.ChecksumConcurrency).
+			Execute(ctx, finalChecksum, checksum.StorageChecksumCommand, progressCallBack)
 		updateCh.Close()
 		if err != nil {
 			return errors.Trace(err)

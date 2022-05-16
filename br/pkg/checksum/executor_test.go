@@ -18,15 +18,14 @@ import (
 	"context"
 	"testing"
 
-	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
-	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/stretchr/testify/require"
+	pd "github.com/tikv/pd/client"
 	"google.golang.org/grpc"
 )
 
-type mockKvCLient struct {
-	tikvpb.TikvClient
+type mockPdCLient struct {
+	pd.Client
 }
 
 func getStubChecksum() Checksum {
@@ -37,7 +36,7 @@ func getStubChecksum() Checksum {
 	}
 }
 
-func (m *mockKvCLient) RawChecksum(ctx context.Context, in *kvrpcpb.RawChecksumRequest, opts ...grpc.CallOption) (*kvrpcpb.RawChecksumResponse, error) {
+func (m *mockPdCLient) RawChecksum(ctx context.Context, in *kvrpcpb.RawChecksumRequest, opts ...grpc.CallOption) (*kvrpcpb.RawChecksumResponse, error) {
 	stubChecksum := getStubChecksum()
 	response := kvrpcpb.RawChecksumResponse{}
 	response.Checksum = stubChecksum.Crc64Xor
@@ -49,12 +48,26 @@ func (m *mockKvCLient) RawChecksum(ctx context.Context, in *kvrpcpb.RawChecksumR
 func TestChecksumExecutor(t *testing.T) {
 	stubChecksum := getStubChecksum()
 	ctx := context.Background()
-	mockClient := &mockKvCLient{}
-	files := []*backuppb.File{&backuppb.File{
-		Crc64Xor:   stubChecksum.Crc64Xor,
-		TotalKvs:   stubChecksum.TotalKvs,
-		TotalBytes: stubChecksum.TotalBytes,
-	}}
-	err := NewChecksumExecutor("", "", files, mockClient, 1, StorageChecksumCommand).Execute(ctx)
+	mockClient := &mockPdCLient{}
+	err := NewChecksumExecutor([]byte(""), []byte(""), kvrpcpb.APIVersion_V2, mockClient, 1).
+		Execute(ctx, stubChecksum, StorageChecksumCommand, nil)
 	require.Equal(t, err, nil)
+}
+
+func TestAdjustRegionRange(t *testing.T) {
+	start, end := adjustRegionRange([]byte(""), []byte(""), []byte(""), []byte(""))
+	require.Equal(t, string(start), "")
+	require.Equal(t, string(end), "")
+	start, end = adjustRegionRange([]byte(""), []byte(""), []byte("a"), []byte("z"))
+	require.Equal(t, string(start), "a")
+	require.Equal(t, string(end), "z")
+	start, end = adjustRegionRange([]byte("a"), []byte("z"), []byte(""), []byte(""))
+	require.Equal(t, string(start), "a")
+	require.Equal(t, string(end), "z")
+	start, end = adjustRegionRange([]byte("a"), []byte(""), []byte(""), []byte("z"))
+	require.Equal(t, string(start), "a")
+	require.Equal(t, string(end), "z")
+	start, end = adjustRegionRange([]byte(""), []byte("z"), []byte("a"), []byte(""))
+	require.Equal(t, string(start), "a")
+	require.Equal(t, string(end), "z")
 }

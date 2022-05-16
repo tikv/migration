@@ -101,7 +101,7 @@ type KeyRange struct {
 	End   []byte
 }
 
-func formatAPIV2Key(key []byte, isEnd bool) []byte {
+func FormatAPIV2Key(key []byte, isEnd bool) []byte {
 	if isEnd && len(key) == 0 {
 		return []byte{APIV2KeyPrefixEnd}
 	}
@@ -112,8 +112,8 @@ func formatAPIV2Key(key []byte, isEnd bool) []byte {
 // FormatAPIV2KeyRange convert user key to APIV2 format.
 func FormatAPIV2KeyRange(startKey, endKey []byte) *KeyRange {
 	return &KeyRange{
-		Start: formatAPIV2Key(startKey, false),
-		End:   formatAPIV2Key(endKey, true),
+		Start: FormatAPIV2Key(startKey, false),
+		End:   FormatAPIV2Key(endKey, true),
 	}
 }
 
