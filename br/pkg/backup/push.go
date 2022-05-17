@@ -167,6 +167,8 @@ func (push *pushDown) pushBackup(
 				res.Put(resp.GetStartKey(), resp.GetEndKey(), resp.GetFiles())
 				if checksumCallBack != nil {
 					for _, file := range resp.GetFiles() {
+						logutil.CL(ctx).Info("backup get response",
+							logutil.File(file))
 						checksumCallBack(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
 					}
 				}

@@ -376,9 +376,11 @@ func (bc *Client) BackupRange(
 		for _, f := range r.Files {
 			summary.CollectSuccessUnit(summary.TotalKV, 1, f.TotalKvs)
 			summary.CollectSuccessUnit(summary.TotalBytes, 1, f.TotalBytes)
+			logutil.CL(ctx).Info("backup send files", logutil.File(f))
 		}
 		// we need keep the files in order after we support multi_ingest sst.
 		// default_sst and write_sst need to be together.
+
 		if err := metaWriter.Send(r.Files, metautil.AppendDataFile); err != nil {
 			ascendErr = err
 			return false

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -271,7 +272,7 @@ func (importer *FileImporter) Import(
 	cipher *backuppb.CipherInfo,
 ) error {
 	start := time.Now()
-	log.Debug("import file", logutil.Files(files))
+	log.Info("import file", logutil.Files(files))
 	// Rewrite the start key and end key of file to scan regions
 	var startKey, endKey []byte
 	if importer.isRawKvMode {
@@ -296,7 +297,7 @@ func (importer *FileImporter) Import(
 		logutil.Files(files),
 		logutil.Key("startKey", startKey),
 		logutil.Key("endKey", endKey))
-
+	downloadSucceed := false
 	err := utils.WithRetry(ctx, func() error {
 		tctx, cancel := context.WithTimeout(ctx, importScanRegionTime)
 		defer cancel()
@@ -366,10 +367,11 @@ func (importer *FileImporter) Import(
 					logutil.ShortError(errDownload))
 				return errors.Trace(errDownload)
 			}
-			log.Debug("download file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)),
+			log.Info("download file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)),
 				logutil.Key("start", files[0].StartKey),
 				logutil.Key("end", files[0].EndKey),
 			)
+			downloadSucceed = true
 			ingestResp, errIngest := importer.ingestSSTs(ctx, downloadMetas, info)
 		ingestRetry:
 			for errIngest == nil {
@@ -435,12 +437,15 @@ func (importer *FileImporter) Import(
 				return errors.Trace(errIngest)
 			}
 		}
-		log.Debug("ingest file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)))
+		if !downloadSucceed {
+			errMsg := fmt.Sprintf("some files failed to download, %s.", files[0].Name)
+			return errors.New(errMsg)
+		}
+		log.Info("ingest file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)))
 		for _, f := range files {
 			summary.CollectSuccessUnit(summary.TotalKV, 1, f.TotalKvs)
 			summary.CollectSuccessUnit(summary.TotalBytes, 1, f.TotalBytes)
 		}
-
 		return nil
 	}, utils.NewImportSSTBackoffer())
 	return errors.Trace(err)
@@ -489,7 +494,10 @@ func (importer *FileImporter) downloadRawKVSST(
 		IsRawKv:        true,
 		CipherInfo:     cipher,
 	}
-	log.Debug("download SST", logutil.SSTMeta(&sstMeta), logutil.Region(regionInfo.Region))
+	log.Info("download SST",
+		logutil.File(file),
+		logutil.SSTMeta(&sstMeta),
+		logutil.Region(regionInfo.Region))
 
 	var atomicResp atomic.Value
 	eg, ectx := errgroup.WithContext(ctx)
@@ -513,12 +521,22 @@ func (importer *FileImporter) downloadRawKVSST(
 	}
 
 	if err := eg.Wait(); err != nil {
+		log.Info("download SST error",
+			logutil.File(file),
+			logutil.SSTMeta(&sstMeta),
+			logutil.Region(regionInfo.Region),
+			zap.Error(err))
 		return nil, err
 	}
 
 	downloadResp := atomicResp.Load().(*import_sstpb.DownloadResponse)
 	sstMeta.Range.Start = downloadResp.Range.GetStart()
 	sstMeta.Range.End = downloadResp.Range.GetEnd()
+
+	log.Info("download SST finish",
+		logutil.File(file),
+		logutil.SSTMeta(&sstMeta),
+		logutil.Region(regionInfo.Region))
 	return &sstMeta, nil
 }
 
