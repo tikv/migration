@@ -179,7 +179,7 @@ func TestCalcNewGCSafePoint(t *testing.T) {
 
 }
 
-func TestCalcGcSafePoint(t *testing.T) {
+func TestCalcGCSafePoint(t *testing.T) {
 	mockPdClient := NewMockPDClient()
 	cfg := NewConfig()
 	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
@@ -200,7 +200,7 @@ func TestCalcGcSafePoint(t *testing.T) {
 	require.LessOrEqual(t, gcSafePoint, curTs)
 }
 
-func TestUpdateGcSafePoint(t *testing.T) {
+func TestUpdateGCSafePoint(t *testing.T) {
 	mockPdClient := NewMockPDClient()
 	cfg := NewConfig()
 	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
