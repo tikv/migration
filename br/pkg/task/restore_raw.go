@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -20,8 +21,6 @@ func DefineRawRestoreFlags(command *cobra.Command) {
 	command.Flags().StringP(flagKeyFormat, "", "hex", "start/end key format, support raw|escaped|hex")
 	command.Flags().StringP(flagStartKey, "", "", "restore raw kv start key, key is inclusive")
 	command.Flags().StringP(flagEndKey, "", "", "restore raw kv end key, key is exclusive")
-	command.Flags().StringP(flagDstAPIVersion, "", "",
-		"The encoding method of backuped SST files for destination TiKV cluster, default to the source TiKV cluster. Available options: \"v1\", \"v1ttl\", \"v2\".")
 
 	DefineRestoreCommonFlags(command.PersistentFlags())
 }
@@ -61,6 +60,9 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	if err != nil {
 		return errors.Trace(err)
 	}
+	// for restore, dst and cur are the same.
+	cfg.DstAPIVersion = backupMeta.ApiVersion.String()
+	cfg.adjustBackupRange(backupMeta.ApiVersion)
 	reader := metautil.NewMetaReader(backupMeta, s, &cfg.CipherInfo)
 	if err = client.InitBackupMeta(c, backupMeta, u, s, reader); err != nil {
 		return errors.Trace(err)
@@ -100,7 +102,8 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 
 	// RawKV restore does not need to rewrite keys.
 	rewrite := &restore.RewriteRules{}
-	err = restore.SplitRanges(ctx, client, ranges, rewrite, updateCh, true)
+	needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
+	err = restore.SplitRanges(ctx, client, ranges, rewrite, updateCh, true, needEncodeKey)
 	if err != nil {
 		return errors.Trace(err)
 	}

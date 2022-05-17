@@ -3,6 +3,7 @@ dependency-reduced-pom.xml
 
 #ignore idea configuration
 .idea
+.vscode
 *.iml
 pub.sh
 

@@ -1,0 +1,36 @@
+# GC worker Configuration.
+
+# empty name will be replace by host name.
+name = ""
+
+# pd's advertise address
+pd = ""
+# if etcd is not specified, pd will be used as etcd.
+etcd = ""
+# interval for updating gc safepoint
+safepoint-update-interval = "10s"
+# interval for etcd election
+etcd-election-interval = "10ms"
+# the gc-worker safepoint is pd.ts - `gc-life-time`
+gc-life-time = "10m"
+
+# security settings is used to connect pd and etcd server.
+[security]
+ca = ""
+cert = ""
+key = ""
+
+[log]
+level = "info"
+# log format, one of json, text, console
+format = "text"
+
+[log.file]
+# Usually it is set through command line.
+filename = "gc_worker.log"
+# max log file size in MB
+max-size = 300
+# max log file keep days
+max-days = 0
+# maximum number of old log files to retain
+max-backups = 0

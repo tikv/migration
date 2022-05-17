@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"time"
 
 	"github.com/pingcap/errors"
@@ -21,6 +22,7 @@ import (
 	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"github.com/tikv/pd/server/schedule/placement"
@@ -125,7 +127,8 @@ func (rc *Client) InitBackupMeta(
 
 	metaClient := NewSplitClient(rc.pdClient, rc.tlsConf, rc.backupMeta.IsRawKv)
 	importCli := NewImportClient(metaClient, rc.tlsConf, rc.keepaliveConf)
-	rc.fileImporter = NewFileImporter(metaClient, importCli, backend, rc.backupMeta.IsRawKv, rc.rateLimit)
+	rc.fileImporter = NewFileImporter(metaClient, importCli, backend, rc.backupMeta.IsRawKv,
+		rc.backupMeta.ApiVersion, rc.rateLimit)
 	return rc.fileImporter.CheckMultiIngestSupport(c, rc.pdClient)
 }
 
@@ -285,7 +288,16 @@ func (rc *Client) RestoreRaw(
 		rc.workerPool.ApplyOnErrorGroup(eg,
 			func() error {
 				defer updateCh.Inc()
-				return rc.fileImporter.Import(ectx, []*backuppb.File{fileReplica}, EmptyRewriteRule(), rc.cipher)
+				startTime := time.Now()
+				err := rc.fileImporter.Import(ectx, []*backuppb.File{fileReplica}, EmptyRewriteRule(), rc.cipher)
+				if err != nil {
+					key := "range start:" + hex.EncodeToString(fileReplica.StartKey) +
+						" end:" + hex.EncodeToString(fileReplica.EndKey)
+					summary.CollectFailureUnit(key, err)
+				} else {
+					summary.CollectSuccessUnit("Restore file", 1, time.Since(startTime))
+				}
+				return err
 			})
 	}
 	if err := eg.Wait(); err != nil {

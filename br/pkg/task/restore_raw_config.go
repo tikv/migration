@@ -36,7 +36,7 @@ func (cfg *RestoreRawConfig) ParseFromFlags(flags *pflag.FlagSet) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-
+	// when restore, api version is read from backup meta, instead of user input.
 	return cfg.RawKvConfig.ParseFromFlags(flags)
 }
 
