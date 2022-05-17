@@ -23,7 +23,6 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/tikv/client-go/v2/oracle"
@@ -48,7 +47,6 @@ import (
 // ClientMgr manages connections needed by backup.
 type ClientMgr interface {
 	GetBackupClient(ctx context.Context, storeID uint64) (backuppb.BackupClient, error)
-	GetTiKVClient(ctx context.Context, storeID uint64) (tikvpb.TikvClient, error)
 	ResetBackupClient(ctx context.Context, storeID uint64) (backuppb.BackupClient, error)
 	GetPDClient() pd.Client
 	GetLockResolver() *txnlock.LockResolver
@@ -376,7 +374,6 @@ func (bc *Client) BackupRange(
 		for _, f := range r.Files {
 			summary.CollectSuccessUnit(summary.TotalKV, 1, f.TotalKvs)
 			summary.CollectSuccessUnit(summary.TotalBytes, 1, f.TotalBytes)
-			logutil.CL(ctx).Info("backup send files", logutil.File(f))
 		}
 		// we need keep the files in order after we support multi_ingest sst.
 		// default_sst and write_sst need to be together.

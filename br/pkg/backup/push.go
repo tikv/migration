@@ -50,11 +50,6 @@ func newPushDown(mgr ClientMgr, cap int) *pushDown {
 	}
 }
 
-func (push *pushDown) saveChecksumOnResponse(ctx context.Context, resp *backuppb.BackupResponse) error {
-
-	return nil
-}
-
 // FullBackup make a full backup of a tikv cluster.
 func (push *pushDown) pushBackup(
 	ctx context.Context,

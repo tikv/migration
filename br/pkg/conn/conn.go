@@ -15,7 +15,6 @@ import (
 	"github.com/pingcap/failpoint"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
@@ -324,29 +323,6 @@ func (mgr *Mgr) getGrpcConnLocked(ctx context.Context, storeID uint64) (*grpc.Cl
 		return nil, berrors.ErrFailedToConnect.Wrap(err).GenWithStack("failed to make connection to store %d", storeID)
 	}
 	return conn, nil
-}
-
-// GetTiKVClient get or create a TiKV client.
-func (mgr *Mgr) GetTiKVClient(ctx context.Context, storeID uint64) (tikvpb.TikvClient, error) {
-	if ctx.Err() != nil {
-		return nil, errors.Trace(ctx.Err())
-	}
-
-	mgr.grpcClis.mu.Lock()
-	defer mgr.grpcClis.mu.Unlock()
-
-	if conn, ok := mgr.grpcClis.clis[storeID]; ok {
-		// Find a cached TiKV client.
-		return tikvpb.NewTikvClient(conn), nil
-	}
-
-	conn, err := mgr.getGrpcConnLocked(ctx, storeID)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	// Cache the conn.
-	mgr.grpcClis.clis[storeID] = conn
-	return tikvpb.NewTikvClient(conn), nil
 }
 
 // GetBackupClient get or create a backup client.
