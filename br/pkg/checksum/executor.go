@@ -153,8 +153,8 @@ func (exec *Executor) doChecksumOnRegion(
 	defer exec.mutex.Unlock()
 	finalChecksum.UpdateChecksum(resp.GetChecksum(), resp.GetTotalKvs(), resp.GetTotalBytes())
 	logutil.CL(ctx).Info("region checksum finish", zap.Uint64("region id", regionInfo.Region.Id),
-		zap.String("region start", string(rangeStart)),
-		zap.String("region end", string(rangeEnd)),
+		logutil.Key("region start", rangeStart),
+		logutil.Key("region end", rangeEnd),
 		zap.Reflect("checksum", finalChecksum))
 	return nil
 }
@@ -250,8 +250,8 @@ func (exec *Executor) doScanChecksum(
 	defer exec.mutex.Unlock()
 	finalChecksum.UpdateChecksum(checksum.Crc64Xor, checksum.TotalKvs, checksum.TotalBytes)
 	logutil.CL(ctx).Info("region checksum finish", zap.Uint64("region id", regionInfo.Region.Id),
-		zap.String("region start", string(regionInfo.Region.StartKey)),
-		zap.String("region end", string(regionInfo.Region.EndKey)),
+		logutil.Key("region start", regionInfo.Region.StartKey),
+		logutil.Key("region end", regionInfo.Region.EndKey),
 		zap.Reflect("checksum", finalChecksum))
 	return nil
 }

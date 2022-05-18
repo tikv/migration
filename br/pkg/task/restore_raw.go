@@ -16,6 +16,7 @@ import (
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/summary"
+	"github.com/tikv/pd/pkg/codec"
 )
 
 // DefineRawRestoreFlags defines common flags for the backup command.
@@ -115,6 +116,13 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		return errors.Trace(err)
 	}
 	defer restorePostWork(ctx, client, restoreSchedulers)
+
+	if needEncodeKey {
+		for _, file := range files {
+			file.StartKey = codec.EncodeBytes(file.StartKey)
+			file.EndKey = codec.EncodeBytes(file.EndKey)
+		}
+	}
 
 	err = client.RestoreRaw(ctx, cfg.StartKey, cfg.EndKey, files, updateCh)
 	if err != nil {
