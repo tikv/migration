@@ -22,17 +22,12 @@ require (
 	github.com/pingcap/errors v0.11.5-0.20211224045212-9687c2b0f87c
 	github.com/pingcap/log v0.0.0-20211215031037-e024ba4eb0ee
 	github.com/stretchr/testify v1.7.0
-	github.com/tikv/pd v1.1.0-beta.0.20211118054146-02848d2660ee
+	github.com/tikv/pd v1.1.0-beta.0.20220428091252-fc74bea31d5d
 	github.com/tikv/pd/client v0.0.0-20220428091252-fc74bea31d5d
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
+	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.20.0
 	google.golang.org/grpc v1.43.0
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.26.0
-
-replace github.com/pingcap/kvproto => github.com/AmoebaProtozoa/kvproto v0.0.0-20220427045408-abeb7dbc9f22
-
-replace github.com/tikv/pd => github.com/AmoebaProtozoa/pd v1.1.0-beta.0.20220427094035-c5944e39ae5e
-
-replace github.com/tikv/pd/client => github.com/AmoebaProtozoa/pd/client v0.0.0-20220427094035-c5944e39ae5e
