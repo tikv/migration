@@ -40,7 +40,7 @@ func DefineRawBackupFlags(command *cobra.Command) {
 		"The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
 
 	command.Flags().StringP(flagDstAPIVersion, "", "",
-		"The encoding method of backuped SST files for destination TiKV cluster, default to the source TiKV cluster. Available options: \"v1\", \"v1ttl\", \"v2\".")
+		`The encoding method of backuped SST files for destination TiKV cluster. Available options: "v1", "v1ttl", "v2".`)
 
 	command.Flags().String(flagCompressionType, "zstd",
 		"The compression algorithm of the backuped SST files. Available options: \"lz4\", \"zstd\", \"snappy\".")
@@ -50,6 +50,11 @@ func DefineRawBackupFlags(command *cobra.Command) {
 
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
+
+	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
+	_ = command.Flags().MarkHidden(flagStartKey)
+	_ = command.Flags().MarkHidden(flagEndKey)
+	_ = command.Flags().MarkHidden(flagKeyFormat)
 }
 
 // RunBackupRaw starts a backup task inside the current goroutine.

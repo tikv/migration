@@ -57,6 +57,10 @@ func defineGCSFlags(flags *pflag.FlagSet) {
 	flags.String(gcsStorageClassOption, "", "(experimental) Specify the GCS storage class for objects")
 	flags.String(gcsPredefinedACL, "", "(experimental) Specify the GCS predefined acl for objects")
 	flags.String(gcsCredentialsFile, "", "(experimental) Set the GCS credentials file path")
+	_ = flags.MarkHidden(gcsEndpointOption)
+	_ = flags.MarkHidden(gcsStorageClassOption)
+	_ = flags.MarkHidden(gcsPredefinedACL)
+	_ = flags.MarkHidden(gcsCredentialsFile)
 }
 
 func (options *GCSBackendOptions) parseFromFlags(flags *pflag.FlagSet) error {

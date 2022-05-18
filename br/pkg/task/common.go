@@ -82,19 +82,25 @@ const (
 // DefineCommonFlags defines the flags common to all BRIE commands.
 func DefineCommonFlags(flags *pflag.FlagSet) {
 	flags.BoolP(flagSendCreds, "c", true, "Whether send credentials to tikv")
-	flags.StringP(flagStorage, "s", "", `specify the url where backup storage, eg, "s3://bucket/path/prefix"`)
+	flags.StringP(flagStorage, "s", "", `specify the path where backup storage, eg, "local:///home/backup_data"`)
 	flags.StringSliceP(flagPD, "u", []string{"127.0.0.1:2379"}, "PD address")
 	flags.String(flagCA, "", "CA certificate path for TLS connection")
 	flags.String(flagCert, "", "Certificate path for TLS connection")
 	flags.String(flagKey, "", "Private key path for TLS connection")
 	flags.Uint(flagChecksumConcurrency, variable.DefChecksumTableConcurrency, "The concurrency of table checksumming")
+	_ = flags.MarkHidden(flagSendCreds)
+	_ = flags.MarkHidden(flagCA)
+	_ = flags.MarkHidden(flagCert)
+	_ = flags.MarkHidden(flagKey)
 	_ = flags.MarkHidden(flagChecksumConcurrency)
 
 	flags.Uint64(flagRateLimit, unlimited, "The rate limit of the task, MB/s per node")
+	_ = flags.MarkHidden(flagRateLimit)
 	flags.Bool(flagChecksum, true, "Run checksum at end of task")
 	flags.Bool(flagRemoveTiFlash, true,
 		"Remove TiFlash replicas before backup or restore, for unsupported versions of TiFlash")
-
+	_ = flags.MarkDeprecated(flagRemoveTiFlash,
+		"TiFlash is fully supported by BR now, removing TiFlash isn't needed any more. This flag would be ignored.")
 	// Default concurrency is different for backup and restore.
 	// Leave it 0 and let them adjust the value.
 	flags.Uint32(flagConcurrency, 0, "The size of thread pool on each node that executes the task")
@@ -103,12 +109,11 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 
 	flags.Uint64(flagRateLimitUnit, units.MiB, "The unit of rate limit")
 	_ = flags.MarkHidden(flagRateLimitUnit)
-	_ = flags.MarkDeprecated(flagRemoveTiFlash,
-		"TiFlash is fully supported by BR now, removing TiFlash isn't needed any more. This flag would be ignored.")
 
 	flags.Bool(flagCheckRequirement, true,
 		"Whether start version check before execute command")
 	flags.Duration(flagSwitchModeInterval, defaultSwitchInterval, "maintain import mode on TiKV during restore")
+	_ = flags.MarkHidden(flagSwitchModeInterval)
 	flags.Duration(flagGrpcKeepaliveTime, defaultGRPCKeepaliveTime,
 		"the interval of pinging gRPC peer, must keep the same value with TiKV and PD")
 	flags.Duration(flagGrpcKeepaliveTimeout, defaultGRPCKeepaliveTimeout,
@@ -118,7 +123,7 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 
 	flags.Bool(flagEnableOpenTracing, false,
 		"Set whether to enable opentracing during the backup/restore process")
-
+	_ = flags.MarkHidden(flagEnableOpenTracing)
 	flags.BoolP(flagNoCreds, "", false, "Don't load credentials")
 	_ = flags.MarkHidden(flagNoCreds)
 	flags.BoolP(flagSkipCheckPath, "", false, "Skip path verification")
@@ -131,7 +136,9 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 		"aes-crypter key, used to encrypt/decrypt the data "+
 			"by the hexadecimal string, eg: \"0123456789abcdef0123456789abcdef\"")
 	flags.String(flagCipherKeyFile, "", "FilePath, its content is used as the cipher-key")
-
+	_ = flags.MarkHidden(flagCipherType)
+	_ = flags.MarkHidden(flagCipherKey)
+	_ = flags.MarkHidden(flagCipherKeyFile)
 	storage.DefineFlags(flags)
 }
 

@@ -47,6 +47,10 @@ func DefineBackupFlags(flags *pflag.FlagSet) {
 		"disable the balance, shuffle and region-merge schedulers in PD to speed up backup")
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = flags.MarkHidden(flagRemoveSchedulers)
+	_ = flags.MarkHidden(flagBackupTimeago)
+	_ = flags.MarkHidden(flagLastBackupTS)
+	_ = flags.MarkHidden(flagBackupTS)
+	_ = flags.MarkHidden(flagGCTTL)
 
 	// Disable stats by default. because of
 	// 1. DumpStatsToJson is not stable

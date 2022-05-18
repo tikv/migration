@@ -45,6 +45,7 @@ func DefineRestoreCommonFlags(flags *pflag.FlagSet) {
 		"concurrency pd-relative operations like split & scatter.")
 	flags.Duration(FlagBatchFlushInterval, defaultBatchFlushInterval,
 		"after how long a restore batch would be auto sended.")
+	_ = flags.MarkHidden(flagOnline)
 	_ = flags.MarkHidden(FlagMergeRegionSizeBytes)
 	_ = flags.MarkHidden(FlagMergeRegionKeyCount)
 	_ = flags.MarkHidden(FlagPDConcurrency)
