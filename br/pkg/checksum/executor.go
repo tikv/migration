@@ -122,12 +122,16 @@ func (exec *Executor) doChecksumOnRegion(
 
 	client := tikvpb.NewTikvClient(conn)
 	rangeStart, rangeEnd := adjustRegionRange(exec.startKey, exec.endKey, regionInfo.Region.StartKey, regionInfo.Region.EndKey)
+	apiver := exec.apiVersion
+	if apiver == kvrpcpb.APIVersion_V1TTL {
+		apiver = kvrpcpb.APIVersion_V1
+	}
 	resp, err := client.RawChecksum(ctx, &kvrpcpb.RawChecksumRequest{
 		Context: &kvrpcpb.Context{
 			RegionId:    regionInfo.Region.Id,
 			RegionEpoch: regionInfo.Region.RegionEpoch,
 			Peer:        peer,
-			ApiVersion:  exec.apiVersion,
+			ApiVersion:  apiver,
 		},
 		Algorithm: kvrpcpb.ChecksumAlgorithm_Crc64_Xor,
 		Ranges: []*kvrpcpb.KeyRange{{
@@ -192,14 +196,19 @@ func (exec *Executor) doScanChecksum(
 	firstLoop := true
 	checksum := Checksum{}
 	digest := crc64.New(crc64.MakeTable(crc64.ECMA))
+	apiver := exec.apiVersion
+	if apiver == kvrpcpb.APIVersion_V1TTL {
+		apiver = kvrpcpb.APIVersion_V1
+	}
+	kvrpcpbCtx := &kvrpcpb.Context{
+		RegionId:    regionInfo.Region.Id,
+		RegionEpoch: regionInfo.Region.RegionEpoch,
+		Peer:        peer,
+		ApiVersion:  apiver,
+	}
 	for {
 		resp, err := client.RawScan(ctx, &kvrpcpb.RawScanRequest{
-			Context: &kvrpcpb.Context{
-				RegionId:    regionInfo.Region.Id,
-				RegionEpoch: regionInfo.Region.RegionEpoch,
-				Peer:        peer,
-				ApiVersion:  exec.apiVersion,
-			},
+			Context:  kvrpcpbCtx,
 			StartKey: curStart,
 			EndKey:   rangeEnd,
 			Cf:       "default",
