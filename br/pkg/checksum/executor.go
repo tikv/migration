@@ -60,7 +60,7 @@ const (
 )
 
 // ExecutorBuilder is used to build
-type ChecksumExecutor struct {
+type Executor struct {
 	startKey    []byte
 	endKey      []byte
 	apiVersion  kvrpcpb.APIVersion
@@ -70,9 +70,9 @@ type ChecksumExecutor struct {
 }
 
 // NewExecutorBuilder returns a new executor builder.
-func NewChecksumExecutor(startKey, endKey []byte, apiVersion kvrpcpb.APIVersion, pdClient pd.Client,
-	concurrency uint) *ChecksumExecutor {
-	return &ChecksumExecutor{
+func NewExecutor(startKey, endKey []byte, apiVersion kvrpcpb.APIVersion, pdClient pd.Client,
+	concurrency uint) *Executor {
+	return &Executor{
 		startKey:    startKey,
 		endKey:      endKey,
 		apiVersion:  apiVersion,
@@ -93,7 +93,7 @@ func adjustRegionRange(startKey, endKey, regionStart, regionEnd []byte) ([]byte,
 	return retStart, retEnd
 }
 
-func (exec *ChecksumExecutor) doChecksumOnRegion(
+func (exec *Executor) doChecksumOnRegion(
 	ctx context.Context,
 	regionInfo *restore.RegionInfo,
 	splitClient restore.SplitClient,
@@ -159,7 +159,7 @@ const (
 	MaxScanCntLimit = uint32(1024) // limited by grpc message size
 )
 
-func (exec *ChecksumExecutor) doScanChecksum(
+func (exec *Executor) doScanChecksum(
 	ctx context.Context,
 	regionInfo *restore.RegionInfo,
 	splitClient restore.SplitClient,
@@ -231,10 +231,9 @@ func (exec *ChecksumExecutor) doScanChecksum(
 		kvCnt := len(iterKvPairs)
 		if kvCnt == 0 {
 			break
-		} else {
-			curStart = iterKvPairs[kvCnt-1].Key
-			firstLoop = false
 		}
+		curStart = iterKvPairs[kvCnt-1].Key
+		firstLoop = false
 	}
 
 	progressCallBack(backup.RegionUnit)
@@ -248,7 +247,7 @@ func (exec *ChecksumExecutor) doScanChecksum(
 	return nil
 }
 
-func (exec *ChecksumExecutor) execChecksumRequest(
+func (exec *Executor) execChecksumRequest(
 	ctx context.Context,
 	method StorageChecksumMethod,
 	progressCallBack func(backup.ProgressUnit),
@@ -294,7 +293,7 @@ func (exec *ChecksumExecutor) execChecksumRequest(
 }
 
 // Execute executes a checksum executor.
-func (exec *ChecksumExecutor) Execute(
+func (exec *Executor) Execute(
 	ctx context.Context,
 	expect Checksum,
 	method StorageChecksumMethod,

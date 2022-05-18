@@ -136,7 +136,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		progressCallBack := func(unit backup.ProgressUnit) {
 			updateCh.Inc()
 		}
-		err = checksum.NewChecksumExecutor(cfg.StartKey, cfg.EndKey,
+		err = checksum.NewExecutor(cfg.StartKey, cfg.EndKey,
 			backupMeta.ApiVersion, mgr.GetPDClient(), cfg.ChecksumConcurrency).
 			Execute(ctx, finalChecksum, checksum.StorageChecksumCommand, progressCallBack)
 		updateCh.Close()

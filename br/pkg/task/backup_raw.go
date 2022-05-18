@@ -199,7 +199,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		if curAPIVersion.String() != cfg.DstAPIVersion {
 			checksumMethod = checksum.StorageScanCommand
 		}
-		err = checksum.NewChecksumExecutor(cfg.StartKey, cfg.EndKey, curAPIVersion,
+		err = checksum.NewExecutor(cfg.StartKey, cfg.EndKey, curAPIVersion,
 			mgr.GetPDClient(), cfg.ChecksumConcurrency).
 			Execute(ctx, finalChecksum, checksumMethod, progressCallBack)
 		updateCh.Close()
