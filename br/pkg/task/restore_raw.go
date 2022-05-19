@@ -4,6 +4,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
@@ -149,7 +150,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 			Execute(ctx, finalChecksum, checksum.StorageChecksumCommand, progressCallBack)
 		updateCh.Close()
 		if err != nil {
-			return errors.Trace(err)
+			fmt.Println("restore succeeded, but checksum failed, please check.", err)
 		}
 	}
 

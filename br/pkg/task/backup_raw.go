@@ -4,6 +4,8 @@ package task
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
@@ -152,8 +154,11 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		CipherInfo:       &cfg.CipherInfo,
 	}
 	finalChecksum := checksum.Checksum{}
+	checksumLock := sync.Mutex{}
 
 	saveChecksumFunc := func(crc64Xor, totalKvs, totalBytes uint64) {
+		checksumLock.Lock()
+		defer checksumLock.Unlock()
 		finalChecksum.UpdateChecksum(crc64Xor, totalKvs, totalBytes)
 	}
 	metaWriter := metautil.NewMetaWriter(client.GetStorage(), metautil.MetaFileSize, false, &cfg.CipherInfo)
@@ -204,7 +209,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 			Execute(ctx, finalChecksum, checksumMethod, progressCallBack)
 		updateCh.Close()
 		if err != nil {
-			return errors.Trace(err)
+			fmt.Println("backup succeeded, but checksum failed, please check.", err)
 		}
 	}
 
