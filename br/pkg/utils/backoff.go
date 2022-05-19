@@ -28,6 +28,10 @@ const (
 	resetTSRetryTime       = 16
 	resetTSWaitInterval    = 50 * time.Millisecond
 	resetTSMaxWaitInterval = 500 * time.Millisecond
+
+	checksumRetryTimes      = 3
+	checksumWaitInterval    = 50 * time.Millisecond
+	checksumMaxWaitInterval = 500 * time.Millisecond
 )
 
 type importerBackoffer struct {
@@ -133,5 +137,52 @@ func (bo *pdReqBackoffer) NextBackoff(err error) time.Duration {
 }
 
 func (bo *pdReqBackoffer) Attempt() int {
+	return bo.attempt
+}
+
+type checksumBackoffer struct {
+	attempt      int
+	delayTime    time.Duration
+	maxDelayTime time.Duration
+}
+
+func NewChecksumBackoffer() Backoffer {
+	return &checksumBackoffer{
+		attempt:      checksumRetryTimes,
+		delayTime:    checksumWaitInterval,
+		maxDelayTime: checksumMaxWaitInterval,
+	}
+}
+
+func (bo *checksumBackoffer) NextBackoff(err error) time.Duration {
+	if MessageIsRetryableStorageError(err.Error()) {
+		bo.delayTime = 2 * bo.delayTime
+		bo.attempt--
+	} else {
+		e := errors.Cause(err)
+		switch e { // nolint:errorlint
+		case berrors.ErrKVEpochNotMatch:
+			bo.delayTime = 2 * bo.delayTime
+			bo.attempt--
+		default:
+			switch status.Code(e) {
+			case codes.Unavailable, codes.Aborted:
+				bo.delayTime = 2 * bo.delayTime
+				bo.attempt--
+			default:
+				// Unexcepted error
+				bo.delayTime = 0
+				bo.attempt = 0
+				log.Warn("unexcepted error, stop to retry", zap.Error(err))
+			}
+		}
+	}
+	if bo.delayTime > bo.maxDelayTime {
+		return bo.maxDelayTime
+	}
+	return bo.delayTime
+}
+
+func (bo *checksumBackoffer) Attempt() int {
 	return bo.attempt
 }

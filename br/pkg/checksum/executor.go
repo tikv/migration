@@ -26,6 +26,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/tikv/migration/br/pkg/backup"
 	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/gluetikv"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/utils"
@@ -318,4 +319,27 @@ func (exec *Executor) Execute(
 		return errors.New("Checksum mismatch")
 	}
 	return nil
+}
+
+func RunChecksumWithRetry(ctx context.Context, cmdName string, steps int64,
+	executor *Executor, method StorageChecksumMethod, expect Checksum) error {
+	glue := new(gluetikv.Glue)
+	errRetry := utils.WithRetry(
+		ctx,
+		func() error {
+			updateCh := glue.StartProgress(ctx, cmdName+" Checksum", steps, false)
+			progressCallBack := func(unit backup.ProgressUnit) {
+				updateCh.Inc()
+			}
+			err := executor.Execute(ctx, expect, method, progressCallBack)
+			updateCh.Close()
+			if err != nil {
+				fmt.Printf("%s succeeded, but checksum failed, err:%v, will retry.\n",
+					cmdName, errors.Cause((err)))
+			}
+			return errors.Trace(err)
+		},
+		utils.NewChecksumBackoffer(),
+	)
+	return errors.Trace(errRetry)
 }

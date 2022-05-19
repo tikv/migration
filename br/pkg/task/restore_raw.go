@@ -4,13 +4,11 @@ package task
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
-	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/checksum"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
@@ -139,18 +137,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	}
 
 	if cfg.Checksum {
-		updateCh = g.StartProgress(
-			ctx, cmdName+"-checksum", int64(len(files)), !cfg.LogProgress)
-
-		progressCallBack := func(unit backup.ProgressUnit) {
-			updateCh.Inc()
-		}
-		err = checksum.NewExecutor(cfg.StartKey, cfg.EndKey,
-			backupMeta.ApiVersion, mgr.GetPDClient(), cfg.ChecksumConcurrency).
-			Execute(ctx, finalChecksum, checksum.StorageChecksumCommand, progressCallBack)
-		updateCh.Close()
+		executor := checksum.NewExecutor(cfg.StartKey, cfg.EndKey,
+			backupMeta.ApiVersion, mgr.GetPDClient(), cfg.ChecksumConcurrency)
+		err = checksum.RunChecksumWithRetry(ctx, cmdName, int64(len(files)), executor,
+			checksum.StorageChecksumCommand, finalChecksum)
 		if err != nil {
-			fmt.Println("restore succeeded, but checksum failed, please check.", err)
+			return errors.Trace(err)
 		}
 	}
 

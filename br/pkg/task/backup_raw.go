@@ -4,7 +4,6 @@ package task
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/opentracing/opentracing-go"
@@ -194,26 +193,21 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
+	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
+
 	if cfg.Checksum {
-		updateCh = g.StartProgress(
-			ctx, cmdName+"-checksum", int64(approximateRegions), !cfg.LogProgress)
-		progressCallBack = func(unit backup.ProgressUnit) {
-			updateCh.Inc()
-		}
 		checksumMethod := checksum.StorageChecksumCommand
 		if curAPIVersion.String() != cfg.DstAPIVersion {
 			checksumMethod = checksum.StorageScanCommand
 		}
-		err = checksum.NewExecutor(cfg.StartKey, cfg.EndKey, curAPIVersion,
-			mgr.GetPDClient(), cfg.ChecksumConcurrency).
-			Execute(ctx, finalChecksum, checksumMethod, progressCallBack)
-		updateCh.Close()
+		executor := checksum.NewExecutor(cfg.StartKey, cfg.EndKey, curAPIVersion,
+			mgr.GetPDClient(), cfg.ChecksumConcurrency)
+		err = checksum.RunChecksumWithRetry(ctx, cmdName, int64(approximateRegions), executor,
+			checksumMethod, finalChecksum)
 		if err != nil {
-			fmt.Println("backup succeeded, but checksum failed, please check.", err)
+			return errors.Trace(err)
 		}
 	}
-
-	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
 
 	// Set task summary to success status.
 	summary.SetSuccessStatus(true)
