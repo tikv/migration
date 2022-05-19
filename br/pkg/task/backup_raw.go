@@ -49,8 +49,7 @@ func DefineRawBackupFlags(command *cobra.Command) {
 		"disable the balance, shuffle and region-merge schedulers in PD to speed up backup.")
 
 	// This flag can impact the online cluster, so hide it in case of abuse.
-	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
-
+	_ = command.Flags().MarkHidden(flagCompressionType)
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
 	_ = command.Flags().MarkHidden(flagStartKey)
 	_ = command.Flags().MarkHidden(flagEndKey)
