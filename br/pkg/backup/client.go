@@ -349,7 +349,7 @@ func (bc *Client) BackupRange(
 	// TODO: test fine grained backup.
 	err = bc.fineGrainedBackup(
 		ctx, req.DstApiVersion, startKey, endKey, req.StartVersion, req.EndVersion, req.CompressionType, req.CompressionLevel,
-		req.RateLimit, req.Concurrency, req.IsRawKv, req.CipherInfo, results, progressCallBack)
+		req.RateLimit, req.Concurrency, req.IsRawKv, req.CipherInfo, results, progressCallBack, checksumCallBack)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -435,6 +435,7 @@ func (bc *Client) fineGrainedBackup(
 	cipherInfo *backuppb.CipherInfo,
 	rangeTree rtree.RangeTree,
 	progressCallBack func(ProgressUnit),
+	checksumCallBack func(crc64Xor, totalKvs, totalBytes uint64),
 ) error {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
 		span1 := span.Tracer().StartSpan("Client.fineGrainedBackup", opentracing.ChildOf(span.Context()))
@@ -529,6 +530,13 @@ func (bc *Client) fineGrainedBackup(
 					logutil.Key("fine-grained-range-end", resp.EndKey),
 				)
 				rangeTree.Put(resp.StartKey, resp.EndKey, resp.Files)
+				if checksumCallBack != nil {
+					for _, file := range resp.GetFiles() {
+						logutil.CL(ctx).Info("backup get fine grained response",
+							logutil.File(file))
+						checksumCallBack(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+					}
+				}
 
 				// Update progress
 				progressCallBack(RegionUnit)
