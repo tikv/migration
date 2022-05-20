@@ -94,12 +94,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	}
 
 	// Redirect to log if there is no log file to avoid unreadable output.
-	// TODO: How to show progress?
 	updateCh := g.StartProgress(
 		ctx,
 		"Raw Restore",
-		// Split/Scatter + Download/Ingest
-		int64(len(ranges)+len(files)),
+		// Split/Scatter + Download/Ingest.
+		// Regard split region as one step as it finish quickly compared to ingest.
+		int64(1+len(files)),
 		!cfg.LogProgress)
 
 	// RawKV restore does not need to rewrite keys.

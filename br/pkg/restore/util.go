@@ -119,9 +119,7 @@ func SplitRanges(
 	splitter := NewRegionSplitter(NewSplitClient(client.GetPDClient(), client.GetTLSConfig(), isRawKv))
 
 	return splitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(keys [][]byte) {
-		for range keys {
-			updateCh.Inc()
-		}
+		updateCh.Inc()
 	})
 }
 
