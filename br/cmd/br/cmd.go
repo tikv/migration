@@ -78,6 +78,9 @@ func AddFlags(cmd *cobra.Command) {
 		"Set the slow log file path. If not set, discard slow logs")
 	_ = cmd.PersistentFlags().MarkHidden(FlagSlowLogFile)
 	_ = cmd.PersistentFlags().MarkHidden(FlagRedactLog)
+	_ = cmd.PersistentFlags().MarkHidden(FlagRedactInfoLog)
+	_ = cmd.PersistentFlags().MarkHidden(FlagLogFormat)
+	_ = cmd.PersistentFlags().MarkHidden(FlagStatusAddr)
 }
 
 // Init initializes BR cli.

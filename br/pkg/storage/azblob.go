@@ -50,6 +50,10 @@ func defineAzblobFlags(flags *pflag.FlagSet) {
 	flags.String(azblobAccessTierOption, "", "Specify the storage class for azblob")
 	flags.String(azblobAccountName, "", "Specify the account name for azblob")
 	flags.String(azblobAccountKey, "", "Specify the account key for azblob")
+	_ = flags.MarkHidden(azblobEndpointOption)
+	_ = flags.MarkHidden(azblobAccessTierOption)
+	_ = flags.MarkHidden(azblobAccountName)
+	_ = flags.MarkHidden(azblobAccountKey)
 }
 
 func (options *AzblobBackendOptions) parseFromFlags(flags *pflag.FlagSet) error {
