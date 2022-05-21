@@ -133,7 +133,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 
 	finalChecksum := checksum.Checksum{}
 	for _, file := range files {
-		finalChecksum.UpdateChecksum(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+		finalChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
 	}
 
 	if cfg.Checksum {

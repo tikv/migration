@@ -4,7 +4,6 @@ package task
 
 import (
 	"context"
-	"sync"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
@@ -52,6 +51,19 @@ func DefineRawBackupFlags(command *cobra.Command) {
 
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
+}
+
+// CalcChecksumFromBackupMeta read the backup meta and return Checksum
+func CalcChecksumFromBackupMeta(ctx context.Context, cfg *Config) (*checksum.Checksum, error) {
+	fileChecksum := new(checksum.Checksum)
+	_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, cfg)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	for _, file := range backupMeta.Files {
+		fileChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+	}
+	return fileChecksum, nil
 }
 
 // RunBackupRaw starts a backup task inside the current goroutine.
@@ -152,17 +164,9 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		CompressionLevel: cfg.CompressionLevel,
 		CipherInfo:       &cfg.CipherInfo,
 	}
-	finalChecksum := checksum.Checksum{}
-	checksumLock := sync.Mutex{}
-
-	saveChecksumFunc := func(crc64Xor, totalKvs, totalBytes uint64) {
-		checksumLock.Lock()
-		defer checksumLock.Unlock()
-		finalChecksum.UpdateChecksum(crc64Xor, totalKvs, totalBytes)
-	}
 	metaWriter := metautil.NewMetaWriter(client.GetStorage(), metautil.MetaFileSize, false, &cfg.CipherInfo)
 	metaWriter.StartWriteMetasAsync(ctx, metautil.AppendDataFile)
-	err = client.BackupRange(ctx, backupRange.StartKey, backupRange.EndKey, req, metaWriter, progressCallBack, saveChecksumFunc)
+	err = client.BackupRange(ctx, backupRange.StartKey, backupRange.EndKey, req, metaWriter, progressCallBack)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -196,6 +200,11 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
 
 	if cfg.Checksum {
+		fileChecksum, err := CalcChecksumFromBackupMeta(ctx, &cfg.Config)
+		if err != nil {
+			log.Error("fail to read backup meta", zap.Error(err))
+			return err
+		}
 		checksumMethod := checksum.StorageChecksumCommand
 		if curAPIVersion.String() != cfg.DstAPIVersion {
 			checksumMethod = checksum.StorageScanCommand
@@ -203,7 +212,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		executor := checksum.NewExecutor(cfg.StartKey, cfg.EndKey, curAPIVersion,
 			mgr.GetPDClient(), cfg.ChecksumConcurrency)
 		err = checksum.RunChecksumWithRetry(ctx, cmdName, int64(approximateRegions), executor,
-			checksumMethod, finalChecksum)
+			checksumMethod, *fileChecksum)
 		if err != nil {
 			return errors.Trace(err)
 		}

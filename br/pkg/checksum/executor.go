@@ -42,7 +42,7 @@ type Checksum struct {
 	TotalBytes uint64
 }
 
-func (c *Checksum) UpdateChecksum(crc64Xor, totalKvs, totalBytes uint64) {
+func (c *Checksum) Update(crc64Xor, totalKvs, totalBytes uint64) {
 	c.Crc64Xor ^= crc64Xor
 	c.TotalKvs += totalKvs
 	c.TotalBytes += totalBytes
@@ -152,7 +152,7 @@ func (exec *Executor) doChecksumOnRegion(
 	progressCallBack(backup.RegionUnit)
 	exec.mutex.Lock() // lock for updating checksum
 	defer exec.mutex.Unlock()
-	finalChecksum.UpdateChecksum(resp.GetChecksum(), resp.GetTotalKvs(), resp.GetTotalBytes())
+	finalChecksum.Update(resp.GetChecksum(), resp.GetTotalKvs(), resp.GetTotalBytes())
 	logutil.CL(ctx).Info("region checksum finish", zap.Uint64("region id", regionInfo.Region.Id),
 		logutil.Key("region start", rangeStart),
 		logutil.Key("region end", rangeEnd),
@@ -249,7 +249,7 @@ func (exec *Executor) doScanChecksum(
 	progressCallBack(backup.RegionUnit)
 	exec.mutex.Lock() // lock for updating checksum
 	defer exec.mutex.Unlock()
-	finalChecksum.UpdateChecksum(checksum.Crc64Xor, checksum.TotalKvs, checksum.TotalBytes)
+	finalChecksum.Update(checksum.Crc64Xor, checksum.TotalKvs, checksum.TotalBytes)
 	logutil.CL(ctx).Info("region checksum finish", zap.Uint64("region id", regionInfo.Region.Id),
 		logutil.Key("region start", regionInfo.Region.StartKey),
 		logutil.Key("region end", regionInfo.Region.EndKey),

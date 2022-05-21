@@ -56,7 +56,6 @@ func (push *pushDown) pushBackup(
 	req backuppb.BackupRequest,
 	stores []*metapb.Store,
 	progressCallBack func(ProgressUnit),
-	checksumCallBack func(crc64Xor, totalKvs, totalBytes uint64),
 ) (rtree.RangeTree, error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
 		span1 := span.Tracer().StartSpan("pushDown.pushBackup", opentracing.ChildOf(span.Context()))
@@ -160,13 +159,6 @@ func (push *pushDown) pushBackup(
 			if resp.GetError() == nil {
 				// None error means range has been backuped successfully.
 				res.Put(resp.GetStartKey(), resp.GetEndKey(), resp.GetFiles())
-				if checksumCallBack != nil {
-					for _, file := range resp.GetFiles() {
-						logutil.CL(ctx).Info("backup get response",
-							logutil.File(file))
-						checksumCallBack(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
-					}
-				}
 				// Update progress
 				progressCallBack(RegionUnit)
 			} else {

@@ -29,9 +29,9 @@ const (
 	resetTSWaitInterval    = 50 * time.Millisecond
 	resetTSMaxWaitInterval = 500 * time.Millisecond
 
-	checksumRetryTimes      = 3
-	checksumWaitInterval    = 50 * time.Millisecond
-	checksumMaxWaitInterval = 500 * time.Millisecond
+	checksumRetryTimes      = 8
+	checksumWaitInterval    = 1 * time.Second
+	checksumMaxWaitInterval = 4 * time.Second
 )
 
 type importerBackoffer struct {
@@ -173,7 +173,8 @@ func (bo *checksumBackoffer) NextBackoff(err error) time.Duration {
 				// Unexcepted error
 				bo.delayTime = 0
 				bo.attempt = 0
-				log.Warn("unexcepted error, stop to retry", zap.Error(err))
+				log.Warn("unexcepted error, stop to retry", zap.Error(err),
+					zap.Uint32("errcode", uint32(status.Code(e))))
 			}
 		}
 	}
