@@ -95,9 +95,9 @@ class rawkvTester:
         self._clean_range(outer_start, outer_end)
         cs_outer_clean = self._get_checksum(outer_start, outer_end)
         self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
-        self._restore_range(inner_start, inner_end, dst_api_version, storage_dir)
-        cs_inner_restore = self._get_checksum(inner_start, inner_end)
-        self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
+        #self._restore_range(inner_start, inner_end, dst_api_version, storage_dir)
+        #cs_inner_restore = self._get_checksum(inner_start, inner_end)
+        #self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
 
 
     def _backup_range(self, start_key, end_key, dst_api_version, storage_dir):
