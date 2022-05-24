@@ -15,7 +15,7 @@ import (
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/summary"
-	"github.com/tikv/pd/pkg/codec"
+	"github.com/tikv/migration/br/pkg/utils"
 )
 
 // DefineRawRestoreFlags defines common flags for the backup command.
@@ -118,10 +118,19 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	}
 	defer restorePostWork(ctx, client, restoreSchedulers)
 
+	// raw key without encoding
+	keyRanges := make([]*utils.KeyRange, 0, len(files))
+	for _, file := range files {
+		keyRanges = append(keyRanges, &utils.KeyRange{
+			Start: file.StartKey,
+			End:   file.EndKey,
+		})
+	}
 	if needEncodeKey {
 		for _, file := range files {
-			file.StartKey = codec.EncodeBytes(file.StartKey)
-			file.EndKey = codec.EncodeBytes(file.EndKey)
+			keyRange := utils.EncodeKeyRange(file.StartKey, file.EndKey)
+			file.StartKey = keyRange.Start
+			file.EndKey = keyRange.End
 		}
 	}
 
@@ -133,15 +142,14 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	// Restore has finished.
 	updateCh.Close()
 
-	finalChecksum := checksum.Checksum{}
-	for _, file := range files {
-		finalChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
-	}
-
 	if cfg.Checksum {
-		executor := checksum.NewExecutor(cfg.StartKey, cfg.EndKey,
-			backupMeta.ApiVersion, mgr.GetPDClient(), cfg.ChecksumConcurrency)
-		err = checksum.RunChecksumWithRetry(ctx, cmdName, int64(len(files)), executor,
+		finalChecksum := checksum.Checksum{}
+		for _, file := range files {
+			finalChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+		}
+		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(),
+			backupMeta.ApiVersion, cfg.ChecksumConcurrency)
+		err = checksum.Run(ctx, cmdName, executor,
 			checksum.StorageChecksumCommand, finalChecksum)
 		if err != nil {
 			return errors.Trace(err)

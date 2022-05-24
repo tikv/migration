@@ -24,12 +24,15 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/kvproto/pkg/tikvpb"
+	"github.com/tikv/client-go/v2/config"
+	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/backup"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/gluetikv"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/utils"
+	. "github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -62,67 +65,123 @@ const (
 
 // ExecutorBuilder is used to build
 type Executor struct {
-	startKey    []byte
-	endKey      []byte
+	keyRanges   []*KeyRange
+	pdAddrs     []string
 	apiVersion  kvrpcpb.APIVersion
 	pdClient    pd.Client
 	concurrency uint
-	mutex       sync.Mutex // lock for update checksum
 }
 
 // NewExecutorBuilder returns a new executor builder.
-func NewExecutor(startKey, endKey []byte, apiVersion kvrpcpb.APIVersion, pdClient pd.Client,
+func NewExecutor(keyRanges []*KeyRange, pdAddrs []string, pdClient pd.Client, apiVersion kvrpcpb.APIVersion,
 	concurrency uint) *Executor {
 	return &Executor{
-		startKey:    startKey,
-		endKey:      endKey,
+		keyRanges:   keyRanges,
+		pdAddrs:     pdAddrs,
 		apiVersion:  apiVersion,
 		pdClient:    pdClient,
 		concurrency: concurrency,
 	}
 }
 
-func adjustRegionRange(startKey, endKey, regionStart, regionEnd []byte) ([]byte, []byte) {
-	retStart := startKey
+func adjustRegionRange(start, end, regionStart, regionEnd []byte) ([]byte, []byte) {
+	retStart := start
 	if string(retStart) < string(regionStart) {
 		retStart = regionStart
 	}
-	retEnd := endKey
+	retEnd := end
 	if len(retEnd) == 0 || (len(regionEnd) != 0 && string(retEnd) > string(regionEnd)) {
 		retEnd = regionEnd
 	}
 	return retStart, retEnd
 }
 
+const (
+	MaxScanCntLimit = 1024 // limited by grpc message size
+)
+
+// doScanChecksumOnRange scan all key/value in keyRange and format it to apiv2 format, then calc checksum
+// ATTENTION: just support call this func in apiv1/v1ttl store.
+func (exec *Executor) doScanChecksumOnRange(
+	ctx context.Context,
+	keyRange *KeyRange,
+) (Checksum, error) {
+	if exec.apiVersion != kvrpcpb.APIVersion_V1 && exec.apiVersion != kvrpcpb.APIVersion_V1TTL {
+		return Checksum{}, errors.New("not support scan checksum on apiv1/v1ttl")
+	}
+	rawClient, err := rawkv.NewClient(ctx, exec.pdAddrs, config.Security{})
+	if err != nil {
+		return Checksum{}, err
+	}
+	defer rawClient.Close()
+	curStart := keyRange.Start
+	checksum := Checksum{}
+	digest := crc64.New(crc64.MakeTable(crc64.ECMA))
+	for {
+		keys, values, err := rawClient.Scan(ctx, curStart, keyRange.End, MaxScanCntLimit)
+		if err != nil {
+			return Checksum{}, err
+		}
+		for i, key := range keys {
+			newKey := utils.FormatAPIV2Key(key, false)
+			// keep the same with tikv-server: https://docs.rs/crc64fast/latest/crc64fast/
+			digest.Reset()
+			digest.Write(newKey)
+			digest.Write(values[i])
+			checksum.Crc64Xor ^= digest.Sum64()
+			checksum.TotalKvs += 1
+			checksum.TotalBytes += (uint64)(len(newKey) + len(values[i]))
+		}
+		if len(keys) == 0 || len(keys) < MaxScanCntLimit {
+			break // reach the end
+		}
+		// append '0' to avoid getting the duplicated kv
+		curStart = append(keys[len(keys)-1], '0')
+	}
+	return checksum, nil
+}
+
+func checkDuplicateRegion(ctx context.Context, regionInfos []*restore.RegionInfo) error {
+	regionMap := make(map[uint64]*restore.RegionInfo)
+	for _, region := range regionInfos {
+		regionMap[region.Region.GetId()] = region
+	}
+	if len(regionMap) != len(regionInfos) {
+		logutil.CL(ctx).Error("get duplicated regions", zap.Int("region cnt", len(regionInfos)),
+			zap.Int("real region cnt", len(regionMap)))
+		return errors.New("get duplicated region info")
+	}
+	return nil
+}
+
 func (exec *Executor) doChecksumOnRegion(
 	ctx context.Context,
 	regionInfo *restore.RegionInfo,
+	keyRange *KeyRange,
 	splitClient restore.SplitClient,
-	finalChecksum *Checksum,
-	progressCallBack func(backup.ProgressUnit),
-) error {
+) (Checksum, error) {
 	var peer *metapb.Peer
 	if regionInfo.Leader != nil {
 		peer = regionInfo.Leader
 	} else {
 		if len(regionInfo.Region.Peers) == 0 {
-			return errors.Annotate(berrors.ErrRestoreNoPeer, "region does not have peer")
+			return Checksum{}, errors.Annotate(berrors.ErrRestoreNoPeer, "region does not have peer")
 		}
 		peer = regionInfo.Region.Peers[0]
 	}
 	storeID := peer.GetStoreId()
 	store, err := splitClient.GetStore(ctx, storeID)
 	if err != nil {
-		return errors.Trace(err)
+		return Checksum{}, errors.Trace(err)
 	}
 	conn, err := grpc.Dial(store.GetAddress(), grpc.WithInsecure())
 	if err != nil {
-		return errors.Trace(err)
+		return Checksum{}, errors.Trace(err)
 	}
 	defer conn.Close()
 
 	client := tikvpb.NewTikvClient(conn)
-	rangeStart, rangeEnd := adjustRegionRange(exec.startKey, exec.endKey, regionInfo.Region.StartKey, regionInfo.Region.EndKey)
+	rangeStart, rangeEnd := adjustRegionRange(keyRange.Start, keyRange.End, regionInfo.Region.StartKey, regionInfo.Region.EndKey)
 	apiver := exec.apiVersion
 	if apiver == kvrpcpb.APIVersion_V1TTL {
 		apiver = kvrpcpb.APIVersion_V1
@@ -141,150 +200,105 @@ func (exec *Executor) doChecksumOnRegion(
 		}},
 	})
 	if err != nil {
-		return errors.Trace(err)
+		return Checksum{}, errors.Trace(err)
 	}
 	if resp.GetRegionError() != nil {
-		return errors.New(resp.GetRegionError().String())
+		if resp.GetRegionError().GetEpochNotMatch() != nil {
+			return Checksum{}, berrors.ErrKVEpochNotMatch
+		} else if resp.GetRegionError().GetNotLeader() != nil {
+			return Checksum{}, berrors.ErrKVNotLeader
+		} else {
+			return Checksum{}, errors.New(resp.GetRegionError().String())
+		}
 	}
 	if resp.GetError() != "" {
-		return errors.New(resp.GetError())
+		return Checksum{}, errors.New(resp.GetError())
 	}
-	progressCallBack(backup.RegionUnit)
-	exec.mutex.Lock() // lock for updating checksum
-	defer exec.mutex.Unlock()
-	finalChecksum.Update(resp.GetChecksum(), resp.GetTotalKvs(), resp.GetTotalBytes())
-	logutil.CL(ctx).Info("region checksum finish", zap.Uint64("region id", regionInfo.Region.Id),
-		logutil.Key("region start", rangeStart),
-		logutil.Key("region end", rangeEnd),
-		zap.Reflect("checksum", finalChecksum))
-	return nil
+	return Checksum{
+		Crc64Xor:   resp.GetChecksum(),
+		TotalKvs:   resp.GetTotalKvs(),
+		TotalBytes: resp.GetTotalBytes(),
+	}, nil
 }
 
-const (
-	MaxScanCntLimit = uint32(1024) // limited by grpc message size
-)
-
-func (exec *Executor) doScanChecksum(
+func (exec *Executor) doChecksumOnRange(
 	ctx context.Context,
-	regionInfo *restore.RegionInfo,
 	splitClient restore.SplitClient,
-	finalChecksum *Checksum,
-	progressCallBack func(backup.ProgressUnit),
-) error {
-	var peer *metapb.Peer
-	if regionInfo.Leader != nil {
-		peer = regionInfo.Leader
-	} else {
-		if len(regionInfo.Region.Peers) == 0 {
-			return errors.Annotate(berrors.ErrRestoreNoPeer, "region does not have peer")
-		}
-		peer = regionInfo.Region.Peers[0]
-	}
-	storeID := peer.GetStoreId()
-	store, err := splitClient.GetStore(ctx, storeID)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	conn, err := grpc.Dial(store.GetAddress(), grpc.WithInsecure())
-	if err != nil {
-		return errors.Trace(err)
-	}
-	defer conn.Close()
-
-	client := tikvpb.NewTikvClient(conn)
-	rangeStart, rangeEnd := adjustRegionRange(exec.startKey, exec.endKey, regionInfo.Region.StartKey, regionInfo.Region.EndKey)
-	curStart := rangeStart
-	firstLoop := true
-	checksum := Checksum{}
-	digest := crc64.New(crc64.MakeTable(crc64.ECMA))
-	apiver := exec.apiVersion
-	if apiver == kvrpcpb.APIVersion_V1TTL {
-		apiver = kvrpcpb.APIVersion_V1
-	}
-	kvrpcpbCtx := &kvrpcpb.Context{
-		RegionId:    regionInfo.Region.Id,
-		RegionEpoch: regionInfo.Region.RegionEpoch,
-		Peer:        peer,
-		ApiVersion:  apiver,
-	}
-	for {
-		resp, err := client.RawScan(ctx, &kvrpcpb.RawScanRequest{
-			Context:  kvrpcpbCtx,
-			StartKey: curStart,
-			EndKey:   rangeEnd,
-			Cf:       "default",
-			Limit:    MaxScanCntLimit,
-		})
-		if err != nil {
-			return errors.Trace(err)
-		}
-		if resp.GetRegionError() != nil {
-			return errors.New(resp.GetRegionError().String())
-		}
-		iterKvPairs := resp.GetKvs()
-		if !firstLoop { // first is duplicated
-			iterKvPairs = iterKvPairs[1:]
-		}
-		for _, kvpair := range iterKvPairs {
-			if kvpair.Error != nil {
-				return errors.New(kvpair.Error.String())
-			}
-			newKey := utils.FormatAPIV2Key(kvpair.Key, false)
-			// keep the same with tikv-server: https://docs.rs/crc64fast/latest/crc64fast/
-			digest.Reset()
-			digest.Write(newKey)
-			digest.Write(kvpair.Value)
-			checksum.Crc64Xor ^= digest.Sum64()
-			checksum.TotalKvs += 1
-			checksum.TotalBytes += (uint64)(len(newKey) + len(kvpair.Value))
-		}
-		kvCnt := len(iterKvPairs)
-		if kvCnt == 0 {
-			break
-		}
-		curStart = iterKvPairs[kvCnt-1].Key
-		firstLoop = false
-	}
-
-	progressCallBack(backup.RegionUnit)
-	exec.mutex.Lock() // lock for updating checksum
-	defer exec.mutex.Unlock()
-	finalChecksum.Update(checksum.Crc64Xor, checksum.TotalKvs, checksum.TotalBytes)
-	logutil.CL(ctx).Info("region checksum finish", zap.Uint64("region id", regionInfo.Region.Id),
-		logutil.Key("region start", regionInfo.Region.StartKey),
-		logutil.Key("region end", regionInfo.Region.EndKey),
-		zap.Reflect("checksum", finalChecksum))
-	return nil
-}
-
-func (exec *Executor) execChecksumRequest(
-	ctx context.Context,
-	method StorageChecksumMethod,
-	progressCallBack func(backup.ProgressUnit),
+	keyRange *KeyRange,
 ) (Checksum, error) {
-	// reuse restore split codes, but do nothing with split.
-	splitClient := restore.NewSplitClient(exec.pdClient, nil, true)
-	regionInfos, err := restore.PaginateScanRegion(ctx, splitClient, exec.startKey, exec.endKey, restore.ScanRegionPaginationLimit)
+	// input key range is rawkey with 'r' prefix, but no encoding, region is encoded.
+	if exec.apiVersion == kvrpcpb.APIVersion_V2 {
+		keyRange = utils.EncodeKeyRange(keyRange.Start, keyRange.End)
+	}
+	regionInfos, err := restore.PaginateScanRegion(ctx, splitClient, keyRange.Start, keyRange.End, restore.ScanRegionPaginationLimit)
 	if err != nil {
 		return Checksum{}, errors.Trace(err)
 	}
-	// regionInfos maybe duplicated
-	regionMap := make(map[uint64]*restore.RegionInfo)
-	for _, region := range regionInfos {
-		regionMap[region.Region.GetId()] = region
+	err = checkDuplicateRegion(ctx, regionInfos)
+	if err != nil {
+		return Checksum{}, errors.Trace(err)
 	}
-	finalChecksum := Checksum{}
+	// at most cases, there should be just one region.
+	checksum := Checksum{}
+	for _, regionInfo := range regionInfos {
+		ret, err := exec.doChecksumOnRegion(ctx, regionInfo, keyRange, splitClient)
+		if err != nil {
+			return Checksum{}, err
+		}
+		checksum.Update(ret.Crc64Xor, ret.TotalKvs, ret.TotalBytes)
+	}
+	logutil.CL(ctx).Info("finish checksum on range.",
+		logutil.Key("RangeStart", keyRange.Start),
+		logutil.Key("RangeEnd", keyRange.End),
+		zap.Int("RegionCnt", len(regionInfos)))
+
+	return checksum, nil
+}
+
+func (exec *Executor) doChecksumOnRangeWithRetry(
+	ctx context.Context,
+	keyRange *KeyRange,
+) (Checksum, error) {
+	// reuse restore split codes, but do nothing with split.
+	splitClient := restore.NewSplitClient(exec.pdClient, nil, true)
+	checksumRet := Checksum{}
+	errRetry := utils.WithRetry(
+		ctx,
+		func() error {
+			ret, err := exec.doChecksumOnRange(ctx, splitClient, keyRange)
+			if err != nil {
+				logutil.CL(ctx).Error("checksum on range failed, will retry.", logutil.Key("Start", keyRange.Start),
+					logutil.Key("End", keyRange.End))
+				return err
+			}
+			checksumRet = ret
+			return nil
+		},
+		utils.NewChecksumBackoffer(),
+	)
+	return checksumRet, errRetry
+}
+
+// Execute executes a checksum executor.
+func (exec *Executor) Execute(
+	ctx context.Context,
+	expect Checksum,
+	method StorageChecksumMethod,
+	progressCallBack func(backup.ProgressUnit),
+) error {
+	storageChecksum := Checksum{}
+	lock := sync.Mutex{}
 	workerPool := utils.NewWorkerPool(exec.concurrency, "Ranges")
 	eg, ectx := errgroup.WithContext(ctx)
-	for _, r := range regionMap {
-		regionInfo := r // copy to another variable in case it's overwritten
+	for _, r := range exec.keyRanges {
+		keyRange := r // copy to another variable in case it's overwritten
 		workerPool.ApplyOnErrorGroup(eg, func() error {
-			elctx := logutil.ContextWithField(ectx, logutil.RedactAny("region-id", regionInfo.Region.Id))
 			var err error
+			var ret Checksum
 			if method == StorageChecksumCommand {
-				err = exec.doChecksumOnRegion(elctx, regionInfo, splitClient, &finalChecksum, progressCallBack)
+				ret, err = exec.doChecksumOnRangeWithRetry(ectx, keyRange)
 			} else if method == StorageScanCommand {
-				err = exec.doScanChecksum(elctx, regionInfo, splitClient, &finalChecksum, progressCallBack)
+				ret, err = exec.doScanChecksumOnRange(ectx, keyRange)
 			} else {
 				err = errors.New("unsupported checksum method")
 			}
@@ -295,51 +309,42 @@ func (exec *Executor) execChecksumRequest(
 				}
 				return errors.Trace(err)
 			}
+			logutil.CL(ctx).Info("range checksum finish",
+				logutil.Key("StartKey", keyRange.Start),
+				logutil.Key("EndKey", keyRange.End),
+				zap.Reflect("checksum", ret))
+			lock.Lock()
+			storageChecksum.Update(ret.Crc64Xor, ret.TotalKvs, ret.TotalBytes)
+			lock.Unlock()
+			progressCallBack(backup.RangeUnit)
 			return nil
 		})
 	}
-	err = eg.Wait()
-	return finalChecksum, err
-}
-
-// Execute executes a checksum executor.
-func (exec *Executor) Execute(
-	ctx context.Context,
-	expect Checksum,
-	method StorageChecksumMethod,
-	progressCallBack func(backup.ProgressUnit),
-) error {
-	storageChecksum, err := exec.execChecksumRequest(ctx, method, progressCallBack)
+	err := eg.Wait()
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	if expect != storageChecksum {
 		logutil.CL(ctx).Error("checksum fails", zap.Reflect("backup files checksum", expect),
-			zap.Reflect("storage checksum", storageChecksum))
+			zap.Reflect("storage checksum", storageChecksum), zap.Int("range cnt", len(exec.keyRanges)))
 		return errors.New("Checksum mismatch")
 	}
 	return nil
 }
 
-func RunChecksumWithRetry(ctx context.Context, cmdName string, steps int64,
+func Run(ctx context.Context, cmdName string,
 	executor *Executor, method StorageChecksumMethod, expect Checksum) error {
 	glue := new(gluetikv.Glue)
-	errRetry := utils.WithRetry(
-		ctx,
-		func() error {
-			updateCh := glue.StartProgress(ctx, cmdName+" Checksum", steps, false)
-			progressCallBack := func(unit backup.ProgressUnit) {
-				updateCh.Inc()
-			}
-			err := executor.Execute(ctx, expect, method, progressCallBack)
-			updateCh.Close()
-			if err != nil {
-				fmt.Printf("%s succeeded, but checksum failed, err:%v, will retry.\n",
-					cmdName, errors.Cause((err)))
-			}
-			return errors.Trace(err)
-		},
-		utils.NewChecksumBackoffer(),
-	)
-	return errors.Trace(errRetry)
+	updateCh := glue.StartProgress(ctx, cmdName+" Checksum", int64(len(executor.keyRanges)), false)
+	progressCallBack := func(unit backup.ProgressUnit) {
+		updateCh.Inc()
+	}
+	err := executor.Execute(ctx, expect, method, progressCallBack)
+	updateCh.Close()
+	if err != nil {
+		fmt.Printf("%s succeeded, but checksum failed, err:%v.\n",
+			cmdName, errors.Cause((err)))
+		return errors.Trace(err)
+	}
+	return nil
 }

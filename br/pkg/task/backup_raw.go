@@ -58,16 +58,21 @@ func DefineRawBackupFlags(command *cobra.Command) {
 }
 
 // CalcChecksumFromBackupMeta read the backup meta and return Checksum
-func CalcChecksumFromBackupMeta(ctx context.Context, cfg *Config) (*checksum.Checksum, error) {
-	fileChecksum := new(checksum.Checksum)
+func CalcChecksumFromBackupMeta(ctx context.Context, cfg *Config) (checksum.Checksum, []*utils.KeyRange, error) {
 	_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, cfg)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return checksum.Checksum{}, nil, errors.Trace(err)
 	}
+	fileChecksum := checksum.Checksum{}
+	keyRanges := make([]*utils.KeyRange, 0, len(backupMeta.Files))
 	for _, file := range backupMeta.Files {
 		fileChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+		keyRanges = append(keyRanges, &utils.KeyRange{
+			Start: file.StartKey,
+			End:   file.EndKey,
+		})
 	}
-	return fileChecksum, nil
+	return fileChecksum, keyRanges, nil
 }
 
 // RunBackupRaw starts a backup task inside the current goroutine.
@@ -204,7 +209,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
 
 	if cfg.Checksum {
-		fileChecksum, err := CalcChecksumFromBackupMeta(ctx, &cfg.Config)
+		fileChecksum, keyRanges, err := CalcChecksumFromBackupMeta(ctx, &cfg.Config)
 		if err != nil {
 			log.Error("fail to read backup meta", zap.Error(err))
 			return err
@@ -212,11 +217,16 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		checksumMethod := checksum.StorageChecksumCommand
 		if curAPIVersion.String() != cfg.DstAPIVersion {
 			checksumMethod = checksum.StorageScanCommand
+			for _, r := range keyRanges {
+				r.Start = r.Start[1:]
+				r.End = r.End[1:]
+			}
 		}
-		executor := checksum.NewExecutor(cfg.StartKey, cfg.EndKey, curAPIVersion,
-			mgr.GetPDClient(), cfg.ChecksumConcurrency)
-		err = checksum.RunChecksumWithRetry(ctx, cmdName, int64(approximateRegions), executor,
-			checksumMethod, *fileChecksum)
+
+		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(), curAPIVersion,
+			cfg.ChecksumConcurrency)
+		err = checksum.Run(ctx, cmdName, executor,
+			checksumMethod, fileChecksum)
 		if err != nil {
 			return errors.Trace(err)
 		}
