@@ -32,7 +32,6 @@ import (
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/utils"
-	. "github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -65,7 +64,7 @@ const (
 
 // ExecutorBuilder is used to build
 type Executor struct {
-	keyRanges   []*KeyRange
+	keyRanges   []*utils.KeyRange
 	pdAddrs     []string
 	apiVersion  kvrpcpb.APIVersion
 	pdClient    pd.Client
@@ -73,7 +72,7 @@ type Executor struct {
 }
 
 // NewExecutorBuilder returns a new executor builder.
-func NewExecutor(keyRanges []*KeyRange, pdAddrs []string, pdClient pd.Client, apiVersion kvrpcpb.APIVersion,
+func NewExecutor(keyRanges []*utils.KeyRange, pdAddrs []string, pdClient pd.Client, apiVersion kvrpcpb.APIVersion,
 	concurrency uint) *Executor {
 	return &Executor{
 		keyRanges:   keyRanges,
@@ -104,7 +103,7 @@ const (
 // ATTENTION: just support call this func in apiv1/v1ttl store.
 func (exec *Executor) doScanChecksumOnRange(
 	ctx context.Context,
-	keyRange *KeyRange,
+	keyRange *utils.KeyRange,
 ) (Checksum, error) {
 	if exec.apiVersion != kvrpcpb.APIVersion_V1 && exec.apiVersion != kvrpcpb.APIVersion_V1TTL {
 		return Checksum{}, errors.New("not support scan checksum on apiv1/v1ttl")
@@ -157,7 +156,7 @@ func checkDuplicateRegion(ctx context.Context, regionInfos []*restore.RegionInfo
 func (exec *Executor) doChecksumOnRegion(
 	ctx context.Context,
 	regionInfo *restore.RegionInfo,
-	keyRange *KeyRange,
+	keyRange *utils.KeyRange,
 	splitClient restore.SplitClient,
 ) (Checksum, error) {
 	var peer *metapb.Peer
@@ -224,7 +223,7 @@ func (exec *Executor) doChecksumOnRegion(
 func (exec *Executor) doChecksumOnRange(
 	ctx context.Context,
 	splitClient restore.SplitClient,
-	keyRange *KeyRange,
+	keyRange *utils.KeyRange,
 ) (Checksum, error) {
 	// input key range is rawkey with 'r' prefix, but no encoding, region is encoded.
 	if exec.apiVersion == kvrpcpb.APIVersion_V2 {
@@ -257,7 +256,7 @@ func (exec *Executor) doChecksumOnRange(
 
 func (exec *Executor) doChecksumOnRangeWithRetry(
 	ctx context.Context,
-	keyRange *KeyRange,
+	keyRange *utils.KeyRange,
 ) (Checksum, error) {
 	// reuse restore split codes, but do nothing with split.
 	splitClient := restore.NewSplitClient(exec.pdClient, nil, true)
