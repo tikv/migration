@@ -105,9 +105,8 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		!cfg.LogProgress)
 
 	// RawKV restore does not need to rewrite keys.
-	rewrite := &restore.RewriteRules{}
 	needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
-	err = restore.SplitRanges(ctx, client, ranges, rewrite, updateCh, true, needEncodeKey)
+	err = restore.SplitRanges(ctx, client, ranges, nil, updateCh, true, needEncodeKey)
 	if err != nil {
 		return errors.Trace(err)
 	}
