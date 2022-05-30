@@ -75,10 +75,11 @@ func GetSSTMetaFromFile(
 			Start: rangeStart,
 			End:   rangeEnd,
 		},
-		Length:      file.GetSize_(),
-		RegionId:    region.GetId(),
-		RegionEpoch: region.GetRegionEpoch(),
-		CipherIv:    file.GetCipherIv(),
+		EndKeyExclusive: true,
+		Length:          file.GetSize_(),
+		RegionId:        region.GetId(),
+		RegionEpoch:     region.GetRegionEpoch(),
+		CipherIv:        file.GetCipherIv(),
 	}
 }
 
