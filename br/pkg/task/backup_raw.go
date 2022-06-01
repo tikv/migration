@@ -103,10 +103,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
-	curAPIVersion, err := client.GetCurrentTiKVApiVersion(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	curAPIVersion := client.GetCurAPIVersion()
 	cfg.adjustBackupRange(curAPIVersion)
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
