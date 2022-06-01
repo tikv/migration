@@ -112,6 +112,9 @@ func (cfg *RawKvConfig) parseDstAPIVersion(flags *pflag.FlagSet) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
+	if len(originalValue) == 0 {
+		return errors.Errorf("Pelease specify %s, current is empty.", flagDstAPIVersion)
+	}
 	cfg.DstAPIVersion = strings.ToUpper(originalValue)
 	if _, ok := kvrpcpb.APIVersion_value[cfg.DstAPIVersion]; !ok {
 		supportedValues := kvrpcpb.APIVersion_V1.String() +
