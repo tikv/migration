@@ -95,7 +95,7 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 
 	flags.Uint64(flagRateLimit, unlimited, "The rate limit of the task, MB/s per node")
 	_ = flags.MarkHidden(flagRateLimit)
-	flags.Bool(flagChecksum, true, "Run checksum at end of task")
+	flags.Bool(flagChecksum, false, "Run checksum at end of task")
 	// Default concurrency is different for backup and restore.
 	// Leave it 0 and let them adjust the value.
 	flags.Uint32(flagConcurrency, 0, "The size of thread pool on each node that executes the task")
