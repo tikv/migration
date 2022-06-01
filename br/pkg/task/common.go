@@ -66,7 +66,7 @@ const (
 	defaultSwitchInterval       = 5 * time.Minute
 	defaultGRPCKeepaliveTime    = 10 * time.Second
 	defaultGRPCKeepaliveTimeout = 3 * time.Second
-	defaultChecksumConcurrency  = 128
+	defaultChecksumConcurrency  = 512
 
 	flagCipherType    = "crypter.method"
 	flagCipherKey     = "crypter.key"
