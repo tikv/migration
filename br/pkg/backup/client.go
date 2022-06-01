@@ -80,6 +80,7 @@ type Client struct {
 	clusterID  uint64
 	httpClient http.Client
 	schema     string
+	curApiver  kvrpcpb.APIVersion
 
 	storage storage.ExternalStorage
 	backend *backuppb.StorageBackend
@@ -181,6 +182,7 @@ func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVers
 		errMsg := fmt.Sprintf("Invalid apiversion %d", cfg.Storage.APIVersion)
 		return kvrpcpb.APIVersion_V1, errors.New(errMsg)
 	}
+	bc.curApiver = apiVersion
 	return apiVersion, nil
 }
 
@@ -393,10 +395,10 @@ func (bc *Client) BackupRange(
 	return nil
 }
 
-func (bc *Client) findRegionLeader(ctx context.Context, key []byte, isRawKv bool) (*metapb.Peer, error) {
+func (bc *Client) findRegionLeader(ctx context.Context, key []byte, needEncodeKey bool) (*metapb.Peer, error) {
 	// Keys are saved in encoded format in TiKV, so the key must be encoded
 	// in order to find the correct region.
-	if !isRawKv {
+	if needEncodeKey {
 		key = codec.EncodeBytes([]byte{}, key)
 	}
 	for i := 0; i < 5; i++ {
@@ -631,7 +633,8 @@ func (bc *Client) handleFineGrained(
 	cipherInfo *backuppb.CipherInfo,
 	respCh chan<- *backuppb.BackupResponse,
 ) (int, error) {
-	leader, pderr := bc.findRegionLeader(ctx, rg.StartKey, isRawKv)
+	encodeKey := (!isRawKv || bc.curApiver == kvrpcpb.APIVersion_V2)
+	leader, pderr := bc.findRegionLeader(ctx, rg.StartKey, encodeKey)
 	if pderr != nil {
 		return 0, errors.Trace(pderr)
 	}
