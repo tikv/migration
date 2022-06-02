@@ -34,7 +34,7 @@ func SortRanges(ranges []rtree.Range, rewriteRules *RewriteRules) ([]rtree.Range
 			if startID == endID {
 				rg.StartKey, rule = replacePrefix(rg.StartKey, rewriteRules)
 				if rule == nil {
-					log.Debug("cannot find rewrite rule", logutil.Key("key", rg.StartKey))
+					log.Warn("cannot find rewrite rule", logutil.Key("key", rg.StartKey))
 				} else {
 					log.Debug(
 						"rewrite start key",
@@ -43,7 +43,7 @@ func SortRanges(ranges []rtree.Range, rewriteRules *RewriteRules) ([]rtree.Range
 				oldKey := rg.EndKey
 				rg.EndKey, rule = replacePrefix(rg.EndKey, rewriteRules)
 				if rule == nil {
-					log.Debug("cannot find rewrite rule", logutil.Key("key", rg.EndKey))
+					log.Warn("cannot find rewrite rule", logutil.Key("key", rg.EndKey))
 				} else {
 					log.Debug(
 						"rewrite end key",

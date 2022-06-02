@@ -131,7 +131,7 @@ func (exec *Executor) doScanChecksumOnRange(
 			checksum.TotalKvs += 1
 			checksum.TotalBytes += (uint64)(len(newKey) + len(values[i]))
 		}
-		if len(keys) == 0 || len(keys) < MaxScanCntLimit {
+		if len(keys) < MaxScanCntLimit {
 			break // reach the end
 		}
 		// append '0' to avoid getting the duplicated kv
