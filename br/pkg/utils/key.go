@@ -15,9 +15,10 @@ import (
 	"github.com/tikv/pd/pkg/codec"
 )
 
-const (
-	APIV2KeyPrefix    byte = 'r'
-	APIV2KeyPrefixEnd byte = APIV2KeyPrefix + 1
+var (
+	APIV2KeyPrefix    = [...]byte{'r', 0, 0, 0}
+	APIV2KeyPrefixEnd = [...]byte{'r', 0, 0, 1}
+	APIV2KeyPrefixLen = len(APIV2KeyPrefix)
 )
 
 // ParseKey parse key by given format.
@@ -104,9 +105,9 @@ type KeyRange struct {
 
 func FormatAPIV2Key(key []byte, isEnd bool) []byte {
 	if isEnd && len(key) == 0 {
-		return []byte{APIV2KeyPrefixEnd}
+		return APIV2KeyPrefixEnd[:]
 	}
-	apiv2Key := []byte{APIV2KeyPrefix}
+	apiv2Key := APIV2KeyPrefix[:]
 	return append(apiv2Key, key...)
 }
 
@@ -133,8 +134,8 @@ func ConvertBackupConfigKeyRange(startKey, endKey []byte, srcAPIVer, dstAPIVer k
 	}
 	if srcAPIVer == kvrpcpb.APIVersion_V2 {
 		return &KeyRange{
-			Start: startKey[1:],
-			End:   endKey[1:],
+			Start: startKey[APIV2KeyPrefixLen:],
+			End:   endKey[APIV2KeyPrefixLen:],
 		}
 	}
 	// unreachable
@@ -144,8 +145,8 @@ func ConvertBackupConfigKeyRange(startKey, endKey []byte, srcAPIVer, dstAPIVer k
 func EncodeKeyRange(start, end []byte) *KeyRange {
 	keyRange := KeyRange{}
 	keyRange.Start = codec.EncodeBytes(start)
-	if len(end) == 1 && end[0] == APIV2KeyPrefixEnd {
-		keyRange.End = []byte{APIV2KeyPrefixEnd}
+	if len(end) == APIV2KeyPrefixLen && bytes.Equal(end, APIV2KeyPrefixEnd[:]) {
+		keyRange.End = APIV2KeyPrefixEnd[:]
 	} else {
 		keyRange.End = codec.EncodeBytes(end)
 	}
