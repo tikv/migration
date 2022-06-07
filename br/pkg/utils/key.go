@@ -145,7 +145,7 @@ func ConvertBackupConfigKeyRange(startKey, endKey []byte, srcAPIVer, dstAPIVer k
 func EncodeKeyRange(start, end []byte) *KeyRange {
 	keyRange := KeyRange{}
 	keyRange.Start = codec.EncodeBytes(start)
-	if len(end) == APIV2KeyPrefixLen && bytes.Equal(end, APIV2KeyPrefixEnd[:]) {
+	if bytes.Equal(end, APIV2KeyPrefixEnd[:]) {
 		keyRange.End = APIV2KeyPrefixEnd[:]
 	} else {
 		keyRange.End = codec.EncodeBytes(end)
