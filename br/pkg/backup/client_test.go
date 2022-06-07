@@ -49,6 +49,12 @@ func (r *testBackup) SetUpSuite(c *C) {
 	mockMgr := &conn.Mgr{PdController: &pdutil.PdController{}}
 	mockMgr.SetPDClient(r.mockPDClient)
 	mockMgr.SetHTTP([]string{"test"}, nil)
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	// Exact URL match
+	httpmock.RegisterResponder("GET", `=~^/config`,
+		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":false}}`))
+
 	r.backupClient, err = backup.NewBackupClient(r.ctx, mockMgr, nil)
 	c.Assert(err, IsNil)
 
@@ -230,21 +236,21 @@ func (r *testBackup) TestGetCurrentTiKVApiVersion(c *C) {
 	httpmock.RegisterResponder("GET", `=~^/config`,
 		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":false}}`))
 
-	apiVer, err := r.backupClient.GetCurrentTiKVApiVersion(ctx)
+	apiVer, err := backup.GetCurrentTiKVApiVersion(ctx, r.mockPDClient, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V1)
 
 	httpmock.RegisterResponder("GET", `=~^/config`,
 		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":true}}`))
 
-	apiVer, err = r.backupClient.GetCurrentTiKVApiVersion(ctx)
+	apiVer, err = backup.GetCurrentTiKVApiVersion(ctx, r.mockPDClient, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V1TTL)
 
 	httpmock.RegisterResponder("GET", `=~^/config`,
 		httpmock.NewStringResponder(200, `{"storage":{"api-version":2, "enable-ttl":true}}`))
 
-	apiVer, err = r.backupClient.GetCurrentTiKVApiVersion(ctx)
+	apiVer, err = backup.GetCurrentTiKVApiVersion(ctx, r.mockPDClient, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V2)
 }

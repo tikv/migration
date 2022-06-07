@@ -27,7 +27,7 @@ const (
 	// FlagBatchFlushInterval controls after how long the restore batch would be auto sended.
 	FlagBatchFlushInterval = "batch-flush-interval"
 
-	defaultRestoreConcurrency = 128
+	defaultRestoreConcurrency = 512
 	defaultPDConcurrency      = 1
 	defaultBatchFlushInterval = 16 * time.Second
 )

@@ -53,13 +53,6 @@ type ClientMgr interface {
 	Close()
 }
 
-// Checksum is the checksum of some backup files calculated by CollectChecksums.
-type Checksum struct {
-	Crc64Xor   uint64
-	TotalKvs   uint64
-	TotalBytes uint64
-}
-
 // ProgressUnit represents the unit of progress.
 type ProgressUnit string
 
@@ -83,10 +76,9 @@ type StoreConfig struct {
 
 // Client is a client instructs TiKV how to do a backup.
 type Client struct {
-	mgr        ClientMgr
-	clusterID  uint64
-	httpClient http.Client
-	schema     string
+	mgr       ClientMgr
+	clusterID uint64
+	curAPIVer kvrpcpb.APIVersion
 
 	storage storage.ExternalStorage
 	backend *backuppb.StorageBackend
@@ -99,16 +91,14 @@ func NewBackupClient(ctx context.Context, mgr ClientMgr, config *tls.Config) (*C
 	log.Info("new backup client")
 	pdClient := mgr.GetPDClient()
 	clusterID := pdClient.GetClusterID(ctx)
+	curAPIVer, err := GetCurrentTiKVApiVersion(ctx, mgr.GetPDClient(), config)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
 	client := Client{
 		clusterID: clusterID,
 		mgr:       mgr,
-		schema:    "http",
-	}
-	if config != nil {
-		client.httpClient = http.Client{
-			Transport: &http.Transport{TLSClientConfig: config},
-		}
-		client.schema = "https"
+		curAPIVer: curAPIVer,
 	}
 	return &client, nil
 }
@@ -152,15 +142,23 @@ func (bc *Client) GetTS(ctx context.Context, duration time.Duration, ts uint64) 
 	return backupTS, nil
 }
 
-func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVersion, error) {
-	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, bc.mgr.GetPDClient(), conn.SkipTiFlash)
+func GetCurrentTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Config) (kvrpcpb.APIVersion, error) {
+	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, pdClient, conn.SkipTiFlash)
 	if err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
 	} else if len(allStores) == 0 {
 		return kvrpcpb.APIVersion_V1, errors.New("store are empty")
 	}
-	url := fmt.Sprintf("%s://%s/config", bc.schema, allStores[0].StatusAddress)
-	resp, err := bc.httpClient.Get(url)
+	schema := "http"
+	httpClient := http.Client{}
+	if tlsConf != nil {
+		httpClient = http.Client{
+			Transport: &http.Transport{TLSClientConfig: tlsConf},
+		}
+		schema = "https"
+	}
+	url := fmt.Sprintf("%s://%s/config", schema, allStores[0].StatusAddress)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
 	}
@@ -189,6 +187,10 @@ func (bc *Client) GetCurrentTiKVApiVersion(ctx context.Context) (kvrpcpb.APIVers
 		return kvrpcpb.APIVersion_V1, errors.New(errMsg)
 	}
 	return apiVersion, nil
+}
+
+func (bc *Client) GetCurAPIVersion() kvrpcpb.APIVersion {
+	return bc.curAPIVer
 }
 
 // SetLockFile set write lock file.
@@ -383,6 +385,7 @@ func (bc *Client) BackupRange(
 		}
 		// we need keep the files in order after we support multi_ingest sst.
 		// default_sst and write_sst need to be together.
+
 		if err := metaWriter.Send(r.Files, metautil.AppendDataFile); err != nil {
 			ascendErr = err
 			return false
@@ -399,10 +402,10 @@ func (bc *Client) BackupRange(
 	return nil
 }
 
-func (bc *Client) findRegionLeader(ctx context.Context, key []byte, isRawKv bool) (*metapb.Peer, error) {
+func (bc *Client) findRegionLeader(ctx context.Context, key []byte, needEncodeKey bool) (*metapb.Peer, error) {
 	// Keys are saved in encoded format in TiKV, so the key must be encoded
 	// in order to find the correct region.
-	if !isRawKv {
+	if needEncodeKey {
 		key = codec.EncodeBytes([]byte{}, key)
 	}
 	for i := 0; i < 5; i++ {
@@ -534,7 +537,6 @@ func (bc *Client) fineGrainedBackup(
 					logutil.Key("fine-grained-range-end", resp.EndKey),
 				)
 				rangeTree.Put(resp.StartKey, resp.EndKey, resp.Files)
-
 				// Update progress
 				progressCallBack(RegionUnit)
 			}
@@ -638,7 +640,8 @@ func (bc *Client) handleFineGrained(
 	cipherInfo *backuppb.CipherInfo,
 	respCh chan<- *backuppb.BackupResponse,
 ) (int, error) {
-	leader, pderr := bc.findRegionLeader(ctx, rg.StartKey, isRawKv)
+	encodeKey := (!isRawKv || bc.curAPIVer == kvrpcpb.APIVersion_V2)
+	leader, pderr := bc.findRegionLeader(ctx, rg.StartKey, encodeKey)
 	if pderr != nil {
 		return 0, errors.Trace(pderr)
 	}

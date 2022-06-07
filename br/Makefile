@@ -81,6 +81,9 @@ tools/bin/failpoint-ctl: tools/check/go.mod
 	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
 
 build:
+	CGO_ENABLED=1 $(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
+
+release:
 	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
 
 build/rawkv-helper:

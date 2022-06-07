@@ -12,6 +12,7 @@ import (
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/backup"
+	"github.com/tikv/migration/br/pkg/checksum"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/rtree"
@@ -56,6 +57,22 @@ func DefineRawBackupFlags(command *cobra.Command) {
 	_ = command.Flags().MarkHidden(flagKeyFormat)
 }
 
+// CalcChecksumFromBackupMeta read the backup meta and return Checksum
+func CalcChecksumFromBackupMeta(ctx context.Context, curAPIVersion kvrpcpb.APIVersion, cfg *Config) (checksum.Checksum, []*utils.KeyRange, error) {
+	_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, cfg)
+	if err != nil {
+		return checksum.Checksum{}, nil, errors.Trace(err)
+	}
+	fileChecksum := checksum.Checksum{}
+	keyRanges := make([]*utils.KeyRange, 0, len(backupMeta.Files))
+	for _, file := range backupMeta.Files {
+		fileChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+		keyRange := utils.ConvertBackupConfigKeyRange(file.StartKey, file.EndKey, backupMeta.ApiVersion, curAPIVersion)
+		keyRanges = append(keyRanges, keyRange)
+	}
+	return fileChecksum, keyRanges, nil
+}
+
 // RunBackupRaw starts a backup task inside the current goroutine.
 func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConfig) error {
 	cfg.adjust()
@@ -84,11 +101,11 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
-	curAPIVersion, err := client.GetCurrentTiKVApiVersion(ctx)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	curAPIVersion := client.GetCurAPIVersion()
 	cfg.adjustBackupRange(curAPIVersion)
+	if len(cfg.DstAPIVersion) == 0 { // if no DstAPIVersion is specified, backup to same api-version.
+		cfg.DstAPIVersion = kvrpcpb.APIVersion_name[int32(curAPIVersion)]
+	}
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
 		SendCredentials: cfg.SendCreds,
@@ -187,8 +204,27 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
-
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
+
+	if cfg.Checksum {
+		fileChecksum, keyRanges, err := CalcChecksumFromBackupMeta(ctx, curAPIVersion, &cfg.Config)
+		if err != nil {
+			log.Error("fail to read backup meta", zap.Error(err))
+			return err
+		}
+		checksumMethod := checksum.StorageChecksumCommand
+		if curAPIVersion.String() != cfg.DstAPIVersion {
+			checksumMethod = checksum.StorageScanCommand
+		}
+
+		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(), curAPIVersion,
+			cfg.ChecksumConcurrency)
+		err = checksum.Run(ctx, cmdName, executor,
+			checksumMethod, fileChecksum)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
 
 	// Set task summary to success status.
 	summary.SetSuccessStatus(true)

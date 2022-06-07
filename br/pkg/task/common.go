@@ -20,7 +20,6 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/tikv/migration/br/pkg/conn"
@@ -67,6 +66,7 @@ const (
 	defaultSwitchInterval       = 5 * time.Minute
 	defaultGRPCKeepaliveTime    = 10 * time.Second
 	defaultGRPCKeepaliveTimeout = 3 * time.Second
+	defaultChecksumConcurrency  = 512
 
 	flagCipherType    = "crypter.method"
 	flagCipherKey     = "crypter.key"
@@ -86,7 +86,7 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 	flags.String(flagCA, "", "CA certificate path for TLS connection")
 	flags.String(flagCert, "", "Certificate path for TLS connection")
 	flags.String(flagKey, "", "Private key path for TLS connection")
-	flags.Uint(flagChecksumConcurrency, variable.DefChecksumTableConcurrency, "The concurrency of table checksumming")
+	flags.Uint(flagChecksumConcurrency, defaultChecksumConcurrency, "The concurrency of table checksumming")
 	_ = flags.MarkHidden(flagSendCreds)
 	_ = flags.MarkHidden(flagCA)
 	_ = flags.MarkHidden(flagCert)

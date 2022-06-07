@@ -271,7 +271,7 @@ func (importer *FileImporter) Import(
 	cipher *backuppb.CipherInfo,
 ) error {
 	start := time.Now()
-	log.Debug("import file", logutil.Files(files))
+	log.Info("import file", logutil.Files(files))
 	// Rewrite the start key and end key of file to scan regions
 	var startKey, endKey []byte
 	if importer.isRawKvMode {
@@ -296,7 +296,7 @@ func (importer *FileImporter) Import(
 		logutil.Files(files),
 		logutil.Key("startKey", startKey),
 		logutil.Key("endKey", endKey))
-
+	downloadRegionCnt := 0
 	err := utils.WithRetry(ctx, func() error {
 		tctx, cancel := context.WithTimeout(ctx, importScanRegionTime)
 		defer cancel()
@@ -366,10 +366,12 @@ func (importer *FileImporter) Import(
 					logutil.ShortError(errDownload))
 				return errors.Trace(errDownload)
 			}
-			log.Debug("download file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)),
+			log.Info("download file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)),
 				logutil.Key("start", files[0].StartKey),
 				logutil.Key("end", files[0].EndKey),
+				logutil.Region(info.Region),
 			)
+			downloadRegionCnt++
 			ingestResp, errIngest := importer.ingestSSTs(ctx, downloadMetas, info)
 		ingestRetry:
 			for errIngest == nil {
@@ -435,12 +437,15 @@ func (importer *FileImporter) Import(
 				return errors.Trace(errIngest)
 			}
 		}
-		log.Debug("ingest file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)))
+		if downloadRegionCnt == 0 {
+			log.Error("No region downloads the files", logutil.Files(files), zap.Int("count", len(regionInfos)))
+			return errors.Errorf("No region downloads the file: %s.", files[0].Name)
+		}
+		log.Info("ingest file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)))
 		for _, f := range files {
 			summary.CollectSuccessUnit(summary.TotalKV, 1, f.TotalKvs)
 			summary.CollectSuccessUnit(summary.TotalBytes, 1, f.TotalBytes)
 		}
-
 		return nil
 	}, utils.NewImportSSTBackoffer())
 	return errors.Trace(err)

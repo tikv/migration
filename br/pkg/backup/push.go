@@ -159,7 +159,6 @@ func (push *pushDown) pushBackup(
 			if resp.GetError() == nil {
 				// None error means range has been backuped successfully.
 				res.Put(resp.GetStartKey(), resp.GetEndKey(), resp.GetFiles())
-
 				// Update progress
 				progressCallBack(RegionUnit)
 			} else {
