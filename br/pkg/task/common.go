@@ -19,6 +19,7 @@ import (
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -364,4 +365,10 @@ func normalizePDURL(pd string, useTLS bool) (string, error) {
 // see details https://github.com/pingcap/br/issues/675#issuecomment-753780742
 func gcsObjectNotFound(err error) bool {
 	return errors.Cause(err) == gcs.ErrObjectNotExist // nolint:errorlint
+}
+
+// CheckBackupAPIVersion return false if backup api version is not supported.
+func CheckBackupAPIVersion(storageAPIVersion, dstAPIVersion kvrpcpb.APIVersion) bool {
+	// only support apiv1/v1ttl->apiv2 if apiversions are not the same.
+	return storageAPIVersion == dstAPIVersion || dstAPIVersion == kvrpcpb.APIVersion_V2
 }

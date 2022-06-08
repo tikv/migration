@@ -11,7 +11,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/backup"
@@ -22,7 +21,6 @@ import (
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
 	pd "github.com/tikv/pd/client"
-	"go.uber.org/zap"
 )
 
 // NewDebugCommand return a debug subcommand.
@@ -257,25 +255,24 @@ func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	storageApiVersion, err := backup.GetCurrentTiKVApiVersion(ctx, pdCtrl.GetPDClient(), tlsConf)
+	storageAPIVersion, err := backup.GetTiKVApiVersion(ctx, pdCtrl.GetPDClient(), tlsConf)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	backupMeta, fileChecksum, keyRanges, err := task.CalcChecksumFromBackupMeta(ctx, storageApiVersion, &cfg)
+	backupMeta, fileChecksum, keyRanges, err := task.CalcChecksumFromBackupMeta(ctx, storageAPIVersion, &cfg)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if storageApiVersion != backupMeta.ApiVersion && backupMeta.ApiVersion != kvrpcpb.APIVersion_V2 {
-		log.Error("Unsupported storage version", zap.String("storage", storageApiVersion.String()),
-			zap.String("backupMeta", backupMeta.ApiVersion.String()))
-		return errors.New("unsupported storage version")
+	if !task.CheckBackupAPIVersion(storageAPIVersion, backupMeta.ApiVersion) {
+		return errors.Errorf("Unsupported api version, storage:%s, backup meta:%s.",
+			storageAPIVersion.String(), backupMeta.ApiVersion.String())
 	}
 	checksumMethod := checksum.StorageChecksumCommand
-	if storageApiVersion != backupMeta.ApiVersion {
+	if storageAPIVersion != backupMeta.ApiVersion {
 		checksumMethod = checksum.StorageScanCommand
 	}
 
-	executor := checksum.NewExecutor(keyRanges, cfg.PD, pdCtrl.GetPDClient(), storageApiVersion,
+	executor := checksum.NewExecutor(keyRanges, cfg.PD, pdCtrl.GetPDClient(), storageAPIVersion,
 		cfg.ChecksumConcurrency)
 	err = checksum.Run(ctx, cmdName, executor, checksumMethod, fileChecksum)
 	if err != nil {

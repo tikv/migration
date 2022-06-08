@@ -91,7 +91,7 @@ func NewBackupClient(ctx context.Context, mgr ClientMgr, config *tls.Config) (*C
 	log.Info("new backup client")
 	pdClient := mgr.GetPDClient()
 	clusterID := pdClient.GetClusterID(ctx)
-	curAPIVer, err := GetCurrentTiKVApiVersion(ctx, mgr.GetPDClient(), config)
+	curAPIVer, err := GetTiKVApiVersion(ctx, mgr.GetPDClient(), config)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -142,7 +142,7 @@ func (bc *Client) GetTS(ctx context.Context, duration time.Duration, ts uint64) 
 	return backupTS, nil
 }
 
-func GetCurrentTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Config) (kvrpcpb.APIVersion, error) {
+func GetTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Config) (kvrpcpb.APIVersion, error) {
 	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, pdClient, conn.SkipTiFlash)
 	if err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)

@@ -104,7 +104,12 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	curAPIVersion := client.GetCurAPIVersion()
 	cfg.adjustBackupRange(curAPIVersion)
 	if len(cfg.DstAPIVersion) == 0 { // if no DstAPIVersion is specified, backup to same api-version.
-		cfg.DstAPIVersion = kvrpcpb.APIVersion_name[int32(curAPIVersion)]
+		cfg.DstAPIVersion = curAPIVersion.String()
+	}
+	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
+	if !CheckBackupAPIVersion(curAPIVersion, dstAPIVersion) {
+		return errors.Errorf("Unsupported backup api version, cur:%s, dst:%s.",
+			curAPIVersion.String(), cfg.DstAPIVersion)
 	}
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
@@ -157,7 +162,6 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		}
 		updateCh.Inc()
 	}
-	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
 	req := backuppb.BackupRequest{
 		ClusterId:        client.GetClusterID(),
 		StartVersion:     0,
@@ -209,6 +213,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if cfg.Checksum {
 		_, fileChecksum, keyRanges, err := CalcChecksumFromBackupMeta(ctx, curAPIVersion, &cfg.Config)
 		if err != nil {
+			log.Error("fail to read backup meta", zap.Error(err))
 			return errors.Trace(err)
 		}
 		checksumMethod := checksum.StorageChecksumCommand

@@ -227,7 +227,7 @@ func (r *testBackup) TestCheckBackupIsLocked(c *C) {
 	c.Assert(err, ErrorMatches, "backup lock file and sst file exist in(.+)")
 }
 
-func (r *testBackup) TestGetCurrentTiKVApiVersion(c *C) {
+func (r *testBackup) TestGetTiKVApiVersion(c *C) {
 	ctx := context.Background()
 
 	httpmock.Activate()
@@ -236,21 +236,21 @@ func (r *testBackup) TestGetCurrentTiKVApiVersion(c *C) {
 	httpmock.RegisterResponder("GET", `=~^/config`,
 		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":false}}`))
 
-	apiVer, err := backup.GetCurrentTiKVApiVersion(ctx, r.mockPDClient, nil)
+	apiVer, err := backup.GetTiKVApiVersion(ctx, r.mockPDClient, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V1)
 
 	httpmock.RegisterResponder("GET", `=~^/config`,
 		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":true}}`))
 
-	apiVer, err = backup.GetCurrentTiKVApiVersion(ctx, r.mockPDClient, nil)
+	apiVer, err = backup.GetTiKVApiVersion(ctx, r.mockPDClient, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V1TTL)
 
 	httpmock.RegisterResponder("GET", `=~^/config`,
 		httpmock.NewStringResponder(200, `{"storage":{"api-version":2, "enable-ttl":true}}`))
 
-	apiVer, err = backup.GetCurrentTiKVApiVersion(ctx, r.mockPDClient, nil)
+	apiVer, err = backup.GetTiKVApiVersion(ctx, r.mockPDClient, nil)
 	c.Assert(err, IsNil)
 	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V2)
 }

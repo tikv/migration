@@ -334,7 +334,7 @@ func (exec *Executor) Execute(
 func Run(ctx context.Context, cmdName string,
 	executor *Executor, method StorageChecksumMethod, expect Checksum) error {
 	if executor.apiVersion != kvrpcpb.APIVersion_V1 {
-		fmt.Printf("\033[1;37;41m%s\033[0m\n", "TiKV cluster is TTL enabled, checksum may be mismatch if some data expired during backup/restore.")
+		fmt.Printf("\033[1;37;41m%s\033[0m\n", "Warning: TiKV cluster is TTL enabled, checksum may be mismatch if some data expired during backup/restore.")
 	}
 	glue := new(gluetikv.Glue)
 	updateCh := glue.StartProgress(ctx, cmdName+" Checksum", int64(len(executor.keyRanges)), false)
