@@ -15,7 +15,6 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/oracle"
-	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
@@ -67,7 +66,7 @@ func NewRestoreClient(
 	keepaliveConf keepalive.ClientParameters,
 	isRawKv bool,
 ) (*Client, error) {
-	apiVerion, err := backup.GetTiKVApiVersion(context.Background(), pdClient, tlsConf)
+	apiVerion, err := conn.GetTiKVApiVersion(context.Background(), pdClient, tlsConf)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

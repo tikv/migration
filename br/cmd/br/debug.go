@@ -13,8 +13,8 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
-	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/checksum"
+	"github.com/tikv/migration/br/pkg/conn"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/task"
@@ -255,14 +255,15 @@ func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	storageAPIVersion, err := backup.GetTiKVApiVersion(ctx, pdCtrl.GetPDClient(), tlsConf)
+	storageAPIVersion, err := conn.GetTiKVApiVersion(ctx, pdCtrl.GetPDClient(), tlsConf)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	backupMeta, fileChecksum, keyRanges, err := task.CalcChecksumFromBackupMeta(ctx, storageAPIVersion, &cfg)
+	_, _, backupMeta, err := task.ReadBackupMeta(ctx, metautil.MetaFile, &cfg)
 	if err != nil {
 		return errors.Trace(err)
 	}
+	fileChecksum, keyRanges := task.CalcChecksumAndRangeFromBackupMeta(ctx, backupMeta, storageAPIVersion)
 	if !task.CheckBackupAPIVersion(storageAPIVersion, backupMeta.ApiVersion) {
 		return errors.Errorf("Unsupported api version, storage:%s, backup meta:%s.",
 			storageAPIVersion.String(), backupMeta.ApiVersion.String())

@@ -6,8 +6,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jarcoal/httpmock"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/br/pkg/pdutil"
@@ -268,4 +270,46 @@ func TestGetConnOnCanceledContext(t *testing.T) {
 	_, err = mgr.ResetBackupClient(ctx, 42)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context canceled")
+}
+
+type mockPDClient struct {
+	pd.Client
+}
+
+func (c *mockPDClient) GetAllStores(ctx context.Context, opts ...pd.GetStoreOption) ([]*metapb.Store, error) {
+	store := &metapb.Store{
+		Id:      0,
+		Address: "127.0.0.1",
+	}
+	return []*metapb.Store{store}, nil
+}
+
+func TestGetTiKVApiVersion(t *testing.T) {
+	ctx := context.Background()
+
+	mockPdClient := mockPDClient{}
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	// Exact URL match
+	httpmock.RegisterResponder("GET", `=~^/config`,
+		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":false}}`))
+
+	apiVer, err := GetTiKVApiVersion(ctx, &mockPdClient, nil)
+	require.Equal(t, err, nil)
+	require.Equal(t, apiVer, kvrpcpb.APIVersion_V1)
+
+	httpmock.RegisterResponder("GET", `=~^/config`,
+		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":true}}`))
+
+	apiVer, err = GetTiKVApiVersion(ctx, &mockPdClient, nil)
+	require.Equal(t, err, nil)
+	require.Equal(t, apiVer, kvrpcpb.APIVersion_V1TTL)
+
+	httpmock.RegisterResponder("GET", `=~^/config`,
+		httpmock.NewStringResponder(200, `{"storage":{"api-version":2, "enable-ttl":true}}`))
+
+	apiVer, err = GetTiKVApiVersion(ctx, &mockPdClient, nil)
+	require.Equal(t, err, nil)
+	require.Equal(t, apiVer, kvrpcpb.APIVersion_V2)
 }

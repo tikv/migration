@@ -58,11 +58,7 @@ func DefineRawBackupFlags(command *cobra.Command) {
 }
 
 // CalcChecksumFromBackupMeta read the backup meta and return Checksum
-func CalcChecksumFromBackupMeta(ctx context.Context, curAPIVersion kvrpcpb.APIVersion, cfg *Config) (*backuppb.BackupMeta, checksum.Checksum, []*utils.KeyRange, error) {
-	_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, cfg)
-	if err != nil {
-		return nil, checksum.Checksum{}, nil, errors.Trace(err)
-	}
+func CalcChecksumAndRangeFromBackupMeta(ctx context.Context, backupMeta *backuppb.BackupMeta, curAPIVersion kvrpcpb.APIVersion) (checksum.Checksum, []*utils.KeyRange) {
 	fileChecksum := checksum.Checksum{}
 	keyRanges := make([]*utils.KeyRange, 0, len(backupMeta.Files))
 	for _, file := range backupMeta.Files {
@@ -70,7 +66,7 @@ func CalcChecksumFromBackupMeta(ctx context.Context, curAPIVersion kvrpcpb.APIVe
 		keyRange := utils.ConvertBackupConfigKeyRange(file.StartKey, file.EndKey, backupMeta.ApiVersion, curAPIVersion)
 		keyRanges = append(keyRanges, keyRange)
 	}
-	return backupMeta, fileChecksum, keyRanges, nil
+	return fileChecksum, keyRanges
 }
 
 // RunBackupRaw starts a backup task inside the current goroutine.
@@ -211,11 +207,12 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
 
 	if cfg.Checksum {
-		_, fileChecksum, keyRanges, err := CalcChecksumFromBackupMeta(ctx, curAPIVersion, &cfg.Config)
+		_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, &cfg.Config)
 		if err != nil {
 			log.Error("fail to read backup meta", zap.Error(err))
 			return errors.Trace(err)
 		}
+		fileChecksum, keyRanges := CalcChecksumAndRangeFromBackupMeta(ctx, backupMeta, curAPIVersion)
 		checksumMethod := checksum.StorageChecksumCommand
 		if curAPIVersion.String() != cfg.DstAPIVersion {
 			checksumMethod = checksum.StorageScanCommand

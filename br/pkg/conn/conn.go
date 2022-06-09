@@ -5,7 +5,10 @@ package conn
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -14,8 +17,10 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/br/pkg/conn"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -415,4 +420,59 @@ func (mgr *Mgr) Close() {
 	}
 
 	mgr.PdController.Close()
+}
+
+type StorageConfig struct {
+	APIVersion int  `json:"api-version"`
+	EnableTTL  bool `json:"enable-ttl"`
+}
+type StoreConfig struct {
+	Storage StorageConfig `json:"storage"`
+}
+
+func GetTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Config) (kvrpcpb.APIVersion, error) {
+	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, pdClient, conn.SkipTiFlash)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	} else if len(allStores) == 0 {
+		return kvrpcpb.APIVersion_V1, errors.New("store are empty")
+	}
+	schema := "http"
+	httpClient := http.Client{}
+	if tlsConf != nil {
+		httpClient = http.Client{
+			Transport: &http.Transport{TLSClientConfig: tlsConf},
+		}
+		schema = "https"
+	}
+	url := fmt.Sprintf("%s://%s/config", schema, allStores[0].StatusAddress)
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	var cfg StoreConfig
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	var apiVersion kvrpcpb.APIVersion
+	if cfg.Storage.APIVersion == 0 { // in old version without apiversion config. it's APIV1.
+		apiVersion = kvrpcpb.APIVersion_V1
+	} else if cfg.Storage.APIVersion == 1 {
+		if cfg.Storage.EnableTTL {
+			apiVersion = kvrpcpb.APIVersion_V1TTL
+		} else {
+			apiVersion = kvrpcpb.APIVersion_V1
+		}
+	} else if cfg.Storage.APIVersion == 2 {
+		apiVersion = kvrpcpb.APIVersion_V2
+	} else {
+		errMsg := fmt.Sprintf("Invalid apiversion %d", cfg.Storage.APIVersion)
+		return kvrpcpb.APIVersion_V1, errors.New(errMsg)
+	}
+	return apiVersion, nil
 }
