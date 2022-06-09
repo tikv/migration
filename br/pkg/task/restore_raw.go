@@ -64,8 +64,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	if err != nil {
 		return errors.Trace(err)
 	}
+	if client.GetAPIVersion() != backupMeta.ApiVersion {
+		return errors.Errorf("Unsupported backup api version, backup meta: %s, dst:%s.",
+			backupMeta.ApiVersion.String(), client.GetAPIVersion().String())
+	}
 	// for restore, dst and cur are the same.
-	cfg.DstAPIVersion = backupMeta.ApiVersion.String()
+	cfg.DstAPIVersion = client.GetAPIVersion().String()
 	cfg.adjustBackupRange(backupMeta.ApiVersion)
 	reader := metautil.NewMetaReader(backupMeta, s, &cfg.CipherInfo)
 	if err = client.InitBackupMeta(c, backupMeta, u, s, reader); err != nil {
