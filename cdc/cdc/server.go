@@ -261,12 +261,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return s.etcdHealthChecker(cctx)
 	})
 
-	/*
-		wg.Go(func() error {
-			return unified.RunWorkerPool(cctx)
-		})
-	*/
-
 	wg.Go(func() error {
 		return kv.RunWorkerPool(cctx)
 	})

@@ -27,7 +27,7 @@ const (
 	// FlagBatchFlushInterval controls after how long the restore batch would be auto sended.
 	FlagBatchFlushInterval = "batch-flush-interval"
 
-	defaultRestoreConcurrency = 128
+	defaultRestoreConcurrency = 512
 	defaultPDConcurrency      = 1
 	defaultBatchFlushInterval = 16 * time.Second
 )
@@ -45,6 +45,7 @@ func DefineRestoreCommonFlags(flags *pflag.FlagSet) {
 		"concurrency pd-relative operations like split & scatter.")
 	flags.Duration(FlagBatchFlushInterval, defaultBatchFlushInterval,
 		"after how long a restore batch would be auto sended.")
+	_ = flags.MarkHidden(flagOnline)
 	_ = flags.MarkHidden(FlagMergeRegionSizeBytes)
 	_ = flags.MarkHidden(FlagMergeRegionKeyCount)
 	_ = flags.MarkHidden(FlagPDConcurrency)

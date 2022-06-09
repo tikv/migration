@@ -1,0 +1,61 @@
+name: CI
+on:
+  push:
+    branches: main
+    paths: gc-worker/**
+  pull_request:
+    branches: main
+    paths: gc-worker/**
+
+permissions:
+  contents: read
+
+jobs:
+  gc-worker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make gc-worker
+        shell: bash
+        run: |
+          cd gc-worker/
+          make build
+  gc-worker-unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make test
+        shell: bash
+        run: |
+          cd gc-worker/
+          make test
+  gc-worker-check-golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check/golangci-lint
+        shell: bash
+        run: |
+          cd gc-worker
+          make check/golangci-lint
+  gc-worker-check-gosec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.1'
+      - name: make check/gosec
+        shell: bash
+        run: |
+          cd gc-worker
+          make check/gosec

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -109,5 +110,89 @@ func TestCompareEndKey(t *testing.T) {
 	for _, tt := range testCase {
 		res := CompareEndKey(tt.key1, tt.key2)
 		require.Equal(t, tt.ans, res)
+	}
+}
+
+func TestFormatAPIV2KeyRange(t *testing.T) {
+	testCases := []struct {
+		apiv1Key KeyRange
+		apiv2Key KeyRange
+	}{
+		{KeyRange{[]byte(""), []byte("")}, KeyRange{APIV2KeyPrefix[:], APIV2KeyPrefixEnd[:]}},
+		{KeyRange{[]byte(""), []byte("abc")}, KeyRange{APIV2KeyPrefix[:], []byte{'r', 0, 0, 0, 'a', 'b', 'c'}}},
+		{KeyRange{[]byte("abc"), []byte("")}, KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, APIV2KeyPrefixEnd[:]}},
+		{KeyRange{[]byte("abc"), []byte("cde")}, KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}}},
+	}
+	for _, testCase := range testCases {
+		retV2Range := FormatAPIV2KeyRange(testCase.apiv1Key.Start, testCase.apiv1Key.End)
+		require.Equal(t, retV2Range, &testCase.apiv2Key)
+	}
+}
+
+func TestConvertBackupConfigKeyRange(t *testing.T) {
+	testCases := []struct {
+		input     KeyRange
+		srcAPIVer kvrpcpb.APIVersion
+		dstAPIVer kvrpcpb.APIVersion
+		output    *KeyRange
+	}{
+		{KeyRange{[]byte(""), []byte("")},
+			kvrpcpb.APIVersion_V1,
+			kvrpcpb.APIVersion_V1,
+			&KeyRange{[]byte(""), []byte("")},
+		},
+		{KeyRange{[]byte(""), []byte("")},
+			kvrpcpb.APIVersion_V1,
+			kvrpcpb.APIVersion_V2,
+			&KeyRange{APIV2KeyPrefix[:], APIV2KeyPrefixEnd[:]},
+		},
+		{KeyRange{[]byte(""), []byte("")},
+			kvrpcpb.APIVersion_V1TTL,
+			kvrpcpb.APIVersion_V2,
+			&KeyRange{APIV2KeyPrefix[:], APIV2KeyPrefixEnd[:]},
+		},
+		{
+			KeyRange{[]byte("abc"), []byte("cde")},
+			kvrpcpb.APIVersion_V1,
+			kvrpcpb.APIVersion_V2,
+			&KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
+		},
+		{
+			KeyRange{[]byte("abc"), []byte("cde")},
+			kvrpcpb.APIVersion_V1TTL,
+			kvrpcpb.APIVersion_V2,
+			&KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
+		},
+		{
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
+			kvrpcpb.APIVersion_V2,
+			kvrpcpb.APIVersion_V1,
+			&KeyRange{[]byte("abc"), []byte("cde")},
+		},
+		{
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
+			kvrpcpb.APIVersion_V2,
+			kvrpcpb.APIVersion_V1TTL,
+			&KeyRange{[]byte("abc"), []byte("cde")},
+		},
+		// following are invalid conversion
+		{
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
+			kvrpcpb.APIVersion_V1,
+			kvrpcpb.APIVersion_V1TTL,
+			nil,
+		},
+		{
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
+			kvrpcpb.APIVersion_V1TTL,
+			kvrpcpb.APIVersion_V1,
+			nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		retKeyRange := ConvertBackupConfigKeyRange(
+			testCase.input.Start, testCase.input.End, testCase.srcAPIVer, testCase.dstAPIVer)
+		require.Equal(t, retKeyRange, testCase.output)
 	}
 }

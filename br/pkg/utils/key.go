@@ -10,7 +10,15 @@ import (
 	"strings"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/pd/pkg/codec"
+)
+
+var (
+	APIV2KeyPrefix    = [...]byte{'r', 0, 0, 0}
+	APIV2KeyPrefixEnd = [...]byte{'r', 0, 0, 1}
+	APIV2KeyPrefixLen = len(APIV2KeyPrefix)
 )
 
 // ParseKey parse key by given format.
@@ -88,4 +96,59 @@ func CompareEndKey(a, b []byte) int {
 	}
 
 	return bytes.Compare(a, b)
+}
+
+type KeyRange struct {
+	Start []byte
+	End   []byte
+}
+
+func FormatAPIV2Key(key []byte, isEnd bool) []byte {
+	if isEnd && len(key) == 0 {
+		return APIV2KeyPrefixEnd[:]
+	}
+	apiv2Key := APIV2KeyPrefix[:]
+	return append(apiv2Key, key...)
+}
+
+// FormatAPIV2KeyRange convert user key to APIV2 format.
+func FormatAPIV2KeyRange(startKey, endKey []byte) *KeyRange {
+	return &KeyRange{
+		Start: FormatAPIV2Key(startKey, false),
+		End:   FormatAPIV2Key(endKey, true),
+	}
+}
+
+// ConvertBackupConfigKeyRange do conversion between formated APIVersion key and backupmeta key
+// for example, backup apiv1 -> apiv2, add `r` prefix and `s` for empty end key.
+// apiv2 -> apiv1, remove first byte.
+func ConvertBackupConfigKeyRange(startKey, endKey []byte, srcAPIVer, dstAPIVer kvrpcpb.APIVersion) *KeyRange {
+	if srcAPIVer == dstAPIVer {
+		return &KeyRange{
+			Start: startKey,
+			End:   endKey,
+		}
+	}
+	if dstAPIVer == kvrpcpb.APIVersion_V2 {
+		return FormatAPIV2KeyRange(startKey, endKey)
+	}
+	if srcAPIVer == kvrpcpb.APIVersion_V2 {
+		return &KeyRange{
+			Start: startKey[APIV2KeyPrefixLen:],
+			End:   endKey[APIV2KeyPrefixLen:],
+		}
+	}
+	// unreachable
+	return nil
+}
+
+func EncodeKeyRange(start, end []byte) *KeyRange {
+	keyRange := KeyRange{}
+	keyRange.Start = codec.EncodeBytes(start)
+	if bytes.Equal(end, APIV2KeyPrefixEnd[:]) {
+		keyRange.End = APIV2KeyPrefixEnd[:]
+	} else {
+		keyRange.End = codec.EncodeBytes(end)
+	}
+	return &keyRange
 }

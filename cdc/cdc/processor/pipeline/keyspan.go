@@ -185,11 +185,6 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 	// config := ctx.ChangefeedVars().Info.Config
 	// cyclicEnabled := config.Cyclic != nil && config.Cyclic.IsEnabled()
 	runnerSize := defaultRunnersSize
-	/*
-		if cyclicEnabled {
-			runnerSize++
-		}
-	*/
 
 	p := pipeline.NewPipeline(ctx, 500*time.Millisecond, runnerSize, defaultOutputChannelSize)
 	sinkNode := newSinkNode(keyspanID, sink, replicaInfo.StartTs, targetTs, flowController)

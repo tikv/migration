@@ -95,9 +95,9 @@ class rawkvTester:
         self._clean_range(outer_start, outer_end)
         cs_outer_clean = self._get_checksum(outer_start, outer_end)
         self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
-        self._restore_range(inner_start, inner_end, dst_api_version, storage_dir)
-        cs_inner_restore = self._get_checksum(inner_start, inner_end)
-        self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
+        #self._restore_range(inner_start, inner_end, dst_api_version, storage_dir)
+        #cs_inner_restore = self._get_checksum(inner_start, inner_end)
+        #self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
 
 
     def _backup_range(self, start_key, end_key, dst_api_version, storage_dir):
@@ -114,7 +114,7 @@ class rawkvTester:
             'GO_FAILPOINTS': self.failpoints,
         }
         self._run_cmd(self.br, "--pd", self.pd, "restore", "raw", "-s", storage_dir,
-                "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
+                "--start", start_key, "--end", end_key, "--format", "hex",
                 "--check-requirements=false", "-L", "debug", **env)
 
 
@@ -173,9 +173,10 @@ def main():
     args = parse_args()
     for failpoint in [''] + FAILPOINTS:
         tester = rawkvTester(args, failpoints=failpoint)
-        tester.test_dst_apiv1()
+        # tester.test_dst_apiv1() // does not support v1ttl --> v1
         tester.test_dst_apiv1ttl()
-        tester.test_dst_apiv2()
+        # v1ttl -> v2 is not supported in current TiKV, enable this after V1/V1ttl -> V2 is enabled.
+        # tester.test_dst_apiv2()
 
 
 def parse_args():

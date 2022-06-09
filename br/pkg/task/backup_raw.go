@@ -12,11 +12,13 @@ import (
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/backup"
+	"github.com/tikv/migration/br/pkg/checksum"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
+	"github.com/tikv/migration/br/pkg/utils"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +41,7 @@ func DefineRawBackupFlags(command *cobra.Command) {
 		"The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
 
 	command.Flags().StringP(flagDstAPIVersion, "", "",
-		"The encoding method of backuped SST files for destination TiKV cluster, default to the source TiKV cluster. Available options: \"v1\", \"v1ttl\", \"v2\".")
+		`The encoding method of backuped SST files for destination TiKV cluster. Available options: "v1", "v1ttl", "v2".`)
 
 	command.Flags().String(flagCompressionType, "zstd",
 		"The compression algorithm of the backuped SST files. Available options: \"lz4\", \"zstd\", \"snappy\".")
@@ -48,7 +50,27 @@ func DefineRawBackupFlags(command *cobra.Command) {
 		"disable the balance, shuffle and region-merge schedulers in PD to speed up backup.")
 
 	// This flag can impact the online cluster, so hide it in case of abuse.
+	_ = command.Flags().MarkHidden(flagCompressionType)
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
+	_ = command.Flags().MarkHidden(flagStartKey)
+	_ = command.Flags().MarkHidden(flagEndKey)
+	_ = command.Flags().MarkHidden(flagKeyFormat)
+}
+
+// CalcChecksumFromBackupMeta read the backup meta and return Checksum
+func CalcChecksumFromBackupMeta(ctx context.Context, curAPIVersion kvrpcpb.APIVersion, cfg *Config) (checksum.Checksum, []*utils.KeyRange, error) {
+	_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, cfg)
+	if err != nil {
+		return checksum.Checksum{}, nil, errors.Trace(err)
+	}
+	fileChecksum := checksum.Checksum{}
+	keyRanges := make([]*utils.KeyRange, 0, len(backupMeta.Files))
+	for _, file := range backupMeta.Files {
+		fileChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+		keyRange := utils.ConvertBackupConfigKeyRange(file.StartKey, file.EndKey, backupMeta.ApiVersion, curAPIVersion)
+		keyRanges = append(keyRanges, keyRange)
+	}
+	return fileChecksum, keyRanges, nil
 }
 
 // RunBackupRaw starts a backup task inside the current goroutine.
@@ -75,9 +97,14 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	}
 	defer mgr.Close()
 
-	client, err := backup.NewBackupClient(ctx, mgr)
+	client, err := backup.NewBackupClient(ctx, mgr, mgr.GetTLSConfig())
 	if err != nil {
 		return errors.Trace(err)
+	}
+	curAPIVersion := client.GetCurAPIVersion()
+	cfg.adjustBackupRange(curAPIVersion)
+	if len(cfg.DstAPIVersion) == 0 { // if no DstAPIVersion is specified, backup to same api-version.
+		cfg.DstAPIVersion = kvrpcpb.APIVersion_name[int32(curAPIVersion)]
 	}
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
@@ -130,7 +157,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		}
 		updateCh.Inc()
 	}
-
+	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
 	req := backuppb.BackupRequest{
 		ClusterId:        client.GetClusterID(),
 		StartVersion:     0,
@@ -139,7 +166,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		Concurrency:      cfg.Concurrency,
 		IsRawKv:          true,
 		Cf:               "default",
-		DstApiVersion:    kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion]),
+		DstApiVersion:    dstAPIVersion,
 		CompressionType:  cfg.CompressionType,
 		CompressionLevel: cfg.CompressionLevel,
 		CipherInfo:       &cfg.CipherInfo,
@@ -152,7 +179,12 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	}
 	// Backup has finished
 	updateCh.Close()
-	rawRanges := []*backuppb.RawRange{{StartKey: backupRange.StartKey, EndKey: backupRange.EndKey, Cf: "default"}}
+	// backup meta range should in DstAPIVersion format
+	metaRange := utils.ConvertBackupConfigKeyRange(cfg.StartKey, cfg.EndKey, curAPIVersion, dstAPIVersion)
+	if metaRange == nil {
+		return errors.Errorf("fail to convert key. curAPIVer:%d, dstAPIVer:%d.", curAPIVersion, dstAPIVersion)
+	}
+	rawRanges := []*backuppb.RawRange{{StartKey: metaRange.Start, EndKey: metaRange.End, Cf: "default"}}
 	metaWriter.Update(func(m *backuppb.BackupMeta) {
 		m.StartVersion = req.StartVersion
 		m.EndVersion = req.EndVersion
@@ -161,6 +193,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		m.ClusterId = req.ClusterId
 		m.ClusterVersion = clusterVersion
 		m.BrVersion = brVersion
+		m.ApiVersion = dstAPIVersion
 	})
 	err = metaWriter.FinishWriteMetas(ctx, metautil.AppendDataFile)
 	if err != nil {
@@ -171,8 +204,27 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
-
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
+
+	if cfg.Checksum {
+		fileChecksum, keyRanges, err := CalcChecksumFromBackupMeta(ctx, curAPIVersion, &cfg.Config)
+		if err != nil {
+			log.Error("fail to read backup meta", zap.Error(err))
+			return err
+		}
+		checksumMethod := checksum.StorageChecksumCommand
+		if curAPIVersion.String() != cfg.DstAPIVersion {
+			checksumMethod = checksum.StorageScanCommand
+		}
+
+		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(), curAPIVersion,
+			cfg.ChecksumConcurrency)
+		err = checksum.Run(ctx, cmdName, executor,
+			checksumMethod, fileChecksum)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
 
 	// Set task summary to success status.
 	summary.SetSuccessStatus(true)

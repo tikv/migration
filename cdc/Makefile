@@ -12,7 +12,7 @@ export PATH := $(CURDIR)/bin:$(path_to_add):$(PATH)
 
 SHELL := /usr/bin/env bash
 
-TEST_DIR := /tmp/tidb_cdc_test
+TEST_DIR ?= /tmp/tikv_cdc_test
 
 GO       := GO111MODULE=on go
 ifeq (${CDC_ENABLE_VENDOR}, 1)
@@ -108,7 +108,7 @@ unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum tools/bin/gocov 
 	mkdir -p "$(TEST_DIR)"
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
-	CGO_ENABLED=1 tools/bin/gotestsum --junitfile cdc-junit-report.xml -- -v -timeout 5m -p $(P) --race \
+	CGO_ENABLED=1 tools/bin/gotestsum --junitfile cdc-junit-report.xml -- -v -timeout 30m -p $(P) --race \
 	-covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES) \
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	tools/bin/gocov convert "$(TEST_DIR)/cov.unit.out" | tools/bin/gocov-xml > cdc-coverage.xml
@@ -154,6 +154,10 @@ check-leaktest-added: tools/bin/gofumports
 check-merge-conflicts:
 	@echo "check-merge-conflicts"
 	@./scripts/check-merge-conflicts.sh
+
+check-gosec:
+	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
+	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
 check: check-copyright fmt check-static tidy errdoc check-leaktest-added check-merge-conflicts
 

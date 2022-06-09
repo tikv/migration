@@ -1,0 +1,111 @@
+---
+name: release-tikv-br
+
+on:
+  push:
+    branches:
+      - release-br-*
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      git-ref:
+        description: git ref
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      REL_VER: ${{ steps.build_tikv_br.outputs.REL_VER }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os:
+          - "linux"
+#          - "darwin"
+        arch:
+          - "amd64"
+#          - "arm64"
+    env:
+      working-directory: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/br
+    steps:
+      - name: Set up Go 1.16.1
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.1
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.git-ref || github.event.pull_request.head.sha }}
+          path: go/src/github.com/${{ github.repository }}
+          fetch-depth: 0
+
+      - name: Check if this is a staging build
+        id: check_staging
+        working-directory: ${{ env.working-directory }}
+        if: github.event_name != 'release'
+        run: |
+          STAGING_VER=`git describe --tags | sed -r "s/([^-]*-g)/r\1/"`
+          echo ::set-output name=STAGING::$STAGING_VER
+      - name: Get git ref and commit
+        id: get_git
+        working-directory: ${{ env.working-directory }}
+        # when empty, it will be determined by Makefile
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo ::set-output name=GIT_REF::${GITHUB_REF/refs\/tags\//}
+          elif [[ $GITHUB_REF == refs/heads/* ]]; then
+            echo ::set-output name=GIT_REF::${GITHUB_REF/refs\/heads\//}
+          fi
+          COMMIT_TIMESTAMP=`git show --no-patch --no-notes --pretty='%aI'`
+          echo ::set-output name=COMMIT_TIMESTAMP::$COMMIT_TIMESTAMP
+      - name: Build for ${{ matrix.os }}-${{ matrix.arch }}
+        id: build_tikv_br
+        working-directory: ${{ env.working-directory }}
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          COMMIT: ${GITHUB_SHA}
+          GITREF: ${{ steps.get_git.outputs.GIT_REF }}
+          actor: ${{ github.actor }}
+          event: ${{ github.event_name }}
+        run: |
+          export GOPATH=${GITHUB_WORKSPACE}/go
+          export PATH=$PATH:$GOPATH/bin
+          if [ ! -z ${{ steps.check_staging.outputs.STAGING }} ]; then
+            export EXTRA_LDFLAGS="-X \"github.com/${{ github.repository }}/pkg/version.TiUPVerName=${{ steps.check_staging.outputs.STAGING }}\""
+            export REL_VER=${{ steps.check_staging.outputs.STAGING }}+staging
+          else
+            export REL_VER=`git describe --tags --always`
+          fi
+          echo ::set-output name=REL_VER::$REL_VER
+          make release;
+          echo "Build success."
+      - name: Package components
+        id: packaging
+        working-directory: ${{ env.working-directory }}
+        env:
+          ARCH: ${{ matrix.os }}-${{ matrix.arch }}
+          REL_VER: ${{ steps.build_tikv_br.outputs.REL_VER }}
+        run: |
+          mkdir package
+          tar zcvf package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz bin/tikv-br
+          checksum_file=package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.md5
+          md5sum package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz >> ${checksum_file}
+          ls package/
+      - name: Upload the all-in-one tarball to GitHub release
+        uses: ncipollo/release-action@v1
+        if: github.event_name == 'release'
+        with:
+          allowUpdates: true
+          artifacts: ${{ env.working-directory }}/package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz*
+          artifactContentType: application/gzip
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          prerelease: ${{ github.event.release.prerelease }}
+          token: ${{ secrets.GITHUB_TOKEN }}

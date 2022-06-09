@@ -44,6 +44,10 @@ func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
 		return errors.Trace(err)
 	}
 
+	if err = cfg.parseDstAPIVersion(flags); err != nil {
+		return errors.Trace(err)
+	}
+
 	compressionCfg, err := cfg.parseCompressionFlags(flags)
 	if err != nil {
 		return errors.Trace(err)
@@ -96,11 +100,6 @@ func (cfg *RawKvConfig) ParseFromFlags(flags *pflag.FlagSet) error {
 		return errors.Annotate(berrors.ErrBackupInvalidRange, "endKey must be greater than startKey")
 	}
 
-	// parse and verify destination API version.
-	if err = cfg.parseDstAPIVersion(flags); err != nil {
-		return err
-	}
-
 	// parse other configs.
 	if err = cfg.Config.ParseFromFlags(flags); err != nil {
 		return errors.Trace(err)
@@ -112,6 +111,9 @@ func (cfg *RawKvConfig) parseDstAPIVersion(flags *pflag.FlagSet) error {
 	originalValue, err := flags.GetString(flagDstAPIVersion)
 	if err != nil {
 		return errors.Trace(err)
+	}
+	if len(originalValue) == 0 {
+		return nil // if dst api version is empty, use cur api version as dst api version.
 	}
 	cfg.DstAPIVersion = strings.ToUpper(originalValue)
 	if _, ok := kvrpcpb.APIVersion_value[cfg.DstAPIVersion]; !ok {
@@ -156,4 +158,11 @@ func (cfg *RawKvConfig) parseCompressionType(s string) (backuppb.CompressionType
 		return backuppb.CompressionType_UNKNOWN, errors.Annotatef(berrors.ErrInvalidArgument, "invalid compression type '%s'", s)
 	}
 	return ct, nil
+}
+
+func (cfg *RawKvConfig) adjustBackupRange(curAPIVersion kvrpcpb.APIVersion) {
+	if curAPIVersion == kvrpcpb.APIVersion_V2 {
+		keyRange := utils.FormatAPIV2KeyRange(cfg.StartKey, cfg.EndKey)
+		cfg.StartKey, cfg.EndKey = keyRange.Start, keyRange.End
+	}
 }
