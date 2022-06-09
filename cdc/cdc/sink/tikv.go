@@ -178,16 +178,6 @@ func (k *tikvSink) EmitCheckpointTs(ctx context.Context, ts uint64) error {
 	return nil
 }
 
-func (k *tikvSink) EmitDDLEvent(ctx context.Context, ddl *model.DDLEvent) error {
-	return nil
-}
-
-// Initialize registers Avro schemas for all tables
-func (k *tikvSink) Initialize(ctx context.Context, tableInfo []*model.SimpleTableInfo) error {
-	// No longer need it for now
-	return nil
-}
-
 func (k *tikvSink) Close(ctx context.Context) error {
 	return nil
 }

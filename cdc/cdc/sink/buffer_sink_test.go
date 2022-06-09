@@ -100,12 +100,6 @@ type benchSink struct {
 	Sink
 }
 
-func (b *benchSink) EmitRowChangedEvents(
-	ctx context.Context, rows ...*model.RowChangedEvent,
-) error {
-	return nil
-}
-
 func (b *benchSink) FlushRowChangedEvents(
 	ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64,
 ) (uint64, error) {
