@@ -26,16 +26,16 @@ import (
 	"github.com/tikv/migration/cdc/cdc/model"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"go.etcd.io/etcd/clientv3/concurrency"
-	"go.etcd.io/etcd/pkg/logutil"
+	"go.etcd.io/etcd/client/v3/concurrency"
+	"go.etcd.io/etcd/client/pkg/v3/logutil"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/pingcap/check"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/embed"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/server/v3/embed"
 )
 
 func Test(t *testing.T) { check.TestingT(t) }

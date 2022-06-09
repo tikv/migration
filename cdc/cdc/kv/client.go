@@ -712,6 +712,7 @@ func (s *eventFeedSession) requestRegionToStore(
 			StartKey:     sri.span.Start,
 			EndKey:       sri.span.End,
 			ExtraOp:      extraOp,
+			KvApi:        cdcpb.ChangeDataRequest_RawKV,
 		}
 
 		failpoint.Inject("kvClientPendingRegionDelay", nil)
@@ -1344,12 +1345,13 @@ func assembleRowEvent(regionID uint64, entry *cdcpb.Event_Row, enableOldValue bo
 	revent := model.RegionFeedEvent{
 		RegionID: regionID,
 		Val: &model.RawKVEntry{
-			OpType:   opType,
-			Key:      entry.Key,
-			Value:    entry.GetValue(),
-			StartTs:  entry.StartTs,
-			CRTs:     entry.CommitTs,
-			RegionID: regionID,
+			OpType:    opType,
+			Key:       entry.Key,
+			Value:     entry.GetValue(),
+			StartTs:   entry.StartTs,
+			CRTs:      entry.CommitTs,
+			ExpiredTs: entry.ExpireTsUnixSecs,
+			RegionID:  regionID,
 		},
 	}
 
