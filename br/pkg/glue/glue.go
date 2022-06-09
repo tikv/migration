@@ -4,15 +4,10 @@ package glue
 
 import (
 	"context"
-
-	"github.com/pingcap/tidb/kv"
-	pd "github.com/tikv/pd/client"
 )
 
 // Glue is an abstraction of TiDB function calls used in BR.
 type Glue interface {
-	Open(path string, option pd.SecurityOption) (kv.Storage, error)
-
 	// OwnsStorage returns whether the storage returned by Open() is owned
 	// If this method returns false, the connection manager will never close the storage.
 	OwnsStorage() bool

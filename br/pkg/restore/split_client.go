@@ -24,13 +24,12 @@ import (
 	"github.com/pingcap/kvproto/pkg/pdpb"
 	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/store/pdtypes"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/httputil"
 	"github.com/tikv/migration/br/pkg/logutil"
 	pd "github.com/tikv/pd/client"
-	"github.com/tikv/pd/server/config"
-	"github.com/tikv/pd/server/schedule/placement"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -68,9 +67,9 @@ type SplitClient interface {
 	// Limit limits the maximum number of regions returned.
 	ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*RegionInfo, error)
 	// GetPlacementRule loads a placement rule from PD.
-	GetPlacementRule(ctx context.Context, groupID, ruleID string) (placement.Rule, error)
+	GetPlacementRule(ctx context.Context, groupID, ruleID string) (pdtypes.Rule, error)
 	// SetPlacementRule insert or update a placement rule to PD.
-	SetPlacementRule(ctx context.Context, rule placement.Rule) error
+	SetPlacementRule(ctx context.Context, rule pdtypes.Rule) error
 	// DeletePlacementRule removes a placement rule from PD.
 	DeletePlacementRule(ctx context.Context, groupID, ruleID string) error
 	// SetStoreLabel add or update specified label of stores. If labelValue
@@ -432,7 +431,7 @@ func (c *pdClient) getStoreCount(ctx context.Context) (int, error) {
 
 func (c *pdClient) getMaxReplica(ctx context.Context) (int, error) {
 	api := c.getPDAPIAddr()
-	configAPI := api + "/pd/api/v1/config"
+	configAPI := api + "/pd/api/v1/config/replicate"
 	req, err := http.NewRequestWithContext(ctx, "GET", configAPI, nil)
 	if err != nil {
 		return 0, errors.Trace(err)
@@ -446,11 +445,11 @@ func (c *pdClient) getMaxReplica(ctx context.Context) (int, error) {
 			log.Error("Response fail to close", zap.Error(err))
 		}
 	}()
-	var conf config.Config
+	var conf pdtypes.ReplicationConfig
 	if err := json.NewDecoder(res.Body).Decode(&conf); err != nil {
 		return 0, errors.Trace(err)
 	}
-	return int(conf.Replication.MaxReplicas), nil
+	return int(conf.MaxReplicas), nil
 }
 
 func (c *pdClient) checkNeedScatter(ctx context.Context) (bool, error) {
@@ -498,8 +497,8 @@ func (c *pdClient) ScanRegions(ctx context.Context, key, endKey []byte, limit in
 	return regionInfos, nil
 }
 
-func (c *pdClient) GetPlacementRule(ctx context.Context, groupID, ruleID string) (placement.Rule, error) {
-	var rule placement.Rule
+func (c *pdClient) GetPlacementRule(ctx context.Context, groupID, ruleID string) (pdtypes.Rule, error) {
+	var rule pdtypes.Rule
 	addr := c.getPDAPIAddr()
 	if addr == "" {
 		return rule, errors.Annotate(berrors.ErrRestoreSplitFailed, "failed to add stores labels: no leader")
@@ -528,7 +527,7 @@ func (c *pdClient) GetPlacementRule(ctx context.Context, groupID, ruleID string)
 	return rule, nil
 }
 
-func (c *pdClient) SetPlacementRule(ctx context.Context, rule placement.Rule) error {
+func (c *pdClient) SetPlacementRule(ctx context.Context, rule pdtypes.Rule) error {
 	addr := c.getPDAPIAddr()
 	if addr == "" {
 		return errors.Annotate(berrors.ErrPDLeaderNotFound, "failed to add stores labels")

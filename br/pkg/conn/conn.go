@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/br/pkg/conn"
+	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -106,9 +107,9 @@ func NewConnPool(cap int, newConn func(ctx context.Context) (*grpc.ClientConn, e
 // Mgr manages connections to a TiDB cluster.
 type Mgr struct {
 	*pdutil.PdController
-	tlsConf   *tls.Config
-	tikvStore tikv.Storage // Used to access TiKV specific interfaces.
-	grpcClis  struct {
+	tlsConf      *tls.Config
+	lockResolver *txnlock.LockResolver // Used to access TiKV specific interfaces.
+	grpcClis     struct {
 		mu   sync.Mutex
 		clis map[uint64]*grpc.ClientConn
 	}
@@ -260,20 +261,18 @@ func NewMgr(
 		return nil, errors.Trace(err)
 	}
 
-	// Disable GC because TiDB enables GC already.
-	storage, err := g.Open(fmt.Sprintf("tikv://%s?disableGC=true", pdAddrs), securityOption)
+	security := config.NewSecurity(string(securityOption.SSLCABytes),
+		string(securityOption.SSLCertBytes),
+		string(securityOption.SSLKEYBytes),
+		[]string{})
+	lockResolver, err := tikv.NewLockResolver(strings.Split(pdAddrs, ","), security)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	tikvStorage, ok := storage.(tikv.Storage)
-	if !ok {
-		return nil, berrors.ErrKVNotTiKV
-	}
-
 	mgr := &Mgr{
 		PdController: controller,
-		tikvStore:    tikvStorage,
+		lockResolver: lockResolver,
 		tlsConf:      tlsConf,
 		ownsStorage:  g.OwnsStorage(),
 		grpcClis: struct {
@@ -399,7 +398,7 @@ func (mgr *Mgr) GetTLSConfig() *tls.Config {
 
 // GetLockResolver gets the LockResolver.
 func (mgr *Mgr) GetLockResolver() *txnlock.LockResolver {
-	return mgr.tikvStore.GetLockResolver()
+	return mgr.lockResolver
 }
 
 // Close closes all client in Mgr.
@@ -431,7 +430,7 @@ type StoreConfig struct {
 }
 
 func GetTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Config) (kvrpcpb.APIVersion, error) {
-	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, pdClient, conn.SkipTiFlash)
+	allStores, err := GetAllTiKVStoresWithRetry(ctx, pdClient, SkipTiFlash)
 	if err != nil {
 		return kvrpcpb.APIVersion_V1, errors.Trace(err)
 	} else if len(allStores) == 0 {

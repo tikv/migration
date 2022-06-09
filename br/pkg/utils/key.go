@@ -11,8 +11,8 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
-	"github.com/tikv/pd/pkg/codec"
 )
 
 var (
@@ -144,11 +144,11 @@ func ConvertBackupConfigKeyRange(startKey, endKey []byte, srcAPIVer, dstAPIVer k
 
 func EncodeKeyRange(start, end []byte) *KeyRange {
 	keyRange := KeyRange{}
-	keyRange.Start = codec.EncodeBytes(start)
+	keyRange.Start = codec.EncodeBytes(nil, start)
 	if bytes.Equal(end, APIV2KeyPrefixEnd[:]) {
 		keyRange.End = APIV2KeyPrefixEnd[:]
 	} else {
-		keyRange.End = codec.EncodeBytes(end)
+		keyRange.End = codec.EncodeBytes(nil, end)
 	}
 	return &keyRange
 }

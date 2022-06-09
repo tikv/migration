@@ -21,8 +21,6 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
 	"github.com/pingcap/log"
-	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
-	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/spf13/pflag"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/storage"
@@ -58,11 +56,6 @@ type Config struct {
 	// SkipCheckPath skips verifying the path
 	// deprecated
 	SkipCheckPath bool `json:"skip-check-path" toml:"skip-check-path"`
-	// Filter should not be used, use TableFilter instead.
-	//
-	// Deprecated: This field is kept only to satisfy the cyclic dependency with TiDB. This field
-	// should be removed after TiDB upgrades the BR dependency.
-	Filter filter.MySQLReplicationRules
 
 	SwitchModeInterval time.Duration `json:"switch-mode-interval" toml:"switch-mode-interval"`
 
@@ -217,6 +210,6 @@ func (cfg *Config) adjust() {
 		cfg.GRPCKeepaliveTimeout = defaultGRPCKeepaliveTimeout
 	}
 	if cfg.ChecksumConcurrency == 0 {
-		cfg.ChecksumConcurrency = variable.DefChecksumTableConcurrency
+		cfg.ChecksumConcurrency = defaultChecksumConcurrency
 	}
 }
