@@ -58,11 +58,7 @@ func DefineRawBackupFlags(command *cobra.Command) {
 }
 
 // CalcChecksumFromBackupMeta read the backup meta and return Checksum
-func CalcChecksumFromBackupMeta(ctx context.Context, curAPIVersion kvrpcpb.APIVersion, cfg *Config) (checksum.Checksum, []*utils.KeyRange, error) {
-	_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, cfg)
-	if err != nil {
-		return checksum.Checksum{}, nil, errors.Trace(err)
-	}
+func CalcChecksumAndRangeFromBackupMeta(ctx context.Context, backupMeta *backuppb.BackupMeta, curAPIVersion kvrpcpb.APIVersion) (checksum.Checksum, []*utils.KeyRange) {
 	fileChecksum := checksum.Checksum{}
 	keyRanges := make([]*utils.KeyRange, 0, len(backupMeta.Files))
 	for _, file := range backupMeta.Files {
@@ -70,7 +66,7 @@ func CalcChecksumFromBackupMeta(ctx context.Context, curAPIVersion kvrpcpb.APIVe
 		keyRange := utils.ConvertBackupConfigKeyRange(file.StartKey, file.EndKey, backupMeta.ApiVersion, curAPIVersion)
 		keyRanges = append(keyRanges, keyRange)
 	}
-	return fileChecksum, keyRanges, nil
+	return fileChecksum, keyRanges
 }
 
 // RunBackupRaw starts a backup task inside the current goroutine.
@@ -104,7 +100,12 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	curAPIVersion := client.GetCurAPIVersion()
 	cfg.adjustBackupRange(curAPIVersion)
 	if len(cfg.DstAPIVersion) == 0 { // if no DstAPIVersion is specified, backup to same api-version.
-		cfg.DstAPIVersion = kvrpcpb.APIVersion_name[int32(curAPIVersion)]
+		cfg.DstAPIVersion = curAPIVersion.String()
+	}
+	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
+	if !CheckBackupAPIVersion(curAPIVersion, dstAPIVersion) {
+		return errors.Errorf("Unsupported backup api version, cur:%s, dst:%s.",
+			curAPIVersion.String(), cfg.DstAPIVersion)
 	}
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
@@ -157,7 +158,6 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		}
 		updateCh.Inc()
 	}
-	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
 	req := backuppb.BackupRequest{
 		ClusterId:        client.GetClusterID(),
 		StartVersion:     0,
@@ -207,11 +207,12 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
 
 	if cfg.Checksum {
-		fileChecksum, keyRanges, err := CalcChecksumFromBackupMeta(ctx, curAPIVersion, &cfg.Config)
+		_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, &cfg.Config)
 		if err != nil {
 			log.Error("fail to read backup meta", zap.Error(err))
-			return err
+			return errors.Trace(err)
 		}
+		fileChecksum, keyRanges := CalcChecksumAndRangeFromBackupMeta(ctx, backupMeta, curAPIVersion)
 		checksumMethod := checksum.StorageChecksumCommand
 		if curAPIVersion.String() != cfg.DstAPIVersion {
 			checksumMethod = checksum.StorageScanCommand

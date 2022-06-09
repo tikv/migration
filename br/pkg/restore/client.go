@@ -12,6 +12,7 @@ import (
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/br/pkg/conn"
@@ -43,7 +44,8 @@ type Client struct {
 	tlsConf       *tls.Config
 	keepaliveConf keepalive.ClientParameters
 
-	backupMeta *backuppb.BackupMeta
+	backupMeta    *backuppb.BackupMeta
+	dstAPIVersion kvrpcpb.APIVersion
 
 	rateLimit       uint64
 	isOnline        bool
@@ -64,12 +66,17 @@ func NewRestoreClient(
 	keepaliveConf keepalive.ClientParameters,
 	isRawKv bool,
 ) (*Client, error) {
+	apiVerion, err := conn.GetTiKVApiVersion(context.Background(), pdClient, tlsConf)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
 	return &Client{
 		pdClient:      pdClient,
 		toolClient:    NewSplitClient(pdClient, tlsConf, isRawKv),
 		tlsConf:       tlsConf,
 		keepaliveConf: keepaliveConf,
 		switchCh:      make(chan struct{}),
+		dstAPIVersion: apiVerion,
 	}, nil
 }
 
@@ -397,4 +404,8 @@ func (rc *Client) switchTiKVMode(ctx context.Context, mode import_sstpb.SwitchMo
 		}
 	}
 	return nil
+}
+
+func (rc *Client) GetAPIVersion() kvrpcpb.APIVersion {
+	return rc.dstAPIVersion
 }

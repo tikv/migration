@@ -6,11 +6,8 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -66,14 +63,6 @@ const (
 	RegionUnit ProgressUnit = "region"
 )
 
-type StorageConfig struct {
-	APIVersion int  `json:"api-version"`
-	EnableTTL  bool `json:"enable-ttl"`
-}
-type StoreConfig struct {
-	Storage StorageConfig `json:"storage"`
-}
-
 // Client is a client instructs TiKV how to do a backup.
 type Client struct {
 	mgr       ClientMgr
@@ -91,7 +80,7 @@ func NewBackupClient(ctx context.Context, mgr ClientMgr, config *tls.Config) (*C
 	log.Info("new backup client")
 	pdClient := mgr.GetPDClient()
 	clusterID := pdClient.GetClusterID(ctx)
-	curAPIVer, err := GetCurrentTiKVApiVersion(ctx, mgr.GetPDClient(), config)
+	curAPIVer, err := conn.GetTiKVApiVersion(ctx, mgr.GetPDClient(), config)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -140,53 +129,6 @@ func (bc *Client) GetTS(ctx context.Context, duration time.Duration, ts uint64) 
 	}
 	log.Info("backup encode timestamp", zap.Uint64("BackupTS", backupTS))
 	return backupTS, nil
-}
-
-func GetCurrentTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Config) (kvrpcpb.APIVersion, error) {
-	allStores, err := conn.GetAllTiKVStoresWithRetry(ctx, pdClient, conn.SkipTiFlash)
-	if err != nil {
-		return kvrpcpb.APIVersion_V1, errors.Trace(err)
-	} else if len(allStores) == 0 {
-		return kvrpcpb.APIVersion_V1, errors.New("store are empty")
-	}
-	schema := "http"
-	httpClient := http.Client{}
-	if tlsConf != nil {
-		httpClient = http.Client{
-			Transport: &http.Transport{TLSClientConfig: tlsConf},
-		}
-		schema = "https"
-	}
-	url := fmt.Sprintf("%s://%s/config", schema, allStores[0].StatusAddress)
-	resp, err := httpClient.Get(url)
-	if err != nil {
-		return kvrpcpb.APIVersion_V1, errors.Trace(err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return kvrpcpb.APIVersion_V1, errors.Trace(err)
-	}
-	var cfg StoreConfig
-	if err := json.Unmarshal(body, &cfg); err != nil {
-		return kvrpcpb.APIVersion_V1, errors.Trace(err)
-	}
-	var apiVersion kvrpcpb.APIVersion
-	if cfg.Storage.APIVersion == 0 { // in old version without apiversion config. it's APIV1.
-		apiVersion = kvrpcpb.APIVersion_V1
-	} else if cfg.Storage.APIVersion == 1 {
-		if cfg.Storage.EnableTTL {
-			apiVersion = kvrpcpb.APIVersion_V1TTL
-		} else {
-			apiVersion = kvrpcpb.APIVersion_V1
-		}
-	} else if cfg.Storage.APIVersion == 2 {
-		apiVersion = kvrpcpb.APIVersion_V2
-	} else {
-		errMsg := fmt.Sprintf("Invalid apiversion %d", cfg.Storage.APIVersion)
-		return kvrpcpb.APIVersion_V1, errors.New(errMsg)
-	}
-	return apiVersion, nil
 }
 
 func (bc *Client) GetCurAPIVersion() kvrpcpb.APIVersion {
