@@ -86,7 +86,7 @@ var _ = check.Suite(&serverSuite{})
 
 func (s *serverSuite) TestEtcdHealthChecker(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
+	//	defer s.TearDownTest(c)
 
 	s.errg.Go(func() error {
 		err := s.server.etcdHealthChecker(s.ctx)
@@ -100,7 +100,6 @@ func (s *serverSuite) TestEtcdHealthChecker(c *check.C) {
 
 func (s *serverSuite) TestSetUpDataDir(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	conf := config.GetGlobalServerConfig()
 	// DataDir is not set, and no changefeed exist, use the default

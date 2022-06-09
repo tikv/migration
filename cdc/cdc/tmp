@@ -1,0 +1,52 @@
+[2022/06/09 23:39:14.274 +08:00] [INFO] [server.go:74] ["creating CDC server"] [pd-addrs="[http://127.0.0.1:44117,http://invalid-pd-host:2379]"] [config="{\"addr\":\"127.0.0.1:8300\",\"advertise-addr\":\"\",\"log-file\":\"\",\"log-level\":\"info\",\"log\":{\"file\":{\"max-size\":300,\"max-days\":0,\"max-backups\":0},\"error-output\":\"stderr\"},\"data-dir\":\"\",\"gc-ttl\":86400,\"tz\":\"System\",\"capture-session-ttl\":10,\"owner-flush-interval\":200000000,\"processor-flush-interval\":100000000,\"sorter\":{\"num-concurrent-worker\":4,\"chunk-size-limit\":134217728,\"max-memory-percentage\":30,\"max-memory-consumption\":17179869184,\"num-workerpool-goroutine\":16,\"sort-dir\":\"/tmp/sorter\"},\"security\":{\"ca-path\":\"\",\"cert-path\":\"\",\"key-path\":\"\",\"cert-allowed-cn\":null},\"per-keyspan-memory-quota\":10485760,\"kv-client\":{\"worker-concurrent\":8,\"worker-pool-size\":0,\"region-scan-limit\":40},\"debug\":{\"enable-keyspan-actor\":false,\"enable-db-sorter\":false,\"db\":{\"count\":8,\"concurrency\":128,\"max-open-files\":10000,\"block-size\":65536,\"block-cache-size\":4294967296,\"writer-buffer-size\":8388608,\"compression\":\"snappy\",\"target-file-size-base\":8388608,\"write-l0-slowdown-trigger\":2147483647,\"write-l0-pause-trigger\":2147483647,\"compaction-l0-trigger\":160,\"compaction-deletion-threshold\":160000,\"iterator-max-alive-duration\":10000,\"iterator-slow-read-duration\":256,\"cleanup-speed-limit\":10000},\"enable-new-scheduler\":false,\"messages\":{\"client-max-batch-interval\":200000000,\"client-max-batch-size\":8388608,\"client-max-batch-count\":128,\"client-retry-rate-limit\":1,\"server-max-pending-message-count\":102400,\"server-ack-interval\":100000000,\"server-worker-pool-size\":4}}}"]
+[2022/06/09 23:39:17.841 +08:00] [WARN] [server.go:240] ["etcd health check error"] [error="Get \"http://invalid-pd-host:2379/health\": EOF"]
+sleep finish
+cancel finish
+server close start
+server close finish
+s.e close finish
+s cancel finish
+TearDownTest finish
+
+server close start
+server close finish
+
+----------------------------------------------------------------------
+PANIC: server_test.go:76: serverSuite.TearDownTest
+
+... Panic: close of closed channel (PC=0x16C3766)
+
+/usr/local/go/src/runtime/panic.go:838
+  in gopanic
+/usr/local/go/src/runtime/chan.go:364
+  in closechan
+/root/go/pkg/mod/go.etcd.io/etcd/server/v3@v3.5.4/embed/etcd.go:429
+  in Etcd.Close
+server_test.go:80
+  in serverSuite.TearDownTest
+/usr/local/go/src/reflect/value.go:339
+  in Value.Call
+/root/go/pkg/mod/github.com/pingcap/check@v0.0.0-20211026125417-57bd13f7b5f0/check.go:799
+  in suiteRunner.runFixture.func1
+/root/go/pkg/mod/github.com/pingcap/check@v0.0.0-20211026125417-57bd13f7b5f0/check.go:739
+  in suiteRunner.forkCall.func1
+/usr/local/go/src/runtime/asm_amd64.s:1571
+  in goexit
+
+----------------------------------------------------------------------
+PANIC: server_test.go:93: serverSuite.TestEtcdHealthChecker
+
+... Panic: Fixture has panicked (see related PANIC)
+OOPS: 0 passed, 1 FIXTURE-PANICKED, 1 MISSED
+--- FAIL: TestSuite (4.94s)
+[2022/06/09 23:39:18.302 +08:00] [INFO] [http_router.go:148] [/debug/pprof/] [status=200] [method=GET] [path=/debug/pprof/] [query=] [ip=] [user-agent=] [] [cost=76.5µs]
+[2022/06/09 23:39:18.302 +08:00] [INFO] [http_router.go:148] [/debug/pprof/cmdline] [status=200] [method=GET] [path=/debug/pprof/cmdline] [query=] [ip=] [user-agent=] [] [cost=3.8µs]
+[2022/06/09 23:39:18.302 +08:00] [INFO] [http_router.go:148] [/debug/pprof/symbol] [status=200] [method=GET] [path=/debug/pprof/symbol] [query=] [ip=] [user-agent=] [] [cost=4.2µs]
+[2022/06/09 23:39:18.303 +08:00] [INFO] [http_router.go:148] [/debug/pprof/threadcreate] [status=200] [method=GET] [path=/debug/pprof/threadcreate] [query=] [ip=] [user-agent=] [] [cost=346.1µs]
+[2022/06/09 23:39:18.304 +08:00] [INFO] [http_router.go:148] [/debug/pprof/allocs] [status=200] [method=GET] [path=/debug/pprof/allocs] [query=] [ip=] [user-agent=] [] [cost=1.0479ms]
+[2022/06/09 23:39:18.312 +08:00] [INFO] [http_router.go:148] [/debug/pprof/block] [status=200] [method=GET] [path=/debug/pprof/block] [query=] [ip=] [user-agent=] [] [cost=8.5003ms]
+[2022/06/09 23:39:18.313 +08:00] [INFO] [http_router.go:148] [/debug/pprof/goroutine] [status=200] [method=GET] [path=/debug/pprof/goroutine] [query="debug=1"] [ip=] [user-agent=] [] [cost=317.4µs]
+[2022/06/09 23:39:18.313 +08:00] [INFO] [http_router.go:148] [/debug/pprof/mutex] [status=200] [method=GET] [path=/debug/pprof/mutex] [query="debug=1"] [ip=] [user-agent=] [] [cost=8.8µs]
+FAIL
+exit status 1
+FAIL	github.com/tikv/migration/cdc/cdc	5.006s

@@ -265,7 +265,6 @@ func (s *httpStatusSuite) TestServerTLSWithoutCommonName(c *check.C) {
 	wg.Wait()
 }
 
-//
 func (s *httpStatusSuite) TestServerTLSWithCommonName(c *check.C) {
 	defer testleak.AfterTest(c)
 	addr := tempurl.Alloc()[len("http://"):]
