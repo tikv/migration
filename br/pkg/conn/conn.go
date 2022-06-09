@@ -108,7 +108,7 @@ func NewConnPool(cap int, newConn func(ctx context.Context) (*grpc.ClientConn, e
 type Mgr struct {
 	*pdutil.PdController
 	tlsConf      *tls.Config
-	lockResolver *txnlock.LockResolver // Used to access TiKV specific interfaces.
+	lockResolver *txnlock.LockResolver // Used to resolve lock when backup return lock error.
 	grpcClis     struct {
 		mu   sync.Mutex
 		clis map[uint64]*grpc.ClientConn
@@ -411,6 +411,9 @@ func (mgr *Mgr) Close() {
 		}
 	}
 	mgr.grpcClis.mu.Unlock()
+	if mgr.lockResolver != nil {
+		mgr.lockResolver.Close()
+	}
 
 	// Gracefully shutdown domain so it does not affect other TiDB DDL.
 	// Must close domain before closing storage, otherwise it gets stuck forever.
