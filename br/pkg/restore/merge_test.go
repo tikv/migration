@@ -12,6 +12,7 @@ import (
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/restore"
 )
@@ -27,8 +28,9 @@ func (fb *fileBulder) build(num, bytes, kv int) (files []*backuppb.File) {
 
 	fb.startKeyOffset += 10
 
-	startKey := []byte{}
-	endKey := []byte{}
+	startKey := codec.EncodeInt(nil, fb.startKeyOffset)
+	fb.startKeyOffset += 10
+	endKey := codec.EncodeInt(nil, fb.startKeyOffset)
 	files = append(files, &backuppb.File{
 		Name:       fmt.Sprint(rand.Int63n(math.MaxInt64), "_write.sst"),
 		StartKey:   startKey,
@@ -116,57 +118,6 @@ func TestMergeRanges(t *testing.T) {
 			files:  [][5]int{{1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes, 1}, {1, 0, 1, splitSizeBytes / 2, 1}, {1, 0, 1, 1, 1}},
 			merged: []int{2, 1, 2},
 			stat:   restore.MergeRangesStat{TotalRegions: 5, MergedRegions: 3},
-		},
-
-		// Do not merge ranges from different tables
-		// 2 -> 2, size: [1, 1] -> [1, 1], table ID: [1, 2] -> [1, 2]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 0, 1, 1, 1}},
-			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
-		},
-		// 3 -> 2, size: [1@split*1/3, 2@split*1/3, 2@split*1/2] -> [1@split*1/3, 2@split*5/6]
-		{
-			files:  [][5]int{{1, 0, 1, splitSizeBytes / 3, 1}, {2, 0, 1, splitSizeBytes / 3, 1}, {2, 0, 1, splitSizeBytes / 2, 1}},
-			merged: []int{1, 2},
-			stat:   restore.MergeRangesStat{TotalRegions: 3, MergedRegions: 2},
-		},
-
-		// Do not merge ranges from different indexes.
-		// 2 -> 2, size: [1, 1] -> [1, 1], index ID: [1, 2] -> [1, 2]
-		{
-			files:  [][5]int{{1, 1, 1, 1, 1}, {1, 2, 1, 1, 1}},
-			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
-		},
-		// Index ID out of order.
-		// 2 -> 2, size: [1, 1] -> [1, 1], index ID: [2, 1] -> [1, 2]
-		{
-			files:  [][5]int{{1, 2, 1, 1, 1}, {1, 1, 1, 1, 1}},
-			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
-		},
-		// 3 -> 3, size: [1, 1, 1] -> [1, 1, 1]
-		// (table ID, index ID): [(1, 0), (2, 1), (2, 2)] -> [(1, 0), (2, 1), (2, 2)]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 2, 1, 1, 1}},
-			merged: []int{1, 1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 3, MergedRegions: 3},
-		},
-		// 4 -> 3, size: [1, 1, 1, 1] -> [1, 1, 2]
-		// (table ID, index ID): [(1, 0), (2, 1), (2, 0), (2, 0)] -> [(1, 0), (2, 1), (2, 0)]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 0, 1, 1, 1}, {2, 0, 1, 1, 1}},
-			merged: []int{1, 1, 2},
-			stat:   restore.MergeRangesStat{TotalRegions: 4, MergedRegions: 3},
-		},
-		// Merge the same table ID and index ID.
-		// 4 -> 3, size: [1, 1, 1, 1] -> [1, 2, 1]
-		// (table ID, index ID): [(1, 0), (2, 1), (2, 1), (2, 0)] -> [(1, 0), (2, 1), (2, 0)]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 0, 1, 1, 1}},
-			merged: []int{1, 2, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 4, MergedRegions: 3},
 		},
 	}
 

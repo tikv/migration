@@ -48,9 +48,14 @@ func TestSortRange(t *testing.T) {
 			EndKey:   append([]byte{2}, []byte("bbb")...), Files: nil,
 		},
 	}
-	_, err = restore.SortRanges(ranges2, rewriteRules)
-	require.Error(t, err)
-	require.Regexp(t, "table id mismatch.*", err.Error())
+	rs2, err := restore.SortRanges(ranges2, nil)
+	require.NoErrorf(t, err, "sort range1 failed: %v", err)
+	rangeEquals(t, rs2, []rtree.Range{
+		{
+			StartKey: append([]byte{1}, []byte("aaa")...),
+			EndKey:   append([]byte{2}, []byte("bbb")...), Files: nil,
+		},
+	})
 
 	ranges3 := initRanges()
 	rewriteRules1 := initRewriteRules()
