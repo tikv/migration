@@ -83,6 +83,7 @@ func newChangefeed4Test(
 	id model.ChangeFeedID, gcManager gc.Manager,
 ) *changefeed {
 	c := newChangefeed(id, gcManager)
+	c.newScheduler = newScheduler4Test
 	return c
 }
 

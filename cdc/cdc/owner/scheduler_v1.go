@@ -30,6 +30,7 @@ import (
 )
 
 type schedulerJobType string
+type updateCurrentKeySpansFunc func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
 
 const (
 	schedulerJobTypeAddKeySpan    schedulerJobType = "ADD"
@@ -63,13 +64,13 @@ type oldScheduler struct {
 	needRebalanceNextTick bool
 	lastTickCaptureCount  int
 
-	updateCurrentKeySpans func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
+	updateCurrentKeySpans updateCurrentKeySpansFunc
 }
 
-func newSchedulerV1() scheduler {
+func newSchedulerV1(f updateCurrentKeySpansFunc) scheduler {
 	return &schedulerV1CompatWrapper{&oldScheduler{
 		moveKeySpanTargets:    make(map[model.KeySpanID]model.CaptureID),
-		updateCurrentKeySpans: updateCurrentKeySpansImpl,
+		updateCurrentKeySpans: f,
 	}}
 }
 
@@ -84,6 +85,8 @@ func (s *oldScheduler) Tick(
 ) (shouldUpdateState bool, err error) {
 
 	s.state = state
+	s.captures = captures
+
 	s.currentKeySpansID, s.currentKeySpans, err = s.updateCurrentKeySpans(ctx)
 	if err != nil {
 		return false, errors.Trace(err)
@@ -450,6 +453,10 @@ func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[m
 	return currentKeySpansID, currentKeySpans, nil
 }
 
+func updateCurrentKeySpansImpl4Test(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	return nil, nil, nil
+}
+
 // schedulerV1CompatWrapper is used to wrap the old scheduler to
 // support the compatibility with the new scheduler.
 // It incorporates watermark calculations into the scheduler, which
@@ -505,6 +512,10 @@ func (w *schedulerV1CompatWrapper) calculateWatermarks(
 				resolvedTs = opt.BoundaryTs
 			}
 		}
+	}
+
+	if resolvedTs == model.Ts(math.MaxUint64) {
+		return schedulerv2.CheckpointCannotProceed, 0
 	}
 	checkpointTs := resolvedTs
 	for _, position := range state.TaskPositions {

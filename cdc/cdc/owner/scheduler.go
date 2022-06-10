@@ -79,13 +79,14 @@ func NewSchedulerV2(
 	checkpointTs model.Ts,
 	messageServer *p2p.MessageServer,
 	messageRouter p2p.MessageRouter,
+	f updateCurrentKeySpansFunc,
 ) (*schedulerV2, error) {
 	ret := &schedulerV2{
 		changeFeedID:          changeFeedID,
 		messageServer:         messageServer,
 		messageRouter:         messageRouter,
 		stats:                 &schedulerStats{},
-		updateCurrentKeySpans: updateCurrentKeySpansImpl,
+		updateCurrentKeySpans: f,
 	}
 	ret.BaseScheduleDispatcher = pscheduler.NewBaseScheduleDispatcher(changeFeedID, ret, checkpointTs)
 	if err := ret.registerPeerMessageHandlers(ctx); err != nil {
@@ -97,11 +98,11 @@ func NewSchedulerV2(
 
 // newSchedulerV2FromCtx creates a new schedulerV2 from context.
 // This function is factored out to facilitate unit testing.
-func newSchedulerV2FromCtx(ctx context.Context, startTs uint64) (scheduler, error) {
+func newSchedulerV2FromCtx(ctx context.Context, startTs uint64, f updateCurrentKeySpansFunc) (scheduler, error) {
 	changeFeedID := ctx.ChangefeedVars().ID
 	messageServer := ctx.GlobalVars().MessageServer
 	messageRouter := ctx.GlobalVars().MessageRouter
-	ret, err := NewSchedulerV2(ctx, changeFeedID, startTs, messageServer, messageRouter)
+	ret, err := NewSchedulerV2(ctx, changeFeedID, startTs, messageServer, messageRouter, f)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -111,9 +112,17 @@ func newSchedulerV2FromCtx(ctx context.Context, startTs uint64) (scheduler, erro
 func newScheduler(ctx context.Context, startTs uint64) (scheduler, error) {
 	conf := config.GetGlobalServerConfig()
 	if conf.Debug.EnableNewScheduler {
-		return newSchedulerV2FromCtx(ctx, startTs)
+		return newSchedulerV2FromCtx(ctx, startTs, updateCurrentKeySpansImpl)
 	}
-	return newSchedulerV1(), nil
+	return newSchedulerV1(updateCurrentKeySpansImpl), nil
+}
+
+func newScheduler4Test(ctx context.Context, startTs uint64) (scheduler, error) {
+	conf := config.GetGlobalServerConfig()
+	if conf.Debug.EnableNewScheduler {
+		return newSchedulerV2FromCtx(ctx, startTs, updateCurrentKeySpansImpl4Test)
+	}
+	return newSchedulerV1(updateCurrentKeySpansImpl4Test), nil
 }
 
 func (s *schedulerV2) Tick(
