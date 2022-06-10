@@ -126,14 +126,8 @@ func Init(cmd *cobra.Command) (err error) {
 			return
 		}
 		redact.InitRedact(redactLog || redactInfoLog)
-		err = startPProf(cmd)
 	})
 	return errors.Trace(err)
-}
-
-func startPProf(cmd *cobra.Command) error {
-	// Initialize the pprof server.
-	return nil
 }
 
 // HasLogFile returns whether we set a log file.
