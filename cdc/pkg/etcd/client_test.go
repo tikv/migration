@@ -89,7 +89,6 @@ func (s *clientSuite) TestRetry(c *check.C) {
 
 func (s *etcdSuite) TestDelegateLease(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx := context.Background()
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{s.clientURL.String()},

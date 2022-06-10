@@ -26,8 +26,8 @@ import (
 	"github.com/tikv/migration/cdc/cdc/model"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.etcd.io/etcd/client/pkg/v3/logutil"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
@@ -92,7 +92,6 @@ logEtcdError:
 
 func (s *etcdSuite) TestEmbedEtcd(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	curl := s.clientURL.String()
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{curl},
@@ -111,14 +110,12 @@ func (s *etcdSuite) TestEmbedEtcd(c *check.C) {
 	c.Assert(err2, check.IsNil)
 	c.Assert(resp.Kvs, check.HasLen, 1)
 	c.Assert(resp.Kvs[0].Value, check.DeepEquals, []byte(val))
-	s.TearDownTest(c)
 }
 
 func (s *etcdSuite) TestGetChangeFeeds(c *check.C) {
 	defer testleak.AfterTest(c)()
 	// `TearDownTest` must be called before leak test, so we take advantage of
 	// the stack feature of defer. Ditto for all tests with etcdSuite.
-	defer s.TearDownTest(c)
 	testCases := []struct {
 		ids     []string
 		details []string
@@ -155,7 +152,6 @@ func (s *etcdSuite) TestGetChangeFeeds(c *check.C) {
 
 func (s *etcdSuite) TestGetPutTaskStatus(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx := context.Background()
 	info := &model.TaskStatus{
 		KeySpans: map[model.KeySpanID]*model.KeySpanReplicaInfo{
@@ -181,7 +177,6 @@ func (s *etcdSuite) TestGetPutTaskStatus(c *check.C) {
 
 func (s *etcdSuite) TestGetPutTaskPosition(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx := context.Background()
 	info := &model.TaskPosition{
 		ResolvedTs:   99,
@@ -216,7 +211,6 @@ func (s *etcdSuite) TestGetPutTaskPosition(c *check.C) {
 
 func (s *etcdSuite) TestOpChangeFeedDetail(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx := context.Background()
 	detail := &model.ChangeFeedInfo{
 		SinkURI: "root@tcp(127.0.0.1:3306)/mysql",
@@ -241,7 +235,6 @@ func (s *etcdSuite) TestOpChangeFeedDetail(c *check.C) {
 
 func (s etcdSuite) TestGetAllChangeFeedInfo(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx := context.Background()
 	infos := []struct {
 		id   string
@@ -280,7 +273,6 @@ func (s etcdSuite) TestGetAllChangeFeedInfo(c *check.C) {
 
 func (s etcdSuite) TestGetAllChangeFeedStatus(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	changefeeds := map[model.ChangeFeedID]*model.ChangeFeedStatus{
 		"cf1": {
 			ResolvedTs:   100,
@@ -302,7 +294,6 @@ func (s etcdSuite) TestGetAllChangeFeedStatus(c *check.C) {
 
 func (s *etcdSuite) TestCreateChangefeed(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx := context.Background()
 	detail := &model.ChangeFeedInfo{
 		SinkURI: "root@tcp(127.0.0.1:3306)/mysql",
@@ -317,7 +308,6 @@ func (s *etcdSuite) TestCreateChangefeed(c *check.C) {
 
 func (s *etcdSuite) TestGetAllCaptureLeases(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	testCases := []*model.CaptureInfo{
@@ -370,7 +360,6 @@ const (
 
 func (s *etcdSuite) TestGetOwnerRevision(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
