@@ -83,7 +83,7 @@ require (
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
-	google.golang.org/grpc v1.47.0
+	google.golang.org/grpc v1.46.2
 	upper.io/db.v3 v3.8.0+incompatible
 )
 

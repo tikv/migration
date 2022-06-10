@@ -15,6 +15,7 @@ package etcd
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -48,23 +49,23 @@ func (m *mockClient) Put(ctx context.Context, key, val string, opts ...clientv3.
 type mockWatcher struct {
 	clientv3.Watcher
 	watchCh      chan clientv3.WatchResponse
-	resetCount   *int
-	requestCount *int
+	resetCount   *int32
+	requestCount *int32
 	rev          *int64
 }
 
 func (m mockWatcher) Watch(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan {
-	*m.resetCount++
+	atomic.AddInt32(m.resetCount, 1)
 	op := &clientv3.Op{}
 	for _, opt := range opts {
 		opt(op)
 	}
-	*m.rev = op.Rev()
+	atomic.StoreInt64(m.rev, op.Rev())
 	return m.watchCh
 }
 
 func (m mockWatcher) RequestProgress(ctx context.Context) error {
-	*m.requestCount++
+	atomic.AddInt32(m.requestCount, 1)
 	return nil
 }
 
@@ -118,8 +119,8 @@ func (s *etcdSuite) TestDelegateLease(c *check.C) {
 func (s *clientSuite) TestWatchChBlocked(c *check.C) {
 	defer testleak.AfterTest(c)()
 	cli := clientv3.NewCtxClient(context.TODO())
-	resetCount := 0
-	requestCount := 0
+	resetCount := int32(0)
+	requestCount := int32(0)
 	rev := int64(0)
 	watchCh := make(chan clientv3.WatchResponse, 1)
 	watcher := mockWatcher{watchCh: watchCh, resetCount: &resetCount, requestCount: &requestCount, rev: &rev}
@@ -169,9 +170,9 @@ func (s *clientSuite) TestWatchChBlocked(c *check.C) {
 
 	c.Check(sentRes, check.DeepEquals, receivedRes)
 	// make sure watchCh has been reset since timeout
-	c.Assert(*watcher.resetCount > 1, check.IsTrue)
+	c.Assert(atomic.LoadInt32(watcher.resetCount) > 1, check.IsTrue)
 	// make sure RequestProgress has been call since timeout
-	c.Assert(*watcher.requestCount > 1, check.IsTrue)
+	c.Assert(atomic.LoadInt32(watcher.requestCount) > 1, check.IsTrue)
 	// make sure etcdRequestProgressDuration is less than etcdWatchChTimeoutDuration
 	c.Assert(etcdRequestProgressDuration, check.Less, etcdWatchChTimeoutDuration)
 }
@@ -181,8 +182,8 @@ func (s *clientSuite) TestOutChBlocked(c *check.C) {
 	defer testleak.AfterTest(c)()
 
 	cli := clientv3.NewCtxClient(context.TODO())
-	resetCount := 0
-	requestCount := 0
+	resetCount := int32(0)
+	requestCount := int32(0)
 	rev := int64(0)
 	watchCh := make(chan clientv3.WatchResponse, 1)
 	watcher := mockWatcher{watchCh: watchCh, resetCount: &resetCount, requestCount: &requestCount, rev: &rev}
@@ -234,8 +235,8 @@ func (s *clientSuite) TestRevisionNotFallBack(c *check.C) {
 	defer testleak.AfterTest(c)()
 	cli := clientv3.NewCtxClient(context.TODO())
 
-	resetCount := 0
-	requestCount := 0
+	resetCount := int32(0)
+	requestCount := int32(0)
 	rev := int64(0)
 	watchCh := make(chan clientv3.WatchResponse, 1)
 	watcher := mockWatcher{watchCh: watchCh, resetCount: &resetCount, requestCount: &requestCount, rev: &rev}
@@ -269,9 +270,9 @@ func (s *clientSuite) TestRevisionNotFallBack(c *check.C) {
 	// move time forward
 	mockClock.Add(time.Second * 30)
 	// make sure watchCh has been reset since timeout
-	c.Assert(*watcher.resetCount > 1, check.IsTrue)
+	c.Assert(atomic.LoadInt32(watcher.resetCount) > 1, check.IsTrue)
 	// make suer revision in WatchWitchChan does not fall back
 	// even if there has not any response been received from WatchCh
 	// while WatchCh was reset
-	c.Assert(*watcher.rev, check.Equals, revision)
+	c.Assert(atomic.LoadInt64(watcher.rev), check.Equals, revision)
 }

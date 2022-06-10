@@ -27,15 +27,15 @@ import (
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"go.etcd.io/etcd/client/pkg/v3/logutil"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
+	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/pingcap/check"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/server/v3/embed"
 )
 
 func Test(t *testing.T) { check.TestingT(t) }
@@ -81,7 +81,10 @@ func (s *etcdSuite) TearDownTest(c *check.C) {
 logEtcdError:
 	for {
 		select {
-		case err := <-s.etcd.Err():
+		case err, ok := <-s.etcd.Err():
+			if !ok {
+				break logEtcdError
+			}
 			c.Logf("etcd server error: %v", err)
 		default:
 			break logEtcdError
