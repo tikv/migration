@@ -15,12 +15,12 @@ import (
 	sst "github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/pdpb"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/tikv/migration/br/pkg/utils"
-	"github.com/tikv/pd/pkg/codec"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -100,8 +100,8 @@ func (rs *RegionSplitter) Split(
 	minKey := sortedRanges[0].StartKey
 	maxKey := sortedRanges[len(sortedRanges)-1].EndKey
 	if needEncodeKey {
-		minKey = codec.EncodeBytes(sortedRanges[0].StartKey)
-		maxKey = codec.EncodeBytes(sortedRanges[len(sortedRanges)-1].EndKey)
+		minKey = codec.EncodeBytes(nil, sortedRanges[0].StartKey)
+		maxKey = codec.EncodeBytes(nil, sortedRanges[len(sortedRanges)-1].EndKey)
 	}
 
 	interval := SplitRetryInterval
@@ -137,7 +137,7 @@ SplitRegions:
 						log.Error("split regions no valid key",
 							logutil.Key("startKey", region.Region.StartKey),
 							logutil.Key("endKey", region.Region.EndKey),
-							logutil.Key("key", codec.EncodeBytes(key)),
+							logutil.Key("key", codec.EncodeBytes(nil, key)),
 							rtree.ZapRanges(ranges))
 					}
 					return errors.Trace(errSplit)
@@ -521,7 +521,7 @@ func NeedSplit(splitKey []byte, regions []*RegionInfo, needEncodeKey bool) *Regi
 		return nil
 	}
 	if needEncodeKey {
-		splitKey = codec.EncodeBytes(splitKey)
+		splitKey = codec.EncodeBytes(nil, splitKey)
 	}
 	for _, region := range regions {
 		// If splitKey is the boundary of the region

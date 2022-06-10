@@ -14,6 +14,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
+	"github.com/pingcap/tidb/store/pdtypes"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -26,7 +27,6 @@ import (
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
-	"github.com/tikv/pd/server/schedule/placement"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -238,8 +238,8 @@ func (rc *Client) ResetTS(ctx context.Context, pdAddrs []string) error {
 }
 
 // GetPlacementRules return the current placement rules.
-func (rc *Client) GetPlacementRules(ctx context.Context, pdAddrs []string) ([]placement.Rule, error) {
-	var placementRules []placement.Rule
+func (rc *Client) GetPlacementRules(ctx context.Context, pdAddrs []string) ([]pdtypes.Rule, error) {
+	var placementRules []pdtypes.Rule
 	i := 0
 	errRetry := utils.WithRetry(ctx, func() error {
 		var err error

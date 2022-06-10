@@ -13,13 +13,10 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	tidbutils "github.com/pingcap/tidb-tools/pkg/utils"
-	"github.com/pingcap/tidb/util/logutil"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/task"
-	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
 )
 
@@ -86,27 +83,6 @@ func AddFlags(cmd *cobra.Command) {
 // Init initializes BR cli.
 func Init(cmd *cobra.Command) (err error) {
 	initOnce.Do(func() {
-		slowLogFilename, e := cmd.Flags().GetString(FlagSlowLogFile)
-		if e != nil {
-			err = e
-			return
-		}
-		tidbLogCfg := logutil.LogConfig{}
-		if len(slowLogFilename) != 0 {
-			tidbLogCfg.SlowQueryFile = slowLogFilename
-			// Just for special grpc log file,
-			// otherwise the info will be print in stdout...
-			tidbLogCfg.File.Filename = timestampLogFileName()
-		} else {
-			// Disable annoying TiDB Log.
-			// TODO: some error logs outputs randomly, we need to fix them in TiDB.
-			tidbLogCfg.Level = "fatal"
-		}
-		e = logutil.InitLogger(&tidbLogCfg)
-		if e != nil {
-			err = e
-			return
-		}
 		// Initialize the logger.
 		conf := new(log.Config)
 		conf.Level, err = cmd.Flags().GetString(FlagLogLevel)
@@ -150,35 +126,8 @@ func Init(cmd *cobra.Command) (err error) {
 			return
 		}
 		redact.InitRedact(redactLog || redactInfoLog)
-		err = startPProf(cmd)
 	})
 	return errors.Trace(err)
-}
-
-func startPProf(cmd *cobra.Command) error {
-	// Initialize the pprof server.
-	statusAddr, err := cmd.Flags().GetString(FlagStatusAddr)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	tlsConfig := &task.TLSConfig{}
-	err = tlsConfig.ParseFromFlags(cmd.Flags())
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	// Host isn't used here.
-	tls, err := tidbutils.NewTLS(tlsConfig.CA, tlsConfig.Cert, tlsConfig.Key, "localhost", nil)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if statusAddr != "" {
-		return utils.StartPProfListener(statusAddr, tls)
-	}
-	utils.StartDynamicPProfListener(tls)
-	return nil
 }
 
 // HasLogFile returns whether we set a log file.

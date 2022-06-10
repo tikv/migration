@@ -8,56 +8,29 @@ import (
 	"math"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
-	"github.com/pingcap/tidb/tablecodec"
-	"github.com/pingcap/tidb/types"
-	"github.com/pingcap/tidb/util/codec"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/restore"
 )
 
 type fileBulder struct {
-	tableID, startKeyOffset int64
+	startKeyOffset int64
 }
 
-func (fb *fileBulder) build(tableID, indexID, num, bytes, kv int) (files []*backuppb.File) {
+func (fb *fileBulder) build(num, bytes, kv int) (files []*backuppb.File) {
 	if num != 1 && num != 2 {
 		panic("num must be 1 or 2")
 	}
 
-	// Rotate table ID
-	if fb.tableID != int64(tableID) {
-		fb.tableID = int64(tableID)
-		fb.startKeyOffset = 0
-	}
-
-	low := codec.EncodeInt(nil, fb.startKeyOffset)
 	fb.startKeyOffset += 10
-	high := codec.EncodeInt(nil, fb.startKeyOffset)
 
-	startKey := tablecodec.EncodeRowKey(fb.tableID, low)
-	endKey := tablecodec.EncodeRowKey(fb.tableID, high)
-	if indexID != 0 {
-		lowVal := types.NewIntDatum(fb.startKeyOffset - 10)
-		highVal := types.NewIntDatum(fb.startKeyOffset)
-		sc := &stmtctx.StatementContext{TimeZone: time.UTC}
-		lowValue, err := codec.EncodeKey(sc, nil, lowVal)
-		if err != nil {
-			panic(err)
-		}
-		highValue, err := codec.EncodeKey(sc, nil, highVal)
-		if err != nil {
-			panic(err)
-		}
-		startKey = tablecodec.EncodeIndexSeekKey(int64(tableID), int64(indexID), lowValue)
-		endKey = tablecodec.EncodeIndexSeekKey(int64(tableID), int64(indexID), highValue)
-	}
-
+	startKey := codec.EncodeInt(nil, fb.startKeyOffset)
+	fb.startKeyOffset += 10
+	endKey := codec.EncodeInt(nil, fb.startKeyOffset)
 	files = append(files, &backuppb.File{
 		Name:       fmt.Sprint(rand.Int63n(math.MaxInt64), "_write.sst"),
 		StartKey:   startKey,
@@ -75,8 +48,8 @@ func (fb *fileBulder) build(tableID, indexID, num, bytes, kv int) (files []*back
 	files[0].TotalBytes = 0
 	files = append(files, &backuppb.File{
 		Name:       fmt.Sprint(rand.Int63n(math.MaxInt64), "_default.sst"),
-		StartKey:   tablecodec.EncodeRowKey(fb.tableID, low),
-		EndKey:     tablecodec.EncodeRowKey(fb.tableID, high),
+		StartKey:   startKey,
+		EndKey:     endKey,
 		TotalKvs:   uint64(kv),
 		TotalBytes: uint64(bytes),
 		Cf:         "default",
@@ -146,64 +119,13 @@ func TestMergeRanges(t *testing.T) {
 			merged: []int{2, 1, 2},
 			stat:   restore.MergeRangesStat{TotalRegions: 5, MergedRegions: 3},
 		},
-
-		// Do not merge ranges from different tables
-		// 2 -> 2, size: [1, 1] -> [1, 1], table ID: [1, 2] -> [1, 2]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 0, 1, 1, 1}},
-			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
-		},
-		// 3 -> 2, size: [1@split*1/3, 2@split*1/3, 2@split*1/2] -> [1@split*1/3, 2@split*5/6]
-		{
-			files:  [][5]int{{1, 0, 1, splitSizeBytes / 3, 1}, {2, 0, 1, splitSizeBytes / 3, 1}, {2, 0, 1, splitSizeBytes / 2, 1}},
-			merged: []int{1, 2},
-			stat:   restore.MergeRangesStat{TotalRegions: 3, MergedRegions: 2},
-		},
-
-		// Do not merge ranges from different indexes.
-		// 2 -> 2, size: [1, 1] -> [1, 1], index ID: [1, 2] -> [1, 2]
-		{
-			files:  [][5]int{{1, 1, 1, 1, 1}, {1, 2, 1, 1, 1}},
-			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
-		},
-		// Index ID out of order.
-		// 2 -> 2, size: [1, 1] -> [1, 1], index ID: [2, 1] -> [1, 2]
-		{
-			files:  [][5]int{{1, 2, 1, 1, 1}, {1, 1, 1, 1, 1}},
-			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
-		},
-		// 3 -> 3, size: [1, 1, 1] -> [1, 1, 1]
-		// (table ID, index ID): [(1, 0), (2, 1), (2, 2)] -> [(1, 0), (2, 1), (2, 2)]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 2, 1, 1, 1}},
-			merged: []int{1, 1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 3, MergedRegions: 3},
-		},
-		// 4 -> 3, size: [1, 1, 1, 1] -> [1, 1, 2]
-		// (table ID, index ID): [(1, 0), (2, 1), (2, 0), (2, 0)] -> [(1, 0), (2, 1), (2, 0)]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 0, 1, 1, 1}, {2, 0, 1, 1, 1}},
-			merged: []int{1, 1, 2},
-			stat:   restore.MergeRangesStat{TotalRegions: 4, MergedRegions: 3},
-		},
-		// Merge the same table ID and index ID.
-		// 4 -> 3, size: [1, 1, 1, 1] -> [1, 2, 1]
-		// (table ID, index ID): [(1, 0), (2, 1), (2, 1), (2, 0)] -> [(1, 0), (2, 1), (2, 0)]
-		{
-			files:  [][5]int{{1, 0, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 1, 1, 1, 1}, {2, 0, 1, 1, 1}},
-			merged: []int{1, 2, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 4, MergedRegions: 3},
-		},
 	}
 
 	for i, cs := range cases {
 		files := make([]*backuppb.File, 0)
 		fb := fileBulder{}
 		for _, f := range cs.files {
-			files = append(files, fb.build(f[0], f[1], f[2], f[3], f[4])...)
+			files = append(files, fb.build(f[2], f[3], f[4])...)
 		}
 		rngs, stat, err := restore.MergeFileRanges(files, restore.DefaultMergeRegionSizeBytes, restore.DefaultMergeRegionKeyCount)
 		require.NoErrorf(t, err, "%+v", cs)
@@ -224,7 +146,7 @@ func TestMergeRanges(t *testing.T) {
 func TestMergeRawKVRanges(t *testing.T) {
 	files := make([]*backuppb.File, 0)
 	fb := fileBulder{}
-	files = append(files, fb.build(1, 0, 2, 1, 1)...)
+	files = append(files, fb.build(2, 1, 1)...)
 	// RawKV does not have write cf
 	files = files[1:]
 	_, stat, err := restore.MergeFileRanges(
@@ -237,7 +159,7 @@ func TestMergeRawKVRanges(t *testing.T) {
 func TestInvalidRanges(t *testing.T) {
 	files := make([]*backuppb.File, 0)
 	fb := fileBulder{}
-	files = append(files, fb.build(1, 0, 1, 1, 1)...)
+	files = append(files, fb.build(1, 1, 1)...)
 	files[0].Name = "invalid.sst"
 	files[0].Cf = "invalid"
 	_, _, err := restore.MergeFileRanges(
@@ -258,7 +180,7 @@ func benchmarkMergeRanges(b *testing.B, filesCount int) {
 	files := make([]*backuppb.File, 0)
 	fb := fileBulder{}
 	for i := 0; i < filesCount; i++ {
-		files = append(files, fb.build(1, 0, 1, 1, 1)...)
+		files = append(files, fb.build(1, 1, 1)...)
 	}
 	var err error
 	for i := 0; i < b.N; i++ {

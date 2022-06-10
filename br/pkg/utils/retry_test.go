@@ -7,9 +7,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/pingcap/errors"
-	tmysql "github.com/pingcap/tidb/errno"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 	"google.golang.org/grpc/codes"
@@ -23,21 +21,6 @@ func TestIsRetryableError(t *testing.T) {
 	require.False(t, IsRetryableError(&net.AddrError{}))
 	require.False(t, IsRetryableError(&net.DNSError{}))
 	require.True(t, IsRetryableError(&net.DNSError{IsTimeout: true}))
-
-	// MySQL Errors
-	require.False(t, IsRetryableError(&mysql.MySQLError{}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrUnknown}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrLockDeadlock}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrPDServerTimeout}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrTiKVServerTimeout}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrTiKVServerBusy}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrResolveLockTimeout}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrRegionUnavailable}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrWriteConflictInTiDB}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrWriteConflict}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrInfoSchemaExpired}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrInfoSchemaChanged}))
-	require.True(t, IsRetryableError(&mysql.MySQLError{Number: tmysql.ErrTxnRetryable}))
 
 	// gRPC Errors
 	require.False(t, IsRetryableError(status.Error(codes.Canceled, "")))
