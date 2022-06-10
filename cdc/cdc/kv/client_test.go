@@ -83,7 +83,6 @@ func (s *clientSuite) TearDownTest(c *check.C) {
 
 func (s *clientSuite) TestNewClient(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	rpcClient, _, pdClient, err := testutils.NewMockTiKV("", nil)
 	c.Assert(err, check.IsNil)
 	defer pdClient.Close()
@@ -99,7 +98,6 @@ func (s *clientSuite) TestNewClient(c *check.C) {
 
 func (s *clientSuite) TestAssembleRowEvent(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	testCases := []struct {
 		regionID       uint64
 		entry          *cdcpb.Event_Row
@@ -333,7 +331,6 @@ func waitRequestID(c *check.C, allocatedID uint64) {
 
 func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	wg := &sync.WaitGroup{}
@@ -433,7 +430,6 @@ func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 
 func (s *clientSuite) TestRecvLargeMessageSize(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 	ch2 := make(chan *cdcpb.ChangeDataEvent, 10)
@@ -519,7 +515,6 @@ func (s *clientSuite) TestRecvLargeMessageSize(c *check.C) {
 
 func (s *clientSuite) TestHandleError(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -692,7 +687,6 @@ consumePreResolvedTs:
 // TiKV have different versions.
 func (s *clientSuite) TestCompatibilityWithSameConn(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -757,7 +751,6 @@ func (s *clientSuite) TestCompatibilityWithSameConn(c *check.C) {
 // the cluster ID mismatch error.
 func (s *clientSuite) TestClusterIDMismatch(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -827,7 +820,6 @@ func (s *clientSuite) TestClusterIDMismatch(c *check.C) {
 }
 
 func (s *clientSuite) testHandleFeedEvent(c *check.C) {
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -1265,7 +1257,6 @@ func (s *clientSuite) TestHandleFeedEventWithWorkerPool(c *check.C) {
 // establish a new one and recover the normal event feed processing.
 func (s *clientSuite) TestStreamSendWithError(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 	defer wg.Wait()
@@ -1382,7 +1373,6 @@ func (s *clientSuite) TestStreamSendWithError(c *check.C) {
 }
 
 func (s *clientSuite) testStreamRecvWithError(c *check.C, failpointStr string) {
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -1503,7 +1493,6 @@ eventLoop:
 // stream in kv client meets error, and kv client reconnection with tikv with the current tso
 func (s *clientSuite) TestStreamRecvWithErrorAndResolvedGoBack(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	if !util.FailpointBuild {
 		c.Skip("skip when this is not a failpoint build")
 	}
@@ -1695,7 +1684,6 @@ func (s *clientSuite) TestStreamRecvWithErrorIOEOF(c *check.C) {
 // (upgrade TiCDC before TiKV, since upgrade TiKV often takes much longer).
 func (s *clientSuite) TestIncompatibleTiKV(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -1806,7 +1794,6 @@ func (s *clientSuite) TestIncompatibleTiKV(c *check.C) {
 // region is not found in pending regions.
 func (s *clientSuite) TestNoPendingRegionError(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -1882,7 +1869,6 @@ func (s *clientSuite) TestNoPendingRegionError(c *check.C) {
 // TestDropStaleRequest tests kv client should drop an event if its request id is outdated.
 func (s *clientSuite) TestDropStaleRequest(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -1987,7 +1973,6 @@ func (s *clientSuite) TestDropStaleRequest(c *check.C) {
 // TestResolveLock tests the resolve lock logic in kv client
 func (s *clientSuite) TestResolveLock(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -2082,7 +2067,6 @@ func (s *clientSuite) TestResolveLock(c *check.C) {
 }
 
 func (s *clientSuite) testEventCommitTsFallback(c *check.C, events []*cdcpb.ChangeDataEvent) {
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -2223,7 +2207,6 @@ func (s *clientSuite) TestDuplicateRequest(c *check.C) {
 // nolint:unused
 func (s *clientSuite) testEventAfterFeedStop(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -2421,7 +2404,6 @@ func (s *clientSuite) testEventAfterFeedStop(c *check.C) {
 
 func (s *clientSuite) TestOutOfRegionRangeEvent(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -2633,7 +2615,6 @@ func (s *clientSuite) TestOutOfRegionRangeEvent(c *check.C) {
 // when no region exceeds resolve lock interval, that is what candidate means.
 func (s *clientSuite) TestResolveLockNoCandidate(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -2722,7 +2703,6 @@ func (s *clientSuite) TestResolveLockNoCandidate(c *check.C) {
 //    handler will signal region worker to exit, which will evict all active region states then.
 func (s *clientSuite) TestFailRegionReentrant(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -2808,7 +2788,6 @@ func (s *clientSuite) TestFailRegionReentrant(c *check.C) {
 //    pending region correctly.
 func (s *clientSuite) TestClientV1UnlockRangeReentrant(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -2872,7 +2851,6 @@ func (s *clientSuite) TestClientErrNoPendingRegion(c *check.C) {
 }
 
 func (s *clientSuite) testClientErrNoPendingRegion(c *check.C) {
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -3082,7 +3060,6 @@ eventLoop:
 
 func (s *clientSuite) TestKVClientForceReconnect(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	s.testKVClientForceReconnect(c)
 }
@@ -3092,7 +3069,6 @@ func (s *clientSuite) TestKVClientForceReconnect(c *check.C) {
 // to happen when region split and merge frequently and large stale requests exist.
 func (s *clientSuite) TestConcurrentProcessRangeRequest(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -3216,7 +3192,6 @@ checkEvent:
 // should be updated correctly and no reconnect is triggered
 func (s *clientSuite) TestEvTimeUpdate(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
@@ -3334,7 +3309,6 @@ func (s *clientSuite) TestEvTimeUpdate(c *check.C) {
 // stream automatically when it is idle.
 func (s *clientSuite) TestRegionWorkerExitWhenIsIdle(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -3422,7 +3396,6 @@ func (s *clientSuite) TestRegionWorkerExitWhenIsIdle(c *check.C) {
 // to release an existing region connection.
 func (s *clientSuite) TestPrewriteNotMatchError(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -3567,7 +3540,6 @@ func createFakeEventFeedSession(ctx context.Context) *eventFeedSession {
 
 func (s *clientSuite) TestCheckRateLimit(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -3594,7 +3566,6 @@ func (s *clientSuite) TestCheckRateLimit(c *check.C) {
 
 func (s *clientSuite) TestHandleRateLimit(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

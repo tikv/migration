@@ -59,9 +59,9 @@ require (
 	github.com/swaggo/gin-swagger v1.4.3
 	github.com/swaggo/swag v1.8.2
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
-	github.com/tikv/client-go/v2 v2.0.1-0.20220531081749-2807409d4968
-	github.com/tikv/pd v1.1.0-beta.0.20220530063827-109719ff0875
-	github.com/tikv/pd/client v0.0.0-20220530063827-109719ff0875
+	github.com/tikv/client-go/v2 v2.0.1-0.20220518162527-de7ca289ac77
+	github.com/tikv/pd v1.1.0-beta.0.20220303060546-3695d8164800
+	github.com/tikv/pd/client v0.0.0-20220307081149-841fa61e9710
 	github.com/tinylib/msgp v1.1.6
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/twmb/murmur3 v1.1.3

@@ -86,7 +86,6 @@ var _ = check.Suite(&serverSuite{})
 
 func (s *serverSuite) TestEtcdHealthChecker(c *check.C) {
 	defer testleak.AfterTest(c)()
-	//	defer s.TearDownTest(c)
 
 	s.errg.Go(func() error {
 		err := s.server.etcdHealthChecker(s.ctx)
