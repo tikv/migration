@@ -32,10 +32,8 @@ type echoNode struct{}
 
 func (e echoNode) Init(ctx NodeContext) error {
 	ctx.SendToNextNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "init function is called in echo node",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("init function is called in echo node"),
 		},
 	}))
 	return nil
@@ -46,11 +44,8 @@ func (e echoNode) Receive(ctx NodeContext) error {
 	log.Info("Receive message in echo node", zap.Any("msg", msg))
 	ctx.SendToNextNode(msg)
 	ctx.SendToNextNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "ECHO: " + msg.PolymorphicEvent.Row.Table.Schema,
-				Table:  "ECHO: " + msg.PolymorphicEvent.Row.Table.Table,
-			},
+		RawKV: &model.RawKVEntry{
+			Key: append([]byte("ECHO: "), msg.PolymorphicEvent.RawKV.Key...),
 		},
 	}))
 	return nil
@@ -58,10 +53,8 @@ func (e echoNode) Receive(ctx NodeContext) error {
 
 func (e echoNode) Destroy(ctx NodeContext) error {
 	ctx.SendToNextNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "destroy function is called in echo node",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("destroy function is called in echo node"),
 		},
 	}))
 	return nil
@@ -106,69 +99,47 @@ func TestPipelineUsage(t *testing.T) {
 		t: t,
 		expected: []Message{
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "init function is called in echo node",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("init function is called in echo node"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "I am built by test function",
-						Table:  "AA1",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("I am built by test functionAA1"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "ECHO: I am built by test function",
-						Table:  "ECHO: AA1",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("ECHO: I am built by test functionAA1"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "I am built by test function",
-						Table:  "BB2",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("I am built by test functionBB2"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "ECHO: I am built by test function",
-						Table:  "ECHO: BB2",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("ECHO: I am built by test functionBB2"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "destroy function is called in echo node",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("destroy function is called in echo node"),
 				},
 			}),
 		},
 	})
 
 	err := p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "AA1",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionAA1"),
 		},
 	}))
 	require.Nil(t, err)
 	err = p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "BB2",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionBB2"),
 		},
 	}))
 	require.Nil(t, err)
@@ -218,40 +189,29 @@ func TestPipelineError(t *testing.T) {
 		t: t,
 		expected: []Message{
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "init function is called in echo node",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("init function is called in echo node"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "I am built by test function",
-						Table:  "CC1",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("I am built by test functionCC1"),
 				},
 			}),
 		},
 	})
 
 	err := p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "CC1",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionCC1"),
 		},
 	}))
 	require.Nil(t, err)
 	// this line may be return an error because the pipeline maybe closed before this line was executed
 	//nolint:errcheck
 	p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "DD2",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionDD2"),
 		},
 	}))
 	p.Wait()
@@ -298,11 +258,8 @@ func TestPipelineThrow(t *testing.T) {
 	p.AppendNode(ctx, "echo node", echoNode{})
 	p.AppendNode(ctx, "error node", &throwNode{t: t})
 	err := p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "CC1",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionCC1"),
 		},
 	}))
 	require.Nil(t, err)
@@ -311,11 +268,8 @@ func TestPipelineThrow(t *testing.T) {
 	// that the second message is not sent.
 	// time.Sleep(time.Millisecond * 50)
 	err = p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "DD2",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionDD2"),
 		},
 	}))
 	if err != nil {
@@ -346,20 +300,14 @@ func TestPipelineAppendNode(t *testing.T) {
 	runnersSize, outputChannelSize := 2, 64
 	p := NewPipeline(ctx, -1, runnersSize, outputChannelSize)
 	err := p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "CC1",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionCC1"),
 		},
 	}))
 	require.Nil(t, err)
 	err = p.SendToFirstNode(PolymorphicEventMessage(&model.PolymorphicEvent{
-		Row: &model.RowChangedEvent{
-			Table: &model.TableName{
-				Schema: "I am built by test function",
-				Table:  "DD2",
-			},
+		RawKV: &model.RawKVEntry{
+			Key: []byte("I am built by test functionDD2"),
 		},
 	}))
 	require.Nil(t, err)
@@ -371,49 +319,33 @@ func TestPipelineAppendNode(t *testing.T) {
 		t: t,
 		expected: []Message{
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "init function is called in echo node",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("init function is called in echo node"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "I am built by test function",
-						Table:  "CC1",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("I am built by test functionCC1"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "ECHO: I am built by test function",
-						Table:  "ECHO: CC1",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("ECHO: I am built by test functionCC1"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "I am built by test function",
-						Table:  "DD2",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("I am built by test functionDD2"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "ECHO: I am built by test function",
-						Table:  "ECHO: DD2",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("ECHO: I am built by test functionDD2"),
 				},
 			}),
 			PolymorphicEventMessage(&model.PolymorphicEvent{
-				Row: &model.RowChangedEvent{
-					Table: &model.TableName{
-						Schema: "destroy function is called in echo node",
-					},
+				RawKV: &model.RawKVEntry{
+					Key: []byte("destroy function is called in echo node"),
 				},
 			}),
 		},
