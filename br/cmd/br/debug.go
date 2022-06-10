@@ -4,17 +4,23 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"path"
 	"reflect"
+	"strings"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
+	"github.com/tikv/migration/br/pkg/checksum"
+	"github.com/tikv/migration/br/pkg/conn"
 	"github.com/tikv/migration/br/pkg/metautil"
+	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/task"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
+	pd "github.com/tikv/pd/client"
 )
 
 // NewDebugCommand return a debug subcommand.
@@ -51,10 +57,9 @@ func newCheckSumCommand() *cobra.Command {
 		Short: "check the backup data",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return errors.Errorf("checksum is unsupported")
+			return runRawChecksumCommand(cmd, "RawChecksum")
 		},
 	}
-	command.Hidden = true
 	return command
 }
 
@@ -77,6 +82,7 @@ func newBackupMetaValidateCommand() *cobra.Command {
 		},
 	}
 	command.Flags().Uint64("offset", 0, "the offset of table id alloctor")
+	command.Hidden = true
 	return command
 }
 
@@ -222,4 +228,56 @@ func setPDConfigCommand() *cobra.Command {
 		},
 	}
 	return pdConfigCmd
+}
+
+func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
+	cfg := task.Config{LogProgress: HasLogFile()}
+	err := cfg.ParseFromFlags(command.Flags())
+	if err != nil {
+		command.SilenceUsage = false
+		return errors.Trace(err)
+	}
+
+	ctx := GetDefaultContext()
+	pdAddress := strings.Join(cfg.PD, ",")
+	securityOption := pd.SecurityOption{}
+	var tlsConf *tls.Config = nil
+	if cfg.TLS.IsEnabled() {
+		securityOption.CAPath = cfg.TLS.CA
+		securityOption.CertPath = cfg.TLS.Cert
+		securityOption.KeyPath = cfg.TLS.Key
+		tlsConf, err = cfg.TLS.ToTLSConfig()
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
+	pdCtrl, err := pdutil.NewPdController(ctx, pdAddress, tlsConf, securityOption)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	storageAPIVersion, err := conn.GetTiKVApiVersion(ctx, pdCtrl.GetPDClient(), tlsConf)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	_, _, backupMeta, err := task.ReadBackupMeta(ctx, metautil.MetaFile, &cfg)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	fileChecksum, keyRanges := task.CalcChecksumAndRangeFromBackupMeta(ctx, backupMeta, storageAPIVersion)
+	if !task.CheckBackupAPIVersion(storageAPIVersion, backupMeta.ApiVersion) {
+		return errors.Errorf("Unsupported api version, storage:%s, backup meta:%s.",
+			storageAPIVersion.String(), backupMeta.ApiVersion.String())
+	}
+	checksumMethod := checksum.StorageChecksumCommand
+	if storageAPIVersion != backupMeta.ApiVersion {
+		checksumMethod = checksum.StorageScanCommand
+	}
+
+	executor := checksum.NewExecutor(keyRanges, cfg.PD, pdCtrl.GetPDClient(), storageAPIVersion,
+		cfg.ChecksumConcurrency)
+	err = checksum.Run(ctx, cmdName, executor, checksumMethod, fileChecksum)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }

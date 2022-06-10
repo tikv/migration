@@ -5,30 +5,14 @@ package gluetikv
 import (
 	"context"
 
-	"github.com/pingcap/tidb/config"
-	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/store/driver"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
-	pd "github.com/tikv/pd/client"
 )
 
 // Glue is an implementation of glue.Glue that accesses only TiKV without TiDB.
 type Glue struct{}
-
-// Open implements glue.Glue.
-func (Glue) Open(path string, option pd.SecurityOption) (kv.Storage, error) {
-	if option.CAPath != "" {
-		conf := config.GetGlobalConfig()
-		conf.Security.ClusterSSLCA = option.CAPath
-		conf.Security.ClusterSSLCert = option.CertPath
-		conf.Security.ClusterSSLKey = option.KeyPath
-		config.StoreGlobalConfig(conf)
-	}
-	return driver.TiKVDriver{}.Open(path)
-}
 
 // OwnsStorage implements glue.Glue.
 func (Glue) OwnsStorage() bool {

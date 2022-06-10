@@ -9,11 +9,9 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/tablecodec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/rtree"
-	"go.uber.org/zap"
 )
 
 // Range record start and end key for localStoreDir.DB
@@ -28,36 +26,25 @@ func SortRanges(ranges []rtree.Range, rewriteRules *RewriteRules) ([]rtree.Range
 	rangeTree := rtree.NewRangeTree()
 	for _, rg := range ranges {
 		if rewriteRules != nil {
-			startID := tablecodec.DecodeTableID(rg.StartKey)
-			endID := tablecodec.DecodeTableID(rg.EndKey)
 			var rule *import_sstpb.RewriteRule
-			if startID == endID {
-				rg.StartKey, rule = replacePrefix(rg.StartKey, rewriteRules)
-				if rule == nil {
-					log.Warn("cannot find rewrite rule", logutil.Key("key", rg.StartKey))
-				} else {
-					log.Debug(
-						"rewrite start key",
-						logutil.Key("key", rg.StartKey), logutil.RewriteRule(rule))
-				}
-				oldKey := rg.EndKey
-				rg.EndKey, rule = replacePrefix(rg.EndKey, rewriteRules)
-				if rule == nil {
-					log.Warn("cannot find rewrite rule", logutil.Key("key", rg.EndKey))
-				} else {
-					log.Debug(
-						"rewrite end key",
-						logutil.Key("origin-key", oldKey),
-						logutil.Key("key", rg.EndKey),
-						logutil.RewriteRule(rule))
-				}
+			rg.StartKey, rule = replacePrefix(rg.StartKey, rewriteRules)
+			if rule == nil {
+				log.Warn("cannot find rewrite rule", logutil.Key("key", rg.StartKey))
 			} else {
-				log.Warn("table id does not match",
-					logutil.Key("startKey", rg.StartKey),
-					logutil.Key("endKey", rg.EndKey),
-					zap.Int64("startID", startID),
-					zap.Int64("endID", endID))
-				return nil, errors.Annotate(berrors.ErrRestoreTableIDMismatch, "table id mismatch")
+				log.Debug(
+					"rewrite start key",
+					logutil.Key("key", rg.StartKey), logutil.RewriteRule(rule))
+			}
+			oldKey := rg.EndKey
+			rg.EndKey, rule = replacePrefix(rg.EndKey, rewriteRules)
+			if rule == nil {
+				log.Warn("cannot find rewrite rule", logutil.Key("key", rg.EndKey))
+			} else {
+				log.Debug(
+					"rewrite end key",
+					logutil.Key("origin-key", oldKey),
+					logutil.Key("key", rg.EndKey),
+					logutil.RewriteRule(rule))
 			}
 		}
 		if out := rangeTree.InsertRange(rg); out != nil {
