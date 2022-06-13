@@ -65,7 +65,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		return errors.Trace(err)
 	}
 	if client.GetAPIVersion() != backupMeta.ApiVersion {
-		return errors.Errorf("Unsupported backup api version, backup meta: %s, dst:%s.",
+		return errors.Errorf("Unsupported backup api version, backup meta: %s, dst:%s",
 			backupMeta.ApiVersion.String(), client.GetAPIVersion().String())
 	}
 	// for restore, dst and cur are the same.

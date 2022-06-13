@@ -34,7 +34,7 @@ $ make
 $ make test
 ```
 
-Notice BR supports building with Go version `Go >= 1.16`
+Notice BR supports building with Go version `Go >= 1.18`
 
 When BR is built successfully, you can find binary in the `bin` directory.
 
