@@ -65,21 +65,22 @@ func TestSchedulerBasics(t *testing.T) {
 
 	mockOwnerNode := mockCluster.Nodes["capture-0"]
 
-	sched, err := NewSchedulerV2(
-		ctx,
-		"cf-1",
-		1000,
-		mockOwnerNode.Server,
-		mockOwnerNode.Router)
-	require.NoError(t, err)
-
-	sched.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	f := func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1, 2, 3}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'2'}},
 			2: {Start: []byte{'2'}, End: []byte{'3'}},
 			3: {Start: []byte{'3'}, End: []byte{'4'}},
 		}, nil
 	}
+
+	sched, err := NewSchedulerV2(
+		ctx,
+		"cf-1",
+		1000,
+		mockOwnerNode.Server,
+		mockOwnerNode.Router,
+		f)
+	require.NoError(t, err)
 
 	for atomic.LoadInt64(&sched.stats.AnnounceSentCount) < numNodes {
 		checkpointTs, resolvedTs, err := sched.Tick(ctx, &orchestrator.ChangefeedReactorState{
@@ -228,21 +229,22 @@ func TestSchedulerNoPeer(t *testing.T) {
 
 	mockOwnerNode := mockCluster.Nodes["capture-0"]
 
-	sched, err := NewSchedulerV2(
-		ctx,
-		"cf-1",
-		1000,
-		mockOwnerNode.Server,
-		mockOwnerNode.Router)
-	require.NoError(t, err)
-
-	sched.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	f := func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1, 2, 3}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'2'}},
 			2: {Start: []byte{'2'}, End: []byte{'3'}},
 			3: {Start: []byte{'3'}, End: []byte{'4'}},
 		}, nil
 	}
+
+	sched, err := NewSchedulerV2(
+		ctx,
+		"cf-1",
+		1000,
+		mockOwnerNode.Server,
+		mockOwnerNode.Router,
+		f)
+	require.NoError(t, err)
 
 	// Ticks the scheduler 10 times. It should not panic.
 	for i := 0; i < 10; i++ {
