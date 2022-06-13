@@ -439,7 +439,7 @@ func (importer *FileImporter) Import(
 		}
 		if downloadRegionCnt == 0 {
 			log.Error("No region downloads the files", logutil.Files(files), zap.Int("count", len(regionInfos)))
-			return errors.Errorf("No region downloads the file: %s.", files[0].Name)
+			return errors.Errorf("No region downloads the file: %s", files[0].Name)
 		}
 		log.Info("ingest file done", zap.String("file-sample", files[0].Name), zap.Stringer("take", time.Since(start)))
 		for _, f := range files {
