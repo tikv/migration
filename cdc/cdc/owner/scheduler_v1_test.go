@@ -133,10 +133,6 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 
-	for spanid, info := range s.state.TaskStatuses[captureID].KeySpans {
-		fmt.Println(spanid, info)
-	}
-
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
 		2: {StartTs: 0, Start: []byte{'2'}, End: []byte{'3'}},

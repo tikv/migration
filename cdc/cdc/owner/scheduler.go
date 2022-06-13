@@ -14,7 +14,6 @@
 package owner
 
 import (
-	"fmt"
 	"sync/atomic"
 
 	"github.com/pingcap/errors"
@@ -158,7 +157,6 @@ func (s *schedulerV2) DispatchKeySpan(
 	if !isDelete {
 		message.Start = s.currentKeySpans[keyspanID].Start
 		message.End = s.currentKeySpans[keyspanID].End
-		fmt.Println(message.Start, message.End)
 	}
 	log.Debug("try to send message",
 		zap.String("topic", topic),
