@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,10 +37,11 @@ import (
 const (
 	etcdTimeout = time.Duration(3) * time.Second
 	// etcdElectionPath for all gcworker servers.
-	etcdElectionPath        = "/gc-worker/election"
-	etcdElectionVal         = "local"
-	maxPdMsgSize            = int(128 * units.MiB)
-	updateSafePointRetryCnt = int(10)
+	etcdElectionPath     = "/gc-worker/election"
+	etcdElectionVal      = "local"
+	maxPdMsgSize         = int(128 * units.MiB)
+	gcWorkerSafePointTTL = math.MaxInt64 // Sets TTL to MAX to make it permanently valid.
+	gcWorkerServiceID    = "gc_worker"   // MUST be same with definition in PD
 )
 
 // The version info is set in Makefile
@@ -255,6 +257,7 @@ func (s *Server) calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint uint64) 
 	return gcWorkerSafePoint
 }
 
+/* keep these codes, uncomment these when new pd interfaces are enabled.
 func (s *Server) updateServiceGroupSafePointWithRetry(ctx context.Context, serviceGroup string, gcWorkerSafePoint uint64) error {
 	updateSucceed := false
 	for i := 0; i < updateSafePointRetryCnt; i++ {
@@ -313,6 +316,33 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 				zap.Error(err))
 		}
 	}
+	return nil
+}
+*/
+
+func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
+	gcWorkerSafePoint, err := s.getGCWorkerSafePoint(ctx)
+	if err != nil {
+		log.Error("calc gc-worker safe point fails.", zap.Error(err), zap.String("worker", s.cfg.Name))
+		return errors.Trace(err)
+	}
+	serviceSafePoint, err := s.pdClient.UpdateServiceGCSafePoint(ctx, gcWorkerServiceID, gcWorkerSafePointTTL, gcWorkerSafePoint)
+	if err != nil {
+		log.Error("update service gc safepoint fails", zap.Error(err), zap.String("worker", s.cfg.Name))
+		return errors.Trace(err)
+	}
+	newSafepoint := s.calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint)
+	retSafePoint, err := s.pdClient.UpdateGCSafePoint(ctx, newSafepoint)
+	if err != nil {
+		log.Error("update gc safepoint fails", zap.Error(err), zap.String("worker", s.cfg.Name))
+		return errors.Trace(err)
+	}
+	log.Info("update gc safepoint with old finish", zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
+		zap.Uint64("serviceSafePoint", serviceSafePoint),
+		zap.Uint64("newSafepoint", newSafepoint),
+		zap.Uint64("retSafePoint", retSafePoint),
+		zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
+		zap.String("worker", s.cfg.Name))
 	return nil
 }
 

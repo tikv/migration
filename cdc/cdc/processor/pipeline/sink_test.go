@@ -127,19 +127,19 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 
 	require.Nil(t, node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 1, RawKV: &model.RawKVEntry{OpType: model.OpTypePut}, Row: &model.RowChangedEvent{}}), nil)))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 1, RawKV: &model.RawKVEntry{OpType: model.OpTypePut}}), nil)))
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 
 	require.Nil(t, node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypePut}, Row: &model.RowChangedEvent{}}), nil)))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypePut}}), nil)))
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 
 	require.Nil(t, node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil)))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil)))
 	require.Equal(t, KeySpanStatusRunning, node.Status())
 
 	err := node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 15, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 15, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil))
 	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 	require.Equal(t, uint64(10), node.CheckpointTs())
@@ -153,7 +153,7 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 
 	require.Nil(t, node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil)))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil)))
 	require.Equal(t, KeySpanStatusRunning, node.Status())
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
@@ -162,7 +162,7 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil))
 	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 	require.Equal(t, uint64(2), node.CheckpointTs())
@@ -176,7 +176,7 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 
 	require.Nil(t, node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil)))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil)))
 	require.Equal(t, KeySpanStatusRunning, node.Status())
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
@@ -185,7 +185,7 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 
 	err = node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 7, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil))
 	require.True(t, cerrors.ErrKeySpanProcessorStoppedSafely.Equal(err))
 	require.Equal(t, KeySpanStatusStopped, node.Status())
 	require.Equal(t, uint64(7), node.CheckpointTs())
@@ -208,7 +208,7 @@ func TestStopStatus(t *testing.T) {
 	require.Nil(t, node.Init(pipeline.MockNodeContext4Test(ctx, pipeline.Message{}, nil)))
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 	require.Nil(t, node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil)))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil)))
 	require.Equal(t, KeySpanStatusRunning, node.Status())
 
 	var wg sync.WaitGroup
@@ -249,7 +249,7 @@ func TestManyTs(t *testing.T) {
 				Key:    []byte{1},
 				Value:  []byte{1},
 				OpType: model.OpTypePut,
-			}, Row: &model.RowChangedEvent{},
+			},
 		}), nil)))
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 
@@ -260,12 +260,12 @@ func TestManyTs(t *testing.T) {
 				Key:    []byte{2},
 				Value:  []byte{2},
 				OpType: model.OpTypePut,
-			}, Row: &model.RowChangedEvent{},
+			},
 		}), nil)))
 	require.Equal(t, KeySpanStatusInitializing, node.Status())
 
 	require.Nil(t, node.Receive(pipeline.MockNodeContext4Test(ctx,
-		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}, Row: &model.RowChangedEvent{}}), nil)))
+		pipeline.PolymorphicEventMessage(&model.PolymorphicEvent{CRTs: 2, RawKV: &model.RawKVEntry{OpType: model.OpTypeResolved}}), nil)))
 	require.Equal(t, KeySpanStatusRunning, node.Status())
 	sink.Check(t, nil)
 

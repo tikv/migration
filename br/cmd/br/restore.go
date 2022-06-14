@@ -42,7 +42,7 @@ func runRestoreRawCommand(command *cobra.Command, cmdName string) error {
 func NewRestoreCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:          "restore",
-		Short:        "restore a TiDB/TiKV cluster",
+		Short:        "restore a TiKV cluster",
 		SilenceUsage: true,
 		PersistentPreRunE: func(c *cobra.Command, args []string) error {
 			if err := Init(c); err != nil {
@@ -66,7 +66,7 @@ func NewRestoreCommand() *cobra.Command {
 func newRawRestoreCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "raw",
-		Short: "(experimental) restore a raw kv range to TiKV cluster",
+		Short: "restore raw kv sst files to TiKV cluster",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRestoreRawCommand(cmd, "Raw restore")

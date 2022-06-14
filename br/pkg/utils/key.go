@@ -11,12 +11,14 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 )
 
-const (
-	APIV2KeyPrefix    byte = 'r'
-	APIV2KeyPrefixEnd byte = APIV2KeyPrefix + 1
+var (
+	APIV2KeyPrefix    = [...]byte{'r', 0, 0, 0}
+	APIV2KeyPrefixEnd = [...]byte{'r', 0, 0, 1}
+	APIV2KeyPrefixLen = len(APIV2KeyPrefix)
 )
 
 // ParseKey parse key by given format.
@@ -101,19 +103,19 @@ type KeyRange struct {
 	End   []byte
 }
 
-func formatAPIV2Key(key []byte, isEnd bool) []byte {
+func FormatAPIV2Key(key []byte, isEnd bool) []byte {
 	if isEnd && len(key) == 0 {
-		return []byte{APIV2KeyPrefixEnd}
+		return APIV2KeyPrefixEnd[:]
 	}
-	apiv2Key := []byte{APIV2KeyPrefix}
+	apiv2Key := APIV2KeyPrefix[:]
 	return append(apiv2Key, key...)
 }
 
 // FormatAPIV2KeyRange convert user key to APIV2 format.
 func FormatAPIV2KeyRange(startKey, endKey []byte) *KeyRange {
 	return &KeyRange{
-		Start: formatAPIV2Key(startKey, false),
-		End:   formatAPIV2Key(endKey, true),
+		Start: FormatAPIV2Key(startKey, false),
+		End:   FormatAPIV2Key(endKey, true),
 	}
 }
 
@@ -132,10 +134,21 @@ func ConvertBackupConfigKeyRange(startKey, endKey []byte, srcAPIVer, dstAPIVer k
 	}
 	if srcAPIVer == kvrpcpb.APIVersion_V2 {
 		return &KeyRange{
-			Start: startKey[1:],
-			End:   endKey[1:],
+			Start: startKey[APIV2KeyPrefixLen:],
+			End:   endKey[APIV2KeyPrefixLen:],
 		}
 	}
 	// unreachable
 	return nil
+}
+
+func EncodeKeyRange(start, end []byte) *KeyRange {
+	keyRange := KeyRange{}
+	keyRange.Start = codec.EncodeBytes(nil, start)
+	if bytes.Equal(end, APIV2KeyPrefixEnd[:]) {
+		keyRange.End = APIV2KeyPrefixEnd[:]
+	} else {
+		keyRange.End = codec.EncodeBytes(nil, end)
+	}
+	return &keyRange
 }

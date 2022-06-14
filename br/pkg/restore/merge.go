@@ -8,8 +8,6 @@ import (
 	"github.com/docker/go-units"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
-	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/tablecodec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/rtree"
 )
@@ -106,22 +104,8 @@ func MergeFileRanges(
 		if leftKeys+rightKeys > splitKeyCount {
 			return false
 		}
-		// Do not merge ranges in different tables.
-		if tablecodec.DecodeTableID(kv.Key(left.StartKey)) != tablecodec.DecodeTableID(kv.Key(right.StartKey)) {
-			return false
-		}
-		// Do not merge ranges in different indexes even if they are in the same
-		// table, as rewrite rule only supports rewriting one pattern.
-		// tableID, indexID, indexValues, err
-		_, indexID1, _, err1 := tablecodec.DecodeIndexKey(kv.Key(left.StartKey))
-		_, indexID2, _, err2 := tablecodec.DecodeIndexKey(kv.Key(right.StartKey))
-		// If both of them are index keys, ...
-		if err1 == nil && err2 == nil {
-			// Merge left and right if they are in the same index.
-			return indexID1 == indexID2
-		}
 		// Otherwise, merge if they are both record keys
-		return err1 != nil && err2 != nil
+		return true
 	}
 	sortedRanges := rangeTree.GetSortedRanges()
 	for i := 1; i < len(sortedRanges); {

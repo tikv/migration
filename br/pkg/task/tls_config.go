@@ -19,7 +19,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/spf13/pflag"
-	"go.etcd.io/etcd/pkg/transport"
+	"github.com/tikv/client-go/v2/config"
 )
 
 // TLSConfig is the common configuration for TLS connection.
@@ -36,12 +36,8 @@ func (tls *TLSConfig) IsEnabled() bool {
 
 // ToTLSConfig generate tls.Config.
 func (tls *TLSConfig) ToTLSConfig() (*tls.Config, error) {
-	tlsInfo := transport.TLSInfo{
-		CertFile:      tls.Cert,
-		KeyFile:       tls.Key,
-		TrustedCAFile: tls.CA,
-	}
-	tlsConfig, err := tlsInfo.ClientConfig()
+	security := config.NewSecurity(tls.CA, tls.Cert, tls.Key, []string{})
+	tlsConfig, err := security.ToTLSConfig()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

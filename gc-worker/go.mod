@@ -24,7 +24,7 @@ require (
 	github.com/pingcap/kvproto v0.0.0-20220506032820-55094d91343e
 	github.com/pingcap/log v0.0.0-20211215031037-e024ba4eb0ee
 	github.com/stretchr/testify v1.7.0
-	github.com/tikv/pd v1.1.0-beta.0.20211118054146-02848d2660ee
+	github.com/tikv/pd v1.1.0-beta.0.20220428091252-fc74bea31d5d
 	github.com/tikv/pd/client v0.0.0-20220428091252-fc74bea31d5d
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 	go.uber.org/atomic v1.9.0

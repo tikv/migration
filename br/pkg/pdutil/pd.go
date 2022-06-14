@@ -21,11 +21,11 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/util/codec"
+	"github.com/pingcap/tidb/store/pdtypes"
+	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/httputil"
 	pd "github.com/tikv/pd/client"
-	pdapi "github.com/tikv/pd/server/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -349,12 +349,12 @@ func (p *PdController) getRegionCountWith(
 }
 
 // GetStoreInfo returns the info of store with the specified id.
-func (p *PdController) GetStoreInfo(ctx context.Context, storeID uint64) (*pdapi.StoreInfo, error) {
+func (p *PdController) GetStoreInfo(ctx context.Context, storeID uint64) (*pdtypes.StoreInfo, error) {
 	return p.getStoreInfoWith(ctx, pdRequest, storeID)
 }
 
 func (p *PdController) getStoreInfoWith(
-	ctx context.Context, get pdHTTPRequest, storeID uint64) (*pdapi.StoreInfo, error) {
+	ctx context.Context, get pdHTTPRequest, storeID uint64) (*pdtypes.StoreInfo, error) {
 	var err error
 	for _, addr := range p.addrs {
 		query := fmt.Sprintf(
@@ -365,7 +365,7 @@ func (p *PdController) getStoreInfoWith(
 			err = e
 			continue
 		}
-		store := pdapi.StoreInfo{}
+		store := pdtypes.StoreInfo{}
 		err = json.Unmarshal(v, &store)
 		if err != nil {
 			return nil, errors.Trace(err)

@@ -33,83 +33,48 @@ import (
 	"go.uber.org/atomic"
 )
 
-const (
-	defaultServiceGroup = "default_rawkv"
-)
-
 type MockPDClient struct {
 	pd.Client
 	tsLogical atomic.Uint64
 	// SafePoint set by `UpdateGCSafePoint`. Not to be confused with SafePointKV.
-	gcSafePoint map[string]uint64
+	gcSafePoint uint64
 	// Represents the current safePoint of all services including TiDB, representing how much data they want to retain
 	// in GC.
-	serviceSafePoints map[string]map[string]uint64
+	serviceSafePoints map[string]uint64
 }
-
-func (c *MockPDClient) Close() {}
 
 func (c *MockPDClient) GetTS(context.Context) (int64, int64, error) {
 	unixTime := time.Now()
-	ts := tsoutil.GenerateTimestamp(unixTime, c.tsLogical.Add(1)) // logical is not accurate here
+	ts := tsoutil.GenerateTimestamp(unixTime, c.tsLogical.Add(1)) // set logical as 0
 	return ts.Physical, ts.Logical, nil
 }
 
-// GetGCAllServiceGroups returns a list containing all service groups that has safe point in pd
-func (c *MockPDClient) GetGCAllServiceGroups(ctx context.Context) ([]string, error) {
-	return []string{defaultServiceGroup}, nil
+func (c *MockPDClient) UpdateGCSafePoint(ctx context.Context, safePoint uint64) (uint64, error) {
+	c.gcSafePoint = safePoint
+	return safePoint, nil
 }
 
-// GetGCMinServiceSafePointByServiceGroup return the minimum of all service safe point of the given group
-// It also returns the current revision of the pd storage, with in which the min is valid
-// If none is found, it will return 0 as min
-func (c *MockPDClient) GetGCMinServiceSafePointByServiceGroup(ctx context.Context, serviceGroupID string) (safePoint uint64, revision int64, err error) {
+func (c *MockPDClient) UpdateServiceGCSafePoint(ctx context.Context, serviceID string, ttl int64, safePoint uint64) (uint64, error) {
+	c.serviceSafePoints[serviceID] = safePoint
 	minSafePoint := uint64(math.MaxUint64)
-	for _, safepoint := range c.serviceSafePoints[serviceGroupID] {
+	for _, safepoint := range c.serviceSafePoints {
 		if safepoint < minSafePoint {
 			minSafePoint = safepoint
 		}
 	}
-	return minSafePoint, 0, nil
+	return minSafePoint, nil
 }
 
-// UpdateGCSafePointByServiceGroup update the target safe point, along with revision obtained previously
-// If failed, caller should retry from GetGCMinServiceSafePointByServiceGroup
-func (c *MockPDClient) UpdateGCSafePointByServiceGroup(ctx context.Context, serviceGroupID string, safePoint uint64, revision int64) (succeeded bool, newSafePoint uint64, err error) {
-	c.gcSafePoint[serviceGroupID] = safePoint
-	return true, safePoint, nil
-}
-
-// UpdateGCServiceSafePointByServiceGroup update the given service's safe point
-// Pass in a negative ttl to remove it
-// If failed, caller should retry with higher safe point
-func (c *MockPDClient) UpdateGCServiceSafePointByServiceGroup(ctx context.Context, serviceGroupID, serviceID string, ttl int64, safePoint uint64) (succeeded bool, gcSafePoint, oldSafePoint, newSafePoint uint64, err error) {
-	oldSafePoint = c.serviceSafePoints[serviceGroupID][serviceID]
-	c.serviceSafePoints[serviceGroupID][serviceID] = safePoint
-	return true, 0, oldSafePoint, safePoint, nil
-}
-
-// GetGCAllServiceGroupSafePoints returns GC safe point for all service groups
-func (c *MockPDClient) GetGCAllServiceGroupSafePoints(ctx context.Context) ([]*gcpb.ServiceGroupSafePoint, error) {
-	ret := make([]*gcpb.ServiceGroupSafePoint, 0)
-	for serviceGroup, safePoint := range c.gcSafePoint {
-		ret = append(ret, &gcpb.ServiceGroupSafePoint{
-			ServiceGroupId: []byte(serviceGroup),
-			SafePoint:      safePoint,
-		})
-	}
-	return ret, nil
+func (c *MockPDClient) Close() {
 }
 
 // NewPDClient creates a mock pd.Client that uses local timestamp and meta data
 // from a Cluster.
-func NewMockPDClient() pd.Client {
+func NewMockPDClient() *MockPDClient {
 	mockClient := MockPDClient{
-		gcSafePoint:       make(map[string]uint64),
-		serviceSafePoints: make(map[string]map[string]uint64),
+		gcSafePoint:       0,
+		serviceSafePoints: make(map[string]uint64),
 	}
-	mockClient.gcSafePoint[defaultServiceGroup] = 0
-	mockClient.serviceSafePoints[defaultServiceGroup] = make(map[string]uint64)
 	return &mockClient
 }
 
@@ -215,7 +180,11 @@ func TestCalcNewGCSafePoint(t *testing.T) {
 
 }
 
+<<<<<<< HEAD
 func TestCalcGcSafePoint(t *testing.T) {
+=======
+func TestCalcGCSafePoint(t *testing.T) {
+>>>>>>> 2f90671038ab5750e187f6c93cfe22ab04f7a0f7
 	mockPdClient := NewMockPDClient()
 	cfg := NewConfig()
 	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
@@ -236,7 +205,11 @@ func TestCalcGcSafePoint(t *testing.T) {
 	require.LessOrEqual(t, gcSafePoint, curTs)
 }
 
+<<<<<<< HEAD
 func TestUpdateGcSafePoint(t *testing.T) {
+=======
+func TestUpdateGCSafePoint(t *testing.T) {
+>>>>>>> 2f90671038ab5750e187f6c93cfe22ab04f7a0f7
 	mockPdClient := NewMockPDClient()
 	cfg := NewConfig()
 	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
@@ -248,6 +221,7 @@ func TestUpdateGcSafePoint(t *testing.T) {
 	}
 	defer s.Close()
 	s.pdClient = mockPdClient
+<<<<<<< HEAD
 	mockPdClient.UpdateGCServiceSafePointByServiceGroup(ctx, defaultServiceGroup, "cdc", math.MaxInt64, 100)
 	err := s.updateRawGCSafePoint(ctx)
 	require.NoError(t, err)
@@ -255,4 +229,10 @@ func TestUpdateGcSafePoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(allSafePoints))
 	require.Equal(t, allSafePoints[0].SafePoint, uint64(100))
+=======
+	mockPdClient.UpdateServiceGCSafePoint(ctx, "cdc", math.MaxInt64, 100)
+	err := s.updateRawGCSafePoint(ctx)
+	require.NoError(t, err)
+	require.Equal(t, mockPdClient.gcSafePoint, uint64(100))
+>>>>>>> 2f90671038ab5750e187f6c93cfe22ab04f7a0f7
 }

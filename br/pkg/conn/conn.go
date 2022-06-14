@@ -5,8 +5,12 @@ package conn
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,8 +18,10 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
 	berrors "github.com/tikv/migration/br/pkg/errors"
@@ -101,9 +107,9 @@ func NewConnPool(cap int, newConn func(ctx context.Context) (*grpc.ClientConn, e
 // Mgr manages connections to a TiDB cluster.
 type Mgr struct {
 	*pdutil.PdController
-	tlsConf   *tls.Config
-	tikvStore tikv.Storage // Used to access TiKV specific interfaces.
-	grpcClis  struct {
+	tlsConf      *tls.Config
+	lockResolver *txnlock.LockResolver // Used to resolve lock when backup return lock error.
+	grpcClis     struct {
 		mu   sync.Mutex
 		clis map[uint64]*grpc.ClientConn
 	}
@@ -255,20 +261,18 @@ func NewMgr(
 		return nil, errors.Trace(err)
 	}
 
-	// Disable GC because TiDB enables GC already.
-	storage, err := g.Open(fmt.Sprintf("tikv://%s?disableGC=true", pdAddrs), securityOption)
+	security := config.NewSecurity(string(securityOption.SSLCABytes),
+		string(securityOption.SSLCertBytes),
+		string(securityOption.SSLKEYBytes),
+		[]string{})
+	lockResolver, err := tikv.NewLockResolver(strings.Split(pdAddrs, ","), security)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	tikvStorage, ok := storage.(tikv.Storage)
-	if !ok {
-		return nil, berrors.ErrKVNotTiKV
-	}
-
 	mgr := &Mgr{
 		PdController: controller,
-		tikvStore:    tikvStorage,
+		lockResolver: lockResolver,
 		tlsConf:      tlsConf,
 		ownsStorage:  g.OwnsStorage(),
 		grpcClis: struct {
@@ -394,7 +398,7 @@ func (mgr *Mgr) GetTLSConfig() *tls.Config {
 
 // GetLockResolver gets the LockResolver.
 func (mgr *Mgr) GetLockResolver() *txnlock.LockResolver {
-	return mgr.tikvStore.GetLockResolver()
+	return mgr.lockResolver
 }
 
 // Close closes all client in Mgr.
@@ -407,6 +411,9 @@ func (mgr *Mgr) Close() {
 		}
 	}
 	mgr.grpcClis.mu.Unlock()
+	if mgr.lockResolver != nil {
+		mgr.lockResolver.Close()
+	}
 
 	// Gracefully shutdown domain so it does not affect other TiDB DDL.
 	// Must close domain before closing storage, otherwise it gets stuck forever.
@@ -415,4 +422,59 @@ func (mgr *Mgr) Close() {
 	}
 
 	mgr.PdController.Close()
+}
+
+type StorageConfig struct {
+	APIVersion int  `json:"api-version"`
+	EnableTTL  bool `json:"enable-ttl"`
+}
+type StoreConfig struct {
+	Storage StorageConfig `json:"storage"`
+}
+
+func GetTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Config) (kvrpcpb.APIVersion, error) {
+	allStores, err := GetAllTiKVStoresWithRetry(ctx, pdClient, SkipTiFlash)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	} else if len(allStores) == 0 {
+		return kvrpcpb.APIVersion_V1, errors.New("store are empty")
+	}
+	schema := "http"
+	httpClient := http.Client{}
+	if tlsConf != nil {
+		httpClient = http.Client{
+			Transport: &http.Transport{TLSClientConfig: tlsConf},
+		}
+		schema = "https"
+	}
+	url := fmt.Sprintf("%s://%s/config", schema, allStores[0].StatusAddress)
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	var cfg StoreConfig
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		return kvrpcpb.APIVersion_V1, errors.Trace(err)
+	}
+	var apiVersion kvrpcpb.APIVersion
+	if cfg.Storage.APIVersion == 0 { // in old version without apiversion config. it's APIV1.
+		apiVersion = kvrpcpb.APIVersion_V1
+	} else if cfg.Storage.APIVersion == 1 {
+		if cfg.Storage.EnableTTL {
+			apiVersion = kvrpcpb.APIVersion_V1TTL
+		} else {
+			apiVersion = kvrpcpb.APIVersion_V1
+		}
+	} else if cfg.Storage.APIVersion == 2 {
+		apiVersion = kvrpcpb.APIVersion_V2
+	} else {
+		errMsg := fmt.Sprintf("Invalid apiversion %d", cfg.Storage.APIVersion)
+		return kvrpcpb.APIVersion_V1, errors.New(errMsg)
+	}
+	return apiVersion, nil
 }
