@@ -119,7 +119,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	captureID = "test-capture-1"
 	s.addCapture(captureID)
 
-	// add three keyspans
+	// add 4 keyspans
 	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1, 2, 3, 4}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'2'}},
@@ -132,12 +132,14 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
+
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
 		2: {StartTs: 0, Start: []byte{'2'}, End: []byte{'3'}},
 		3: {StartTs: 0, Start: []byte{'3'}, End: []byte{'4'}},
 		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
 	})
+
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
 		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},

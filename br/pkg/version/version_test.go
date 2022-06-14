@@ -46,33 +46,13 @@ func TestCheckClusterVersion(t *testing.T) {
 	}
 
 	{
-		build.ReleaseVersion = "v4.0.5"
+		build.ReleaseVersion = "v0.1"
 		mock.getAllStores = func() []*metapb.Store {
 			return tiflash("v4.0.0-rc.1")
 		}
 		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
 		require.Error(t, err)
-		require.Regexp(t, `^incompatible.*version v4.0.0-rc.1, try update it to 4.0.0`, err.Error())
-	}
-
-	{
-		build.ReleaseVersion = "v3.0.14"
-		mock.getAllStores = func() []*metapb.Store {
-			return tiflash("v3.1.0-beta.1")
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
-		require.Error(t, err)
-		require.Regexp(t, `^incompatible.*version v3.1.0-beta.1, try update it to 3.1.0`, err.Error())
-	}
-
-	{
-		build.ReleaseVersion = "v3.1.1"
-		mock.getAllStores = func() []*metapb.Store {
-			return tiflash("v3.0.15")
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
-		require.Error(t, err)
-		require.Regexp(t, `^incompatible.*version v3.0.15, try update it to 3.1.0`, err.Error())
+		require.Regexp(t, `TiFlash.* does not support BR`, err.Error())
 	}
 
 	{
@@ -85,82 +65,18 @@ func TestCheckClusterVersion(t *testing.T) {
 	}
 
 	{
-		build.ReleaseVersion = "v3.1.0-beta.2"
+		build.ReleaseVersion = "v0.1.0"
 		mock.getAllStores = func() []*metapb.Store {
-			// TiKV is too lower to support BR
-			return []*metapb.Store{{Version: `v2.1.0`}}
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
-		require.Error(t, err)
-		require.Regexp(t, "TiKV .* don't support BR, please upgrade cluster ", err.Error())
-	}
-
-	{
-		build.ReleaseVersion = "v3.1.0"
-		mock.getAllStores = func() []*metapb.Store {
-			// TiKV v3.1.0-beta.2 is incompatible with BR v3.1.0
-			return []*metapb.Store{{Version: minTiKVVersion.String()}}
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
-		require.Error(t, err)
-		require.Regexp(t, "^TiKV .* mismatch, please ", err.Error())
-	}
-
-	{
-		build.ReleaseVersion = "v3.1.0"
-		mock.getAllStores = func() []*metapb.Store {
-			// TiKV v4.0.0-rc major version mismatch with BR v3.1.0
-			return []*metapb.Store{{Version: "v4.0.0-rc"}}
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
-		require.Error(t, err)
-		require.Regexp(t, "^TiKV .* major version mismatch, please ", err.Error())
-	}
-
-	{
-		build.ReleaseVersion = "v4.0.0-rc.2"
-		mock.getAllStores = func() []*metapb.Store {
-			// TiKV v4.0.0-rc.2 is incompatible with BR v4.0.0-beta.1
-			return []*metapb.Store{{Version: "v4.0.0-beta.1"}}
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
-		require.Error(t, err)
-		require.Regexp(t, "^TiKV .* mismatch, please ", err.Error())
-	}
-
-	{
-		build.ReleaseVersion = "v4.0.0-rc.2"
-		mock.getAllStores = func() []*metapb.Store {
-			// TiKV v4.0.0-rc.1 with BR v4.0.0-rc.2 is ok
-			return []*metapb.Store{{Version: "v4.0.0-rc.1"}}
+			return []*metapb.Store{{Version: "v6.1.0"}}
 		}
 		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
 		require.NoError(t, err)
 	}
 
 	{
-		// Even across many patch versions, backup should be usable.
+		build.ReleaseVersion = "v0.1.0"
 		mock.getAllStores = func() []*metapb.Store {
-			return []*metapb.Store{{Version: "v4.0.0-rc.1"}}
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBackup(semver.New("4.0.12")))
-		require.NoError(t, err)
-	}
-
-	{
-		// Restore across major version isn't allowed.
-		mock.getAllStores = func() []*metapb.Store {
-			return []*metapb.Store{{Version: "v4.0.0-rc.1"}}
-		}
-		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBackup(semver.New("5.0.0-rc")))
-		require.Error(t, err)
-	}
-
-	{
-		build.ReleaseVersion = "v4.0.0-rc.1"
-		mock.getAllStores = func() []*metapb.Store {
-			// TiKV v4.0.0-rc.2 with BR v4.0.0-rc.1 is ok
-			return []*metapb.Store{{Version: "v4.0.0-rc.2"}}
+			return []*metapb.Store{{Version: "v6.2.0"}}
 		}
 		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
 		require.NoError(t, err)

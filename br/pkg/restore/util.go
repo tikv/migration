@@ -13,8 +13,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/tablecodec"
-	"github.com/pingcap/tidb/util/codec"
+	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/logutil"
@@ -75,10 +74,11 @@ func GetSSTMetaFromFile(
 			Start: rangeStart,
 			End:   rangeEnd,
 		},
-		Length:      file.GetSize_(),
-		RegionId:    region.GetId(),
-		RegionEpoch: region.GetRegionEpoch(),
-		CipherIv:    file.GetCipherIv(),
+		EndKeyExclusive: true,
+		Length:          file.GetSize_(),
+		RegionId:        region.GetId(),
+		RegionEpoch:     region.GetRegionEpoch(),
+		CipherIv:        file.GetCipherIv(),
 	}
 }
 
@@ -119,37 +119,24 @@ func SplitRanges(
 	splitter := NewRegionSplitter(NewSplitClient(client.GetPDClient(), client.GetTLSConfig(), isRawKv))
 
 	return splitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(keys [][]byte) {
-		for range keys {
-			updateCh.Inc()
-		}
+		updateCh.Inc()
 	})
 }
 
 func rewriteFileKeys(file *backuppb.File, rewriteRules *RewriteRules) (startKey, endKey []byte, err error) {
-	startID := tablecodec.DecodeTableID(file.GetStartKey())
-	endID := tablecodec.DecodeTableID(file.GetEndKey())
 	var rule *import_sstpb.RewriteRule
-	if startID == endID {
-		startKey, rule = rewriteRawKey(file.GetStartKey(), rewriteRules)
-		if rewriteRules != nil && rule == nil {
-			log.Error("cannot find rewrite rule",
-				logutil.Key("startKey", file.GetStartKey()),
-				zap.Reflect("rewrite data", rewriteRules.Data))
-			err = errors.Annotate(berrors.ErrRestoreInvalidRewrite, "cannot find rewrite rule for start key")
-			return
-		}
-		endKey, rule = rewriteRawKey(file.GetEndKey(), rewriteRules)
-		if rewriteRules != nil && rule == nil {
-			err = errors.Annotate(berrors.ErrRestoreInvalidRewrite, "cannot find rewrite rule for end key")
-			return
-		}
-	} else {
-		log.Error("table ids dont matched",
-			zap.Int64("startID", startID),
-			zap.Int64("endID", endID),
-			logutil.Key("startKey", startKey),
-			logutil.Key("endKey", endKey))
-		err = errors.Annotate(berrors.ErrRestoreInvalidRewrite, "invalid table id")
+	startKey, rule = rewriteRawKey(file.GetStartKey(), rewriteRules)
+	if rewriteRules != nil && rule == nil {
+		log.Error("cannot find rewrite rule",
+			logutil.Key("startKey", file.GetStartKey()),
+			zap.Reflect("rewrite data", rewriteRules.Data))
+		err = errors.Annotate(berrors.ErrRestoreInvalidRewrite, "cannot find rewrite rule for start key")
+		return
+	}
+	endKey, rule = rewriteRawKey(file.GetEndKey(), rewriteRules)
+	if rewriteRules != nil && rule == nil {
+		err = errors.Annotate(berrors.ErrRestoreInvalidRewrite, "cannot find rewrite rule for end key")
+		return
 	}
 	return
 }

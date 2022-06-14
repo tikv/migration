@@ -24,7 +24,6 @@ type PolymorphicEvent struct {
 	CRTs uint64
 
 	RawKV    *RawKVEntry
-	Row      *RowChangedEvent
 	finished chan struct{}
 }
 
@@ -46,7 +45,6 @@ func NewResolvedPolymorphicEvent(regionID uint64, resolvedTs uint64) *Polymorphi
 	return &PolymorphicEvent{
 		CRTs:     resolvedTs,
 		RawKV:    &RawKVEntry{CRTs: resolvedTs, OpType: OpTypeResolved, RegionID: regionID},
-		Row:      nil,
 		finished: nil,
 	}
 }

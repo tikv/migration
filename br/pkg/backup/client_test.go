@@ -11,7 +11,6 @@ import (
 	. "github.com/pingcap/check"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/errorpb"
-	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/testutils"
 	"github.com/tikv/client-go/v2/tikv"
@@ -49,6 +48,12 @@ func (r *testBackup) SetUpSuite(c *C) {
 	mockMgr := &conn.Mgr{PdController: &pdutil.PdController{}}
 	mockMgr.SetPDClient(r.mockPDClient)
 	mockMgr.SetHTTP([]string{"test"}, nil)
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	// Exact URL match
+	httpmock.RegisterResponder("GET", `=~^/config`,
+		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":false}}`))
+
 	r.backupClient, err = backup.NewBackupClient(r.ctx, mockMgr, nil)
 	c.Assert(err, IsNil)
 
@@ -219,32 +224,4 @@ func (r *testBackup) TestCheckBackupIsLocked(c *C) {
 	c.Assert(err, IsNil)
 	err = backup.CheckBackupStorageIsLocked(ctx, r.storage)
 	c.Assert(err, ErrorMatches, "backup lock file and sst file exist in(.+)")
-}
-
-func (r *testBackup) TestGetCurrentTiKVApiVersion(c *C) {
-	ctx := context.Background()
-
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-	// Exact URL match
-	httpmock.RegisterResponder("GET", `=~^/config`,
-		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":false}}`))
-
-	apiVer, err := r.backupClient.GetCurrentTiKVApiVersion(ctx)
-	c.Assert(err, IsNil)
-	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V1)
-
-	httpmock.RegisterResponder("GET", `=~^/config`,
-		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":true}}`))
-
-	apiVer, err = r.backupClient.GetCurrentTiKVApiVersion(ctx)
-	c.Assert(err, IsNil)
-	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V1TTL)
-
-	httpmock.RegisterResponder("GET", `=~^/config`,
-		httpmock.NewStringResponder(200, `{"storage":{"api-version":2, "enable-ttl":true}}`))
-
-	apiVer, err = r.backupClient.GetCurrentTiKVApiVersion(ctx)
-	c.Assert(err, IsNil)
-	c.Assert(apiVer, Equals, kvrpcpb.APIVersion_V2)
 }

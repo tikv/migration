@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/logutil"
@@ -43,24 +41,6 @@ func newFile(j int) *backuppb.File {
 		Cf:           "write",
 		Size_:        uint64(j),
 	}
-}
-
-func TestRater(t *testing.T) {
-	m := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "testing",
-		Name:      "rater",
-		Help:      "A testing counter for the rater",
-	})
-	m.Add(42)
-
-	rater := logutil.TraceRateOver(m)
-	timePass := time.Now()
-	rater.Inc()
-	require.InEpsilon(t, 10.0, rater.RateAt(timePass.Add(100*time.Millisecond)), 0.1)
-	rater.Inc()
-	require.InEpsilon(t, 13.0, rater.RateAt(timePass.Add(150*time.Millisecond)), 0.1)
-	rater.Add(18)
-	require.InEpsilon(t, 100.0, rater.RateAt(timePass.Add(200*time.Millisecond)), 0.1)
 }
 
 func TestFile(t *testing.T) {

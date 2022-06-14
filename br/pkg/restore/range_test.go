@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
-	"github.com/pingcap/tidb/tablecodec"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/rtree"
@@ -22,36 +21,41 @@ func rangeEquals(t *testing.T, obtained, expected []rtree.Range) {
 
 func TestSortRange(t *testing.T) {
 	dataRules := []*import_sstpb.RewriteRule{
-		{OldKeyPrefix: tablecodec.GenTableRecordPrefix(1), NewKeyPrefix: tablecodec.GenTableRecordPrefix(4)},
-		{OldKeyPrefix: tablecodec.GenTableRecordPrefix(2), NewKeyPrefix: tablecodec.GenTableRecordPrefix(5)},
+		{OldKeyPrefix: []byte{1}, NewKeyPrefix: []byte{4}},
+		{OldKeyPrefix: []byte{2}, NewKeyPrefix: []byte{5}},
 	}
 	rewriteRules := &restore.RewriteRules{
 		Data: dataRules,
 	}
 	ranges1 := []rtree.Range{
 		{
-			StartKey: append(tablecodec.GenTableRecordPrefix(1), []byte("aaa")...),
-			EndKey:   append(tablecodec.GenTableRecordPrefix(1), []byte("bbb")...), Files: nil,
+			StartKey: append([]byte{1}, []byte("aaa")...),
+			EndKey:   append([]byte{1}, []byte("bbb")...), Files: nil,
 		},
 	}
 	rs1, err := restore.SortRanges(ranges1, rewriteRules)
 	require.NoErrorf(t, err, "sort range1 failed: %v", err)
 	rangeEquals(t, rs1, []rtree.Range{
 		{
-			StartKey: append(tablecodec.GenTableRecordPrefix(4), []byte("aaa")...),
-			EndKey:   append(tablecodec.GenTableRecordPrefix(4), []byte("bbb")...), Files: nil,
+			StartKey: append([]byte{4}, []byte("aaa")...),
+			EndKey:   append([]byte{4}, []byte("bbb")...), Files: nil,
 		},
 	})
 
 	ranges2 := []rtree.Range{
 		{
-			StartKey: append(tablecodec.GenTableRecordPrefix(1), []byte("aaa")...),
-			EndKey:   append(tablecodec.GenTableRecordPrefix(2), []byte("bbb")...), Files: nil,
+			StartKey: append([]byte{1}, []byte("aaa")...),
+			EndKey:   append([]byte{2}, []byte("bbb")...), Files: nil,
 		},
 	}
-	_, err = restore.SortRanges(ranges2, rewriteRules)
-	require.Error(t, err)
-	require.Regexp(t, "table id mismatch.*", err.Error())
+	rs2, err := restore.SortRanges(ranges2, nil)
+	require.NoErrorf(t, err, "sort range1 failed: %v", err)
+	rangeEquals(t, rs2, []rtree.Range{
+		{
+			StartKey: append([]byte{1}, []byte("aaa")...),
+			EndKey:   append([]byte{2}, []byte("bbb")...), Files: nil,
+		},
+	})
 
 	ranges3 := initRanges()
 	rewriteRules1 := initRewriteRules()

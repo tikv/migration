@@ -118,10 +118,10 @@ func TestFormatAPIV2KeyRange(t *testing.T) {
 		apiv1Key KeyRange
 		apiv2Key KeyRange
 	}{
-		{KeyRange{[]byte(""), []byte("")}, KeyRange{[]byte{APIV2KeyPrefix}, []byte{APIV2KeyPrefixEnd}}},
-		{KeyRange{[]byte(""), []byte("abc")}, KeyRange{[]byte{APIV2KeyPrefix}, []byte("rabc")}},
-		{KeyRange{[]byte("abc"), []byte("")}, KeyRange{[]byte("rabc"), []byte{APIV2KeyPrefixEnd}}},
-		{KeyRange{[]byte("abc"), []byte("cde")}, KeyRange{[]byte("rabc"), []byte("rcde")}},
+		{KeyRange{[]byte(""), []byte("")}, KeyRange{APIV2KeyPrefix[:], APIV2KeyPrefixEnd[:]}},
+		{KeyRange{[]byte(""), []byte("abc")}, KeyRange{APIV2KeyPrefix[:], []byte{'r', 0, 0, 0, 'a', 'b', 'c'}}},
+		{KeyRange{[]byte("abc"), []byte("")}, KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, APIV2KeyPrefixEnd[:]}},
+		{KeyRange{[]byte("abc"), []byte("cde")}, KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}}},
 	}
 	for _, testCase := range testCases {
 		retV2Range := FormatAPIV2KeyRange(testCase.apiv1Key.Start, testCase.apiv1Key.End)
@@ -144,46 +144,46 @@ func TestConvertBackupConfigKeyRange(t *testing.T) {
 		{KeyRange{[]byte(""), []byte("")},
 			kvrpcpb.APIVersion_V1,
 			kvrpcpb.APIVersion_V2,
-			&KeyRange{[]byte{APIV2KeyPrefix}, []byte{APIV2KeyPrefixEnd}},
+			&KeyRange{APIV2KeyPrefix[:], APIV2KeyPrefixEnd[:]},
 		},
 		{KeyRange{[]byte(""), []byte("")},
 			kvrpcpb.APIVersion_V1TTL,
 			kvrpcpb.APIVersion_V2,
-			&KeyRange{[]byte{APIV2KeyPrefix}, []byte{APIV2KeyPrefixEnd}},
+			&KeyRange{APIV2KeyPrefix[:], APIV2KeyPrefixEnd[:]},
 		},
 		{
 			KeyRange{[]byte("abc"), []byte("cde")},
 			kvrpcpb.APIVersion_V1,
 			kvrpcpb.APIVersion_V2,
-			&KeyRange{[]byte("rabc"), []byte("rcde")},
+			&KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
 		},
 		{
 			KeyRange{[]byte("abc"), []byte("cde")},
 			kvrpcpb.APIVersion_V1TTL,
 			kvrpcpb.APIVersion_V2,
-			&KeyRange{[]byte("rabc"), []byte("rcde")},
+			&KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
 		},
 		{
-			KeyRange{[]byte("rabc"), []byte("rcde")},
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
 			kvrpcpb.APIVersion_V2,
 			kvrpcpb.APIVersion_V1,
 			&KeyRange{[]byte("abc"), []byte("cde")},
 		},
 		{
-			KeyRange{[]byte("rabc"), []byte("rcde")},
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
 			kvrpcpb.APIVersion_V2,
 			kvrpcpb.APIVersion_V1TTL,
 			&KeyRange{[]byte("abc"), []byte("cde")},
 		},
 		// following are invalid conversion
 		{
-			KeyRange{[]byte("rabc"), []byte("rcde")},
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
 			kvrpcpb.APIVersion_V1,
 			kvrpcpb.APIVersion_V1TTL,
 			nil,
 		},
 		{
-			KeyRange{[]byte("rabc"), []byte("rcde")},
+			KeyRange{[]byte{'r', 0, 0, 0, 'a', 'b', 'c'}, []byte{'r', 0, 0, 0, 'c', 'd', 'e'}},
 			kvrpcpb.APIVersion_V1TTL,
 			kvrpcpb.APIVersion_V1,
 			nil,

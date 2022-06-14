@@ -9,11 +9,13 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
+	"github.com/tikv/migration/br/pkg/checksum"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/summary"
+	"github.com/tikv/migration/br/pkg/utils"
 )
 
 // DefineRawRestoreFlags defines common flags for the backup command.
@@ -21,7 +23,9 @@ func DefineRawRestoreFlags(command *cobra.Command) {
 	command.Flags().StringP(flagKeyFormat, "", "hex", "start/end key format, support raw|escaped|hex")
 	command.Flags().StringP(flagStartKey, "", "", "restore raw kv start key, key is inclusive")
 	command.Flags().StringP(flagEndKey, "", "", "restore raw kv end key, key is exclusive")
-
+	_ = command.Flags().MarkHidden(flagKeyFormat)
+	_ = command.Flags().MarkHidden(flagStartKey)
+	_ = command.Flags().MarkHidden(flagEndKey)
 	DefineRestoreCommonFlags(command.PersistentFlags())
 }
 
@@ -60,8 +64,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	if err != nil {
 		return errors.Trace(err)
 	}
+	if client.GetAPIVersion() != backupMeta.ApiVersion {
+		return errors.Errorf("Unsupported backup api version, backup meta: %s, dst:%s",
+			backupMeta.ApiVersion.String(), client.GetAPIVersion().String())
+	}
 	// for restore, dst and cur are the same.
-	cfg.DstAPIVersion = backupMeta.ApiVersion.String()
+	cfg.DstAPIVersion = client.GetAPIVersion().String()
 	cfg.adjustBackupRange(backupMeta.ApiVersion)
 	reader := metautil.NewMetaReader(backupMeta, s, &cfg.CipherInfo)
 	if err = client.InitBackupMeta(c, backupMeta, u, s, reader); err != nil {
@@ -92,18 +100,17 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	}
 
 	// Redirect to log if there is no log file to avoid unreadable output.
-	// TODO: How to show progress?
 	updateCh := g.StartProgress(
 		ctx,
 		"Raw Restore",
-		// Split/Scatter + Download/Ingest
-		int64(len(ranges)+len(files)),
+		// Split/Scatter + Download/Ingest.
+		// Regard split region as one step as it finish quickly compared to ingest.
+		int64(1+len(files)),
 		!cfg.LogProgress)
 
 	// RawKV restore does not need to rewrite keys.
-	rewrite := &restore.RewriteRules{}
 	needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
-	err = restore.SplitRanges(ctx, client, ranges, rewrite, updateCh, true, needEncodeKey)
+	err = restore.SplitRanges(ctx, client, ranges, nil, updateCh, true, needEncodeKey)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -114,6 +121,22 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	}
 	defer restorePostWork(ctx, client, restoreSchedulers)
 
+	// raw key without encoding
+	keyRanges := make([]*utils.KeyRange, 0, len(files))
+	for _, file := range files {
+		keyRanges = append(keyRanges, &utils.KeyRange{
+			Start: file.StartKey,
+			End:   file.EndKey,
+		})
+	}
+	if needEncodeKey {
+		for _, file := range files {
+			keyRange := utils.EncodeKeyRange(file.StartKey, file.EndKey)
+			file.StartKey = keyRange.Start
+			file.EndKey = keyRange.End
+		}
+	}
+
 	err = client.RestoreRaw(ctx, cfg.StartKey, cfg.EndKey, files, updateCh)
 	if err != nil {
 		return errors.Trace(err)
@@ -121,6 +144,20 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 
 	// Restore has finished.
 	updateCh.Close()
+
+	if cfg.Checksum {
+		finalChecksum := checksum.Checksum{}
+		for _, file := range files {
+			finalChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+		}
+		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(),
+			backupMeta.ApiVersion, cfg.ChecksumConcurrency)
+		err = checksum.Run(ctx, cmdName, executor,
+			checksum.StorageChecksumCommand, finalChecksum)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
 
 	// Set task summary to success status.
 	summary.SetSuccessStatus(true)

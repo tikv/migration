@@ -17,15 +17,65 @@ package server
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	pd "github.com/tikv/pd/client"
 	"github.com/tikv/pd/pkg/tempurl"
+	"github.com/tikv/pd/pkg/tsoutil"
+	"github.com/tikv/pd/pkg/typeutil"
 	"go.etcd.io/etcd/embed"
+	"go.uber.org/atomic"
 )
+
+type MockPDClient struct {
+	pd.Client
+	tsLogical atomic.Uint64
+	// SafePoint set by `UpdateGCSafePoint`. Not to be confused with SafePointKV.
+	gcSafePoint uint64
+	// Represents the current safePoint of all services including TiDB, representing how much data they want to retain
+	// in GC.
+	serviceSafePoints map[string]uint64
+}
+
+func (c *MockPDClient) GetTS(context.Context) (int64, int64, error) {
+	unixTime := time.Now()
+	ts := tsoutil.GenerateTimestamp(unixTime, c.tsLogical.Add(1)) // set logical as 0
+	return ts.Physical, ts.Logical, nil
+}
+
+func (c *MockPDClient) UpdateGCSafePoint(ctx context.Context, safePoint uint64) (uint64, error) {
+	c.gcSafePoint = safePoint
+	return safePoint, nil
+}
+
+func (c *MockPDClient) UpdateServiceGCSafePoint(ctx context.Context, serviceID string, ttl int64, safePoint uint64) (uint64, error) {
+	c.serviceSafePoints[serviceID] = safePoint
+	minSafePoint := uint64(math.MaxUint64)
+	for _, safepoint := range c.serviceSafePoints {
+		if safepoint < minSafePoint {
+			minSafePoint = safepoint
+		}
+	}
+	return minSafePoint, nil
+}
+
+func (c *MockPDClient) Close() {
+}
+
+// NewPDClient creates a mock pd.Client that uses local timestamp and meta data
+// from a Cluster.
+func NewMockPDClient() *MockPDClient {
+	mockClient := MockPDClient{
+		gcSafePoint:       0,
+		serviceSafePoints: make(map[string]uint64),
+	}
+	return &mockClient
+}
 
 func CreateAndStartTestServer(ctx context.Context, num uint32, cfg *Config) []*Server {
 	ret := []*Server{}
@@ -107,4 +157,63 @@ func NewTestSingleConfig() *embed.Config {
 	cfg.InitialCluster = fmt.Sprintf("%s=%s", cfg.Name, &cfg.LPUrls[0])
 	cfg.ClusterState = embed.ClusterStateFlagNew
 	return cfg
+}
+
+func TestCalcNewGCSafePoint(t *testing.T) {
+	cfg := NewConfig()
+	ctx := context.Background()
+	s := &Server{
+		cfg:            cfg,
+		ctx:            ctx,
+		startTimestamp: time.Now().Unix(),
+	}
+	defer s.Close()
+	newSp := s.calcNewGCSafePoint(0, 100)
+	require.Equal(t, newSp, uint64(100))
+
+	newSp = s.calcNewGCSafePoint(1000, 100)
+	require.Equal(t, newSp, uint64(100))
+
+	newSp = s.calcNewGCSafePoint(1000, 10000)
+	require.Equal(t, newSp, uint64(1000))
+
+}
+
+func TestCalcGCSafePoint(t *testing.T) {
+	mockPdClient := NewMockPDClient()
+	cfg := NewConfig()
+	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
+	ctx := context.Background()
+	s := &Server{
+		cfg:            cfg,
+		ctx:            ctx,
+		startTimestamp: time.Now().Unix(),
+	}
+	defer s.Close()
+	s.pdClient = mockPdClient
+	curTs := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(time.Now(), 0))
+	expectTs := time.Now().Add(-cfg.GCLifeTime.Duration)
+	expectGcSafePoint := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(expectTs, 0))
+	gcSafePoint, err := s.getGCWorkerSafePoint(ctx)
+	require.NoError(t, err)
+	require.LessOrEqual(t, expectGcSafePoint, gcSafePoint)
+	require.LessOrEqual(t, gcSafePoint, curTs)
+}
+
+func TestUpdateGCSafePoint(t *testing.T) {
+	mockPdClient := NewMockPDClient()
+	cfg := NewConfig()
+	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
+	ctx := context.Background()
+	s := &Server{
+		cfg:            cfg,
+		ctx:            ctx,
+		startTimestamp: time.Now().Unix(),
+	}
+	defer s.Close()
+	s.pdClient = mockPdClient
+	mockPdClient.UpdateServiceGCSafePoint(ctx, "cdc", math.MaxInt64, 100)
+	err := s.updateRawGCSafePoint(ctx)
+	require.NoError(t, err)
+	require.Equal(t, mockPdClient.gcSafePoint, uint64(100))
 }

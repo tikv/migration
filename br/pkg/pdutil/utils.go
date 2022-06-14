@@ -6,18 +6,15 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/tablecodec"
+	"github.com/pingcap/tidb/store/pdtypes"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/httputil"
-	"github.com/tikv/pd/pkg/codec"
-	"github.com/tikv/pd/server/schedule/placement"
 )
 
 // UndoFunc is a 'undo' operation of some undoable command.
@@ -65,7 +62,7 @@ func ResetTS(ctx context.Context, pdAddr string, ts uint64, tlsConf *tls.Config)
 }
 
 // GetPlacementRules return the current placement rules.
-func GetPlacementRules(ctx context.Context, pdAddr string, tlsConf *tls.Config) ([]placement.Rule, error) {
+func GetPlacementRules(ctx context.Context, pdAddr string, tlsConf *tls.Config) ([]pdtypes.Rule, error) {
 	cli := httputil.NewClient(tlsConf)
 	prefix := "http://"
 	if tlsConf != nil {
@@ -87,33 +84,15 @@ func GetPlacementRules(ctx context.Context, pdAddr string, tlsConf *tls.Config) 
 		return nil, errors.Trace(err)
 	}
 	if resp.StatusCode == http.StatusPreconditionFailed {
-		return []placement.Rule{}, nil
+		return []pdtypes.Rule{}, nil
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.Annotatef(berrors.ErrPDInvalidResponse, "get placement rules failed: resp=%v, err=%v, code=%d", buf.String(), err, resp.StatusCode)
 	}
-	var rules []placement.Rule
+	var rules []pdtypes.Rule
 	err = json.Unmarshal(buf.Bytes(), &rules)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	return rules, nil
-}
-
-// SearchPlacementRule returns the placement rule matched to the table or nil.
-func SearchPlacementRule(tableID int64, placementRules []placement.Rule, role placement.PeerRoleType) *placement.Rule {
-	for _, rule := range placementRules {
-		key, err := hex.DecodeString(rule.StartKeyHex)
-		if err != nil {
-			continue
-		}
-		_, decoded, err := codec.DecodeBytes(key)
-		if err != nil {
-			continue
-		}
-		if rule.Role == role && tableID == tablecodec.DecodeTableID(decoded) {
-			return &rule
-		}
-	}
-	return nil
 }

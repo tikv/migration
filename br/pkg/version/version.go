@@ -22,13 +22,8 @@ import (
 )
 
 var (
-	minTiKVVersion          = semver.New("3.1.0-beta.2")
-	incompatibleTiKVMajor3  = semver.New("3.1.0")
-	incompatibleTiKVMajor4  = semver.New("4.0.0-rc.1")
-	compatibleTiFlashMajor3 = semver.New("3.1.0")
-	compatibleTiFlashMajor4 = semver.New("4.0.0")
-
-	versionHash = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}")
+	minTiKVVersion = semver.New("6.1.0-alpha")
+	versionHash    = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}")
 )
 
 // removeVAndHash sanitizes a version string.
@@ -36,26 +31,6 @@ func removeVAndHash(v string) string {
 	v = versionHash.ReplaceAllLiteralString(v, "")
 	v = strings.TrimSuffix(v, "-dirty")
 	return strings.TrimPrefix(v, "v")
-}
-
-func checkTiFlashVersion(store *metapb.Store) error {
-	flash, err := semver.NewVersion(removeVAndHash(store.Version))
-	if err != nil {
-		return errors.Annotatef(berrors.ErrVersionMismatch, "failed to parse TiFlash %s version %s, err %s",
-			store.GetPeerAddress(), store.Version, err)
-	}
-
-	if flash.Major == 3 && flash.LessThan(*compatibleTiFlashMajor3) {
-		return errors.Annotatef(berrors.ErrVersionMismatch, "incompatible TiFlash %s version %s, try update it to %s",
-			store.GetPeerAddress(), store.Version, compatibleTiFlashMajor3)
-	}
-
-	if flash.Major == 4 && flash.LessThan(*compatibleTiFlashMajor4) {
-		return errors.Annotatef(berrors.ErrVersionMismatch, "incompatible TiFlash %s version %s, try update it to %s",
-			store.GetPeerAddress(), store.Version, compatibleTiFlashMajor4)
-	}
-
-	return nil
 }
 
 // IsTiFlash tests whether the store is based on tiflash engine.
@@ -87,9 +62,7 @@ func CheckClusterVersion(ctx context.Context, client pd.Client, checker VerCheck
 			zap.String("version", s.GetVersion()),
 		)
 		if isTiFlash {
-			if err := checkTiFlashVersion(s); err != nil {
-				return errors.Trace(err)
-			}
+			return errors.Annotatef(berrors.ErrVersionMismatch, "TiFlash node %s does not support BR", s.GetAddress())
 		}
 
 		tikvVersionString := removeVAndHash(s.Version)
@@ -124,30 +97,8 @@ func CheckVersionForBR(s *metapb.Store, tikvVersion *semver.Version) error {
 	}
 
 	if tikvVersion.Compare(*minTiKVVersion) < 0 {
-		return errors.Annotatef(berrors.ErrVersionMismatch, "TiKV node %s version %s don't support BR, please upgrade cluster to %s",
-			s.Address, tikvVersion, build.ReleaseVersion)
-	}
-
-	if tikvVersion.Major != BRVersion.Major {
-		return errors.Annotatef(berrors.ErrVersionMismatch, "TiKV node %s version %s and BR %s major version mismatch, please use the same version of BR",
-			s.Address, tikvVersion, build.ReleaseVersion)
-	}
-
-	// BR(https://github.com/pingcap/br/pull/233) and TiKV(https://github.com/tikv/tikv/pull/7241) have breaking changes
-	// if BR include #233 and TiKV not include #7241, BR will panic TiKV during restore
-	// These incompatible version is 3.1.0 and 4.0.0-rc.1
-	if tikvVersion.Major == 3 {
-		if tikvVersion.Compare(*incompatibleTiKVMajor3) < 0 && BRVersion.Compare(*incompatibleTiKVMajor3) >= 0 {
-			return errors.Annotatef(berrors.ErrVersionMismatch, "TiKV node %s version %s and BR %s version mismatch, please use the same version of BR",
-				s.Address, tikvVersion, build.ReleaseVersion)
-		}
-	}
-
-	if tikvVersion.Major == 4 {
-		if tikvVersion.Compare(*incompatibleTiKVMajor4) < 0 && BRVersion.Compare(*incompatibleTiKVMajor4) >= 0 {
-			return errors.Annotatef(berrors.ErrVersionMismatch, "TiKV node %s version %s and BR %s version mismatch, please use the same version of BR",
-				s.Address, tikvVersion, build.ReleaseVersion)
-		}
+		return errors.Annotatef(berrors.ErrVersionMismatch, "TiKV node %s version %s don't support BR, please upgrade cluster to %v",
+			s.Address, tikvVersion, *minTiKVVersion)
 	}
 
 	// don't warn if we are the master build, which always have the version v4.0.0-beta.2-*
