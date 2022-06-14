@@ -25,18 +25,16 @@ func TestServerConfig(t *testing.T) {
 
 	pd := "127.0.0.0.1:1234"
 	name := "gc-worker"
-	etcd := "127.0.0.1:2345"
 	logLevel := "debug"
 	logFile := "/tmp/gc-worker.log"
 	configFile := "/tmp/config.toml"
-	cfgStr := "--pd " + pd + " --name " + name + " --etcd " + etcd + " --L " + logLevel +
+	cfgStr := "--pd " + pd + " --name " + name + " --L " + logLevel +
 		" --log-file " + logFile + " --config " + configFile
 	cfg := NewConfig()
 	cfgStrArr := strings.Split(cfgStr, " ")
 	cfg.Parse(cfgStrArr)
 	require.Equal(t, pd, cfg.PdAddrs)
 	require.Equal(t, name, cfg.Name)
-	require.Equal(t, etcd, cfg.EtcdEndpoint)
 	require.Equal(t, logFile, cfg.Log.File.Filename)
 	require.Equal(t, logLevel, cfg.Log.Level)
 	require.Equal(t, configFile, cfg.GetConfigFile())

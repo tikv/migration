@@ -47,6 +47,9 @@ func main() {
 		fmt.Printf("initialize logger error, %v.\n", err)
 		exit(1)
 	}
+	if cfg.Log.File.Filename != "" {
+		fmt.Println("Detail GC-Worker log in: ", cfg.Log.File.Filename)
+	}
 
 	server.LogGCWorkerInfo()
 

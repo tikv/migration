@@ -37,11 +37,12 @@ import (
 const (
 	etcdTimeout = time.Duration(3) * time.Second
 	// etcdElectionPath for all gcworker servers.
-	etcdElectionPath     = "/gc-worker/election"
-	etcdElectionVal      = "local"
-	maxPdMsgSize         = int(128 * units.MiB)
-	gcWorkerSafePointTTL = math.MaxInt64 // Sets TTL to MAX to make it permanently valid.
-	gcWorkerServiceID    = "gc_worker"   // MUST be same with definition in PD
+	etcdElectionPath        = "/gc-worker/election"
+	etcdElectionVal         = "local"
+	maxPdMsgSize            = int(128 * units.MiB)
+	gcWorkerSafePointTTL    = math.MaxInt64 // Sets TTL to MAX to make it permanently valid.
+	gcWorkerServiceID       = "gc_worker"   // MUST be same with definition in PD
+	updateSafePointRetryCnt = 5
 )
 
 // The version info is set in Makefile
@@ -133,10 +134,10 @@ func (s *Server) createPdClient(ctx context.Context) error {
 }
 
 func (s *Server) createEtcdClient() error {
-	if len(s.cfg.EtcdEndpoint) == 0 {
+	if len(s.cfg.PdAddrs) == 0 {
 		return errors.New("No etcd enpoint is specified")
 	}
-	endpoints := strings.Split(s.cfg.EtcdEndpoint, ",")
+	endpoints := strings.Split(s.cfg.PdAddrs, ",")
 	log.Info("create etcd v3 client", zap.Strings("endpoints", endpoints),
 		zap.Reflect("cert", s.cfg.TLSConfig), zap.String("worker", s.cfg.Name))
 
@@ -257,29 +258,27 @@ func (s *Server) calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint uint64) 
 	return gcWorkerSafePoint
 }
 
-/* keep these codes, uncomment these when new pd interfaces are enabled.
-func (s *Server) updateServiceGroupSafePointWithRetry(ctx context.Context, serviceGroup string, gcWorkerSafePoint uint64) error {
+func (s *Server) updateKeySpaceSafePointWithRetry(ctx context.Context, keySpace string, gcWorkerSafePoint uint64) error {
 	updateSucceed := false
 	for i := 0; i < updateSafePointRetryCnt; i++ {
-		serviceSafePoint, revision, err := s.pdClient.GetGCMinServiceSafePointByServiceGroup(ctx, serviceGroup)
+		serviceSafePoint, revision, err := s.pdClient.GetMinServiceSafePoint(ctx, keySpace)
 		if err != nil {
 			log.Error("get min service safe point fails.", zap.Error(err),
-				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name))
+				zap.String("keySpace", keySpace), zap.String("worker", s.cfg.Name))
 			return errors.Trace(err)
 		}
 		gcSafePoint := s.calcNewGCSafePoint(serviceSafePoint, gcWorkerSafePoint)
-		succeed, newSafePoint, err := s.pdClient.UpdateGCSafePointByServiceGroup(ctx, serviceGroup,
+		succeed, err := s.pdClient.UpdateKeySpaceGCSafePoint(ctx, keySpace,
 			gcSafePoint, revision)
 		if !succeed || err != nil {
-			log.Info("update gc safepoint fail", zap.String("serviceGroup", serviceGroup),
+			log.Info("update gc safepoint fail", zap.String("keySpace", keySpace),
 				zap.Int("retryCnt", i), zap.String("worker", s.cfg.Name), zap.Error(err))
 			continue
 		}
 		updateSucceed = true
-		log.Info("update gc safepoint succeed", zap.String("serviceGroup", serviceGroup),
+		log.Info("update gc safepoint succeed", zap.String("keySpace", keySpace),
 			zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
 			zap.Uint64("serviceSafePoint", serviceSafePoint),
-			zap.Uint64("newSafePoint", newSafePoint),
 			zap.Int("retryCnt", i),
 			zap.String("worker", s.cfg.Name))
 		break
@@ -291,12 +290,12 @@ func (s *Server) updateServiceGroupSafePointWithRetry(ctx context.Context, servi
 }
 
 func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
-	allServiceGroups, err := s.pdClient.GetGCAllServiceGroups(ctx)
+	allKeySpaces, err := s.pdClient.ListKeySpaces(ctx, true)
 	if err != nil {
-		log.Error("get service group from gc failed", zap.Error(err), zap.String("worker", s.cfg.Name))
+		log.Error("get key spaces from gc failed", zap.Error(err), zap.String("worker", s.cfg.Name))
 		return errors.Trace(err)
 	}
-	if len(allServiceGroups) == 0 {
+	if len(allKeySpaces) == 0 {
 		log.Warn("service group is empty", zap.String("worker", s.cfg.Name))
 		return nil
 	}
@@ -308,18 +307,19 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 	}
 
 	// TODO: Different service group may need different update frequency.
-	for _, serviceGroup := range allServiceGroups {
-		err = s.updateServiceGroupSafePointWithRetry(ctx, serviceGroup, gcWorkerSafePoint)
+	for _, keySpace := range allKeySpaces {
+		spaceId := string(keySpace.GetSpaceId())
+		err = s.updateKeySpaceSafePointWithRetry(ctx, spaceId, gcWorkerSafePoint)
 		if err != nil {
 			log.Error("update gc safepoint fail, will retry next time.",
-				zap.String("serviceGroup", serviceGroup), zap.String("worker", s.cfg.Name),
+				zap.String("keySpace", spaceId), zap.String("worker", s.cfg.Name),
 				zap.Error(err))
 		}
 	}
 	return nil
 }
-*/
 
+/*
 func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 	gcWorkerSafePoint, err := s.getGCWorkerSafePoint(ctx)
 	if err != nil {
@@ -344,7 +344,7 @@ func (s *Server) updateRawGCSafePoint(ctx context.Context) error {
 		zap.Uint64("gcWorkerSafePoint", gcWorkerSafePoint),
 		zap.String("worker", s.cfg.Name))
 	return nil
-}
+}*/
 
 func (s *Server) startUpdateGCSafePointLoop() {
 	defer s.serverLoopWg.Done()

@@ -30,6 +30,10 @@ require (
 	google.golang.org/grpc v1.43.0
 )
 
+replace github.com/pingcap/kvproto => github.com/AmoebaProtozoa/kvproto v0.0.0-20220604043941-cbd9fb76600c
+
+replace github.com/tikv/pd/client => github.com/AmoebaProtozoa/pd/client v0.0.0-20220609081117-4669ed3bdc5c
+
 require (
 	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -53,7 +57,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pingcap/failpoint v0.0.0-20210918120811-547c13e3eb00 // indirect
-	github.com/pingcap/kvproto v0.0.0-20220517085838-12e2f5a9d167 // indirect
+	github.com/pingcap/kvproto v0.0.0-20220525022339-6aaebf466305 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.1 // indirect

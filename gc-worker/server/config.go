@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -51,8 +52,7 @@ type Config struct {
 
 	Version bool `json:"-"`
 
-	PdAddrs      string `toml:"pd" json:"pd"`
-	EtcdEndpoint string `toml:"etcd" json:"etcd"`
+	PdAddrs string `toml:"pd" json:"pd"`
 
 	SafePointUpdateInterval time.Duration `toml:"safepoint-update-interval" json:"safepoint-update-interval"`
 	EtcdElectionInterval    time.Duration `toml:"etcd-election-interval" json:"etcd-election-interval"`
@@ -65,6 +65,10 @@ type Config struct {
 	configFile string
 	logger     *zap.Logger
 	logProps   *log.ZapProperties
+}
+
+func timestampLogFileName() string {
+	return filepath.Join(os.TempDir(), time.Now().Format("gc-worker.log.2006-01-02T15.04.05Z0700"))
 }
 
 // NewConfig creates a new config.
@@ -84,9 +88,8 @@ func NewConfig() *Config {
 	fs.DurationVar(&cfg.GCLifeTime, "gc-life-time",
 		defaultGCLifeTime, "gc life time")
 	fs.StringVar(&cfg.PdAddrs, "pd", "", "specify pd address (usage: pd '${pd-addrs}'")
-	fs.StringVar(&cfg.EtcdEndpoint, "etcd", "", "specify etcd endpoints")
 	fs.StringVar(&cfg.Log.Level, "L", "info", "log level: debug, info, warn, error, fatal (default 'info')")
-	fs.StringVar(&cfg.Log.File.Filename, "log-file", "gc_worker.log", "log file path")
+	fs.StringVar(&cfg.Log.File.Filename, "log-file", timestampLogFileName(), "log file path")
 
 	fs.StringVar(&cfg.configFile, "config", "", "config file")
 	return cfg
@@ -135,9 +138,6 @@ func (c *Config) Validate() error {
 	if len(c.PdAddrs) == 0 {
 		return errors.New("no pd address is parsed")
 	}
-	if len(c.EtcdEndpoint) == 0 {
-		return errors.New("no etcd enpoint is parsed")
-	}
 	return nil
 }
 
@@ -145,9 +145,6 @@ func (c *Config) Validate() error {
 func (c *Config) Adjust() error {
 	hostName, _ := os.Hostname() // error is ignored.
 	adjustString(&c.Name, hostName)
-	// reuse pd's etcd server as server
-	adjustString(&c.EtcdEndpoint, c.PdAddrs)
-
 	adjustDuration(&c.SafePointUpdateInterval, defaultUpdateSafePointInterval)
 	adjustDuration(&c.EtcdElectionInterval, defaultEtcdElectionInterval)
 	adjustDuration(&c.GCLifeTime, defaultGCLifeTime)

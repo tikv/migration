@@ -109,7 +109,7 @@ func TestServer(t *testing.T) {
 
 	cfg := NewConfig()
 	for _, url := range etcdCfg.ACUrls {
-		cfg.EtcdEndpoint += url.String()
+		cfg.PdAddrs += url.String()
 	}
 
 	ctx := context.Background()
