@@ -562,21 +562,4 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 			Status:          model.OperDispatched,
 			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 2}, {CaptureID: captureID, KeySpanID: 3}}},
 	})
-
-	s.state.PatchTaskWorkload(captureID, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
-		if workload == nil {
-			workload = make(model.TaskWorkload)
-		}
-		for keyspanID := range s.state.TaskStatuses[captureID].KeySpans {
-			if s.state.TaskStatuses[captureID].Operation[keyspanID].Delete {
-				delete(workload, keyspanID)
-			} else {
-				workload[keyspanID] = model.WorkloadInfo{
-					Workload: 1,
-				}
-			}
-		}
-		return workload, true, nil
-	})
-	s.tester.MustApplyPatches()
 }
