@@ -16,6 +16,7 @@ package owner
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"testing"
 
 	"github.com/pingcap/check"
@@ -171,6 +172,12 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
 		5: {StartTs: 0, Start: []byte{'5'}, End: []byte{'6'}},
 	})
+
+	keyspanOperation, IsTrue := s.state.TaskStatuses[captureID].Operation[5]
+	c.Assert(IsTrue, check.IsTrue)
+	sort.SliceStable(keyspanOperation.RelatedKeySpans, func(i, j int) bool {
+		return keyspanOperation.RelatedKeySpans[i].KeySpanID < keyspanOperation.RelatedKeySpans[j].KeySpanID
+	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
@@ -193,6 +200,12 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
 		5: {StartTs: 0, Start: []byte{'5'}, End: []byte{'6'}},
+	})
+
+	keyspanOperation, IsTrue = s.state.TaskStatuses[captureID].Operation[5]
+	c.Assert(IsTrue, check.IsTrue)
+	sort.SliceStable(keyspanOperation.RelatedKeySpans, func(i, j int) bool {
+		return keyspanOperation.RelatedKeySpans[i].KeySpanID < keyspanOperation.RelatedKeySpans[j].KeySpanID
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
@@ -499,6 +512,13 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
 		4: {StartTs: 0, Start: []byte{'1'}, End: []byte{'3'}},
 	})
+
+	keyspanOperation, IsTrue := s.state.TaskStatuses[captureID].Operation[4]
+	c.Assert(IsTrue, check.IsTrue)
+	sort.SliceStable(keyspanOperation.RelatedKeySpans, func(i, j int) bool {
+		return keyspanOperation.RelatedKeySpans[i].KeySpanID < keyspanOperation.RelatedKeySpans[j].KeySpanID
+	})
+
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
