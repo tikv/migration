@@ -44,7 +44,6 @@ type changefeed struct {
 	feedStateManager *feedStateManager
 	gcManager        gc.Manager
 	initialized      bool
-
 	// isRemoved is true if the changefeed is removed
 	isRemoved bool
 

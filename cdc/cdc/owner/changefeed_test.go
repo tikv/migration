@@ -104,7 +104,6 @@ func (s *changefeedSuite) TestHandleError(c *check.C) {
 	ctx := cdcContext.NewBackendContext4Test(true)
 	cf, state, captures, tester := createChangefeed4Test(ctx, c)
 	defer cf.Close(ctx)
-
 	// pre check
 	cf.Tick(ctx, state, captures)
 	tester.MustApplyPatches()

@@ -80,7 +80,6 @@ func TestSchedulerBasics(t *testing.T) {
 		mockOwnerNode.Server,
 		mockOwnerNode.Router,
 		f)
-
 	require.NoError(t, err)
 
 	for atomic.LoadInt64(&sched.stats.AnnounceSentCount) < numNodes {
