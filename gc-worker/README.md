@@ -12,7 +12,7 @@ To build binary and run test:
 ```
 $ make
 ```
-Notice GC-Worker supports building with Go version Go >= 1.16  
+Notice GC-Worker supports building with Go version Go >= 1.18  
 
 When GC-Worker is built successfully, you can find binary in the bin directory.
 

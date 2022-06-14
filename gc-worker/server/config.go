@@ -23,8 +23,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/tikv/pd/pkg/typeutil"
-	"go.etcd.io/etcd/pkg/transport"
+	"github.com/tikv/client-go/v2/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -37,15 +36,8 @@ type TLSConfig struct {
 
 // ToTLSConfig generate tls.Config.
 func (tls *TLSConfig) ToTLSConfig() (*tls.Config, error) {
-	if tls.CA == "" {
-		return nil, nil
-	}
-	tlsInfo := transport.TLSInfo{
-		CertFile:      tls.Cert,
-		KeyFile:       tls.Key,
-		TrustedCAFile: tls.CA,
-	}
-	tlsConfig, err := tlsInfo.ClientConfig()
+	security := config.NewSecurity(tls.CA, tls.Cert, tls.Key, []string{})
+	tlsConfig, err := security.ToTLSConfig()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -62,10 +54,10 @@ type Config struct {
 	PdAddrs      string `toml:"pd" json:"pd"`
 	EtcdEndpoint string `toml:"etcd" json:"etcd"`
 
-	SafePointUpdateInterval typeutil.Duration `toml:"safepoint-update-interval" json:"safepoint-update-interval"`
-	EtcdElectionInterval    typeutil.Duration `toml:"etcd-election-interval" json:"etcd-election-interval"`
-	GCLifeTime              typeutil.Duration `toml:"gc-life-time" json:"gc-life-time"`
-	TLSConfig               TLSConfig         `toml:"security" json:"security"`
+	SafePointUpdateInterval time.Duration `toml:"safepoint-update-interval" json:"safepoint-update-interval"`
+	EtcdElectionInterval    time.Duration `toml:"etcd-election-interval" json:"etcd-election-interval"`
+	GCLifeTime              time.Duration `toml:"gc-life-time" json:"gc-life-time"`
+	TLSConfig               TLSConfig     `toml:"security" json:"security"`
 
 	// Log related config.
 	Log log.Config `toml:"log" json:"log"`
@@ -85,11 +77,11 @@ func NewConfig() *Config {
 	fs.BoolVar(&cfg.Version, "V", false, "print version information and exit")
 	fs.BoolVar(&cfg.Version, "version", false, "print version information and exit")
 
-	fs.DurationVar(&cfg.SafePointUpdateInterval.Duration, "safepoint-update-interval",
+	fs.DurationVar(&cfg.SafePointUpdateInterval, "safepoint-update-interval",
 		defaultUpdateSafePointInterval, "update interval of gc safepoint")
-	fs.DurationVar(&cfg.EtcdElectionInterval.Duration, "etcd-election-interval",
+	fs.DurationVar(&cfg.EtcdElectionInterval, "etcd-election-interval",
 		defaultEtcdElectionInterval, "update interval of etcd election")
-	fs.DurationVar(&cfg.GCLifeTime.Duration, "gc-life-time",
+	fs.DurationVar(&cfg.GCLifeTime, "gc-life-time",
 		defaultGCLifeTime, "gc life time")
 	fs.StringVar(&cfg.PdAddrs, "pd", "", "specify pd address (usage: pd '${pd-addrs}'")
 	fs.StringVar(&cfg.EtcdEndpoint, "etcd", "", "specify etcd endpoints")
@@ -129,9 +121,9 @@ func adjustString(v *string, defValue string) {
 	}
 }
 
-func adjustDuration(d *typeutil.Duration, defValue time.Duration) {
+func adjustDuration(d *time.Duration, defValue time.Duration) {
 	if d.Nanoseconds() == 0 {
-		*d = typeutil.Duration{Duration: defValue}
+		*d = defValue
 	}
 }
 

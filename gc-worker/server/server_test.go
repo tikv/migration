@@ -18,24 +18,20 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net"
 	"net/url"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/pingcap/kvproto/pkg/gcpb"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
-	"github.com/tikv/pd/pkg/tempurl"
-	"github.com/tikv/pd/pkg/tsoutil"
-	"github.com/tikv/pd/pkg/typeutil"
-	"go.etcd.io/etcd/embed"
-	"go.uber.org/atomic"
+	"go.etcd.io/etcd/server/v3/embed"
 )
 
 type MockPDClient struct {
 	pd.Client
-	tsLogical atomic.Uint64
 	// SafePoint set by `UpdateGCSafePoint`. Not to be confused with SafePointKV.
 	gcSafePoint uint64
 	// Represents the current safePoint of all services including TiDB, representing how much data they want to retain
@@ -45,8 +41,8 @@ type MockPDClient struct {
 
 func (c *MockPDClient) GetTS(context.Context) (int64, int64, error) {
 	unixTime := time.Now()
-	ts := tsoutil.GenerateTimestamp(unixTime, c.tsLogical.Add(1)) // set logical as 0
-	return ts.Physical, ts.Logical, nil
+	ts := oracle.GoTimeToTS(unixTime)
+	return oracle.ExtractPhysical(ts), oracle.ExtractLogical(ts), nil
 }
 
 func (c *MockPDClient) UpdateGCSafePoint(ctx context.Context, safePoint uint64) (uint64, error) {
@@ -147,10 +143,10 @@ func NewTestSingleConfig() *embed.Config {
 	cfg.Logger = "zap"
 	cfg.LogOutputs = []string{"stdout"}
 
-	pu, _ := url.Parse(tempurl.Alloc())
+	pu, _ := url.Parse(TempURL())
 	cfg.LPUrls = []url.URL{*pu}
 	cfg.APUrls = cfg.LPUrls
-	cu, _ := url.Parse(tempurl.Alloc())
+	cu, _ := url.Parse(TempURL())
 	cfg.LCUrls = []url.URL{*cu}
 	cfg.ACUrls = cfg.LCUrls
 
@@ -158,6 +154,27 @@ func NewTestSingleConfig() *embed.Config {
 	cfg.InitialCluster = fmt.Sprintf("%s=%s", cfg.Name, &cfg.LPUrls[0])
 	cfg.ClusterState = embed.ClusterStateFlagNew
 	return cfg
+}
+
+// Alloc allocates a local URL for testing.
+func TempURL() string {
+	for i := 0; i < 10; i++ {
+		if u := tryAllocTestURL(); u != "" {
+			return u
+		}
+		time.Sleep(time.Second)
+	}
+	return ""
+}
+
+func tryAllocTestURL() string {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return ""
+	}
+	defer l.Close()
+	addr := fmt.Sprintf("http://%s", l.Addr())
+	return addr
 }
 
 func TestCalcNewGCSafePoint(t *testing.T) {
@@ -180,14 +197,10 @@ func TestCalcNewGCSafePoint(t *testing.T) {
 
 }
 
-<<<<<<< HEAD
-func TestCalcGcSafePoint(t *testing.T) {
-=======
 func TestCalcGCSafePoint(t *testing.T) {
->>>>>>> 2f90671038ab5750e187f6c93cfe22ab04f7a0f7
 	mockPdClient := NewMockPDClient()
 	cfg := NewConfig()
-	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
+	cfg.GCLifeTime = defaultGCLifeTime
 	ctx := context.Background()
 	s := &Server{
 		cfg:            cfg,
@@ -196,23 +209,19 @@ func TestCalcGCSafePoint(t *testing.T) {
 	}
 	defer s.Close()
 	s.pdClient = mockPdClient
-	curTs := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(time.Now(), 0))
-	expectTs := time.Now().Add(-cfg.GCLifeTime.Duration)
-	expectGcSafePoint := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(expectTs, 0))
+	curTs := oracle.GoTimeToTS(time.Now())
+	expectTs := time.Now().Add(-cfg.GCLifeTime)
+	expectGcSafePoint := oracle.GoTimeToTS(expectTs)
 	gcSafePoint, err := s.getGCWorkerSafePoint(ctx)
 	require.NoError(t, err)
 	require.LessOrEqual(t, expectGcSafePoint, gcSafePoint)
 	require.LessOrEqual(t, gcSafePoint, curTs)
 }
 
-<<<<<<< HEAD
-func TestUpdateGcSafePoint(t *testing.T) {
-=======
 func TestUpdateGCSafePoint(t *testing.T) {
->>>>>>> 2f90671038ab5750e187f6c93cfe22ab04f7a0f7
 	mockPdClient := NewMockPDClient()
 	cfg := NewConfig()
-	cfg.GCLifeTime = typeutil.NewDuration(defaultGCLifeTime)
+	cfg.GCLifeTime = defaultGCLifeTime
 	ctx := context.Background()
 	s := &Server{
 		cfg:            cfg,
@@ -221,18 +230,8 @@ func TestUpdateGCSafePoint(t *testing.T) {
 	}
 	defer s.Close()
 	s.pdClient = mockPdClient
-<<<<<<< HEAD
-	mockPdClient.UpdateGCServiceSafePointByServiceGroup(ctx, defaultServiceGroup, "cdc", math.MaxInt64, 100)
-	err := s.updateRawGCSafePoint(ctx)
-	require.NoError(t, err)
-	allSafePoints, err := mockPdClient.GetGCAllServiceGroupSafePoints(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(allSafePoints))
-	require.Equal(t, allSafePoints[0].SafePoint, uint64(100))
-=======
 	mockPdClient.UpdateServiceGCSafePoint(ctx, "cdc", math.MaxInt64, 100)
 	err := s.updateRawGCSafePoint(ctx)
 	require.NoError(t, err)
 	require.Equal(t, mockPdClient.gcSafePoint, uint64(100))
->>>>>>> 2f90671038ab5750e187f6c93cfe22ab04f7a0f7
 }

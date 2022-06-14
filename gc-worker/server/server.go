@@ -26,10 +26,10 @@ import (
 	"github.com/docker/go-units"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
-	"github.com/tikv/pd/pkg/tsoutil"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/clientv3/concurrency"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -211,7 +211,7 @@ func (s *Server) startEtcdLoop() {
 
 	for {
 		select {
-		case <-time.After(s.cfg.EtcdElectionInterval.Duration):
+		case <-time.After(s.cfg.EtcdElectionInterval):
 			session, err := concurrency.NewSession(s.etcdClient, concurrency.WithTTL(5))
 			if err != nil {
 				log.Error("create election session fail", zap.Error(err), zap.String("name", s.cfg.Name))
@@ -242,10 +242,10 @@ func (s *Server) getGCWorkerSafePoint(ctx context.Context) (uint64, error) {
 		log.Error("fail to get tso", zap.Error(err))
 		return 0, errors.Trace(err)
 	}
-	currentTs := tsoutil.ComposeTS(physical, logical)
-	unixTime, _ := tsoutil.ParseTS(currentTs)
-	safePointTime := unixTime.Add(-s.cfg.GCLifeTime.Duration)
-	gcSafePoint := tsoutil.GenerateTS(tsoutil.GenerateTimestamp(safePointTime, 0))
+	currentTs := oracle.ComposeTS(physical, logical)
+	unixTime := oracle.GetTimeFromTS(currentTs)
+	safePointTime := unixTime.Add(-s.cfg.GCLifeTime)
+	gcSafePoint := oracle.GoTimeToTS(safePointTime)
 	return gcSafePoint, nil
 }
 
@@ -353,7 +353,7 @@ func (s *Server) startUpdateGCSafePointLoop() {
 
 	for {
 		select {
-		case <-time.After(s.cfg.SafePointUpdateInterval.Duration):
+		case <-time.After(s.cfg.SafePointUpdateInterval):
 			if !s.IsServing() || !s.IsLead() {
 				log.Info("current node is not serving or not lead", zap.String("worker", s.cfg.Name),
 					zap.Bool("serving", s.IsServing()), zap.Bool("isLead", s.IsLead()))
