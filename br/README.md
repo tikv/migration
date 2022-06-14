@@ -8,7 +8,7 @@
 TiKV-BR 将备份或恢复操作命令下发到各个 TiKV 节点。TiKV 收到命令后执行相应的备份或恢复操作。
 在一次备份或恢复中，各个 TiKV 节点都会有一个对应的备份路径，TiKV 备份时产生的备份文件将会保存在该路径下，恢复时也会从该路径读取相应的备份文件。
 
-<img src="docs/images/arch.svg?sanitize=true" alt="architecture" width="600"/>
+<img src="docs/images/tikv-architecture.png?sanitize=true" alt="architecture" width="600"/>
 
 ## 备份文件类型
 
@@ -46,8 +46,9 @@ make test // 运行测试用例
 
 ### TiKV-BR 命令行描述
 一条 `tikv-br` 命令是由子命令、选项和参数组成的。子命令即不带 `-` 或者 `--` 的字符。选项即以 `-` 或者 `--` 开头的字符。参数即子命令或选项字符后紧跟的、并传递给命令和选项的字符。
-#### 备份全部集群数据
-
+#### 备份集群 Raw 模式数据
+要备份 TiKV 集群中 Raw 模式数据，可使用 `tikv-br backup raw` 命令。该命令的使用帮助可以通过 `tikv-br backup raw --help` 来获取。
+用例：将 TiKV 集群中 Raw 模式数据备份到 `/tmp/backup` 目录中。
 ```
 tikv-br backup raw --pd "&{PDIP}:2379" -s "local:///tmp/backup" --dst-api-version v2 --log-file="/tmp/br_backup.log
 ```
@@ -61,10 +62,10 @@ tikv-br backup raw --pd "&{PDIP}:2379" -s "local:///tmp/backup" --dst-api-versio
 - `--dst-api-version`: 指定备份文件的 `api-version`，请见 tikv config
 - `v2`: `--dst-api-version` 的参数，可选参数为 `v1`, `v1ttl`, `v2`(不区分大小写), 如果不指定 `dst-api-version` 参数，则备份文件的 `api-version` 与指定 `--pd` 所属的 TiKV 集群 `api-version` 相同。
 
-#### 恢复全部备份数据
+#### 恢复 Raw 模式备份数据
 
-要将全部备份数据恢复到集群中来，可使用 `tikv-br restore raw` 命令。该命令的使用帮助可以通过 `tikv-br restore raw --help` 来获取。
-用例：将 `/tmp/backup` 路径中的全部备份数据恢复到集群中。
+要将 Raw 模式备份数据恢复到集群中来，可使用 `tikv-br restore raw` 命令。该命令的使用帮助可以通过 `tikv-br restore raw --help` 来获取。
+用例：将 `/tmp/backup` 路径中的 Raw 模式备份数据恢复到集群中。
 ```
 tikv-br restore raw \
     --pd "${PDIP}:2379" \
