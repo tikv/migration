@@ -55,23 +55,23 @@ func (w workloads) RemoveKeySpan(captureID model.CaptureID, keyspanID model.KeyS
 	delete(captureWorkloads, keyspanID)
 }
 
-func (w workloads) AvgEachKeySpan() int64 {
-	var totalWorkload int64
-	var totalKeySpan int64
+func (w workloads) AvgEachKeySpan() uint64 {
+	var totalWorkload uint64
+	var totalKeySpan uint64
 	for _, captureWorkloads := range w {
 		for _, workload := range captureWorkloads {
 			totalWorkload += workload.Workload
 		}
-		totalKeySpan += int64(len(captureWorkloads))
+		totalKeySpan += uint64(len(captureWorkloads))
 	}
 	return totalWorkload / totalKeySpan
 }
 
 func (w workloads) Skewness() float64 {
-	totalWorkloads := make([]int64, 0, len(w))
-	var workloadSum int64
+	totalWorkloads := make([]uint64, 0, len(w))
+	var workloadSum uint64
 	for _, captureWorkloads := range w {
-		var total int64
+		var total uint64
 		for _, workload := range captureWorkloads {
 			total += workload.Workload
 		}
@@ -88,10 +88,10 @@ func (w workloads) Skewness() float64 {
 }
 
 func (w workloads) SelectIdleCapture() model.CaptureID {
-	minWorkload := int64(math.MaxInt64)
+	minWorkload := uint64(math.MaxInt64)
 	var minCapture model.CaptureID
 	for captureID, captureWorkloads := range w {
-		var totalWorkloadInCapture int64
+		var totalWorkloadInCapture uint64
 		for _, workload := range captureWorkloads {
 			totalWorkloadInCapture += workload.Workload
 		}

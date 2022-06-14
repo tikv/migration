@@ -211,7 +211,7 @@ func (s *oldScheduler) keyspan2CaptureIndex() (map[model.KeySpanID]model.Capture
 // If the TargetCapture of a job is not set, it chooses a capture with the minimum workload(minimum number of keyspans)
 // and sets the TargetCapture to the capture.
 func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
-	workloads := make(map[model.CaptureID]int64)
+	workloads := make(map[model.CaptureID]uint64)
 
 	for captureID := range s.captures {
 		workloads[captureID] = 0
@@ -249,7 +249,7 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 	getMinWorkloadCapture := func() model.CaptureID {
 		count++
 		minCapture := ""
-		minWorkLoad := int64(math.MaxInt64)
+		minWorkLoad := uint64(math.MaxUint64)
 		for captureID, workload := range workloads {
 			if workload < minWorkLoad {
 				minCapture = captureID

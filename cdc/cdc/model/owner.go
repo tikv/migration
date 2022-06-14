@@ -195,7 +195,7 @@ type TaskWorkload map[KeySpanID]WorkloadInfo
 
 // WorkloadInfo records the workload info of a keyspan
 type WorkloadInfo struct {
-	Workload int64 `json:"workload"`
+	Workload uint64 `json:"workload"`
 }
 
 // Unmarshal unmarshals into *TaskWorkload from json marshal byte slice

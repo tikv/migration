@@ -474,6 +474,23 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
 	})
 
+	s.state.PatchTaskWorkload(captureID, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
+		if workload == nil {
+			workload = make(model.TaskWorkload)
+		}
+		for keyspanID := range s.state.TaskStatuses[captureID].KeySpans {
+			if s.state.TaskStatuses[captureID].Operation[keyspanID].Delete {
+				delete(workload, keyspanID)
+			} else {
+				workload[keyspanID] = model.WorkloadInfo{
+					Workload: 1,
+				}
+			}
+		}
+		return workload, true, nil
+	})
+	s.tester.MustApplyPatches()
+
 	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{2, 3}, map[model.KeySpanID]regionspan.Span{
 			2: {Start: []byte{'1'}, End: []byte{'2'}}, 3: {Start: []byte{'2'}, End: []byte{'3'}},
@@ -499,6 +516,23 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 			Status:          model.OperDispatched,
 			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}}},
 	})
+
+	s.state.PatchTaskWorkload(captureID, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
+		if workload == nil {
+			workload = make(model.TaskWorkload)
+		}
+		for keyspanID := range s.state.TaskStatuses[captureID].KeySpans {
+			if s.state.TaskStatuses[captureID].Operation[keyspanID].Delete {
+				delete(workload, keyspanID)
+			} else {
+				workload[keyspanID] = model.WorkloadInfo{
+					Workload: 1,
+				}
+			}
+		}
+		return workload, true, nil
+	})
+	s.tester.MustApplyPatches()
 
 	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{4}, map[model.KeySpanID]regionspan.Span{
@@ -528,4 +562,21 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 			Status:          model.OperDispatched,
 			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 2}, {CaptureID: captureID, KeySpanID: 3}}},
 	})
+
+	s.state.PatchTaskWorkload(captureID, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
+		if workload == nil {
+			workload = make(model.TaskWorkload)
+		}
+		for keyspanID := range s.state.TaskStatuses[captureID].KeySpans {
+			if s.state.TaskStatuses[captureID].Operation[keyspanID].Delete {
+				delete(workload, keyspanID)
+			} else {
+				workload[keyspanID] = model.WorkloadInfo{
+					Workload: 1,
+				}
+			}
+		}
+		return workload, true, nil
+	})
+	s.tester.MustApplyPatches()
 }

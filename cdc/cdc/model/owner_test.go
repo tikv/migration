@@ -120,8 +120,8 @@ func TestTaskWorkloadMarshal(t *testing.T) {
 	t.Parallel()
 
 	workload := &TaskWorkload{
-		12: WorkloadInfo{Workload: int64(1)},
-		15: WorkloadInfo{Workload: int64(3)},
+		12: WorkloadInfo{Workload: uint64(1)},
+		15: WorkloadInfo{Workload: uint64(3)},
 	}
 	expected := `{"12":{"workload":1},"15":{"workload":3}}`
 
