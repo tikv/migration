@@ -48,21 +48,6 @@ func TestAdminJobType(t *testing.T) {
 	}
 }
 
-func TestDDLStateString(t *testing.T) {
-	t.Parallel()
-
-	names := map[ChangeFeedDDLState]string{
-		ChangeFeedSyncDML:          "SyncDML",
-		ChangeFeedWaitToExecDDL:    "WaitToExecDDL",
-		ChangeFeedExecDDL:          "ExecDDL",
-		ChangeFeedDDLExecuteFailed: "DDLExecuteFailed",
-		ChangeFeedDDLState(100):    "Unknown",
-	}
-	for state, name := range names {
-		require.Equal(t, name, state.String())
-	}
-}
-
 func TestTaskPositionMarshal(t *testing.T) {
 	t.Parallel()
 
@@ -265,11 +250,11 @@ func TestAddKeySpan(t *testing.T) {
 		},
 	}
 	status := &TaskStatus{}
-	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: ts}, ts)
+	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: ts}, ts, nil)
 	require.Equal(t, expected, status)
 
 	// add existing keyspan does nothing
-	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: 1}, 1)
+	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: 1}, 1, nil)
 	require.Equal(t, expected, status)
 }
 
@@ -279,8 +264,8 @@ func TestTaskStatusApplyState(t *testing.T) {
 	ts1 := uint64(420875042036766723)
 	ts2 := uint64(420876783269969921)
 	status := &TaskStatus{}
-	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: ts1}, ts1)
-	status.AddKeySpan(2, &KeySpanReplicaInfo{StartTs: ts2}, ts2)
+	status.AddKeySpan(1, &KeySpanReplicaInfo{StartTs: ts1}, ts1, nil)
+	status.AddKeySpan(2, &KeySpanReplicaInfo{StartTs: ts2}, ts2, nil)
 	require.True(t, status.SomeOperationsUnapplied())
 	require.Equal(t, ts1, status.AppliedTs())
 

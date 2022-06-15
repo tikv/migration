@@ -217,7 +217,7 @@ func (s *processorSuite) TestHandleKeySpanOperation4SingleKeySpan(c *check.C) {
 	// add keyspan, in processing
 	// in current implementation of owner, the startTs and BoundaryTs of add keyspan operation should be always equaled.
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddKeySpan(66, &model.KeySpanReplicaInfo{StartTs: 60}, 60)
+		status.AddKeySpan(66, &model.KeySpanReplicaInfo{StartTs: 60}, 60, nil)
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
@@ -351,9 +351,9 @@ func (s *processorSuite) TestHandleKeySpanOperation4MultiKeySpan(c *check.C) {
 	// add keyspan, in processing
 	// in current implementation of owner, the startTs and BoundaryTs of add keyspan operation should be always equaled.
 	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-		status.AddKeySpan(1, &model.KeySpanReplicaInfo{StartTs: 60}, 60)
-		status.AddKeySpan(2, &model.KeySpanReplicaInfo{StartTs: 50}, 50)
-		status.AddKeySpan(3, &model.KeySpanReplicaInfo{StartTs: 40}, 40)
+		status.AddKeySpan(1, &model.KeySpanReplicaInfo{StartTs: 60}, 60, nil)
+		status.AddKeySpan(2, &model.KeySpanReplicaInfo{StartTs: 50}, 50, nil)
+		status.AddKeySpan(3, &model.KeySpanReplicaInfo{StartTs: 40}, 40, nil)
 		status.KeySpans[4] = &model.KeySpanReplicaInfo{StartTs: 30}
 		return status, true, nil
 	})
@@ -925,4 +925,81 @@ func (s *processorSuite) TestIgnorableError(c *check.C) {
 	for _, tc := range testCases {
 		c.Assert(isProcessorIgnorableError(tc.err), check.Equals, tc.ignorable)
 	}
+}
+
+func (s *processorSuite) TestHandleKeySpanOperationWithRelatedKeySpans(c *check.C) {
+	defer testleak.AfterTest(c)()
+	ctx := cdcContext.NewBackendContext4Test(true)
+	p, tester := initProcessor4Test(ctx, c)
+	var err error
+
+	// no operation
+	_, err = p.Tick(ctx, p.changefeed)
+	c.Assert(err, check.IsNil)
+	tester.MustApplyPatches()
+
+	// add keyspan1, in processing
+	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
+		status.AddKeySpan(1, &model.KeySpanReplicaInfo{StartTs: 60}, 80, nil)
+		return status, true, nil
+	})
+	tester.MustApplyPatches()
+	_, err = p.Tick(ctx, p.changefeed)
+	c.Assert(err, check.IsNil)
+	tester.MustApplyPatches()
+	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID], check.DeepEquals, &model.TaskStatus{
+		KeySpans: map[uint64]*model.KeySpanReplicaInfo{
+			1: {StartTs: 60},
+		},
+		Operation: map[uint64]*model.KeySpanOperation{
+			1: {Delete: false, BoundaryTs: 80, Status: model.OperProcessed},
+		},
+	})
+	c.Assert(p.keyspans, check.HasLen, 1)
+	c.Assert(p.changefeed.TaskPositions[p.captureInfo.ID].CheckPointTs, check.Equals, uint64(60))
+	c.Assert(p.changefeed.TaskPositions[p.captureInfo.ID].ResolvedTs, check.Equals, uint64(60))
+
+	// add keyspan2 & keyspan3, remove keyspan1
+	p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
+		status.AddKeySpan(2, &model.KeySpanReplicaInfo{StartTs: 60}, 60, []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}})
+		status.AddKeySpan(3, &model.KeySpanReplicaInfo{StartTs: 60}, 60, []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}})
+		status.RemoveKeySpan(1, 60, false)
+		return status, true, nil
+	})
+	tester.MustApplyPatches()
+	// try to stop keyspand1
+	_, err = p.Tick(ctx, p.changefeed)
+	c.Assert(err, check.IsNil)
+	tester.MustApplyPatches()
+	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID].KeySpans, check.DeepEquals, map[uint64]*model.KeySpanReplicaInfo{
+		2: {StartTs: 60},
+		3: {StartTs: 60},
+	})
+	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID].Operation, check.DeepEquals, map[uint64]*model.KeySpanOperation{
+		1: {Delete: true, BoundaryTs: 60, Status: model.OperProcessed},
+		2: {Delete: false, BoundaryTs: 60, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}}},
+		3: {Delete: false, BoundaryTs: 60, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}}},
+	})
+	keyspan1 := p.keyspans[1].(*mockKeySpanPipeline)
+	keyspan1.status = keyspanpipeline.KeySpanStatusStopped
+
+	// finish stoping keyspand1
+	_, err = p.Tick(ctx, p.changefeed)
+	c.Assert(err, check.IsNil)
+	tester.MustApplyPatches()
+	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID].Operation, check.DeepEquals, map[uint64]*model.KeySpanOperation{
+		1: {Delete: true, BoundaryTs: 60, Status: model.OperFinished},
+		2: {Delete: false, BoundaryTs: 60, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}}},
+		3: {Delete: false, BoundaryTs: 60, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}}},
+	})
+	cleanUpFinishedOpOperation(p.changefeed, p.captureInfo.ID, tester)
+
+	// start keyspan2 & keyspan3
+	_, err = p.Tick(ctx, p.changefeed)
+	c.Assert(err, check.IsNil)
+	tester.MustApplyPatches()
+	c.Assert(p.changefeed.TaskStatuses[p.captureInfo.ID].Operation, check.DeepEquals, map[uint64]*model.KeySpanOperation{
+		2: {Delete: false, BoundaryTs: 60, Status: model.OperProcessed, RelatedKeySpans: []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}}},
+		3: {Delete: false, BoundaryTs: 60, Status: model.OperProcessed, RelatedKeySpans: []model.KeySpanLocation{{CaptureID: p.captureInfo.ID, KeySpanID: 1}}},
+	})
 }
