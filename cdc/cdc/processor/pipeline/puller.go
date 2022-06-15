@@ -37,7 +37,8 @@ type pullerNode struct {
 }
 
 func newPullerNode(
-	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) pipeline.Node {
+	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo,
+) pipeline.Node {
 	return &pullerNode{
 		keyspanID:   keyspanID,
 		replicaInfo: replicaInfo,

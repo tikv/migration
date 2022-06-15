@@ -2851,7 +2851,6 @@ func (s *clientSuite) TestClientErrNoPendingRegion(c *check.C) {
 }
 
 func (s *clientSuite) testClientErrNoPendingRegion(c *check.C) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 

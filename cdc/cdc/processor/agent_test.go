@@ -21,14 +21,15 @@ import (
 	"github.com/pingcap/failpoint"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
+
 	"github.com/tikv/migration/cdc/cdc/model"
 	pscheduler "github.com/tikv/migration/cdc/cdc/scheduler"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/tikv/migration/cdc/pkg/version"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 
 const (

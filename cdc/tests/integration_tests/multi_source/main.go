@@ -213,7 +213,7 @@ func dml(ctx context.Context, db *sql.DB, table string, id int) {
 	insertSQL := fmt.Sprintf("insert into test.`%s`(id1, id2) values(?,?)", table)
 	deleteSQL := fmt.Sprintf("delete from test.`%s` where id1 = ? or id2 = ?", table)
 	for i = 0; ; i++ {
-		_, err = db.Exec(insertSQL, i+id*100000000, i+id*100000000+1)
+		_, err = db.Exec(insertSQL, i+id*100000000, i+id*100000000+1) // #nosec G201
 		if err == nil {
 			insertSuccess++
 			if insertSuccess%100 == 0 {
@@ -225,7 +225,7 @@ func dml(ctx context.Context, db *sql.DB, table string, id int) {
 		}
 
 		if i%2 == 0 {
-			result, err := db.Exec(deleteSQL, i+id*100000000, i+id*100000000+1)
+			result, err := db.Exec(deleteSQL, i+id*100000000, i+id*100000000+1) // #nosec G201
 			if err == nil {
 				rows, _ := result.RowsAffected()
 				if rows != 0 {

@@ -219,7 +219,10 @@ type tikvBatcher struct {
 }
 
 func NewTiKVBatcher() *tikvBatcher {
-	tikvBatcher := &tikvBatcher{}
+	tikvBatcher := &tikvBatcher{
+		Batches:        make(map[model.OpType]*innerBatch),
+		BatchesWithTTL: make(map[model.OpType]*innerBatch),
+	}
 	tikvBatcher.Batches[model.OpTypePut] = &innerBatch{
 		OpType: model.OpTypePut,
 		Keys:   [][]byte{},
@@ -337,7 +340,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 				}
 			}
 
-			if batch, _ := batcher.BatchesWithTTL[model.OpTypePut]; batch.count != 0 {
+			if batch := batcher.BatchesWithTTL[model.OpTypePut]; batch.count != 0 {
 				err = cli.BatchPutWithTTL(ctx, batch.Keys, batch.Values, batch.TTL)
 				if err != nil {
 					return 0, err

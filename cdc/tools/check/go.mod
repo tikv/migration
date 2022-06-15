@@ -1,10 +1,10 @@
-module github.com/pingcap/tidb-cdc/_tools
+module github.com/tikv/migration/cdc/_tools
 
-go 1.16
+go 1.18
 
 require (
-	github.com/AlekSi/gocov-xml v0.0.0-20190121064608-3a14fb1c4737
-	github.com/axw/gocov v1.0.0
+	github.com/AlekSi/gocov-xml v1.0.0
+	github.com/axw/gocov v1.1.0
 	github.com/deepmap/oapi-codegen v1.9.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.6.0
@@ -15,7 +15,7 @@ require (
 	github.com/pingcap/failpoint v0.0.0-20210316064728-7acb0f0a3dfd
 	github.com/rakyll/statik v0.1.7
 	github.com/zhouqiang-cl/gocovmerge v0.0.0-20190125174600-5256314471af
-	gotest.tools/gotestsum v1.7.0 // indirect
-	mvdan.cc/gofumpt v0.1.1
+	gotest.tools/gotestsum v1.8.1
+	mvdan.cc/gofumpt v0.3.1
 	mvdan.cc/sh/v3 v3.3.1
 )

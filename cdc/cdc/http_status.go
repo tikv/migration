@@ -65,7 +65,8 @@ func (s *Server) startStatusHTTP(lis net.Listener) error {
 	router.Any("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// No need to configure TLS because it is already handled by `s.tcpServer`.
-	s.statusServer = &http.Server{Handler: router}
+	// TODO: fix gosec warning: G112 (CWE-400): Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server
+	s.statusServer = &http.Server{Handler: router} // #nosec G112
 
 	go func() {
 		log.Info("http server is running", zap.String("addr", conf.Addr))
