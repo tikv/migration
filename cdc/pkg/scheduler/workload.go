@@ -88,7 +88,7 @@ func (w workloads) Skewness() float64 {
 }
 
 func (w workloads) SelectIdleCapture() model.CaptureID {
-	minWorkload := uint64(math.MaxInt64)
+	minWorkload := uint64(math.MaxUint64)
 	var minCapture model.CaptureID
 	for captureID, captureWorkloads := range w {
 		var totalWorkloadInCapture uint64
