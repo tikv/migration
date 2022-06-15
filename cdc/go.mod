@@ -7,7 +7,7 @@ require (
 	github.com/Shopify/sarama v1.34.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/benbjohnson/clock v1.3.0
-	github.com/bradleyjkemp/grpc-tools v0.2.7
+	github.com/bradleyjkemp/grpc-tools v0.2.5
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/chzyer/readline v1.5.0
 	github.com/cockroachdb/pebble v0.0.0-20211124172904-3ca75111760c
@@ -27,7 +27,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/modern-go/reflect2 v1.0.2
-	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
+	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2
 	github.com/pingcap/check v0.0.0-20211026125417-57bd13f7b5f0
 	github.com/pingcap/errors v0.11.5-0.20211224045212-9687c2b0f87c
 	github.com/pingcap/failpoint v0.0.0-20220423142525-ae43b7f4e5c3
@@ -36,7 +36,7 @@ require (
 	github.com/pingcap/tidb v1.1.0-beta.0.20220528045048-5495dc6c4360
 	github.com/pingcap/tidb-tools v6.0.1-0.20220516050036-b3ea358e374a+incompatible
 	github.com/pingcap/tidb/parser v0.0.0-20220528045048-5495dc6c4360
-	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/client_golang v1.12.2
 	github.com/r3labs/diff v1.1.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/cobra v1.4.0
@@ -65,7 +65,7 @@ require (
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	google.golang.org/grpc v1.46.2
-	upper.io/db.v3 v3.8.0+incompatible
+	upper.io/db.v3 v3.7.1+incompatible
 )
 
 require (
