@@ -1,4 +1,4 @@
-module github.com/pingcap/tidb/_tools
+module github.com/tikv/migration/br/_tools
 
 require (
 	github.com/AlekSi/gocov-xml v1.0.0 // indirect
@@ -14,7 +14,6 @@ require (
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/pingcap/errors v0.11.5-0.20211009033009-93128226aaa3 // indirect
 	github.com/pingcap/failpoint v0.0.0-20200702092429-9f69995143ce // indirect
-	github.com/securego/gosec v0.0.0-20181211171558-12400f9a1ca7
 	github.com/shurcooL/vfsgen v0.0.0-20181202132449-6a9ea43bcacd
 	go.uber.org/automaxprocs v1.4.0 // indirect
 	gopkg.in/alecthomas/gometalinter.v2 v2.0.12 // indirect
@@ -25,4 +24,4 @@ require (
 	honnef.co/go/tools v0.0.0-20180920025451-e3ad64cb4ed3
 )
 
-go 1.16
+go 1.18

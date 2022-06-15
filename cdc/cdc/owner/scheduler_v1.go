@@ -30,6 +30,7 @@ import (
 )
 
 type schedulerJobType string
+type updateCurrentKeySpansFunc func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
 
 const (
 	schedulerJobTypeAddKeySpan    schedulerJobType = "ADD"
@@ -45,6 +46,8 @@ type schedulerJob struct {
 	// if the operation is an add operation, boundaryTs is start ts
 	BoundaryTs    uint64
 	TargetCapture model.CaptureID
+
+	RelatedKeySpans []model.KeySpanLocation
 }
 
 type moveKeySpanJob struct {
@@ -54,7 +57,7 @@ type moveKeySpanJob struct {
 
 type oldScheduler struct {
 	state             *orchestrator.ChangefeedReactorState
-	currentKeySpansID []model.KeySpanID
+	currentKeySpanIDs []model.KeySpanID
 	currentKeySpans   map[model.KeySpanID]regionspan.Span
 	captures          map[model.CaptureID]*model.CaptureInfo
 
@@ -63,13 +66,13 @@ type oldScheduler struct {
 	needRebalanceNextTick bool
 	lastTickCaptureCount  int
 
-	updateCurrentKeySpans func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
+	updateCurrentKeySpans updateCurrentKeySpansFunc
 }
 
-func newSchedulerV1() scheduler {
+func newSchedulerV1(f updateCurrentKeySpansFunc) scheduler {
 	return &schedulerV1CompatWrapper{&oldScheduler{
 		moveKeySpanTargets:    make(map[model.KeySpanID]model.CaptureID),
-		updateCurrentKeySpans: updateCurrentKeySpansImpl,
+		updateCurrentKeySpans: f,
 	}}
 }
 
@@ -79,18 +82,21 @@ func newSchedulerV1() scheduler {
 func (s *oldScheduler) Tick(
 	ctx cdcContext.Context,
 	state *orchestrator.ChangefeedReactorState,
-	// currentKeySpans []model.KeySpanID,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (shouldUpdateState bool, err error) {
-
 	s.state = state
-	s.currentKeySpansID, s.currentKeySpans, err = s.updateCurrentKeySpans(ctx)
+	s.captures = captures
+
+	currentKeySpanIDs, currentKeySpans, err := s.updateCurrentKeySpans(ctx)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
 
+	newKeySpans, needRemoveKeySpans := s.diffCurrentKeySpans(currentKeySpans)
+	s.currentKeySpanIDs, s.currentKeySpans = currentKeySpanIDs, currentKeySpans
+
 	s.cleanUpFinishedOperations()
-	pendingJob, err := s.syncKeySpansWithCurrentKeySpans()
+	pendingJob, err := s.syncKeySpansWithCurrentKeySpans(newKeySpans, needRemoveKeySpans)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -111,6 +117,27 @@ func (s *oldScheduler) Tick(
 	shouldUpdateState = shouldUpdateStateInMoveKeySpan && shouldUpdateState
 	s.lastTickCaptureCount = len(captures)
 	return shouldUpdateState, nil
+}
+
+func (s *oldScheduler) diffCurrentKeySpans(currentKeySpans map[model.KeySpanID]regionspan.Span) (map[model.KeySpanID]struct{}, []model.KeySpanID) {
+	oldKeySpans := s.currentKeySpans
+
+	newKeySpans := map[model.KeySpanID]struct{}{}
+	needRemoveKeySpans := []model.KeySpanID{}
+
+	for keyspanID := range oldKeySpans {
+		if _, ok := currentKeySpans[keyspanID]; !ok {
+			needRemoveKeySpans = append(needRemoveKeySpans, keyspanID)
+		}
+	}
+
+	for keyspanID := range currentKeySpans {
+		if _, ok := oldKeySpans[keyspanID]; !ok {
+			newKeySpans[keyspanID] = struct{}{}
+		}
+	}
+
+	return newKeySpans, needRemoveKeySpans
 }
 
 func (s *oldScheduler) MoveKeySpan(keyspanID model.KeySpanID, target model.CaptureID) {
@@ -218,7 +245,9 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 		}
 	}
 
+	count := 0
 	getMinWorkloadCapture := func() model.CaptureID {
+		count++
 		minCapture := ""
 		minWorkLoad := uint64(math.MaxUint64)
 		for captureID, workload := range workloads {
@@ -246,26 +275,41 @@ func (s *oldScheduler) dispatchToTargetCaptures(pendingJobs []*schedulerJob) {
 
 // syncKeySpansWithCurrentKeySpans iterates all current keyspans to check whether it should be listened or not.
 // this function will return schedulerJob to make sure all keyspans will be listened.
-func (s *oldScheduler) syncKeySpansWithCurrentKeySpans() ([]*schedulerJob, error) {
+func (s *oldScheduler) syncKeySpansWithCurrentKeySpans(newKeySpans map[model.KeySpanID]struct{}, needRemoveKeySpans []model.KeySpanID) ([]*schedulerJob, error) {
 	var pendingJob []*schedulerJob
 	allKeySpanListeningNow, err := s.keyspan2CaptureIndex()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	relatedKeySpans := make([]model.KeySpanLocation, 0, len(needRemoveKeySpans))
+	for _, keyspanID := range needRemoveKeySpans {
+		if captureID, ok := allKeySpanListeningNow[keyspanID]; ok {
+			location := model.KeySpanLocation{
+				CaptureID: captureID,
+				KeySpanID: keyspanID,
+			}
+			relatedKeySpans = append(relatedKeySpans, location)
+		}
+	}
+
 	globalCheckpointTs := s.state.Status.CheckpointTs
-	for _, keyspanID := range s.currentKeySpansID {
+	for _, keyspanID := range s.currentKeySpanIDs {
 		if _, exist := allKeySpanListeningNow[keyspanID]; exist {
 			delete(allKeySpanListeningNow, keyspanID)
 			continue
 		}
-		// For each keyspan which should be listened but is not, add an adding-keyspan job to the pending job list
-		pendingJob = append(pendingJob, &schedulerJob{
+		job := &schedulerJob{
 			Tp:         schedulerJobTypeAddKeySpan,
 			KeySpanID:  keyspanID,
 			Start:      s.currentKeySpans[keyspanID].Start,
 			End:        s.currentKeySpans[keyspanID].End,
 			BoundaryTs: globalCheckpointTs,
-		})
+		}
+		if _, ok := newKeySpans[keyspanID]; ok {
+			job.RelatedKeySpans = relatedKeySpans
+		}
+		// For each keyspan which should be listened but is not, add an adding-keyspan job to the pending job list
+		pendingJob = append(pendingJob, job)
 	}
 	// The remaining keyspans are the keyspans which should be not listened
 	keyspansThatShouldNotBeListened := allKeySpanListeningNow
@@ -300,7 +344,7 @@ func (s *oldScheduler) handleJobs(jobs []*schedulerJob) {
 					StartTs: job.BoundaryTs,
 					Start:   job.Start,
 					End:     job.End,
-				}, job.BoundaryTs)
+				}, job.BoundaryTs, job.RelatedKeySpans)
 			case schedulerJobTypeRemoveKeySpan:
 				failpoint.Inject("OwnerRemoveKeySpanError", func() {
 					// just skip removing this keyspan
@@ -450,6 +494,10 @@ func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[m
 	return currentKeySpansID, currentKeySpans, nil
 }
 
+func updateCurrentKeySpansImpl4Test(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	return nil, nil, nil
+}
+
 // schedulerV1CompatWrapper is used to wrap the old scheduler to
 // support the compatibility with the new scheduler.
 // It incorporates watermark calculations into the scheduler, which
@@ -506,6 +554,11 @@ func (w *schedulerV1CompatWrapper) calculateWatermarks(
 			}
 		}
 	}
+
+	if resolvedTs == model.Ts(math.MaxUint64) {
+		return schedulerv2.CheckpointCannotProceed, 0
+	}
+
 	checkpointTs := resolvedTs
 	for _, position := range state.TaskPositions {
 		if checkpointTs > position.CheckPointTs {

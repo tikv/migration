@@ -16,6 +16,8 @@ package owner
 import (
 	"fmt"
 	"math/rand"
+	"sort"
+	"testing"
 
 	"github.com/pingcap/check"
 	"github.com/tikv/migration/cdc/cdc/model"
@@ -25,6 +27,10 @@ import (
 	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
+
+func Test(t *testing.T) {
+	check.TestingT(t)
+}
 
 var _ = check.Suite(&schedulerSuite{})
 
@@ -40,7 +46,7 @@ func (s *schedulerSuite) reset(c *check.C) {
 	s.changefeedID = fmt.Sprintf("test-changefeed-%x", rand.Uint32())
 	s.state = orchestrator.NewChangefeedReactorState("test-changefeed")
 	s.tester = orchestrator.NewReactorStateTester(c, s.state, nil)
-	s.scheduler = newSchedulerV1().(*schedulerV1CompatWrapper).inner
+	s.scheduler = newSchedulerV1(updateCurrentKeySpansImpl4Test).(*schedulerV1CompatWrapper).inner
 	s.captures = make(map[model.CaptureID]*model.CaptureInfo)
 	s.state.PatchStatus(func(status *model.ChangeFeedStatus) (*model.ChangeFeedStatus, bool, error) {
 		return &model.ChangeFeedStatus{}, true, nil
@@ -95,6 +101,10 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	defer cancel()
 
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return nil, nil, nil
+	}
+
 	_, _ = s.scheduler.Tick(ctx, s.state, s.captures)
 
 	// Manually simulate the scenario where the corresponding key was deleted in the etcd
@@ -110,7 +120,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	captureID = "test-capture-1"
 	s.addCapture(captureID)
 
-	// add three keyspans
+	// add 4 keyspans
 	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1, 2, 3, 4}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'2'}},
@@ -123,25 +133,28 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
+
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		1: {StartTs: 0}, 2: {StartTs: 0}, 3: {StartTs: 0}, 4: {StartTs: 0},
+		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
+		2: {StartTs: 0, Start: []byte{'2'}, End: []byte{'3'}},
+		3: {StartTs: 0, Start: []byte{'3'}, End: []byte{'4'}},
+		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
 	})
+
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
-		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
-		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
-		3: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
-		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
+		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
+		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
+		3: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
+		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
 	})
 
 	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1, 2, 3, 4},
-
 	c.Assert(err, check.IsNil)
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
 
 	// two keyspans finish adding operation
 	s.finishKeySpanOperation(captureID, 2, 3)
-
 	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{3, 4, 5}, map[model.KeySpanID]regionspan.Span{
 			3: {Start: []byte{'3'}, End: []byte{'4'}},
@@ -155,13 +168,24 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		3: {StartTs: 0}, 4: {StartTs: 0}, 5: {StartTs: 0},
+		3: {StartTs: 0, Start: []byte{'3'}, End: []byte{'4'}},
+		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
+		5: {StartTs: 0, Start: []byte{'5'}, End: []byte{'6'}},
+	})
+
+	keyspanOperation, IsTrue := s.state.TaskStatuses[captureID].Operation[5]
+	c.Assert(IsTrue, check.IsTrue)
+	sort.SliceStable(keyspanOperation.RelatedKeySpans, func(i, j int) bool {
+		return keyspanOperation.RelatedKeySpans[i].KeySpanID < keyspanOperation.RelatedKeySpans[j].KeySpanID
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
-		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
-		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
-		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
-		5: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
+		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
+		5: {Delete: false,
+			BoundaryTs:      0,
+			Status:          model.OperDispatched,
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}, {CaptureID: captureID, KeySpanID: 2}}},
 	})
 
 	// move a non exist keyspan to a non exist capture
@@ -174,14 +198,24 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		4: {StartTs: 0}, 5: {StartTs: 0},
+		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
+		5: {StartTs: 0, Start: []byte{'5'}, End: []byte{'6'}},
+	})
+
+	keyspanOperation, IsTrue = s.state.TaskStatuses[captureID].Operation[5]
+	c.Assert(IsTrue, check.IsTrue)
+	sort.SliceStable(keyspanOperation.RelatedKeySpans, func(i, j int) bool {
+		return keyspanOperation.RelatedKeySpans[i].KeySpanID < keyspanOperation.RelatedKeySpans[j].KeySpanID
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
-		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
-		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
-		3: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
-		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
-		5: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
+		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		3: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
+		5: {Delete: false,
+			BoundaryTs:      0,
+			Status:          model.OperDispatched,
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}, {CaptureID: captureID, KeySpanID: 2}}},
 	})
 
 	// finish all operations
@@ -192,7 +226,8 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		4: {StartTs: 0}, 5: {StartTs: 0},
+		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
+		5: {StartTs: 0, Start: []byte{'5'}, End: []byte{'6'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 
@@ -203,7 +238,8 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		4: {StartTs: 0}, 5: {StartTs: 0},
+		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
+		5: {StartTs: 0, Start: []byte{'5'}, End: []byte{'6'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 
@@ -212,10 +248,12 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		3: {StartTs: 0}, 4: {StartTs: 0}, 5: {StartTs: 0},
+		3: {StartTs: 0, Start: []byte{'3'}, End: []byte{'4'}},
+		4: {StartTs: 0, Start: []byte{'4'}, End: []byte{'5'}},
+		5: {StartTs: 0, Start: []byte{'5'}, End: []byte{'6'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
-		3: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
+		3: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 	})
 }
 
@@ -241,10 +279,10 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		1: {StartTs: 0},
+		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
-		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
+		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
 	})
 
 	s.finishKeySpanOperation(captureID1, 1)
@@ -267,14 +305,14 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		1: {StartTs: 0},
+		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		2: {StartTs: 0},
+		2: {StartTs: 0, Start: []byte{'2'}, End: []byte{'3'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
-		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
+		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
 	})
 
 	s.finishKeySpanOperation(captureID2, 2)
@@ -285,12 +323,12 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		1: {StartTs: 0},
+		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{})
 	c.Assert(s.state.TaskStatuses[captureID2].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
-		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched},
+		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 	})
 
 	s.finishKeySpanOperation(captureID2, 2)
@@ -300,7 +338,7 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsTrue)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		1: {StartTs: 0},
+		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{})
 	c.Assert(s.state.TaskStatuses[captureID2].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{})
@@ -311,7 +349,8 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	c.Assert(shouldUpdateState, check.IsFalse)
 	s.tester.MustApplyPatches()
 	c.Assert(s.state.TaskStatuses[captureID1].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
-		1: {StartTs: 0}, 2: {StartTs: 0},
+		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
+		2: {StartTs: 0, Start: []byte{'2'}, End: []byte{'3'}},
 	})
 	c.Assert(s.state.TaskStatuses[captureID1].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		2: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched},
@@ -406,4 +445,121 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 		}
 	}
 	c.Assert(keyspanIDs, check.DeepEquals, map[model.KeySpanID]struct{}{1: {}, 2: {}, 3: {}, 4: {}, 5: {}, 6: {}})
+}
+
+func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
+	defer testleak.AfterTest(c)()
+	s.reset(c)
+	captureID := "test-capture"
+	s.addCapture(captureID)
+
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{1}, map[model.KeySpanID]regionspan.Span{
+			1: {Start: []byte{'1'}, End: []byte{'3'}},
+		}, nil
+	}
+
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{1},
+	c.Assert(err, check.IsNil)
+	c.Assert(shouldUpdateState, check.IsFalse)
+	s.tester.MustApplyPatches()
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
+		1: {StartTs: 0, Start: []byte{'1'}, End: []byte{'3'}},
+	})
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
+		1: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
+	})
+
+	s.state.PatchTaskWorkload(captureID, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
+		if workload == nil {
+			workload = make(model.TaskWorkload)
+		}
+		for keyspanID := range s.state.TaskStatuses[captureID].KeySpans {
+			if s.state.TaskStatuses[captureID].Operation[keyspanID].Delete {
+				delete(workload, keyspanID)
+			} else {
+				workload[keyspanID] = model.WorkloadInfo{
+					Workload: 1,
+				}
+			}
+		}
+		return workload, true, nil
+	})
+	s.tester.MustApplyPatches()
+
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{2, 3}, map[model.KeySpanID]regionspan.Span{
+			2: {Start: []byte{'1'}, End: []byte{'2'}}, 3: {Start: []byte{'2'}, End: []byte{'3'}},
+		}, nil
+	}
+
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{2, 3},
+	c.Assert(err, check.IsNil)
+	c.Assert(shouldUpdateState, check.IsFalse)
+	s.tester.MustApplyPatches()
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
+		2: {StartTs: 0, Start: []byte{'1'}, End: []byte{'2'}},
+		3: {StartTs: 0, Start: []byte{'2'}, End: []byte{'3'}},
+	})
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
+		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		2: {Delete: false,
+			BoundaryTs:      0,
+			Status:          model.OperDispatched,
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}}},
+		3: {Delete: false,
+			BoundaryTs:      0,
+			Status:          model.OperDispatched,
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}}},
+	})
+
+	s.state.PatchTaskWorkload(captureID, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
+		if workload == nil {
+			workload = make(model.TaskWorkload)
+		}
+		for keyspanID := range s.state.TaskStatuses[captureID].KeySpans {
+			if s.state.TaskStatuses[captureID].Operation[keyspanID].Delete {
+				delete(workload, keyspanID)
+			} else {
+				workload[keyspanID] = model.WorkloadInfo{
+					Workload: 1,
+				}
+			}
+		}
+		return workload, true, nil
+	})
+	s.tester.MustApplyPatches()
+
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+		return []model.KeySpanID{4}, map[model.KeySpanID]regionspan.Span{
+			4: {Start: []byte{'1'}, End: []byte{'3'}},
+		}, nil
+	}
+	shouldUpdateState, err = s.scheduler.Tick(ctx, s.state, s.captures) // []model.KeySpanID{4},
+	c.Assert(err, check.IsNil)
+	c.Assert(shouldUpdateState, check.IsFalse)
+	s.tester.MustApplyPatches()
+	c.Assert(s.state.TaskStatuses[captureID].KeySpans, check.DeepEquals, map[model.KeySpanID]*model.KeySpanReplicaInfo{
+		4: {StartTs: 0, Start: []byte{'1'}, End: []byte{'3'}},
+	})
+
+	keyspanOperation, IsTrue := s.state.TaskStatuses[captureID].Operation[4]
+	c.Assert(IsTrue, check.IsTrue)
+	sort.SliceStable(keyspanOperation.RelatedKeySpans, func(i, j int) bool {
+		return keyspanOperation.RelatedKeySpans[i].KeySpanID < keyspanOperation.RelatedKeySpans[j].KeySpanID
+	})
+
+	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
+		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		3: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
+		4: {Delete: false,
+			BoundaryTs:      0,
+			Status:          model.OperDispatched,
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 2}, {CaptureID: captureID, KeySpanID: 3}}},
+	})
 }

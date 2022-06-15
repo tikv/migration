@@ -104,7 +104,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	}
 	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
 	if !CheckBackupAPIVersion(curAPIVersion, dstAPIVersion) {
-		return errors.Errorf("Unsupported backup api version, cur:%s, dst:%s.",
+		return errors.Errorf("Unsupported backup api version, cur:%s, dst:%s",
 			curAPIVersion.String(), cfg.DstAPIVersion)
 	}
 	opts := storage.ExternalStorageOptions{
@@ -182,7 +182,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	// backup meta range should in DstAPIVersion format
 	metaRange := utils.ConvertBackupConfigKeyRange(cfg.StartKey, cfg.EndKey, curAPIVersion, dstAPIVersion)
 	if metaRange == nil {
-		return errors.Errorf("fail to convert key. curAPIVer:%d, dstAPIVer:%d.", curAPIVersion, dstAPIVersion)
+		return errors.Errorf("fail to convert key. curAPIVer:%d, dstAPIVer:%d", curAPIVersion, dstAPIVersion)
 	}
 	rawRanges := []*backuppb.RawRange{{StartKey: metaRange.Start, EndKey: metaRange.End, Cf: "default"}}
 	metaWriter.Update(func(m *backuppb.BackupMeta) {

@@ -165,6 +165,8 @@ type KeySpanOperation struct {
 	// if the operation is a add operation, BoundaryTs is start ts
 	BoundaryTs uint64 `json:"boundary_ts"`
 	Status     uint64 `json:"status,omitempty"`
+
+	RelatedKeySpans []KeySpanLocation `json:"related_key_spans"`
 }
 
 // KeySpanProcessed returns whether the keyspan has been processed by processor
@@ -217,7 +219,6 @@ type KeySpanReplicaInfo struct {
 	StartTs Ts `json:"start-ts"`
 	Start   []byte
 	End     []byte
-	// MarkKeySpanID KeySpanID `json:"mark-keyspan-id"`
 }
 
 // Clone clones a KeySpanReplicaInfo
@@ -270,7 +271,7 @@ func (ts *TaskStatus) RemoveKeySpan(id KeySpanID, boundaryTs Ts, isMoveKeySpan b
 }
 
 // AddKeySpan add the keyspan in KeySpanInfos and add a add kyespan operation.
-func (ts *TaskStatus) AddKeySpan(id KeySpanID, keyspan *KeySpanReplicaInfo, boundaryTs Ts) {
+func (ts *TaskStatus) AddKeySpan(id KeySpanID, keyspan *KeySpanReplicaInfo, boundaryTs Ts, relatedKeySpans []KeySpanLocation) {
 	if ts.KeySpans == nil {
 		ts.KeySpans = make(map[KeySpanID]*KeySpanReplicaInfo)
 	}
@@ -284,9 +285,10 @@ func (ts *TaskStatus) AddKeySpan(id KeySpanID, keyspan *KeySpanReplicaInfo, boun
 		ts.Operation = make(map[KeySpanID]*KeySpanOperation)
 	}
 	ts.Operation[id] = &KeySpanOperation{
-		Delete:     false,
-		BoundaryTs: boundaryTs,
-		Status:     OperDispatched,
+		Delete:          false,
+		BoundaryTs:      boundaryTs,
+		Status:          OperDispatched,
+		RelatedKeySpans: relatedKeySpans,
 	}
 }
 
@@ -447,4 +449,10 @@ type ProcInfoSnap struct {
 	CfID      string                            `json:"changefeed-id"`
 	CaptureID string                            `json:"capture-id"`
 	KeySpans  map[KeySpanID]*KeySpanReplicaInfo `json:"-"`
+}
+
+// KeySpanLocation records which capture a keyspan is in
+type KeySpanLocation struct {
+	CaptureID string    `json:"capture_id"`
+	KeySpanID KeySpanID `json:"keyspan_id"`
 }

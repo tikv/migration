@@ -15,7 +15,6 @@ package owner
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/pingcap/check"
@@ -136,7 +135,7 @@ func (s *changefeedSuite) TestRemoveChangefeed(c *check.C) {
 		ID:   ctx.ChangefeedVars().ID,
 		Info: info,
 	})
-	testChangefeedReleaseResource(c, ctx, cancel, dir, true /*expectedInitialized*/)
+	testChangefeedReleaseResource(c, ctx, cancel, true /*expectedInitialized*/)
 }
 
 func (s *changefeedSuite) TestRemovePausedChangefeed(c *check.C) {
@@ -155,14 +154,13 @@ func (s *changefeedSuite) TestRemovePausedChangefeed(c *check.C) {
 		ID:   ctx.ChangefeedVars().ID,
 		Info: info,
 	})
-	testChangefeedReleaseResource(c, ctx, cancel, dir, false /*expectedInitialized*/)
+	testChangefeedReleaseResource(c, ctx, cancel, false /*expectedInitialized*/)
 }
 
 func testChangefeedReleaseResource(
 	c *check.C,
 	ctx cdcContext.Context,
 	cancel context.CancelFunc,
-	redoLogDir string,
 	expectedInitialized bool,
 ) {
 	cf, state, captures, tester := createChangefeed4Test(ctx, c)
@@ -185,7 +183,4 @@ func testChangefeedReleaseResource(
 	err := cf.tick(ctx, state, captures)
 	c.Assert(err, check.IsNil)
 	cancel()
-	// check redo log dir is deleted
-	_, err = os.Stat(redoLogDir)
-	c.Assert(os.IsNotExist(err), check.IsTrue)
 }

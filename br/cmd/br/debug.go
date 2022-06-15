@@ -265,7 +265,7 @@ func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
 	}
 	fileChecksum, keyRanges := task.CalcChecksumAndRangeFromBackupMeta(ctx, backupMeta, storageAPIVersion)
 	if !task.CheckBackupAPIVersion(storageAPIVersion, backupMeta.ApiVersion) {
-		return errors.Errorf("Unsupported api version, storage:%s, backup meta:%s.",
+		return errors.Errorf("Unsupported api version, storage:%s, backup meta:%s",
 			storageAPIVersion.String(), backupMeta.ApiVersion.String())
 	}
 	checksumMethod := checksum.StorageChecksumCommand
