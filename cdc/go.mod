@@ -225,8 +225,9 @@ require (
 	sourcegraph.com/sourcegraph/appdash v0.0.0-20190731080439-ebfcffb1b5c0 // indirect
 )
 
-replace github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
-
-replace github.com/golang-jwt/jwt v3.2.1+incompatible => github.com/golang-jwt/jwt v3.2.0+incompatible
-
-replace github.com/uber-go/atomic => go.uber.org/atomic v1.4.0
+replace (
+	github.com/benbjohnson/clock v1.3.0 => github.com/benbjohnson/clock v1.1.0
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
+	github.com/golang-jwt/jwt v3.2.1+incompatible => github.com/golang-jwt/jwt v3.2.0+incompatible
+	github.com/uber-go/atomic => go.uber.org/atomic v1.4.0
+)
