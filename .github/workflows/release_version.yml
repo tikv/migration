@@ -1,6 +1,6 @@
 #
-# triggered when release a new version, tag should be format with name-version
-# For example: tikv-br-v1.0.1/tikv-cdc-v1.0.0/gc-worker-v1.0.0
+# Triggered when release a new version, tag should be formatted as {dir}-{version}
+# For example: br-v1.0.1/cdc-v1.0.0/gc-worker-v1.0.0
 #
 name: release-new-version
 
@@ -19,9 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      REL_VER: ${{ steps.build.outputs.REL_VER }}
-      PORD_NAME: ${{ steps.build.outputs.PORD_NAME }}
-      PORD_DIR: ${{ steps.build.outputs.PORD_DIR }}
+      PROD_VER: ${{ steps.build.outputs.PROD_VER }}
+      PROD_NAME: ${{ steps.build.outputs.PROD_NAME }}
+      PROD_DIR: ${{ steps.build.outputs.PROD_DIR }}
     strategy:
       fail-fast: true
       matrix:
@@ -71,49 +71,48 @@ jobs:
           export GOPATH=${GITHUB_WORKSPACE}/go
           export PATH=$PATH:$GOPATH/bin
           if [ ! -z ${{ steps.check_staging.outputs.STAGING }} ]; then
-            export EXTRA_LDFLAGS="-X \"github.com/${{ github.repository }}/pkg/version.TiUPVerName=${{ steps.check_staging.outputs.STAGING }}\""
             export REL_VER=${{ steps.check_staging.outputs.STAGING }}+staging
           else
             export REL_VER=`git describe --tags --always`
           fi
-          if [[ $REL_VER == tikv-br* ]];then
-            export PORD_NAME=tikv-br
-            export PORD_DIR=br
-          elif [[ $REL_VER == tikv-cdc* ]];then
-            export PORD_NAME=tikv-cdc
-            export PORD_DIR=cdc
-          elif [[ $REL_VER == gc-worker* ]];then
-            export PORD_NAME=gc-worker
-            export PORD_DIR=gc-worker
+          
+          if [[ $REL_VER =~ ^(br|cdc|gc-worker)-v.*$ ]];then
+            echo "REL_TAG:"$REL_VER
+          else
+            echo "invalid tag:"$REL_VER
+            exit 1
           fi
-
-          echo ::set-output name=REL_VER::$REL_VER
-          echo ::set-output name=PORD_NAME::$PORD_NAME
-          echo ::set-output name=PORD_DIR::$PORD_DIR
-          cd $PORD_DIR
-          make
+          export PROD_DIR=${REL_VER%-v*}  # get the directory, br/cdc/gc-worker
+          export PROD_NAME=tikv-${REL_VER%-v*} # concatenate the binary name, tikv-br/tikv-cdc/tikv-gc-worker
+          export PROD_VER=v${REL_VER#*-v}
+          # output the parameters for usage in other steps.
+          echo ::set-output name=PROD_VER::$PROD_VER
+          echo ::set-output name=PROD_NAME::$PROD_NAME
+          echo ::set-output name=PROD_DIR::$PROD_DIR
+          cd $PROD_DIR
+          make release
           echo "Build success."
       - name: Package components
         id: packaging
         working-directory: ${{ env.working-directory }}
         env:
           ARCH: ${{ matrix.os }}-${{ matrix.arch }}
-          REL_VER: ${{ steps.build.outputs.REL_VER }}
-          PORD_NAME: ${{ steps.build.outputs.PORD_NAME }}
-          PORD_DIR: ${{ steps.build.outputs.PORD_DIR }}
+          PROD_VER: ${{ steps.build.outputs.PROD_VER }}
+          PROD_NAME: ${{ steps.build.outputs.PROD_NAME }}
+          PROD_DIR: ${{ steps.build.outputs.PROD_DIR }}
         run: |
-          cd $PORD_DIR
+          cd $PROD_DIR
           mkdir package
-          tar -C bin -czvf package/$REL_VER-$ARCH.tar.gz $PORD_NAME
-          checksum_file=package/$REL_VER-$ARCH.tar.gz.md5
-          md5sum package/$REL_VER-$ARCH.tar.gz >> ${checksum_file}
+          tar -C bin -czvf package/$PROD_NAME-$PROD_VER-$ARCH.tar.gz $PROD_NAME
+          checksum_file=package/$PROD_NAME-$PROD_VER-$ARCH.tar.gz.md5
+          md5sum package/$PROD_NAME-$PROD_VER-$ARCH.tar.gz >> ${checksum_file}
           ls package/
       - name: Upload the all-in-one tarball to GitHub release
         uses: ncipollo/release-action@v1
         if: github.event_name == 'release'
         with:
           allowUpdates: true
-          artifacts: ${{ env.working-directory }}/${{ steps.build.outputs.PORD_DIR }}/package/${{ steps.build.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz*
+          artifacts: ${{ env.working-directory }}/${{ steps.build.outputs.PROD_DIR }}/package/${{ steps.build.outputs.PROD_NAME }}-${{ steps.build.outputs.PROD_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz*
           artifactContentType: application/gzip
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true
