@@ -104,14 +104,14 @@ unit_test: check_failpoint_ctl
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	$(FAILPOINT_DISABLE)
 
-unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum tools/bin/gocov tools/bin/gocov-xml
+unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum gocov gocov-xml
 	mkdir -p "$(TEST_DIR)"
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
 	CGO_ENABLED=1 tools/bin/gotestsum --junitfile cdc-junit-report.xml -- -v -timeout 30m -p $(P) --race \
 	-covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES) \
 	|| { $(FAILPOINT_DISABLE); exit 1; }
-	tools/bin/gocov convert "$(TEST_DIR)/cov.unit.out" | tools/bin/gocov-xml > cdc-coverage.xml
+	gocov convert "$(TEST_DIR)/cov.unit.out" | gocov-xml > cdc-coverage.xml
 	$(FAILPOINT_DISABLE)
 	@bash <(curl -s https://codecov.io/bash) -F cdc -f $(TEST_DIR)/cov.unit.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
@@ -137,11 +137,11 @@ check-copyright:
 check-static: tools/bin/golangci-lint
 	tools/bin/golangci-lint run --timeout 10m0s --skip-files kv_gen --skip-dirs tests
 
-fmt: gofumpt tools/bin/shfmt
+fmt: gofumpt shfmt
 	@echo "gofmt (simplify)"
 	gofumpt -l -w $(FILES) 2>&1 | $(FAIL_ON_STDOUT)
 	@echo "run shfmt"
-	tools/bin/shfmt -d -w .
+	shfmt -d -w .
 
 errdoc: tools/bin/errdoc-gen
 	@echo "generator errors.toml"
@@ -205,17 +205,17 @@ tools/bin/statik: tools/check/go.mod
 gofumpt:
 	$(GO) install mvdan.cc/gofumpt@latest
 
-tools/bin/shfmt: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/shfmt mvdan.cc/sh/v3/cmd/shfmt
+shfmt:
+	$(GO) install mvdan.cc/sh/v3/cmd/shfmt@latest
 
 tools/bin/oapi-codegen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/oapi-codegen github.com/deepmap/oapi-codegen/cmd/oapi-codegen
 
-tools/bin/gocov: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov  github.com/axw/gocov/gocov
+gocov:
+	$(GO) install github.com/axw/gocov/gocov@latest
 
-tools/bin/gocov-xml: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
+gocov-xml:
+	$(GO) install github.com/AlekSi/gocov-xml@latest
 
 tools/bin/gotestsum: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/gotestsum gotest.tools/gotestsum
