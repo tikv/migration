@@ -2899,11 +2899,14 @@ func (s *clientSuite) testClientErrNoPendingRegion(c *check.C) {
 	}()
 
 	baseAllocatedID := currentRequestID()
+	log.Error("testClientErrNoPendingRegion 0", zap.Uint64("baseAllocatedID", baseAllocatedID))
 	// wait the second region is scheduled
 	time.Sleep(time.Millisecond * 500)
+	log.Error("waitRequestID 1", zap.Uint64("baseAllocatedID+1", baseAllocatedID+1))
 	waitRequestID(c, baseAllocatedID+1)
 	initialized := mockInitializedEvent(regionID3, currentRequestID())
 	ch1 <- initialized
+	log.Error("waitRequestID 2", zap.Uint64("baseAllocatedID+2", baseAllocatedID+2))
 	waitRequestID(c, baseAllocatedID+2)
 	initialized = mockInitializedEvent(regionID4, currentRequestID())
 	ch1 <- initialized
