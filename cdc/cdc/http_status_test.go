@@ -37,7 +37,7 @@ import (
 	security2 "github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"github.com/tikv/pd/pkg/tempurl"
-	"go.etcd.io/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/client/v3/concurrency"
 )
 
 type httpStatusSuite struct{}
@@ -265,7 +265,6 @@ func (s *httpStatusSuite) TestServerTLSWithoutCommonName(c *check.C) {
 	wg.Wait()
 }
 
-//
 func (s *httpStatusSuite) TestServerTLSWithCommonName(c *check.C) {
 	defer testleak.AfterTest(c)
 	addr := tempurl.Alloc()[len("http://"):]

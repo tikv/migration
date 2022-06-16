@@ -182,10 +182,12 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
-		5: {Delete: false,
+		5: {
+			Delete:          false,
 			BoundaryTs:      0,
 			Status:          model.OperDispatched,
-			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}, {CaptureID: captureID, KeySpanID: 2}}},
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}, {CaptureID: captureID, KeySpanID: 2}},
+		},
 	})
 
 	// move a non exist keyspan to a non exist capture
@@ -212,10 +214,12 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		3: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		4: {Delete: false, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: []model.KeySpanLocation{}},
-		5: {Delete: false,
+		5: {
+			Delete:          false,
 			BoundaryTs:      0,
 			Status:          model.OperDispatched,
-			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}, {CaptureID: captureID, KeySpanID: 2}}},
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}, {CaptureID: captureID, KeySpanID: 2}},
+		},
 	})
 
 	// finish all operations
@@ -507,14 +511,18 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 	})
 	c.Assert(s.state.TaskStatuses[captureID].Operation, check.DeepEquals, map[model.KeySpanID]*model.KeySpanOperation{
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
-		2: {Delete: false,
+		2: {
+			Delete:          false,
 			BoundaryTs:      0,
 			Status:          model.OperDispatched,
-			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}}},
-		3: {Delete: false,
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}},
+		},
+		3: {
+			Delete:          false,
 			BoundaryTs:      0,
 			Status:          model.OperDispatched,
-			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}}},
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 1}},
+		},
 	})
 
 	s.state.PatchTaskWorkload(captureID, func(workload model.TaskWorkload) (model.TaskWorkload, bool, error) {
@@ -557,9 +565,11 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 		1: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		2: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
 		3: {Delete: true, BoundaryTs: 0, Status: model.OperDispatched, RelatedKeySpans: nil},
-		4: {Delete: false,
+		4: {
+			Delete:          false,
 			BoundaryTs:      0,
 			Status:          model.OperDispatched,
-			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 2}, {CaptureID: captureID, KeySpanID: 3}}},
+			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 2}, {CaptureID: captureID, KeySpanID: 3}},
+		},
 	})
 }

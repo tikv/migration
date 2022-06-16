@@ -23,7 +23,7 @@ import (
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"go.etcd.io/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/client/v3/concurrency"
 )
 
 // capture holds capture information.

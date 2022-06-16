@@ -165,7 +165,8 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 	keyspanID model.KeySpanID,
 	replicaInfo *model.KeySpanReplicaInfo,
 	sink sink.Sink,
-	targetTs model.Ts) KeySpanPipeline {
+	targetTs model.Ts,
+) KeySpanPipeline {
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	replConfig := ctx.ChangefeedVars().Info.Config
 	keyspanPipeline := &keyspanPipelineImpl{

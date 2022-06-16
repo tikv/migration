@@ -44,7 +44,8 @@ func (t *KeySpanNumberScheduler) Skewness() float64 {
 
 // CalRebalanceOperates implements the Scheduler interface
 func (t *KeySpanNumberScheduler) CalRebalanceOperates(targetSkewness float64) (
-	skewness float64, moveKeySpanJobs map[model.KeySpanID]*model.MoveKeySpanJob) {
+	skewness float64, moveKeySpanJobs map[model.KeySpanID]*model.MoveKeySpanJob,
+) {
 	var totalKeySpanNumber uint64
 	for _, captureWorkloads := range t.workloads {
 		totalKeySpanNumber += uint64(len(captureWorkloads))

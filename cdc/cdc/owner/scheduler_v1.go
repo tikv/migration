@@ -29,8 +29,10 @@ import (
 	"go.uber.org/zap"
 )
 
-type schedulerJobType string
-type updateCurrentKeySpansFunc func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
+type (
+	schedulerJobType          string
+	updateCurrentKeySpansFunc func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
+)
 
 const (
 	schedulerJobTypeAddKeySpan    schedulerJobType = "ADD"
@@ -511,7 +513,6 @@ func (w *schedulerV1CompatWrapper) Tick(
 	state *orchestrator.ChangefeedReactorState,
 	captures map[model.CaptureID]*model.CaptureInfo,
 ) (newCheckpointTs, newResolvedTs model.Ts, err error) {
-
 	shouldUpdateState, err := w.inner.Tick(ctx, state, captures)
 	if err != nil {
 		return schedulerv2.CheckpointCannotProceed, schedulerv2.CheckpointCannotProceed, err

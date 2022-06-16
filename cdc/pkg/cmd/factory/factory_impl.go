@@ -19,16 +19,17 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
+	pd "github.com/tikv/pd/client"
+	etcdlogutil "go.etcd.io/etcd/client/pkg/v3/logutil"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
+
 	cmdconetxt "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/pkg/version"
-	pd "github.com/tikv/pd/client"
-	"go.etcd.io/etcd/clientv3"
-	etcdlogutil "go.etcd.io/etcd/pkg/logutil"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
 )
 
 type factoryImpl struct {
