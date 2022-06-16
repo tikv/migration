@@ -28,7 +28,7 @@ import (
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/tikv/migration/cdc/pkg/version"
-	"go.etcd.io/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )

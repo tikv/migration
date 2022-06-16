@@ -86,7 +86,8 @@ func (s *mockSink) Barrier(ctx context.Context, keyspanID model.KeySpanID) error
 func (s *mockSink) Check(t *testing.T, expected []struct {
 	resolvedTs model.Ts
 	rawKVEntry *model.RawKVEntry
-}) {
+},
+) {
 	require.Equal(t, expected, s.received)
 }
 

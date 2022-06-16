@@ -148,7 +148,6 @@ func TestShouldBeDeepCopy(t *testing.T) {
 	t.Parallel()
 
 	info := TaskStatus{
-
 		KeySpans: map[KeySpanID]*KeySpanReplicaInfo{
 			1: {StartTs: 100},
 			2: {StartTs: 100},

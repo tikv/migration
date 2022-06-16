@@ -89,7 +89,7 @@ func createTable(db *sql.DB, tableName string) error {
 
 func doDMLs(db *sql.DB, tableName string, numQueries int) error {
 	log.Info("Start inserting data", zap.String("tableName", tableName), zap.Int("numQueries", numQueries))
-	stmt, err := db.Prepare("insert into " + quotes.QuoteName(tableName) + " (id, v1, v2) values (?, ?, ?)")
+	stmt, err := db.Prepare("insert into " + quotes.QuoteName(tableName) + " (id, v1, v2) values (?, ?, ?)") // #nosec G202
 	if err != nil {
 		return errors.Trace(err)
 	}

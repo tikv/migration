@@ -104,14 +104,14 @@ unit_test: check_failpoint_ctl
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	$(FAILPOINT_DISABLE)
 
-unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum tools/bin/gocov tools/bin/gocov-xml
+unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum gocov gocov-xml
 	mkdir -p "$(TEST_DIR)"
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
 	CGO_ENABLED=1 tools/bin/gotestsum --junitfile cdc-junit-report.xml -- -v -timeout 30m -p $(P) --race \
 	-covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES) \
 	|| { $(FAILPOINT_DISABLE); exit 1; }
-	tools/bin/gocov convert "$(TEST_DIR)/cov.unit.out" | tools/bin/gocov-xml > cdc-coverage.xml
+	gocov convert "$(TEST_DIR)/cov.unit.out" | gocov-xml > cdc-coverage.xml
 	$(FAILPOINT_DISABLE)
 	@bash <(curl -s https://codecov.io/bash) -F cdc -f $(TEST_DIR)/cov.unit.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
@@ -137,17 +137,17 @@ check-copyright:
 check-static: tools/bin/golangci-lint
 	tools/bin/golangci-lint run --timeout 10m0s --skip-files kv_gen --skip-dirs tests
 
-fmt: tools/bin/gofumports tools/bin/shfmt
+fmt: gofumpt shfmt
 	@echo "gofmt (simplify)"
-	tools/bin/gofumports -l -w $(FILES) 2>&1 | $(FAIL_ON_STDOUT)
+	gofumpt -l -w $(FILES) 2>&1 | $(FAIL_ON_STDOUT)
 	@echo "run shfmt"
-	tools/bin/shfmt -d -w .
+	shfmt -d -w .
 
 errdoc: tools/bin/errdoc-gen
 	@echo "generator errors.toml"
 	./tools/check/check-errdoc.sh
 
-check-leaktest-added: tools/bin/gofumports
+check-leaktest-added: gofumpt
 	@echo "check leak test added in all unit tests"
 	./scripts/add-leaktest.sh $(TEST_FILES)
 
@@ -155,9 +155,8 @@ check-merge-conflicts:
 	@echo "check-merge-conflicts"
 	@./scripts/check-merge-conflicts.sh
 
-check-gosec:
-	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.9.1
-	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
+check-gosec: tools/bin/gosec
+	tools/bin/gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
 check: check-copyright fmt check-static tidy errdoc check-leaktest-added check-merge-conflicts
 
@@ -189,7 +188,7 @@ tools/bin/goveralls: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/goveralls github.com/mattn/goveralls
 
 tools/bin/golangci-lint: tools/check/go.mod
-	cd tools/check && $(GO) build  -mod=mod -o ../bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b tools/bin v1.46.2
 
 tools/bin/mockgen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/mockgen github.com/golang/mock/mockgen
@@ -203,26 +202,29 @@ tools/bin/protoc-gen-grpc-gateway: tools/check/go.mod
 tools/bin/statik: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/statik github.com/rakyll/statik
 
-tools/bin/gofumports: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gofumports mvdan.cc/gofumpt/gofumports
+gofumpt:
+	$(GO) install mvdan.cc/gofumpt@latest
 
-tools/bin/shfmt: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/shfmt mvdan.cc/sh/v3/cmd/shfmt
+shfmt:
+	$(GO) install mvdan.cc/sh/v3/cmd/shfmt@latest
 
 tools/bin/oapi-codegen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/oapi-codegen github.com/deepmap/oapi-codegen/cmd/oapi-codegen
 
-tools/bin/gocov: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov  github.com/axw/gocov/gocov
+gocov:
+	$(GO) install github.com/axw/gocov/gocov@latest
 
-tools/bin/gocov-xml: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
+gocov-xml:
+	$(GO) install github.com/AlekSi/gocov-xml@latest
 
 tools/bin/gotestsum: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/gotestsum gotest.tools/gotestsum
 
 tools/bin/errdoc-gen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/errdoc-gen github.com/pingcap/errors/errdoc-gen
+
+tools/bin/gosec:
+	curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b tools/bin v2.12.0
 
 check_failpoint_ctl: tools/bin/failpoint-ctl
 

@@ -26,6 +26,15 @@ import (
 	"github.com/pingcap/log"
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/prometheus/client_golang/prometheus"
+	pd "github.com/tikv/pd/client"
+	"go.etcd.io/etcd/client/pkg/v3/logutil"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
+
 	"github.com/tikv/migration/cdc/cdc/capture"
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -38,14 +47,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
 	p2pProto "github.com/tikv/migration/cdc/proto/p2p"
-	pd "github.com/tikv/pd/client"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/pkg/logutil"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
 )
 
 const (

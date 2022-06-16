@@ -76,12 +76,14 @@ type sinkInitFunc func(context.Context, model.ChangeFeedID, *url.URL, *config.Re
 func init() {
 	// register blackhole sink
 	sinkIniterMap["blackhole"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
-		config *config.ReplicaConfig, opts map[string]string, errCh chan error) (Sink, error) {
+		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	) (Sink, error) {
 		return newBlackHoleSink(ctx, opts), nil
 	}
 
 	sinkIniterMap["tikv"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
-		config *config.ReplicaConfig, opts map[string]string, errCh chan error) (Sink, error) {
+		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	) (Sink, error) {
 		return newTiKVSink(ctx, sinkURI, config, opts, errCh)
 	}
 }

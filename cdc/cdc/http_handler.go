@@ -28,7 +28,7 @@ import (
 	"github.com/tikv/migration/cdc/cdc/owner"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/logutil"
-	"go.etcd.io/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
 )
 

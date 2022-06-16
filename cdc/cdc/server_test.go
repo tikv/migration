@@ -30,8 +30,8 @@ import (
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/embed"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/server/v3/embed"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -86,7 +86,6 @@ var _ = check.Suite(&serverSuite{})
 
 func (s *serverSuite) TestEtcdHealthChecker(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	s.errg.Go(func() error {
 		err := s.server.etcdHealthChecker(s.ctx)
@@ -100,7 +99,6 @@ func (s *serverSuite) TestEtcdHealthChecker(c *check.C) {
 
 func (s *serverSuite) TestSetUpDataDir(c *check.C) {
 	defer testleak.AfterTest(c)()
-	defer s.TearDownTest(c)
 
 	conf := config.GetGlobalServerConfig()
 	// DataDir is not set, and no changefeed exist, use the default

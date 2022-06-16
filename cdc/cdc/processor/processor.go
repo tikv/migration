@@ -608,7 +608,6 @@ func (p *processor) checkRelatedKeyspans(relatedKeySpans []model.KeySpanLocation
 				return false
 			}
 		}
-
 	}
 	return true
 }
