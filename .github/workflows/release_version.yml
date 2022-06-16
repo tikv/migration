@@ -1,10 +1,10 @@
----
-name: release-tikv-br
+#
+# triggered when release a new version, tag should be format with name-version
+# For example: tikv-br-v1.0.1/tikv-cdc-v1.0.0/gc-worker-v1.0.0
+#
+name: release-new-version
 
 on:
-  push:
-    branches:
-      - release-br-*
   release:
     types:
       - published
@@ -19,18 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      REL_VER: ${{ steps.build_tikv_br.outputs.REL_VER }}
+      REL_VER: ${{ steps.build.outputs.REL_VER }}
+      PORD_NAME: ${{ steps.build.outputs.PORD_NAME }}
+      PORD_DIR: ${{ steps.build.outputs.PORD_DIR }}
     strategy:
       fail-fast: true
       matrix:
         os:
           - "linux"
-#          - "darwin"
         arch:
           - "amd64"
-#          - "arm64"
     env:
-      working-directory: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/br
+      working-directory: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}
     steps:
       - name: Set up Go 1.18.1
         uses: actions/setup-go@v2
@@ -65,15 +65,8 @@ jobs:
           COMMIT_TIMESTAMP=`git show --no-patch --no-notes --pretty='%aI'`
           echo ::set-output name=COMMIT_TIMESTAMP::$COMMIT_TIMESTAMP
       - name: Build for ${{ matrix.os }}-${{ matrix.arch }}
-        id: build_tikv_br
+        id: build
         working-directory: ${{ env.working-directory }}
-        env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-          COMMIT: ${GITHUB_SHA}
-          GITREF: ${{ steps.get_git.outputs.GIT_REF }}
-          actor: ${{ github.actor }}
-          event: ${{ github.event_name }}
         run: |
           export GOPATH=${GITHUB_WORKSPACE}/go
           export PATH=$PATH:$GOPATH/bin
@@ -83,27 +76,44 @@ jobs:
           else
             export REL_VER=`git describe --tags --always`
           fi
+          if [[ $REL_VER == tikv-br* ]];then
+            export PORD_NAME=tikv-br
+            export PORD_DIR=br
+          elif [[ $REL_VER == tikv-cdc* ]];then
+            export PORD_NAME=tikv-cdc
+            export PORD_DIR=cdc
+          elif [[ $REL_VER == gc-worker* ]];then
+            export PORD_NAME=gc-worker
+            export PORD_DIR=gc-worker
+          fi
+
           echo ::set-output name=REL_VER::$REL_VER
-          make release;
+          echo ::set-output name=PORD_NAME::$PORD_NAME
+          echo ::set-output name=PORD_DIR::$PORD_DIR
+          cd $PORD_DIR
+          make
           echo "Build success."
       - name: Package components
         id: packaging
         working-directory: ${{ env.working-directory }}
         env:
           ARCH: ${{ matrix.os }}-${{ matrix.arch }}
-          REL_VER: ${{ steps.build_tikv_br.outputs.REL_VER }}
+          REL_VER: ${{ steps.build.outputs.REL_VER }}
+          PORD_NAME: ${{ steps.build.outputs.PORD_NAME }}
+          PORD_DIR: ${{ steps.build.outputs.PORD_DIR }}
         run: |
+          cd $PORD_DIR
           mkdir package
-          tar zcvf package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz bin/tikv-br
-          checksum_file=package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.md5
-          md5sum package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz >> ${checksum_file}
+          tar -C bin -czvf package/$REL_VER-$ARCH.tar.gz $PORD_NAME
+          checksum_file=package/$REL_VER-$ARCH.tar.gz.md5
+          md5sum package/$REL_VER-$ARCH.tar.gz >> ${checksum_file}
           ls package/
       - name: Upload the all-in-one tarball to GitHub release
         uses: ncipollo/release-action@v1
         if: github.event_name == 'release'
         with:
           allowUpdates: true
-          artifacts: ${{ env.working-directory }}/package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz*
+          artifacts: ${{ env.working-directory }}/${{ steps.build.outputs.PORD_DIR }}/package/${{ steps.build.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz*
           artifactContentType: application/gzip
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true
