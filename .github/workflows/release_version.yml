@@ -1,10 +1,10 @@
----
-name: release-tikv-br
+#
+# Triggered when release a new version, tag should be formatted as {dir}-{version}
+# For example: br-v1.0.1/cdc-v1.0.0/gc-worker-v1.0.0
+#
+name: release-new-version
 
 on:
-  push:
-    branches:
-      - release-br-*
   release:
     types:
       - published
@@ -19,18 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      REL_VER: ${{ steps.build_tikv_br.outputs.REL_VER }}
+      PROD_VER: ${{ steps.build.outputs.PROD_VER }}
+      PROD_NAME: ${{ steps.build.outputs.PROD_NAME }}
+      PROD_DIR: ${{ steps.build.outputs.PROD_DIR }}
     strategy:
       fail-fast: true
       matrix:
         os:
           - "linux"
-#          - "darwin"
         arch:
           - "amd64"
-#          - "arm64"
     env:
-      working-directory: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/br
+      working-directory: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}
     steps:
       - name: Set up Go 1.18.1
         uses: actions/setup-go@v2
@@ -65,45 +65,54 @@ jobs:
           COMMIT_TIMESTAMP=`git show --no-patch --no-notes --pretty='%aI'`
           echo ::set-output name=COMMIT_TIMESTAMP::$COMMIT_TIMESTAMP
       - name: Build for ${{ matrix.os }}-${{ matrix.arch }}
-        id: build_tikv_br
+        id: build
         working-directory: ${{ env.working-directory }}
-        env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-          COMMIT: ${GITHUB_SHA}
-          GITREF: ${{ steps.get_git.outputs.GIT_REF }}
-          actor: ${{ github.actor }}
-          event: ${{ github.event_name }}
         run: |
           export GOPATH=${GITHUB_WORKSPACE}/go
           export PATH=$PATH:$GOPATH/bin
           if [ ! -z ${{ steps.check_staging.outputs.STAGING }} ]; then
-            export EXTRA_LDFLAGS="-X \"github.com/${{ github.repository }}/pkg/version.TiUPVerName=${{ steps.check_staging.outputs.STAGING }}\""
             export REL_VER=${{ steps.check_staging.outputs.STAGING }}+staging
           else
             export REL_VER=`git describe --tags --always`
           fi
-          echo ::set-output name=REL_VER::$REL_VER
-          make release;
+          
+          if [[ $REL_VER =~ ^(br|cdc|gc-worker)-v.*$ ]];then
+            echo "REL_TAG:"$REL_VER
+          else
+            echo "invalid tag:"$REL_VER
+            exit 1
+          fi
+          export PROD_DIR=${REL_VER%-v*}  # get the directory, br/cdc/gc-worker
+          export PROD_NAME=tikv-${REL_VER%-v*} # concatenate the binary name, tikv-br/tikv-cdc/tikv-gc-worker
+          export PROD_VER=v${REL_VER#*-v}
+          # output the parameters for usage in other steps.
+          echo ::set-output name=PROD_VER::$PROD_VER
+          echo ::set-output name=PROD_NAME::$PROD_NAME
+          echo ::set-output name=PROD_DIR::$PROD_DIR
+          cd $PROD_DIR
+          make release
           echo "Build success."
       - name: Package components
         id: packaging
         working-directory: ${{ env.working-directory }}
         env:
           ARCH: ${{ matrix.os }}-${{ matrix.arch }}
-          REL_VER: ${{ steps.build_tikv_br.outputs.REL_VER }}
+          PROD_VER: ${{ steps.build.outputs.PROD_VER }}
+          PROD_NAME: ${{ steps.build.outputs.PROD_NAME }}
+          PROD_DIR: ${{ steps.build.outputs.PROD_DIR }}
         run: |
+          cd $PROD_DIR
           mkdir package
-          tar zcvf package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz bin/tikv-br
-          checksum_file=package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.md5
-          md5sum package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz >> ${checksum_file}
+          tar -C bin -czvf package/$PROD_NAME-$PROD_VER-$ARCH.tar.gz $PROD_NAME
+          checksum_file=package/$PROD_NAME-$PROD_VER-$ARCH.tar.gz.md5
+          md5sum package/$PROD_NAME-$PROD_VER-$ARCH.tar.gz >> ${checksum_file}
           ls package/
       - name: Upload the all-in-one tarball to GitHub release
         uses: ncipollo/release-action@v1
         if: github.event_name == 'release'
         with:
           allowUpdates: true
-          artifacts: ${{ env.working-directory }}/package/tikv-br-${{ steps.build_tikv_br.outputs.REL_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz*
+          artifacts: ${{ env.working-directory }}/${{ steps.build.outputs.PROD_DIR }}/package/${{ steps.build.outputs.PROD_NAME }}-${{ steps.build.outputs.PROD_VER }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz*
           artifactContentType: application/gzip
           omitBodyDuringUpdate: true
           omitNameDuringUpdate: true

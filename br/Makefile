@@ -13,7 +13,7 @@
 # limitations under the License.
 
 .PHONY: check test build clean 
-default: build
+default: release
 all: check test build clean
 
 # golang
