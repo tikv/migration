@@ -68,7 +68,7 @@ type clientSuite struct {
 	e *embed.Etcd
 }
 
-var _ = check.Suite(&clientSuite{})
+var _ = check.SerialSuites(&clientSuite{}) // should be serial, as some test cases depend on global variable `currentRequestID()`
 
 func (s *clientSuite) SetUpTest(c *check.C) {
 	dir := c.MkDir()
@@ -2891,6 +2891,7 @@ func (s *clientSuite) testClientErrNoPendingRegion(c *check.C) {
 	defer regionCache.Close()
 	cdcClient := NewCDCClient(ctx, pdClient, kvStorage, grpcPool, regionCache)
 	eventCh := make(chan model.RegionFeedEvent, 10)
+	baseAllocatedID := currentRequestID() // should get `currentRequestID()` before goroutine for `cdcClient.EventFeed`
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -2898,7 +2899,6 @@ func (s *clientSuite) testClientErrNoPendingRegion(c *check.C) {
 		c.Assert(errors.Cause(err), check.Equals, context.Canceled)
 	}()
 
-	baseAllocatedID := currentRequestID()
 	// wait the second region is scheduled
 	time.Sleep(time.Millisecond * 500)
 	waitRequestID(c, baseAllocatedID+1)
