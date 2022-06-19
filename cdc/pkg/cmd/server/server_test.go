@@ -194,16 +194,6 @@ func TestParseCfg(t *testing.T) {
 				IteratorSlowReadDuration:    256,
 				CleanupSpeedLimit:           10000,
 			},
-			// We expect the default configuration here.
-			Messages: &config.MessagesConfig{
-				ClientMaxBatchInterval:       config.TomlDuration(time.Millisecond * 200),
-				ClientMaxBatchSize:           8 * 1024 * 1024,
-				ClientMaxBatchCount:          128,
-				ClientRetryRateLimit:         1.0,
-				ServerMaxPendingMessageCount: 102400,
-				ServerAckInterval:            config.TomlDuration(time.Millisecond * 100),
-				ServerWorkerPoolSize:         4,
-			},
 		},
 	}, o.serverConfig)
 }
@@ -333,15 +323,6 @@ server-worker-pool-size = 16
 				IteratorSlowReadDuration:    256,
 				CompactionDeletionThreshold: 15,
 			},
-			Messages: &config.MessagesConfig{
-				ClientMaxBatchInterval:       config.TomlDuration(500 * time.Millisecond),
-				ClientMaxBatchSize:           999,
-				ClientMaxBatchCount:          888,
-				ClientRetryRateLimit:         100.0,
-				ServerMaxPendingMessageCount: 1024,
-				ServerAckInterval:            config.TomlDuration(1 * time.Second),
-				ServerWorkerPoolSize:         16,
-			},
 		},
 	}, o.serverConfig)
 }
@@ -470,16 +451,6 @@ cert-allowed-cn = ["dd","ee"]
 				IteratorSlowReadDuration:    256,
 				CleanupSpeedLimit:           10000,
 			},
-			// We expect the default configuration here.
-			Messages: &config.MessagesConfig{
-				ClientMaxBatchInterval:       config.TomlDuration(time.Millisecond * 200),
-				ClientMaxBatchSize:           8 * 1024 * 1024,
-				ClientMaxBatchCount:          128,
-				ClientRetryRateLimit:         1.0,
-				ServerMaxPendingMessageCount: 102400,
-				ServerAckInterval:            config.TomlDuration(time.Millisecond * 100),
-				ServerWorkerPoolSize:         4,
-			},
 		},
 	}, o.serverConfig)
 }
@@ -525,16 +496,6 @@ unknown3 = 3
 			IteratorMaxAliveDuration:    10000,
 			IteratorSlowReadDuration:    256,
 			CleanupSpeedLimit:           10000,
-		},
-		// We expect the default configuration here.
-		Messages: &config.MessagesConfig{
-			ClientMaxBatchInterval:       config.TomlDuration(time.Millisecond * 200),
-			ClientMaxBatchSize:           8 * 1024 * 1024,
-			ClientMaxBatchCount:          128,
-			ClientRetryRateLimit:         1.0,
-			ServerMaxPendingMessageCount: 102400,
-			ServerAckInterval:            config.TomlDuration(time.Millisecond * 100),
-			ServerWorkerPoolSize:         4,
 		},
 	}, o.serverConfig.Debug)
 }

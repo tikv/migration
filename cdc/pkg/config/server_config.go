@@ -99,7 +99,6 @@ var defaultServerConfig = &ServerConfig{
 	},
 	Debug: &DebugConfig{
 		EnableKeySpanActor: false,
-		EnableNewScheduler: false,
 		// Default leveldb sorter config
 		EnableDBSorter: false,
 		DB: &DBConfig{
@@ -121,7 +120,6 @@ var defaultServerConfig = &ServerConfig{
 			IteratorSlowReadDuration:    256,
 			CleanupSpeedLimit:           10000,
 		},
-		Messages: defaultMessageConfig.Clone(),
 	},
 }
 

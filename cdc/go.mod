@@ -26,7 +26,6 @@ require (
 	github.com/integralist/go-findroot v0.0.0-20160518114804-ac90681525dc
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/mattn/go-shellwords v1.0.12
-	github.com/modern-go/reflect2 v1.0.2
 	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2
 	github.com/pingcap/check v0.0.0-20211026125417-57bd13f7b5f0
 	github.com/pingcap/errors v0.11.5-0.20211224045212-9687c2b0f87c
@@ -51,8 +50,6 @@ require (
 	github.com/tikv/pd/client v0.0.0-20220307081149-841fa61e9710
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.3
-	github.com/uber-go/atomic v1.4.0
-	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/xdg/scram v1.0.5
 	go.etcd.io/etcd/api/v3 v3.5.4
 	go.etcd.io/etcd/client/pkg/v3 v3.5.4
@@ -152,6 +149,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/ncw/directio v1.0.5 // indirect
 	github.com/ngaut/pools v0.0.0-20180318154953-b7bc8c42aac7 // indirect
 	github.com/ngaut/sync2 v0.0.0-20141008032647-7a24ed77b2ef // indirect
@@ -184,7 +182,6 @@ require (
 	github.com/uber/jaeger-client-go v2.22.1+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/ugorji/go/codec v1.2.6 // indirect
-	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f // indirect
 	github.com/xdg/stringprep v1.0.3 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect

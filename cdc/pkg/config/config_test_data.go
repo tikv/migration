@@ -126,16 +126,6 @@ const (
       "iterator-max-alive-duration": 10000,
       "iterator-slow-read-duration": 256,
       "cleanup-speed-limit": 10000
-    },
-    "enable-new-scheduler": false,
-    "messages": {
-      "client-max-batch-interval": 200000000,
-      "client-max-batch-size": 8388608,
-      "client-max-batch-count": 128,
-      "client-retry-rate-limit": 1,
-      "server-max-pending-message-count": 102400,
-      "server-ack-interval": 100000000,
-      "server-worker-pool-size": 4
     }
   }
 }`

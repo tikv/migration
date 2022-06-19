@@ -36,7 +36,6 @@ import (
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
-	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/tikv/migration/cdc/pkg/pdtime"
 	"github.com/tikv/migration/cdc/pkg/version"
 	pd "github.com/tikv/pd/client"
@@ -67,23 +66,6 @@ type Capture struct {
 	TimeAcquirer pdtime.TimeAcquirer
 	// sorterSystem *ssystem.System
 
-	enableNewScheduler bool
-	// keyspanActorSystem *system.System
-
-	// MessageServer is the receiver of the messages from the other nodes.
-	// It should be recreated each time the capture is restarted.
-	MessageServer *p2p.MessageServer
-
-	// MessageRouter manages the clients to send messages to all peers.
-	MessageRouter p2p.MessageRouter
-
-	// grpcService is a wrapper that can hold a MessageServer.
-	// The instance should last for the whole life of the server,
-	// regardless of server restarting.
-	// This design is to solve the problem that grpc-go cannot gracefully
-	// unregister a service.
-	grpcService *p2p.ServerWrapper
-
 	cancel context.CancelFunc
 
 	newProcessorManager func() *processor.Manager
@@ -91,16 +73,13 @@ type Capture struct {
 }
 
 // NewCapture returns a new Capture instance
-func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, etcdClient *etcd.CDCEtcdClient, grpcService *p2p.ServerWrapper) *Capture {
-	conf := config.GetGlobalServerConfig()
+func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, etcdClient *etcd.CDCEtcdClient) *Capture {
 	return &Capture{
-		pdClient:    pdClient,
-		kvStorage:   kvStorage,
-		etcdClient:  etcdClient,
-		grpcService: grpcService,
-		cancel:      func() {},
+		pdClient:   pdClient,
+		kvStorage:  kvStorage,
+		etcdClient: etcdClient,
+		cancel:     func() {},
 
-		enableNewScheduler:  conf.Debug.EnableNewScheduler,
 		newProcessorManager: processor.NewManager,
 		newOwner:            owner.NewOwner,
 	}
@@ -144,37 +123,11 @@ func (c *Capture) reset(ctx context.Context) error {
 		c.grpcPool.Close()
 	}
 
-	if c.enableNewScheduler {
-		c.grpcService.Reset(nil)
-
-		if c.MessageRouter != nil {
-			c.MessageRouter.Close()
-			c.MessageRouter.Wait()
-			c.MessageRouter = nil
-		}
-	}
-
 	c.grpcPool = kv.NewGrpcPoolImpl(ctx, conf.Security)
 	if c.regionCache != nil {
 		c.regionCache.Close()
 	}
 	c.regionCache = tikv.NewRegionCache(c.pdClient)
-
-	if c.enableNewScheduler {
-		messageServerConfig := conf.Debug.Messages.ToMessageServerConfig()
-		c.MessageServer = p2p.NewMessageServer(c.info.ID, messageServerConfig)
-		c.grpcService.Reset(c.MessageServer)
-
-		messageClientConfig := conf.Debug.Messages.ToMessageClientConfig()
-
-		// Puts the advertise-addr of the local node to the client config.
-		// This is for metrics purpose only, so that the receiver knows which
-		// node the connections are from.
-		advertiseAddr := conf.AdvertiseAddr
-		messageClientConfig.AdvertisedAddr = advertiseAddr
-
-		c.MessageRouter = p2p.NewMessageRouter(c.info.ID, conf.Security, messageClientConfig)
-	}
 
 	log.Info("init capture",
 		zap.String("capture-id", c.info.ID),
@@ -222,15 +175,13 @@ func (c *Capture) Run(ctx context.Context) error {
 
 func (c *Capture) run(stdCtx context.Context) error {
 	ctx := cdcContext.NewContext(stdCtx, &cdcContext.GlobalVars{
-		PDClient:      c.pdClient,
-		KVStorage:     c.kvStorage,
-		CaptureInfo:   c.info,
-		EtcdClient:    c.etcdClient,
-		GrpcPool:      c.grpcPool,
-		RegionCache:   c.regionCache,
-		TimeAcquirer:  c.TimeAcquirer,
-		MessageServer: c.MessageServer,
-		MessageRouter: c.MessageRouter,
+		PDClient:     c.pdClient,
+		KVStorage:    c.kvStorage,
+		CaptureInfo:  c.info,
+		EtcdClient:   c.etcdClient,
+		GrpcPool:     c.grpcPool,
+		RegionCache:  c.regionCache,
+		TimeAcquirer: c.TimeAcquirer,
 	})
 	err := c.register(ctx)
 	if err != nil {
@@ -264,15 +215,6 @@ func (c *Capture) run(stdCtx context.Context) error {
 
 		globalState := orchestrator.NewGlobalState()
 
-		if c.enableNewScheduler {
-			globalState.SetOnCaptureAdded(func(captureID model.CaptureID, addr string) {
-				c.MessageRouter.AddPeer(captureID, addr)
-			})
-			globalState.SetOnCaptureRemoved(func(captureID model.CaptureID) {
-				c.MessageRouter.RemovePeer(captureID)
-			})
-		}
-
 		// when the etcd worker of processor returns an error, it means that the processor throws an unrecoverable serious errors
 		// (recoverable errors are intercepted in the processor tick)
 		// so we should also stop the processor and let capture restart or exit
@@ -289,15 +231,6 @@ func (c *Capture) run(stdCtx context.Context) error {
 		defer wg.Done()
 		c.grpcPool.RecycleConn(ctx)
 	}()
-	if c.enableNewScheduler {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer c.AsyncClose()
-			defer c.grpcService.Reset(nil)
-			messageServerErr = c.MessageServer.Run(ctx)
-		}()
-	}
 	wg.Wait()
 	if ownerErr != nil {
 		return errors.Annotate(ownerErr, "owner exited with error")
@@ -376,17 +309,6 @@ func (c *Capture) campaignOwner(ctx cdcContext.Context) error {
 
 		owner := c.newOwner(c.pdClient)
 		c.setOwner(owner)
-
-		globalState := orchestrator.NewGlobalState()
-
-		if c.enableNewScheduler {
-			globalState.SetOnCaptureAdded(func(captureID model.CaptureID, addr string) {
-				c.MessageRouter.AddPeer(captureID, addr)
-			})
-			globalState.SetOnCaptureRemoved(func(captureID model.CaptureID) {
-				c.MessageRouter.RemovePeer(captureID)
-			})
-		}
 
 		err = c.runEtcdWorker(ownerCtx, owner, orchestrator.NewGlobalState(), ownerFlushInterval)
 		c.setOwner(nil)
@@ -497,15 +419,6 @@ func (c *Capture) AsyncClose() {
 	if c.regionCache != nil {
 		c.regionCache.Close()
 		c.regionCache = nil
-	}
-	if c.enableNewScheduler {
-		c.grpcService.Reset(nil)
-
-		if c.MessageRouter != nil {
-			c.MessageRouter.Close()
-			c.MessageRouter.Wait()
-			c.MessageRouter = nil
-		}
 	}
 }
 
