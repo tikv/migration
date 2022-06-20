@@ -29,7 +29,6 @@ import (
 	"github.com/tikv/migration/cdc/cdc/model"
 	keyspanpipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
 	"github.com/tikv/migration/cdc/cdc/sink"
-	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
@@ -54,13 +53,6 @@ type processor struct {
 
 	lazyInit              func(ctx cdcContext.Context) error
 	createKeySpanPipeline func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error)
-	newAgent              func(ctx cdcContext.Context) (processorAgent, error)
-
-	// fields for integration with Scheduler(V2).
-	newSchedulerEnabled bool
-	agent               processorAgent
-	checkpointTs        model.Ts
-	resolvedTs          model.Ts
 
 	metricResolvedTsGauge       prometheus.Gauge
 	metricResolvedTsLagGauge    prometheus.Gauge
@@ -70,144 +62,10 @@ type processor struct {
 	metricProcessorErrorCounter prometheus.Counter
 }
 
-// checkReadyForMessages checks whether all necessary Etcd keys have been established.
-func (p *processor) checkReadyForMessages() bool {
-	return p.changefeed != nil && p.changefeed.Status != nil
-}
-
-// AddKeySpan implements KeySpanExecutor interface.
-func (p *processor) AddKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID, start []byte, end []byte) (bool, error) {
-	if !p.checkReadyForMessages() {
-		return false, nil
-	}
-
-	log.Info("adding keyspan",
-		zap.Uint64("keyspan-id", keyspanID),
-		cdcContext.ZapFieldChangefeed(ctx))
-
-	keyspanReplicaInfo := &model.KeySpanReplicaInfo{
-		Start: start,
-		End:   end,
-	}
-	err := p.addKeySpan(ctx, keyspanID, keyspanReplicaInfo)
-	if err != nil {
-		return false, errors.Trace(err)
-	}
-	return true, nil
-}
-
-// RemoveKeySpan implements KeySpanExecutor interface.
-func (p *processor) RemoveKeySpan(ctx cdcContext.Context, keyspanID model.KeySpanID) (bool, error) {
-	if !p.checkReadyForMessages() {
-		return false, nil
-	}
-
-	keyspan, ok := p.keyspans[keyspanID]
-	if !ok {
-		log.Warn("keyspan which will be deleted is not found",
-			cdcContext.ZapFieldChangefeed(ctx), zap.Uint64("keyspanID", keyspanID))
-		return true, nil
-	}
-
-	boundaryTs := p.changefeed.Status.CheckpointTs
-	if !keyspan.AsyncStop(boundaryTs) {
-		// We use a Debug log because it is conceivable for the pipeline to block for a legitimate reason,
-		// and we do not want to alarm the user.
-		log.Debug("AsyncStop has failed, possible due to a full pipeline",
-			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Uint64("checkpointTs", keyspan.CheckpointTs()),
-			zap.Uint64("keyspanID", keyspanID))
-		return false, nil
-	}
-	return true, nil
-}
-
-// IsAddKeySpanFinished implements KeySpanExecutor interface.
-func (p *processor) IsAddKeySpanFinished(ctx cdcContext.Context, keyspanID model.KeySpanID) bool {
-	if !p.checkReadyForMessages() {
-		return false
-	}
-
-	keyspan, exist := p.keyspans[keyspanID]
-	if !exist {
-		log.Panic("keyspan which was added is not found",
-			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Uint64("keyspanID", keyspanID))
-	}
-	localResolvedTs := p.resolvedTs
-	globalResolvedTs := p.changefeed.Status.ResolvedTs
-	localCheckpointTs := p.agent.GetLastSentCheckpointTs()
-	globalCheckpointTs := p.changefeed.Status.CheckpointTs
-
-	// These two conditions are used to determine if the keyspan's pipeline has finished
-	// initializing and all invariants have been preserved.
-	//
-	// The processor needs to make sure all reasonable invariants about the checkpoint-ts and
-	// the resolved-ts are preserved before communicating with the Owner.
-	//
-	// These conditions are similar to those in the legacy implementation of the Owner/Processor.
-	if keyspan.CheckpointTs() < localCheckpointTs || localCheckpointTs < globalCheckpointTs {
-		return false
-	}
-	if keyspan.ResolvedTs() < localResolvedTs || localResolvedTs < globalResolvedTs {
-		return false
-	}
-	log.Info("Add KeySpan finished",
-		cdcContext.ZapFieldChangefeed(ctx),
-		zap.Uint64("keyspanID", keyspanID))
-	return true
-}
-
-// IsRemoveKeySpanFinished implements KeySpanExecutor interface.
-func (p *processor) IsRemoveKeySpanFinished(ctx cdcContext.Context, keyspanID model.KeySpanID) bool {
-	if !p.checkReadyForMessages() {
-		return false
-	}
-
-	keyspan, exist := p.keyspans[keyspanID]
-	if !exist {
-		log.Panic("keyspan which was deleted is not found",
-			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Uint64("keyspanID", keyspanID))
-		return true
-	}
-	if keyspan.Status() != keyspanpipeline.KeySpanStatusStopped {
-		log.Debug("the keyspan is still not stopped",
-			cdcContext.ZapFieldChangefeed(ctx),
-			zap.Uint64("checkpointTs", keyspan.CheckpointTs()),
-			zap.Uint64("keyspanID", keyspanID))
-		return false
-	}
-
-	keyspan.Cancel()
-	keyspan.Wait()
-	delete(p.keyspans, keyspanID)
-	log.Info("Remove KeySpan finished",
-		cdcContext.ZapFieldChangefeed(ctx),
-		zap.Uint64("keyspanID", keyspanID))
-
-	return true
-}
-
-// GetAllCurrentKeySpans implements KeySpanExecutor interface.
-func (p *processor) GetAllCurrentKeySpans() []model.KeySpanID {
-	ret := make([]model.KeySpanID, 0, len(p.keyspans))
-	for keyspanID := range p.keyspans {
-		ret = append(ret, keyspanID)
-	}
-	return ret
-}
-
-// GetCheckpoint implements KeySpanExecutor interface.
-func (p *processor) GetCheckpoint() (checkpointTs, resolvedTs model.Ts) {
-	return p.checkpointTs, p.resolvedTs
-}
-
 // newProcessor creates a new processor
 func newProcessor(ctx cdcContext.Context) *processor {
 	changefeedID := ctx.ChangefeedVars().ID
 	advertiseAddr := ctx.GlobalVars().CaptureInfo.AdvertiseAddr
-	conf := config.GetGlobalServerConfig()
 	p := &processor{
 		keyspans:      make(map[model.KeySpanID]keyspanpipeline.KeySpanPipeline),
 		errCh:         make(chan error, 1),
@@ -215,8 +73,6 @@ func newProcessor(ctx cdcContext.Context) *processor {
 		captureInfo:   ctx.GlobalVars().CaptureInfo,
 		cancel:        func() {},
 		lastRedoFlush: time.Now(),
-
-		newSchedulerEnabled: conf.Debug.EnableNewScheduler,
 
 		metricResolvedTsGauge:       resolvedTsGauge.WithLabelValues(changefeedID, advertiseAddr),
 		metricResolvedTsLagGauge:    resolvedTsLagGauge.WithLabelValues(changefeedID, advertiseAddr),
@@ -228,7 +84,6 @@ func newProcessor(ctx cdcContext.Context) *processor {
 	}
 	p.createKeySpanPipeline = p.createKeySpanPipelineImpl
 	p.lazyInit = p.lazyInitImpl
-	p.newAgent = p.newAgentImpl
 	return p
 }
 
@@ -329,21 +184,12 @@ func (p *processor) tick(ctx cdcContext.Context, state *orchestrator.ChangefeedR
 	p.handlePosition(oracle.GetPhysical(pdTime))
 	p.pushResolvedTs2KeySpan()
 
-	// The workload key does not contain extra information and
-	// will not be used in the new scheduler. If we wrote to the
-	// key while there are many keyspans (>10000), we would risk burdening Etcd.
+	// If we wrote to the key while there are many keyspans (>10000), we would risk burdening Etcd.
 	//
 	// The keys will still exist but will no longer be written to
 	// if we do not call handleWorkload.
-	if !p.newSchedulerEnabled {
-		p.handleWorkload()
-	}
+	p.handleWorkload()
 
-	if p.newSchedulerEnabled {
-		if err := p.agent.Tick(ctx); err != nil {
-			return nil, errors.Trace(err)
-		}
-	}
 	return p.changefeed, nil
 }
 
@@ -433,26 +279,9 @@ func (p *processor) lazyInitImpl(ctx cdcContext.Context) error {
 	captureAddr := ctx.GlobalVars().CaptureInfo.AdvertiseAddr
 	p.sinkManager = sink.NewManager(stdCtx, s, errCh, checkpointTs, captureAddr, p.changefeedID)
 
-	if p.newSchedulerEnabled {
-		p.agent, err = p.newAgent(ctx)
-		if err != nil {
-			return err
-		}
-	}
-
 	p.initialized = true
 	log.Info("run processor", cdcContext.ZapFieldCapture(ctx), cdcContext.ZapFieldChangefeed(ctx))
 	return nil
-}
-
-func (p *processor) newAgentImpl(ctx cdcContext.Context) (processorAgent, error) {
-	messageServer := ctx.GlobalVars().MessageServer
-	messageRouter := ctx.GlobalVars().MessageRouter
-	ret, err := newAgent(ctx, messageServer, messageRouter, p, p.changefeedID)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	return ret, nil
 }
 
 // handleErrorCh listen the error channel and throw the error if it is not expected.
@@ -476,10 +305,6 @@ func (p *processor) handleErrorCh(ctx cdcContext.Context) error {
 
 // handleKeySpanOperation handles the operation of `TaskStatus`(add keyspan operation and remove keyspan operation)
 func (p *processor) handleKeySpanOperation(ctx cdcContext.Context) error {
-	if p.newSchedulerEnabled {
-		return nil
-	}
-
 	patchOperation := func(keyspanID model.KeySpanID, fn func(operation *model.KeySpanOperation) error) {
 		p.changefeed.PatchTaskStatus(p.captureInfo.ID, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
 			if status == nil || status.Operation == nil {
@@ -628,11 +453,6 @@ func (p *processor) sendError(err error) {
 // checkKeySpansNum if the number of keyspan pipelines is equal to the number of TaskStatus in etcd state.
 // if the keyspan number is not right, create or remove the odd keyspans.
 func (p *processor) checkKeySpansNum(ctx cdcContext.Context) error {
-	if p.newSchedulerEnabled {
-		// No need to check this for the new scheduler.
-		return nil
-	}
-
 	taskStatus := p.changefeed.TaskStatuses[p.captureInfo.ID]
 	if len(p.keyspans) == len(taskStatus.KeySpans) {
 		return nil
@@ -700,12 +520,6 @@ func (p *processor) handlePosition(currentTs int64) {
 	checkpointPhyTs := oracle.ExtractPhysical(minCheckpointTs)
 	p.metricCheckpointTsLagGauge.Set(float64(currentTs-checkpointPhyTs) / 1e3)
 	p.metricCheckpointTsGauge.Set(float64(checkpointPhyTs))
-
-	if p.newSchedulerEnabled {
-		p.checkpointTs = minCheckpointTs
-		p.resolvedTs = minResolvedTs
-		return
-	}
 
 	// minResolvedTs and minCheckpointTs may less than global resolved ts and global checkpoint ts when a new keyspan added, the startTs of the new keyspan is less than global checkpoint ts.
 	if minResolvedTs != p.changefeed.TaskPositions[p.captureInfo.ID].ResolvedTs ||
@@ -861,15 +675,6 @@ func (p *processor) Close() error {
 		if err := p.sinkManager.Close(ctx); err != nil {
 			return errors.Trace(err)
 		}
-	}
-	if p.newSchedulerEnabled {
-		if p.agent == nil {
-			return nil
-		}
-		if err := p.agent.Close(); err != nil {
-			return errors.Trace(err)
-		}
-		p.agent = nil
 	}
 
 	return nil

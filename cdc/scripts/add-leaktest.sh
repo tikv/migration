@@ -26,7 +26,7 @@ sed -i'~' -e '
 
 for i in $@; do
 	if ! cmp -s $i $i~; then
-		tools/bin/gofumports -s -w $i
+		gofumpt -s -w $i
 	fi
 	rm -f $i~
 done

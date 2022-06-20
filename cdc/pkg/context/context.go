@@ -27,7 +27,6 @@ import (
 	// ssystem "github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/tikv/migration/cdc/pkg/pdtime"
 	"github.com/tikv/migration/cdc/pkg/version"
 	pd "github.com/tikv/pd/client"
@@ -50,10 +49,6 @@ type GlobalVars struct {
 
 	// OwnerRevision is the Etcd revision when the owner got elected.
 	OwnerRevision int64
-
-	// MessageServer and MessageRouter are for peer-messaging
-	MessageServer *p2p.MessageServer
-	MessageRouter p2p.MessageRouter
 }
 
 // ChangefeedVars contains some vars which can be used anywhere in a pipeline

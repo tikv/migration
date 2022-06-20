@@ -15,7 +15,6 @@ package processor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -24,11 +23,9 @@ import (
 	"github.com/pingcap/log"
 	"github.com/tikv/migration/cdc/cdc/model"
 	keyspanpipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
-	"github.com/tikv/migration/cdc/cdc/scheduler"
 	"github.com/tikv/migration/cdc/cdc/sink"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
@@ -39,21 +36,14 @@ type processorSuite struct{}
 
 var _ = check.Suite(&processorSuite{})
 
-// processor needs to implement KeySpanExecutor.
-var _ scheduler.KeySpanExecutor = (*processor)(nil)
-
 func newProcessor4Test(
 	ctx cdcContext.Context,
 	_ *check.C,
 	createKeySpanPipeline func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error),
 ) *processor {
 	p := newProcessor(ctx)
-	// disable new scheduler to pass old test cases
-	// TODO refactor the test cases so that new scheduler can be enabled
-	// p.newSchedulerEnabled = true
 	p.lazyInit = func(ctx cdcContext.Context) error { return nil }
 	p.sinkManager = &sink.Manager{}
-	p.agent = &mockAgent{executor: p}
 	p.createKeySpanPipeline = createKeySpanPipeline
 	return p
 }
@@ -130,32 +120,6 @@ func (m *mockKeySpanPipeline) Cancel() {
 
 func (m *mockKeySpanPipeline) Wait() {
 	// do nothing
-}
-
-type mockAgent struct {
-	// dummy to satisfy the interface
-	processorAgent
-
-	executor         scheduler.KeySpanExecutor
-	lastCheckpointTs model.Ts
-	isClosed         bool
-}
-
-func (a *mockAgent) Tick(_ cdcContext.Context) error {
-	if len(a.executor.GetAllCurrentKeySpans()) == 0 {
-		return nil
-	}
-	a.lastCheckpointTs, _ = a.executor.GetCheckpoint()
-	return nil
-}
-
-func (a *mockAgent) GetLastSentCheckpointTs() (checkpointTs model.Ts) {
-	return a.lastCheckpointTs
-}
-
-func (a *mockAgent) Close() error {
-	a.isClosed = true
-	return nil
 }
 
 func (s *processorSuite) TestCheckKeySpansNum(c *check.C) {
@@ -492,168 +456,6 @@ func (s *processorSuite) TestHandleKeySpanOperation4MultiKeySpan(c *check.C) {
 	c.Assert(p.keyspans, check.HasLen, 0)
 }
 
-func (s *processorSuite) TestKeySpanExecutor(c *check.C) {
-	defer testleak.AfterTest(c)()
-	ctx := cdcContext.NewBackendContext4Test(true)
-	p, tester := initProcessor4Test(ctx, c)
-	p.newSchedulerEnabled = true
-	p.lazyInit = func(ctx cdcContext.Context) error {
-		p.agent = &mockAgent{executor: p}
-		return nil
-	}
-
-	var err error
-	// init tick
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-	p.changefeed.PatchStatus(func(status *model.ChangeFeedStatus) (*model.ChangeFeedStatus, bool, error) {
-		status.CheckpointTs = 20
-		status.ResolvedTs = 20
-		return status, true, nil
-	})
-	p.changefeed.PatchTaskPosition(p.captureInfo.ID, func(position *model.TaskPosition) (*model.TaskPosition, bool, error) {
-		position.ResolvedTs = 100
-		position.CheckPointTs = 90
-		return position, true, nil
-	})
-	tester.MustApplyPatches()
-
-	// no operation
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	ok, err := p.AddKeySpan(ctx, 1, []byte{1}, []byte{2})
-	c.Check(err, check.IsNil)
-	c.Check(ok, check.IsTrue)
-	ok, err = p.AddKeySpan(ctx, 2, []byte{2}, []byte{3})
-	c.Check(err, check.IsNil)
-	c.Check(ok, check.IsTrue)
-	ok, err = p.AddKeySpan(ctx, 3, []byte{3}, []byte{4})
-	c.Check(err, check.IsNil)
-	c.Check(ok, check.IsTrue)
-	ok, err = p.AddKeySpan(ctx, 4, []byte{5}, []byte{6})
-	c.Check(err, check.IsNil)
-	c.Check(ok, check.IsTrue)
-
-	c.Assert(p.keyspans, check.HasLen, 4)
-
-	checkpointTs := p.agent.GetLastSentCheckpointTs()
-	c.Assert(checkpointTs, check.Equals, uint64(0))
-
-	done := p.IsAddKeySpanFinished(ctx, 1)
-	c.Check(done, check.IsFalse)
-	done = p.IsAddKeySpanFinished(ctx, 2)
-	c.Check(done, check.IsFalse)
-	done = p.IsAddKeySpanFinished(ctx, 3)
-	c.Check(done, check.IsFalse)
-	done = p.IsAddKeySpanFinished(ctx, 4)
-	c.Check(done, check.IsFalse)
-
-	c.Assert(p.keyspans, check.HasLen, 4)
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	// add keyspan, push the resolvedTs, finished add keyspan
-	keyspan1 := p.keyspans[1].(*mockKeySpanPipeline)
-	keyspan2 := p.keyspans[2].(*mockKeySpanPipeline)
-	keyspan3 := p.keyspans[3].(*mockKeySpanPipeline)
-	keyspan4 := p.keyspans[4].(*mockKeySpanPipeline)
-	keyspan1.resolvedTs = 101
-	keyspan2.resolvedTs = 101
-	keyspan3.resolvedTs = 102
-	keyspan4.resolvedTs = 103
-
-	keyspan1.checkpointTs = 30
-	keyspan2.checkpointTs = 30
-	keyspan3.checkpointTs = 30
-	keyspan4.checkpointTs = 30
-
-	done = p.IsAddKeySpanFinished(ctx, 1)
-	c.Check(done, check.IsTrue)
-	done = p.IsAddKeySpanFinished(ctx, 2)
-	c.Check(done, check.IsTrue)
-	done = p.IsAddKeySpanFinished(ctx, 3)
-	c.Check(done, check.IsTrue)
-	done = p.IsAddKeySpanFinished(ctx, 4)
-	c.Check(done, check.IsTrue)
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	keyspan1.checkpointTs = 75
-	keyspan2.checkpointTs = 75
-	keyspan3.checkpointTs = 60
-	keyspan4.checkpointTs = 75
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	checkpointTs = p.agent.GetLastSentCheckpointTs()
-	c.Assert(checkpointTs, check.Equals, uint64(60))
-
-	updateChangeFeedPosition(c, tester, ctx.ChangefeedVars().ID, 103, 60)
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	ok, err = p.RemoveKeySpan(ctx, 3)
-	c.Check(err, check.IsNil)
-	c.Check(ok, check.IsTrue)
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	c.Assert(p.keyspans, check.HasLen, 4)
-	c.Assert(keyspan3.canceled, check.IsFalse)
-	c.Assert(keyspan3.stopTs, check.Equals, uint64(60))
-
-	done = p.IsRemoveKeySpanFinished(ctx, 3)
-	c.Assert(done, check.IsFalse)
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	checkpointTs = p.agent.GetLastSentCheckpointTs()
-	c.Assert(checkpointTs, check.Equals, uint64(60))
-
-	// finish remove operations
-	keyspan3.status = keyspanpipeline.KeySpanStatusStopped
-	keyspan3.checkpointTs = 65
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	c.Assert(p.keyspans, check.HasLen, 4)
-	c.Assert(keyspan3.canceled, check.IsFalse)
-
-	done = p.IsRemoveKeySpanFinished(ctx, 3)
-	c.Assert(done, check.IsTrue)
-
-	c.Assert(p.keyspans, check.HasLen, 3)
-	c.Assert(keyspan3.canceled, check.IsTrue)
-
-	_, err = p.Tick(ctx, p.changefeed)
-	c.Assert(err, check.IsNil)
-	tester.MustApplyPatches()
-
-	checkpointTs = p.agent.GetLastSentCheckpointTs()
-	c.Assert(checkpointTs, check.Equals, uint64(75))
-
-	err = p.Close()
-	c.Assert(err, check.IsNil)
-	c.Assert(p.agent, check.IsNil)
-}
-
 func (s *processorSuite) TestInitKeySpan(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := cdcContext.NewBackendContext4Test(true)
@@ -888,23 +690,6 @@ func cleanUpFinishedOpOperation(state *orchestrator.ChangefeedReactorState, capt
 		return status, true, nil
 	})
 	tester.MustApplyPatches()
-}
-
-func updateChangeFeedPosition(c *check.C, tester *orchestrator.ReactorStateTester, cfID model.ChangeFeedID, resolvedTs, checkpointTs model.Ts) {
-	key := etcd.CDCKey{
-		Tp:           etcd.CDCKeyTypeChangeFeedStatus,
-		ChangefeedID: cfID,
-	}
-	keyStr := key.String()
-
-	cfStatus := &model.ChangeFeedStatus{
-		ResolvedTs:   resolvedTs,
-		CheckpointTs: checkpointTs,
-	}
-	valueBytes, err := json.Marshal(cfStatus)
-	c.Assert(err, check.IsNil)
-
-	tester.MustUpdate(keyStr, valueBytes)
 }
 
 func (s *processorSuite) TestIgnorableError(c *check.C) {

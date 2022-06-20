@@ -23,7 +23,6 @@ import (
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
 	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
@@ -51,18 +50,14 @@ type Manager struct {
 	commandQueue chan *command
 
 	newProcessor func(cdcContext.Context) *processor
-
-	enableNewScheduler bool
 }
 
 // NewManager creates a new processor manager
 func NewManager() *Manager {
-	conf := config.GetGlobalServerConfig()
 	return &Manager{
-		processors:         make(map[model.ChangeFeedID]*processor),
-		commandQueue:       make(chan *command, 4),
-		newProcessor:       newProcessor,
-		enableNewScheduler: conf.Debug.EnableNewScheduler,
+		processors:   make(map[model.ChangeFeedID]*processor),
+		commandQueue: make(chan *command, 4),
+		newProcessor: newProcessor,
 	}
 }
 
@@ -90,23 +85,17 @@ func (m *Manager) Tick(stdCtx context.Context, state orchestrator.ReactorState) 
 		})
 		processor, exist := m.processors[changefeedID]
 		if !exist {
-			if m.enableNewScheduler {
-				failpoint.Inject("processorManagerHandleNewChangefeedDelay", nil)
-				processor = m.newProcessor(ctx)
-				m.processors[changefeedID] = processor
-			} else {
-				if changefeedState.Status.AdminJobType.IsStopState() || changefeedState.TaskStatuses[captureID].AdminJobType.IsStopState() {
-					continue
-				}
-				// the processor should start after at least one keyspan has been added to this capture
-				taskStatus := changefeedState.TaskStatuses[captureID]
-				if taskStatus == nil || (len(taskStatus.KeySpans) == 0 && len(taskStatus.Operation) == 0) {
-					continue
-				}
-				failpoint.Inject("processorManagerHandleNewChangefeedDelay", nil)
-				processor = m.newProcessor(ctx)
-				m.processors[changefeedID] = processor
+			if changefeedState.Status.AdminJobType.IsStopState() || changefeedState.TaskStatuses[captureID].AdminJobType.IsStopState() {
+				continue
 			}
+			// the processor should start after at least one keyspan has been added to this capture
+			taskStatus := changefeedState.TaskStatuses[captureID]
+			if taskStatus == nil || (len(taskStatus.KeySpans) == 0 && len(taskStatus.Operation) == 0) {
+				continue
+			}
+			failpoint.Inject("processorManagerHandleNewChangefeedDelay", nil)
+			processor = m.newProcessor(ctx)
+			m.processors[changefeedID] = processor
 		}
 		if _, err := processor.Tick(ctx, changefeedState); err != nil {
 			m.closeProcessor(changefeedID)

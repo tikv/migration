@@ -24,7 +24,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/db"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
-	"github.com/tikv/migration/cdc/pkg/p2p"
 )
 
 var registry = prometheus.NewRegistry()
@@ -42,6 +41,5 @@ func init() {
 	etcd.InitMetrics(registry)
 	initServerMetrics(registry)
 	orchestrator.InitMetrics(registry)
-	p2p.InitMetrics(registry)
 	db.InitMetrics(registry)
 }

@@ -74,9 +74,6 @@ func TestServerConfigValidateAndAdjust(t *testing.T) {
 	conf.PerKeySpanMemoryQuota = 0
 	require.Nil(t, conf.ValidateAndAdjust())
 	require.EqualValues(t, GetDefaultServerConfig().PerKeySpanMemoryQuota, conf.PerKeySpanMemoryQuota)
-	conf.Debug.Messages.ServerWorkerPoolSize = 0
-	require.Nil(t, conf.ValidateAndAdjust())
-	require.EqualValues(t, GetDefaultServerConfig().Debug.Messages.ServerWorkerPoolSize, conf.Debug.Messages.ServerWorkerPoolSize)
 }
 
 func TestDBConfigValidateAndAdjust(t *testing.T) {

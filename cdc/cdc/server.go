@@ -42,11 +42,9 @@ import (
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/fsutil"
 	"github.com/tikv/migration/cdc/pkg/httputil"
-	"github.com/tikv/migration/cdc/pkg/p2p"
 	"github.com/tikv/migration/cdc/pkg/tcpserver"
 	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/version"
-	p2pProto "github.com/tikv/migration/cdc/proto/p2p"
 )
 
 const (
@@ -61,7 +59,6 @@ const (
 type Server struct {
 	capture      *capture.Capture
 	tcpServer    tcpserver.TCPServer
-	grpcService  *p2p.ServerWrapper
 	statusServer *http.Server
 	pdClient     pd.Client
 	etcdClient   *etcd.CDCEtcdClient
@@ -98,7 +95,6 @@ func NewServer(pdEndpoints []string) (*Server, error) {
 
 	s := &Server{
 		pdEndpoints: pdEndpoints,
-		grpcService: p2p.NewServerWrapper(),
 		tcpServer:   tcpServer,
 	}
 
@@ -196,7 +192,7 @@ func (s *Server) Run(ctx context.Context) error {
 	s.kvStorage = kvStore
 	ctx = util.PutKVStorageInCtx(ctx, kvStore)
 
-	s.capture = capture.NewCapture(s.pdClient, s.kvStorage, s.etcdClient, s.grpcService)
+	s.capture = capture.NewCapture(s.pdClient, s.kvStorage, s.etcdClient)
 
 	err = s.startStatusHTTP(s.tcpServer.HTTP1Listener())
 	if err != nil {
@@ -269,21 +265,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 	wg.Go(func() error {
 		return s.tcpServer.Run(cctx)
 	})
-
-	conf := config.GetGlobalServerConfig()
-	if conf.Debug.EnableNewScheduler {
-		grpcServer := grpc.NewServer()
-		p2pProto.RegisterCDCPeerToPeerServer(grpcServer, s.grpcService)
-
-		wg.Go(func() error {
-			return grpcServer.Serve(s.tcpServer.GrpcListener())
-		})
-		wg.Go(func() error {
-			<-cctx.Done()
-			grpcServer.Stop()
-			return nil
-		})
-	}
 
 	return wg.Wait()
 }
