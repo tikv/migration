@@ -119,6 +119,7 @@ func (k *tikvSink) dispatch(entry *model.RawKVEntry) uint32 {
 }
 
 func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
+	log.Debug("tikvSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
 	rowsCount := 0
 
 	for _, rawKVEntry := range rawKVEntries {
@@ -320,11 +321,12 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 
 	flushToTiKV := func() error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
-			log.Debug("tikvSink::flushToTiKV", zap.Any("batches", batcher.Batches))
 			thisBatchSize := batcher.Count()
 			if thisBatchSize == 0 {
 				return 0, nil
 			}
+
+			log.Debug("tikvSink::flushToTiKV", zap.Any("batches", batcher.Batches))
 
 			var err error
 			for _, batch := range batcher.Batches {

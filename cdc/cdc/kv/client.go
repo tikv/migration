@@ -15,6 +15,7 @@ package kv
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -781,6 +782,7 @@ func (s *eventFeedSession) requestRegionToStore(
 			logReq = log.Info
 		}
 		logReq("start new request", zap.Reflect("request", req), zap.String("addr", rpcCtx.Addr))
+		logReq("start new request", zap.String("StartKey", hex.EncodeToString(req.StartKey)), zap.String("EndKey", hex.EncodeToString(req.EndKey)))
 
 		err = stream.client.Send(req)
 

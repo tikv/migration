@@ -147,7 +147,7 @@ func (o *options) complete(cmd *cobra.Command) error {
 
 	if len(o.serverConfigFilePath) > 0 {
 		// strict decode config file, but ignore debug item
-		if err := util.StrictDecodeFile(o.serverConfigFilePath, "TiCDC server", cfg, config.DebugConfigurationItem); err != nil {
+		if err := util.StrictDecodeFile(o.serverConfigFilePath, "TiKV-CDC server", cfg, config.DebugConfigurationItem); err != nil {
 			return err
 		}
 
@@ -264,7 +264,7 @@ func NewCmdServer() *cobra.Command {
 
 	command := &cobra.Command{
 		Use:   "server",
-		Short: "Start a TiCDC capture server",
+		Short: "Start a TiKV-CDC capture server",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := o.complete(cmd)

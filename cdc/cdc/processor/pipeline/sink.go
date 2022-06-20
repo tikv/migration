@@ -235,6 +235,7 @@ func (n *sinkNode) Receive(ctx pipeline.NodeContext) error {
 }
 
 func (n *sinkNode) HandleMessage(ctx context.Context, msg pipeline.Message) (bool, error) {
+	log.Debug("sinkNode.HandleMessage", zap.Any("msg", msg))
 	if n.status == KeySpanStatusStopped {
 		return false, cerror.ErrKeySpanProcessorStoppedSafely.GenWithStackByArgs()
 	}

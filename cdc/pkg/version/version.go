@@ -42,9 +42,9 @@ func ReleaseSemver() string {
 	return v.String()
 }
 
-// LogVersionInfo prints the CDC version information.
+// LogVersionInfo prints the TiKV-CDC version information.
 func LogVersionInfo() {
-	log.Info("Welcome to Change Data Capture (CDC)",
+	log.Info("Welcome to TiKV Change Data Capture (CDC)",
 		zap.String("release-version", ReleaseVersion),
 		zap.String("git-hash", GitHash),
 		zap.String("git-branch", GitBranch),

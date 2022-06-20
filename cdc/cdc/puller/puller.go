@@ -181,9 +181,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				return errors.Trace(ctx.Err())
 			}
 
-			log.Debug("revcive region feed event",
-				zap.String("RawKVEntry Key", string(e.Val.Key)),
-				zap.Uint64("ResolvedTS", e.Resolved.ResolvedTs))
+			log.Debug("revcive region feed event", zap.Stringer("event", e))
 
 			if e.Val != nil {
 				metricTxnCollectCounterKv.Inc()
