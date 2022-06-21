@@ -148,7 +148,7 @@ func (n *sinkNode) flushSink(ctx context.Context, resolvedTs model.Ts) (err erro
 	if resolvedTs > n.targetTs {
 		resolvedTs = n.targetTs
 	}
-	log.Debug("sink.flushSink", zap.Uint64("requestResolvedTs", requestResolvedTs), zap.Uint64("resultResolvedTs", resolvedTs), zap.Uint64("barrierTs", n.barrierTs),
+	log.Debug("[TRACE] sink.flushSink", zap.Uint64("requestResolvedTs", requestResolvedTs), zap.Uint64("resultResolvedTs", resolvedTs), zap.Uint64("barrierTs", n.barrierTs),
 		zap.Uint64("targetTs", n.targetTs), zap.Uint64("checkpointTs", n.CheckpointTs()))
 	if resolvedTs <= n.CheckpointTs() {
 		return nil
@@ -157,7 +157,7 @@ func (n *sinkNode) flushSink(ctx context.Context, resolvedTs model.Ts) (err erro
 		return errors.Trace(err)
 	}
 	checkpointTs, err := n.sink.FlushChangedEvents(ctx, n.keyspanID, resolvedTs)
-	log.Debug("sinkNode.sink.FlushChangedEvents", zap.Uint64("keyspanID", n.keyspanID), zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", checkpointTs),
+	log.Debug("[TRACE] sinkNode.sink.FlushChangedEvents", zap.Uint64("keyspanID", n.keyspanID), zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", checkpointTs),
 		zap.Uint64("n.CheckpointTs()", n.CheckpointTs()), zap.Error(err))
 	if err != nil {
 		return errors.Trace(err)
@@ -185,7 +185,7 @@ func (n *sinkNode) emitEvent(ctx context.Context, event *model.PolymorphicEvent)
 		log.Warn("skip emit nil event", zap.Any("event", event))
 		return nil
 	}
-	log.Debug("sinkNode.emitEvent", zap.Any("event", event))
+	log.Debug("[TRACE] sinkNode.emitEvent", zap.Any("event", event))
 
 	n.eventBuffer = append(n.eventBuffer, event)
 
@@ -230,7 +230,7 @@ func (n *sinkNode) emitRow2Sink(ctx context.Context) error {
 		panic("ProcessorSyncResolvedPreEmit")
 	})
 	if len(n.rawKVBuffer) > 0 {
-		log.Debug("sinkNode.emitRow2Sink", zap.Any("n.rawKVBuffer", n.rawKVBuffer))
+		log.Debug("[TRACE] sinkNode.emitRow2Sink", zap.Any("n.rawKVBuffer", n.rawKVBuffer))
 	}
 	err := n.sink.EmitChangedEvents(ctx, n.rawKVBuffer...)
 	if err != nil {
@@ -247,7 +247,7 @@ func (n *sinkNode) Receive(ctx pipeline.NodeContext) error {
 }
 
 func (n *sinkNode) HandleMessage(ctx context.Context, msg pipeline.Message) (bool, error) {
-	log.Debug("sinkNode.HandleMessage", zap.Any("msg", msg))
+	log.Debug("[TRACE] sinkNode.HandleMessage", zap.Any("msg", msg))
 	if n.status == KeySpanStatusStopped {
 		return false, cerror.ErrKeySpanProcessorStoppedSafely.GenWithStackByArgs()
 	}
@@ -261,7 +261,7 @@ func (n *sinkNode) HandleMessage(ctx context.Context, msg pipeline.Message) (boo
 			failpoint.Inject("ProcessorSyncResolvedError", func() {
 				failpoint.Return(false, errors.New("processor sync resolved injected error"))
 			})
-			log.Debug("sinkNode.flushSink", zap.Uint64("msg.PolymorphicEvent.CRTs", msg.PolymorphicEvent.CRTs))
+			log.Debug("[TRACE] sinkNode.flushSink", zap.Uint64("msg.PolymorphicEvent.CRTs", msg.PolymorphicEvent.CRTs))
 			if err := n.flushSink(ctx, msg.PolymorphicEvent.CRTs); err != nil {
 				return false, errors.Trace(err)
 			}

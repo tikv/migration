@@ -169,7 +169,7 @@ func (b *bufferSink) runOnce(ctx context.Context, state *runState) (bool, error)
 
 func (b *bufferSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
 	if len(rawKVEntries) > 0 {
-		log.Debug("bufferSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
+		log.Debug("[TRACE] bufferSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
 	}
 	select {
 	case <-ctx.Done():
@@ -187,7 +187,7 @@ func (b *bufferSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*mod
 }
 
 func (b *bufferSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
-	log.Debug("bufferSink.FlushChangedEvents", zap.Uint64("keyspanID", keyspanID), zap.Uint64("resolvedTs", resolvedTs))
+	log.Debug("[TRACE] bufferSink.FlushChangedEvents", zap.Uint64("keyspanID", keyspanID), zap.Uint64("resolvedTs", resolvedTs))
 	select {
 	case <-ctx.Done():
 		return b.getKeySpanCheckpointTs(keyspanID), ctx.Err()

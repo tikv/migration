@@ -521,7 +521,7 @@ func (p *processor) handlePosition(currentTs int64) {
 	p.metricCheckpointTsLagGauge.Set(float64(currentTs-checkpointPhyTs) / 1e3)
 	p.metricCheckpointTsGauge.Set(float64(checkpointPhyTs))
 
-	log.Debug("processor.handlePosition", zap.Uint64("minResolvedTs", minResolvedTs), zap.Uint64("minCheckpointTs", minCheckpointTs),
+	log.Debug("[TRACE] processor.handlePosition", zap.Uint64("minResolvedTs", minResolvedTs), zap.Uint64("minCheckpointTs", minCheckpointTs),
 		zap.Int64("resolvedPhyTs", resolvedPhyTs), zap.Int64("checkpointPhyTs", checkpointPhyTs))
 
 	// minResolvedTs and minCheckpointTs may less than global resolved ts and global checkpoint ts when a new keyspan added, the startTs of the new keyspan is less than global checkpoint ts.

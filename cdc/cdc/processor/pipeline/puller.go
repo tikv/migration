@@ -84,7 +84,7 @@ func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Gr
 					metricKeySpanResolvedTsGauge.Set(float64(oracle.ExtractPhysical(rawKV.CRTs)))
 				}
 				pEvent := model.NewPolymorphicEvent(rawKV)
-				log.Debug("pullerNode.SendToNextNode", zap.Any("event", pEvent))
+				log.Debug("[TRACE] pullerNode.SendToNextNode", zap.Any("event", pEvent))
 				ctx.SendToNextNode(pipeline.PolymorphicEventMessage(pEvent))
 			}
 		}
