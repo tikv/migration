@@ -474,6 +474,7 @@ func updateCurrentKeySpansImplBySingleKeySpan(ctx cdcContext.Context) ([]model.K
 	return currentKeySpansID, currentKeySpans, nil
 }
 
+// nolint:deadcode,unused
 func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 	limit := -1 // TODO: make a loop
 	tikvRequestMaxBackoff := 20000
