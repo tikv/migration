@@ -44,7 +44,7 @@ type RegionFeedEvent struct {
 }
 
 func (e RegionFeedEvent) String() string {
-	return fmt.Sprintf("Val %v, Resolved: %v, RegionID: %v", e.Val, e.Resolved, e.RegionID)
+	return fmt.Sprintf("Val: %v, Resolved: %v, RegionID: %v", e.Val, e.Resolved, e.RegionID)
 }
 
 // GetValue returns the underlying value

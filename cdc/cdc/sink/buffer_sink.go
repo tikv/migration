@@ -168,7 +168,9 @@ func (b *bufferSink) runOnce(ctx context.Context, state *runState) (bool, error)
 }
 
 func (b *bufferSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
-	log.Debug("bufferSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
+	if len(rawKVEntries) > 0 {
+		log.Debug("bufferSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

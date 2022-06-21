@@ -289,4 +289,7 @@ var (
 	ErrRewindRequestBodyError = errors.Normalize("failed to seek to the beginning of request body", errors.RFCCodeText("CDC:ErrRewindRequestBodyError"))
 	ErrZeroLengthResponseBody = errors.Normalize("0-length response with status code: %d", errors.RFCCodeText("CDC:ErrZeroLengthResponseBody"))
 	ErrInvalidHost            = errors.Normalize("host must be a URL or a host:port pair: %q", errors.RFCCodeText("CDC:ErrInvalidHost"))
+
+	// TiKV sink related error
+	ErrTiKVInvalidConfig = errors.Normalize("TiKV sink config invalid", errors.RFCCodeText("CDC:ErrTiKVInvalidConfig"))
 )

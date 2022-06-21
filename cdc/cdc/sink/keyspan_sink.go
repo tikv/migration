@@ -31,7 +31,9 @@ type keyspanSink struct {
 var _ Sink = (*keyspanSink)(nil)
 
 func (t *keyspanSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
-	log.Debug("keyspanSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
+	if len(rawKVEntries) > 0 {
+		log.Debug("keyspanSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
+	}
 	t.buffer = append(t.buffer, rawKVEntries...)
 	t.manager.metricsKeySpanSinkTotalEvents.Add(float64(len(rawKVEntries)))
 	return nil

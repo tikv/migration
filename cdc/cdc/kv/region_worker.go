@@ -661,12 +661,15 @@ func (w *regionWorker) handleEventEntry(
 			}
 
 			if entry.CommitTs <= state.lastResolvedTs {
-				logPanic("The CommitTs must be greater than the resolvedTs",
+				// TODO(resolved-ts): should panic. Just logging as error now.
+				log.Error("The CommitTs must be greater than the resolvedTs",
 					zap.String("Event Type", "COMMITTED"),
 					zap.Uint64("CommitTs", entry.CommitTs),
 					zap.Uint64("resolvedTs", state.lastResolvedTs),
-					zap.Uint64("regionID", regionID))
-				return errUnreachable
+					zap.Uint64("regionID", regionID),
+					zap.Any("entry", entry),
+				)
+				// return errUnreachable
 			}
 			select {
 			case w.outputCh <- revent:

@@ -462,32 +462,44 @@ func (s *oldScheduler) rebalanceByKeySpanNum() (shouldUpdateState bool) {
 	return
 }
 
+// updateCurrentKeySpansImplBySingleKeySpan is the most simple scheduler that treat the whole RawKV key span as a task.
+func updateCurrentKeySpansImplBySingleKeySpan(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	keyspan := regionspan.Span{Start: regionspan.RawKvStartKey, End: regionspan.RawKvEndKey}
+	id := keyspan.ID()
+
+	currentKeySpansID := []model.KeySpanID{id}
+	currentKeySpans := map[model.KeySpanID]regionspan.Span{
+		id: keyspan,
+	}
+	return currentKeySpansID, currentKeySpans, nil
+}
+
 func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
-	limit := -1
+	limit := -1 // TODO: make a loop
 	tikvRequestMaxBackoff := 20000
 	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
 
 	regionCache := ctx.GlobalVars().RegionCache
-	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, []byte{regionspan.RawKvStartKey}, []byte{regionspan.RawKvEndKey}, limit)
+	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, regionspan.RawKvStartKey, regionspan.RawKvEndKey, limit)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	currentKeySpans := map[model.KeySpanID]regionspan.Span{}
+	currentKeySpans := make(map[model.KeySpanID]regionspan.Span)
 	currentKeySpansID := make([]model.KeySpanID, 0, len(regions))
 	for i, region := range regions {
 		startKey := region.StartKey()
 		endKey := region.EndKey()
 
 		if i == 0 {
-			startKey = []byte{regionspan.RawKvStartKey}
+			startKey = regionspan.RawKvStartKey
 		}
 		if i == len(regions)-1 {
-			endKey = []byte{regionspan.RawKvEndKey}
+			endKey = regionspan.RawKvEndKey
 		}
 
 		keyspan := regionspan.Span{Start: startKey, End: endKey}
-		id := region.GetID()
+		id := keyspan.ID()
 
 		currentKeySpans[id] = keyspan
 		currentKeySpansID = append(currentKeySpansID, id)

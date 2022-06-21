@@ -44,7 +44,10 @@ type scheduler interface {
 }
 
 func newScheduler(ctx context.Context, startTs uint64) (scheduler, error) {
-	return newSchedulerV1(updateCurrentKeySpansImpl), nil
+	// `updateCurrentKeySpansImplBySingleKeySpan` for verifying other codes.
+	// TODO: use `updateCurrentKeySpansImpl`.
+	// return newSchedulerV1(updateCurrentKeySpansImpl), nil
+	return newSchedulerV1(updateCurrentKeySpansImplBySingleKeySpan), nil
 }
 
 func newScheduler4Test(ctx context.Context, startTs uint64) (scheduler, error) {
