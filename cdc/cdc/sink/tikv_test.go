@@ -103,7 +103,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 	values := []string{
 		"1", "2", "3", "", "5", "6",
 	}
-	expireds := []uint64{
+	expires := []uint64{
 		0, 200, 300, 0, 100, 400,
 	}
 	opTypes := []model.OpType{
@@ -114,7 +114,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 			OpType:    opTypes[i],
 			Key:       []byte(keys[i]),
 			Value:     []byte(values[i]),
-			ExpiredTs: expireds[i],
+			ExpiredTs: expires[i],
 			CRTs:      uint64(i),
 		}
 		batcher.Append(entry)
@@ -169,7 +169,7 @@ func TestTiKVSink(t *testing.T) {
 	values := []string{
 		"1", "2", "3", "", "5", "6",
 	}
-	expireds := []uint64{
+	expires := []uint64{
 		0, 200, 300, 0, 100, 400,
 	}
 	opTypes := []model.OpType{
@@ -180,7 +180,7 @@ func TestTiKVSink(t *testing.T) {
 			OpType:    opTypes[i],
 			Key:       []byte(keys[i]),
 			Value:     []byte(values[i]),
-			ExpiredTs: expireds[i],
+			ExpiredTs: expires[i],
 			CRTs:      uint64(i),
 		}
 		err = sink.EmitChangedEvents(ctx, entry)
