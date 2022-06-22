@@ -46,7 +46,7 @@ var _ = check.Suite(&httpStatusSuite{})
 
 const retryTime = 20
 
-var advertiseAddr4Test = "127.0.0.1:8300"
+var advertiseAddr4Test = "127.0.0.1:8333"
 
 func (s *httpStatusSuite) waitUntilServerOnline(c *check.C) {
 	statusURL := fmt.Sprintf("http://%s/status", advertiseAddr4Test)

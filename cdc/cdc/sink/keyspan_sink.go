@@ -31,6 +31,9 @@ type keyspanSink struct {
 var _ Sink = (*keyspanSink)(nil)
 
 func (t *keyspanSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
+	if len(rawKVEntries) > 0 {
+		log.Debug("[TRACE] keyspanSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
+	}
 	t.buffer = append(t.buffer, rawKVEntries...)
 	t.manager.metricsKeySpanSinkTotalEvents.Add(float64(len(rawKVEntries)))
 	return nil
@@ -40,6 +43,7 @@ func (t *keyspanSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*mo
 // is required to be no more than global resolvedTs, keyspan barrierTs and keyspan
 // redo log watermarkTs.
 func (t *keyspanSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
+	log.Debug("[TRACE] bufferSink.FlushChangedEvents", zap.Uint64("keyspanID", keyspanID), zap.Uint64("resolvedTs", resolvedTs))
 	if keyspanID != t.keyspanID {
 		log.Panic("inconsistent keyspan sink",
 			zap.Uint64("keyspanID", keyspanID), zap.Uint64("sinkKeySpanID", t.keyspanID))

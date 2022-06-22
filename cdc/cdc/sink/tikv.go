@@ -17,6 +17,7 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
+	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/notify"
 )
 
@@ -119,6 +121,7 @@ func (k *tikvSink) dispatch(entry *model.RawKVEntry) uint32 {
 }
 
 func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
+	log.Debug("[TRACE] tikvSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
 	rowsCount := 0
 
 	for _, rawKVEntry := range rawKVEntries {
@@ -139,7 +142,7 @@ func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model
 }
 
 func (k *tikvSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
-	log.Debug("tikvSink::FlushRowChangedEvents", zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", k.checkpointTs))
+	log.Debug("[TRACE] tikvSink::FlushRowChangedEvents", zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", k.checkpointTs))
 
 	if resolvedTs <= k.checkpointTs {
 		return k.checkpointTs, nil
@@ -250,7 +253,7 @@ func (b *tikvBatcher) ByteSize() int64 {
 }
 
 func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
-	log.Debug("tikvBatch::Append", zap.Any("event", entry))
+	log.Debug("[TRACE] tikvBatch::Append", zap.Any("event", entry))
 
 	var batcher *innerBatch
 	var ok bool
@@ -270,8 +273,8 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 		batcher.TTL = append(batcher.TTL, entry.ExpiredTs-uint64(time.Now().Unix()))
 	}
 
-	// ignore prefix 'r'
-	key, value := entry.Key[1:], entry.Value
+	// Use client with "no prefix" and no need to trim RawKV prefix.
+	key, value := entry.Key, entry.Value
 	batcher.Keys = append(batcher.Keys, key)
 	batcher.Values = append(batcher.Values, value)
 	batcher.count += 1
@@ -307,7 +310,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	log.Info("tikvSink worker start", zap.Uint32("workerIdx", workerIdx))
 	input := k.workerInput[workerIdx]
 
-	cli, err := rawkv.NewClient(ctx, k.pdAddr, k.config.Security)
+	cli, err := rawkv.NewClientV2(ctx, k.pdAddr, k.config.Security)
 	if err != nil {
 		return err
 	}
@@ -320,17 +323,18 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 
 	flushToTiKV := func() error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
-			log.Debug("tikvSink::flushToTiKV", zap.Any("batches", batcher.Batches))
 			thisBatchSize := batcher.Count()
 			if thisBatchSize == 0 {
 				return 0, nil
 			}
 
+			log.Debug("[TRACE] tikvSink::flushToTiKV", zap.Any("batches", batcher.Batches))
+
 			var err error
 			for _, batch := range batcher.Batches {
 				if batch.count != 0 {
 					if batch.OpType == model.OpTypePut {
-						err = cli.BatchPut(ctx, batch.Keys, batch.Values, nil)
+						err = cli.BatchPut(ctx, batch.Keys, batch.Values)
 					} else if batch.OpType == model.OpTypeDelete {
 						err = cli.BatchDelete(ctx, batch.Keys)
 					}
@@ -346,7 +350,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 					return 0, err
 				}
 			}
-			log.Debug("TiKVSink flushed", zap.Int("thisBatchSize", thisBatchSize))
+			log.Debug("[TRACE] TiKVSink flushed", zap.Int("thisBatchSize", thisBatchSize))
 			batcher.Reset()
 			return thisBatchSize, nil
 		})
@@ -368,7 +372,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		}
 		if e.rawKVEntry == nil {
 			if e.resolvedTs != 0 {
-				log.Debug("tikvSink::runWorker push workerResolvedTs", zap.Uint32("workerIdx", workerIdx), zap.Uint64("event.resolvedTs", e.resolvedTs))
+				log.Debug("[TRACE] tikvSink::runWorker push workerResolvedTs", zap.Uint32("workerIdx", workerIdx), zap.Uint64("event.resolvedTs", e.resolvedTs))
 				if err := flushToTiKV(); err != nil {
 					return errors.Trace(err)
 				}
@@ -378,7 +382,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 			}
 			continue
 		}
-		log.Debug("tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
+		log.Debug("[TRACE] tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
 		batcher.Append(e.rawKVEntry)
 
 		if batcher.ByteSize() >= defaultTikvByteSizeLimit {
@@ -392,9 +396,11 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config, []string, error) {
 	config := tikvconfig.DefaultConfig()
 
-	var pdAddr []string
-	if sinkURI.Opaque != "" {
-		pdAddr = append(pdAddr, "http://"+sinkURI.Opaque)
+	pdAddr := strings.Split(sinkURI.Host, ",")
+	if len(pdAddr) > 0 {
+		for i, d := range pdAddr {
+			pdAddr[i] = "http://" + d // TODO: support https
+		}
 	} else {
 		pdAddr = append(pdAddr, "http://127.0.0.1:2379")
 	}
@@ -403,7 +409,7 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 	if s != "" {
 		_, err := strconv.Atoi(s)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, cerror.WrapError(cerror.ErrTiKVInvalidConfig, err)
 		}
 		opts["concurrency"] = s
 	}

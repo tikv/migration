@@ -28,8 +28,13 @@ import (
 )
 
 const (
-	RawKvStartKey = byte('r')
-	RawKvEndKey   = byte('s')
+	rawKvStartKey string = "r"
+	rawKvEndKey   string = "s"
+)
+
+var (
+	RawKvStartKey = []byte(rawKvStartKey) // to make RawKvStartKey & RawKvEndKey immutable.
+	RawKvEndKey   = []byte(rawKvEndKey)
 )
 
 // Span represents an arbitrary kv range
@@ -41,6 +46,10 @@ type Span struct {
 // String returns a string that encodes Span in hex format.
 func (s Span) String() string {
 	return fmt.Sprintf("[%s, %s)", hex.EncodeToString(s.Start), hex.EncodeToString(s.End))
+}
+
+func (s Span) Name() string {
+	return fmt.Sprintf("%s-%s", string(s.Start), string(s.End))
 }
 
 func (s Span) ID() uint64 {

@@ -18,19 +18,20 @@ import (
 	"strconv"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/puller"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
 	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/util"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
 type pullerNode struct {
-	// keyspanName string // quoted schema and keyspan, used in metircs only
-
 	keyspanID   model.KeySpanID
+	keyspan     regionspan.Span
 	replicaInfo *model.KeySpanReplicaInfo
 	cancel      context.CancelFunc
 	wg          *errgroup.Group
@@ -39,17 +40,16 @@ type pullerNode struct {
 func newPullerNode(
 	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo,
 ) pipeline.Node {
+	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
 	return &pullerNode{
 		keyspanID:   keyspanID,
+		keyspan:     keyspan,
 		replicaInfo: replicaInfo,
 	}
 }
 
-func (n *pullerNode) keyspan() []regionspan.Span {
-	// start keyspan puller
-	spans := make([]regionspan.Span, 0, 1)
-	spans = append(spans, regionspan.Span{Start: n.replicaInfo.Start, End: n.replicaInfo.End})
-	return spans
+func (n *pullerNode) keyspans() []regionspan.Span {
+	return []regionspan.Span{n.keyspan}
 }
 
 func (n *pullerNode) Init(ctx pipeline.NodeContext) error {
@@ -60,12 +60,12 @@ func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Gr
 	n.wg = wg
 	metricKeySpanResolvedTsGauge := keyspanResolvedTsGauge.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr, strconv.FormatUint(n.keyspanID, 10))
 	ctxC, cancel := context.WithCancel(ctx)
-	ctxC = util.PutKeySpanIDInCtx(ctxC, n.keyspanID)
+	ctxC = util.PutKeySpanInfoInCtx(ctxC, n.keyspanID, n.keyspan.Name())
 	ctxC = util.PutCaptureAddrInCtx(ctxC, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 	ctxC = util.PutChangefeedIDInCtx(ctxC, ctx.ChangefeedVars().ID)
 
 	plr := puller.NewPuller(ctxC, ctx.GlobalVars().PDClient, ctx.GlobalVars().GrpcPool, ctx.GlobalVars().RegionCache, ctx.GlobalVars().KVStorage,
-		n.replicaInfo.StartTs, n.keyspan(), true)
+		n.replicaInfo.StartTs, n.keyspans(), true)
 	n.wg.Go(func() error {
 		ctx.Throw(errors.Trace(plr.Run(ctxC)))
 		return nil
@@ -84,6 +84,7 @@ func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Gr
 					metricKeySpanResolvedTsGauge.Set(float64(oracle.ExtractPhysical(rawKV.CRTs)))
 				}
 				pEvent := model.NewPolymorphicEvent(rawKV)
+				log.Debug("[TRACE] pullerNode.SendToNextNode", zap.Any("event", pEvent))
 				ctx.SendToNextNode(pipeline.PolymorphicEventMessage(pEvent))
 			}
 		}

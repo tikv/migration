@@ -1,5 +1,5 @@
 ### Makefile for ticdc
-.PHONY: build test check clean fmt cdc
+.PHONY: build test check clean fmt cdc release debug
 
 PROJECT=migration/cdc
 P=3
@@ -20,6 +20,7 @@ GOVENDORFLAG := -mod=vendor
 endif
 
 GOBUILD  := CGO_ENABLED=0 $(GO) build $(BUILD_FLAG) -trimpath $(GOVENDORFLAG)
+GOBUILD_DEBUG  := CGO_ENABLED=0 $(GO) build $(BUILD_FLAG) -gcflags "all=-N -l" $(GOVENDORFLAG)
 GOBUILDNOVENDOR  := CGO_ENABLED=0 $(GO) build $(BUILD_FLAG) -trimpath
 GOTEST   := CGO_ENABLED=1 $(GO) test -p $(P) --race
 GOTESTNORACE := CGO_ENABLED=1 $(GO) test -p $(P)
@@ -79,6 +80,9 @@ test: unit_test
 
 build: cdc
 
+# "release" target is to meet release procedure requirement.
+release: cdc
+
 bank:
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/bank ./tests/bank/bank.go ./tests/bank/case.go
 
@@ -89,6 +93,9 @@ build-failpoint: check_failpoint_ctl
 
 cdc:
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc ./cmd/cdc/main.go
+
+debug:
+	$(GOBUILD_DEBUG) -ldflags '$(LDFLAGS)' -o bin/cdc ./cmd/cdc/main.go
 
 kafka_consumer:
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc_kafka_consumer ./cmd/kafka-consumer/main.go

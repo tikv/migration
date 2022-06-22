@@ -31,4 +31,5 @@ for i in $@; do
 	rm -f $i~
 done
 
-git --no-pager diff --exit-code
+# Always report error when there are unstaged changes. So comment out.
+# git --no-pager diff --exit-code

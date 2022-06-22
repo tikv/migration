@@ -521,6 +521,9 @@ func (p *processor) handlePosition(currentTs int64) {
 	p.metricCheckpointTsLagGauge.Set(float64(currentTs-checkpointPhyTs) / 1e3)
 	p.metricCheckpointTsGauge.Set(float64(checkpointPhyTs))
 
+	log.Debug("[TRACE] processor.handlePosition", zap.Uint64("minResolvedTs", minResolvedTs), zap.Uint64("minCheckpointTs", minCheckpointTs),
+		zap.Int64("resolvedPhyTs", resolvedPhyTs), zap.Int64("checkpointPhyTs", checkpointPhyTs))
+
 	// minResolvedTs and minCheckpointTs may less than global resolved ts and global checkpoint ts when a new keyspan added, the startTs of the new keyspan is less than global checkpoint ts.
 	if minResolvedTs != p.changefeed.TaskPositions[p.captureInfo.ID].ResolvedTs ||
 		minCheckpointTs != p.changefeed.TaskPositions[p.captureInfo.ID].CheckPointTs {
@@ -613,11 +616,9 @@ func (p *processor) createKeySpanPipelineImpl(ctx cdcContext.Context, keyspanID 
 		return nil
 	})
 
-	// sink := p.sinkManager.CreateKeySpanSink(keyspanID, replicaInfo.StartTs, p.redoManager)
 	sink := p.sinkManager.CreateKeySpanSink(keyspanID, replicaInfo.StartTs)
 	keyspan := keyspanpipeline.NewKeySpanPipeline(
 		ctx,
-		// p.mounter,
 		keyspanID,
 		replicaInfo,
 		sink,

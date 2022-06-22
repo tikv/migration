@@ -86,19 +86,19 @@ func (s *ctxValueSuite) TestTimezoneNotSet(c *check.C) {
 func (s *ctxValueSuite) TestShouldReturnKeySpanInfo(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx := PutKeySpanInfoInCtx(context.Background(), 1321, "ello")
-	keyspanID, keyspanName := KeySpanIDFromCtx(ctx)
-	c.Assert(keyspanID, check.Equals, int64(1321))
+	keyspanID, keyspanName := KeySpanInfoFromCtx(ctx)
+	c.Assert(keyspanID, check.Equals, uint64(1321))
 	c.Assert(keyspanName, check.Equals, "ello")
 }
 
 func (s *ctxValueSuite) TestKeySpanInfoNotSet(c *check.C) {
 	defer testleak.AfterTest(c)()
-	keyspanID, keyspanName := KeySpanIDFromCtx(context.Background())
-	c.Assert(keyspanID, check.Equals, int64(0))
+	keyspanID, keyspanName := KeySpanInfoFromCtx(context.Background())
+	c.Assert(keyspanID, check.Equals, uint64(0))
 	c.Assert(keyspanName, check.Equals, "")
 	ctx := context.WithValue(context.Background(), ctxKeyKeySpanID, 1321)
-	keyspanID, keyspanName = KeySpanIDFromCtx(ctx)
-	c.Assert(keyspanID, check.Equals, int64(0))
+	keyspanID, keyspanName = KeySpanInfoFromCtx(ctx)
+	c.Assert(keyspanID, check.Equals, uint64(0))
 	c.Assert(keyspanName, check.Equals, "")
 }
 

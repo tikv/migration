@@ -43,6 +43,10 @@ type RegionFeedEvent struct {
 	RegionID uint64
 }
 
+func (e RegionFeedEvent) String() string {
+	return fmt.Sprintf("Val: %v, Resolved: %v, RegionID: %v", e.Val, e.Resolved, e.RegionID)
+}
+
 // GetValue returns the underlying value
 func (e *RegionFeedEvent) GetValue() interface{} {
 	if e.Val != nil {

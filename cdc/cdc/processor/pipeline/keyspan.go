@@ -25,6 +25,7 @@ import (
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
+	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"go.uber.org/zap"
 )
 
@@ -55,8 +56,8 @@ type KeySpanPipeline interface {
 type keyspanPipelineImpl struct {
 	p *pipeline.Pipeline
 
-	keyspanID   uint64
-	keyspanName string // quoted schema and keyspan, used in metircs only
+	keyspanID uint64
+	keyspan   regionspan.Span
 
 	// sorterNode *sorterNode
 	sinkNode *sinkNode
@@ -80,8 +81,7 @@ func (t *keyspanPipelineImpl) ResolvedTs() model.Ts {
 	// will be able to cooperate replication status directly. Then we will add
 	// another replication barrier for consistent replication instead of reusing
 	// the global resolved-ts.
-
-	return 0
+	return t.sinkNode.ResolvedTs()
 }
 
 // CheckpointTs returns the checkpoint ts in this keyspan pipeline
@@ -137,7 +137,7 @@ func (t *keyspanPipelineImpl) ID() (keyspanID uint64) {
 
 // Name returns the quoted schema and keyspan name
 func (t *keyspanPipelineImpl) Name() string {
-	return t.keyspanName
+	return t.keyspan.Name()
 }
 
 // Cancel stops this keyspan pipeline immediately and destroy all resources created by this keyspan pipeline
@@ -169,11 +169,12 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 ) KeySpanPipeline {
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	replConfig := ctx.ChangefeedVars().Info.Config
+	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
 	keyspanPipeline := &keyspanPipelineImpl{
-		keyspanID:   keyspanID,
-		cancel:      cancel,
-		replConfig:  replConfig,
-		keyspanName: string(replicaInfo.Start) + "-" + string(replicaInfo.End),
+		keyspanID:  keyspanID,
+		keyspan:    keyspan,
+		cancel:     cancel,
+		replConfig: replConfig,
 	}
 
 	perKeySpanMemoryQuota := serverConfig.GetGlobalServerConfig().PerKeySpanMemoryQuota

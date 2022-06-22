@@ -117,7 +117,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 
 	captureAddr := util.CaptureAddrFromCtx(ctx)
 	changefeedID := util.ChangefeedIDFromCtx(ctx)
-	keyspanID, _ := util.KeySpanIDFromCtx(ctx)
+	keyspanID, _ := util.KeySpanInfoFromCtx(ctx)
 	metricOutputChanSize := outputChanSizeHistogram.WithLabelValues(captureAddr, changefeedID)
 	metricEventChanSize := eventChanSizeHistogram.WithLabelValues(captureAddr, changefeedID)
 	metricPullerResolvedTs := pullerResolvedTsGauge.WithLabelValues(captureAddr, changefeedID)
@@ -159,8 +159,9 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 					zap.Reflect("row", raw),
 					zap.Uint64("CRTs", raw.CRTs),
 					zap.Uint64("resolvedTs", p.resolvedTs),
-					zap.Int64("keyspanID", keyspanID))
-				return nil
+					zap.Uint64("keyspanID", keyspanID))
+				// TODO(resolved-ts): should return nil
+				// return nil
 			}
 
 			select {
@@ -181,9 +182,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				return errors.Trace(ctx.Err())
 			}
 
-			log.Debug("revcive region feed event",
-				zap.String("RawKVEntry Key", string(e.Val.Key)),
-				zap.Uint64("ResolvedTS", e.Resolved.ResolvedTs))
+			log.Debug("[TRACE] revcive region feed event", zap.Stringer("event", e))
 
 			if e.Val != nil {
 				metricTxnCollectCounterKv.Inc()
@@ -195,13 +194,14 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				if !regionspan.IsSubSpan(e.Resolved.Span, p.spans...) {
 					log.Panic("the resolved span is not in the total span",
 						zap.Reflect("resolved", e.Resolved),
-						zap.Int64("keyspanID", keyspanID),
+						zap.Uint64("keyspanID", keyspanID),
 						zap.Reflect("spans", p.spans),
 					)
 				}
 				// Forward is called in a single thread
 				p.tsTracker.Forward(e.Resolved.Span, e.Resolved.ResolvedTs)
 				resolvedTs := p.tsTracker.Frontier()
+				log.Debug("[TRACE] puller.tsTracker.Forward", zap.Any("e.Span", e.Resolved.Span), zap.Uint64("e.ResolvedTs", e.Resolved.ResolvedTs), zap.Uint64("tsTracker.Frontier", resolvedTs))
 				if resolvedTs > 0 && !initialized {
 					// Advancing to a non-zero value means the puller level
 					// resolved ts is initialized.
@@ -215,7 +215,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 					log.Info("puller is initialized",
 						zap.Duration("duration", time.Since(start)),
 						zap.String("changefeed", changefeedID),
-						zap.Int64("keyspanID", keyspanID),
+						zap.Uint64("keyspanID", keyspanID),
 						zap.Strings("spans", spans),
 						zap.Uint64("resolvedTs", resolvedTs))
 				}

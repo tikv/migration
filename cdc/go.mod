@@ -175,6 +175,7 @@ require (
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.22.5 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
@@ -228,3 +229,6 @@ replace (
 	github.com/golang-jwt/jwt v3.2.1+incompatible => github.com/golang-jwt/jwt v3.2.0+incompatible
 	github.com/uber-go/atomic => go.uber.org/atomic v1.4.0
 )
+
+// remove after client-go with "no-prefix" is merged.
+replace github.com/tikv/client-go/v2 => github.com/pingyu/client-go/v2 v2.0.0-alpha.0.20220609033944-46f14fcc9ba7

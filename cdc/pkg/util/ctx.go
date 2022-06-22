@@ -59,22 +59,17 @@ func PutKVStorageInCtx(ctx context.Context, store kv.Storage) context.Context {
 }
 
 type keyspaninfo struct {
-	id   int64
+	id   uint64
 	name string
 }
 
 // PutKeySpanInfoInCtx returns a new child context with the specified keyspan ID and name stored.
-func PutKeySpanInfoInCtx(ctx context.Context, keyspanID int64, keyspanName string) context.Context {
+func PutKeySpanInfoInCtx(ctx context.Context, keyspanID uint64, keyspanName string) context.Context {
 	return context.WithValue(ctx, ctxKeyKeySpanID, keyspaninfo{id: keyspanID, name: keyspanName})
 }
 
-// PutKeySpanInfoInCtx returns a new child context with the specified keyspan ID and name stored.
-func PutKeySpanIDInCtx(ctx context.Context, keyspanID uint64) context.Context {
-	return context.WithValue(ctx, ctxKeyKeySpanID, keyspanID)
-}
-
-// KeySpanIDFromCtx returns a kyspan ID
-func KeySpanIDFromCtx(ctx context.Context) (int64, string) {
+// KeySpanInfoFromCtx returns a kyspan ID & name
+func KeySpanInfoFromCtx(ctx context.Context) (uint64, string) {
 	info, ok := ctx.Value(ctxKeyKeySpanID).(keyspaninfo)
 	if !ok {
 		return 0, ""
