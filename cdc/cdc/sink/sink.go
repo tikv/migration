@@ -31,19 +31,19 @@ const (
 
 // Sink is an abstraction for anything that a changefeed may emit into.
 type Sink interface {
-	// Emit,owChangedEvents sends Row Changed Event to Sink
-	// EmitRowChangedEvents may write rows to downstream directly;
+	// EmitChangedEvents sends Changed Event to Sink
+	// EmitChangedEvents may write rows to downstream directly;
 	//
-	// EmitRowChangedEvents is thread-safe.
+	// EmitChangedEvents is thread-safe.
 	// FIXME: some sink implementation, they should be.
 	EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error
 
-	// FlushRowChangedEvents flushes each row which of commitTs less than or
+	// FlushChangedEvents flushes each row which of commitTs less than or
 	// equal to `resolvedTs` into downstream.
-	// TiCDC guarantees that all the Events whose commitTs is less than or
+	// TiKV-CDC guarantees that all the Events whose commitTs is less than or
 	// equal to `resolvedTs` are sent to Sink through `EmitRowChangedEvents`
 	//
-	// FlushRowChangedEvents is thread-safe.
+	// FlushChangedEvents is thread-safe.
 	// FIXME: some sink implementation, they should be.
 	FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error)
 
