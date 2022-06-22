@@ -1,14 +1,13 @@
-// Copyright 2021 TiKV Project Authors.
+// Copyright 2021 PingCAP, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
@@ -247,11 +246,15 @@ func (b *tikvBatcher) ByteSize() uint64 {
 	return b.byteSize
 }
 
+var getNow func() uint64 = func() uint64 {
+	return uint64(time.Now().Unix()) // TODO: use TSO ?
+}
+
 func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	log.Debug("[TRACE] tikvBatch::Append", zap.Any("event", entry))
 
 	if len(b.Batches) == 0 {
-		b.now = uint64(time.Now().Unix()) // TODO: use TSO ?
+		b.now = getNow()
 	}
 
 	// Expired entries have the effect the same as delete, and can not be ignored.
@@ -268,7 +271,7 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 		return expiredTs - b.now
 	}
 
-	// NOTE: do NOT seperate PUT & DELETE operations into two batch.
+	// NOTE: do NOT separate PUT & DELETE operations into two batch.
 	// Change the order of entires would lead to wrong result.
 	if len(b.Batches) == 0 || len(b.Batches) >= defaultTiKVBatchSizeLimit || b.Batches[len(b.Batches)-1].OpType != entry.OpType {
 		batch := innerBatch{

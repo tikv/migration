@@ -1,14 +1,13 @@
-// Copyright 2022 TiKV Project Authors.
+// Copyright 2022 PingCAP, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-// http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
@@ -19,43 +18,50 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"testing"
 
-	"github.com/pingcap/log"
 	"github.com/stretchr/testify/require"
 	tikvconfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	pd "github.com/tikv/pd/client"
-	"go.uber.org/zap"
 )
 
 type mockRawKVClient struct {
-	b *bytes.Buffer
+	ch chan string
 }
 
-func (c *mockRawKVClient) String() string {
-	return c.b.String()
+func newMockRawKVClient() *mockRawKVClient {
+	return &mockRawKVClient{
+		ch: make(chan string, 1024),
+	}
 }
 
-func (c *mockRawKVClient) Reset() {
-	c.b.Reset()
+func (c *mockRawKVClient) Output() <-chan string {
+	return c.ch
+}
+
+func (c *mockRawKVClient) CloseOutput() {
+	close(c.ch)
 }
 
 func (c *mockRawKVClient) BatchPutWithTTL(ctx context.Context, keys, values [][]byte, ttls []uint64, options ...rawkv.RawOption) error {
+	b := &bytes.Buffer{}
 	for i, k := range keys {
-		fmt.Fprintf(c.b, "1,%s,%s|", string(k), string(values[i]))
+		fmt.Fprintf(b, "P:%s,%s,%d|", string(k), string(values[i]), ttls[i])
 	}
-	fmt.Fprintf(c.b, "\n")
+	c.ch <- b.String()
 	return nil
 }
 
 func (c *mockRawKVClient) BatchDelete(ctx context.Context, keys [][]byte, options ...rawkv.RawOption) error {
+	b := &bytes.Buffer{}
 	for _, k := range keys {
-		fmt.Fprintf(c.b, "2,%s,|", string(k))
+		fmt.Fprintf(b, "D:%s|", string(k))
 	}
-	fmt.Fprintf(c.b, "\n")
+	c.ch <- b.String()
 	return nil
 }
 
@@ -63,7 +69,7 @@ func (c *mockRawKVClient) Close() error {
 	return nil
 }
 
-var _ rawkvClient = &mockRawKVClient{}
+var _ rawkvClient = (*mockRawKVClient)(nil)
 
 func TestTiKVSinkConfig(t *testing.T) {
 	defer testleak.AfterTestT(t)()
@@ -86,38 +92,46 @@ func TestTiKVSinkBatcher(t *testing.T) {
 	defer testleak.AfterTestT(t)()
 	require := require.New(t)
 
+	getNow = func() uint64 {
+		return 100
+	}
+
 	batcher := tikvBatcher{}
 	keys := []string{
-		"a", "b", "c", "a",
+		"a", "b", "c", "d", "e", "f",
 	}
 	values := []string{
-		"1", "2", "3", "",
+		"1", "2", "3", "", "5", "6",
+	}
+	expireds := []uint64{
+		0, 200, 300, 0, 100, 400,
 	}
 	opTypes := []model.OpType{
-		model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete,
+		model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete, model.OpTypePut, model.OpTypePut,
 	}
 	for i := range keys {
 		entry := &model.RawKVEntry{
-			OpType: opTypes[i],
-			Key:    []byte(keys[i]),
-			Value:  []byte(values[i]),
-			CRTs:   uint64(i),
+			OpType:    opTypes[i],
+			Key:       []byte(keys[i]),
+			Value:     []byte(values[i]),
+			ExpiredTs: expireds[i],
+			CRTs:      uint64(i),
 		}
 		batcher.Append(entry)
 	}
-	require.Len(batcher.Batches, 2)
-	require.Equal(4, batcher.Count())
-	require.Equal(uint64(7), batcher.ByteSize())
+	require.Len(batcher.Batches, 3)
+	require.Equal(6, batcher.Count())
+	require.Equal(10, int(batcher.ByteSize()))
 
 	buf := &bytes.Buffer{}
 
-	fmt.Fprintf(buf, "%+v", batcher.Batches[0])
-	require.Equal("{OpType:1 Keys:[[97] [98] [99]] Values:[[49] [50] [51]] TTLs:[0 0 0]}", buf.String())
-	buf.Reset()
-
-	fmt.Fprintf(buf, "%+v", batcher.Batches[1])
-	require.Equal("{OpType:2 Keys:[[97]] Values:[] TTLs:[]}", buf.String())
-	buf.Reset()
+	for _, batch := range batcher.Batches {
+		fmt.Fprintf(buf, "%+v\n", batch)
+	}
+	require.Equal(`{OpType:1 Keys:[[97] [98] [99]] Values:[[49] [50] [51]] TTLs:[0 100 200]}
+{OpType:2 Keys:[[100] [101]] Values:[] TTLs:[]}
+{OpType:1 Keys:[[102]] Values:[[54]] TTLs:[300]}
+`, buf.String())
 
 	batcher.Reset()
 	require.Empty(batcher.Batches)
@@ -140,9 +154,7 @@ func TestTiKVSink(t *testing.T) {
 
 	errCh := make(chan error)
 
-	mockCli := &mockRawKVClient{
-		b: &bytes.Buffer{},
-	}
+	mockCli := newMockRawKVClient()
 
 	fnCreate := func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error) {
 		return mockCli, nil
@@ -152,20 +164,24 @@ func TestTiKVSink(t *testing.T) {
 	require.NoError(err)
 
 	keys := []string{
-		"a", "b", "c", "a",
+		"a", "b", "c", "d", "e", "f",
 	}
 	values := []string{
-		"1", "2", "3", "",
+		"1", "2", "3", "", "5", "6",
+	}
+	expireds := []uint64{
+		0, 200, 300, 0, 100, 400,
 	}
 	opTypes := []model.OpType{
-		model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete,
+		model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete, model.OpTypePut, model.OpTypePut,
 	}
 	for i := range keys {
 		entry := &model.RawKVEntry{
-			OpType: opTypes[i],
-			Key:    []byte(keys[i]),
-			Value:  []byte(values[i]),
-			CRTs:   uint64(i),
+			OpType:    opTypes[i],
+			Key:       []byte(keys[i]),
+			Value:     []byte(values[i]),
+			ExpiredTs: expireds[i],
+			CRTs:      uint64(i),
 		}
 		err = sink.EmitChangedEvents(ctx, entry)
 		require.NoError(err)
@@ -174,10 +190,13 @@ func TestTiKVSink(t *testing.T) {
 	require.NoError(err)
 	require.Equal(uint64(120), checkpointTs)
 
-	output := mockCli.String()
-	log.Info("Output", zap.String("mockCli.String()", output))
-	// c.Assert(output, check.Equals, "BatchPUT\n(a,1)(b,2)(c,3)\n")
-	mockCli.Reset()
+	mockCli.CloseOutput()
+	results := make([]string, 0)
+	for r := range mockCli.Output() {
+		results = append(results, r)
+	}
+	sort.Slice(results, func(i, j int) bool { return results[i] < results[j] })
+	require.Equal([]string{"D:d|D:e|", "P:a,1,0|", "P:b,2,100|", "P:c,3,200|", "P:f,6,300|"}, results)
 
 	// flush older resolved ts
 	checkpointTs, err = sink.FlushChangedEvents(ctx, 1, uint64(110))
