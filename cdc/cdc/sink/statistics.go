@@ -38,10 +38,9 @@ func NewStatistics(ctx context.Context, name string, opts map[string]string) *St
 	if cid, ok := opts[OptCaptureAddr]; ok {
 		statistics.captureAddr = cid
 	}
-	statistics.metricExecTxnHis = execTxnHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID)
-	statistics.metricExecDDLHis = execDDLHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID)
-	statistics.metricExecBatchHis = execBatchHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID)
-	statistics.metricExecErrCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID)
+	statistics.metricExecTxnHis = execTxnHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
+	statistics.metricExecBatchHis = execBatchHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
+	statistics.metricExecErrCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 
 	// Flush metrics in background for better accuracy and efficiency.
 	captureAddr, changefeedID := statistics.captureAddr, statistics.changefeedID
@@ -81,7 +80,6 @@ type Statistics struct {
 	lastPrintStatusTime      time.Time
 
 	metricExecTxnHis   prometheus.Observer
-	metricExecDDLHis   prometheus.Observer
 	metricExecBatchHis prometheus.Observer
 	metricExecErrCnt   prometheus.Counter
 }
@@ -118,17 +116,6 @@ func (b *Statistics) RecordBatchExecution(executor func() (int, error)) error {
 	b.metricExecTxnHis.Observe(castTime)
 	b.metricExecBatchHis.Observe(float64(batchSize))
 	atomic.AddUint64(&b.totalFlushedRows, uint64(batchSize))
-	return nil
-}
-
-// RecordDDLExecution record the time cost of execute ddl
-func (b *Statistics) RecordDDLExecution(executor func() error) error {
-	start := time.Now()
-	if err := executor(); err != nil {
-		return err
-	}
-
-	b.metricExecDDLHis.Observe(time.Since(start).Seconds())
 	return nil
 }
 
