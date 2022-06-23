@@ -118,7 +118,7 @@ func createTiKVSink(
 		pdAddr:      pdAddr,
 		opts:        opts,
 
-		statistics: NewStatistics(ctx, "TiKVSink", opts),
+		statistics: NewStatistics(ctx, "TiKV", opts),
 	}
 
 	go func() {

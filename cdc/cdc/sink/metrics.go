@@ -25,7 +25,7 @@ var (
 			Name:      "txn_batch_size",
 			Help:      "Bucketed histogram of batch size of a txn.",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 18),
-		}, []string{"capture", "changefeed"})
+		}, []string{"capture", "changefeed", "type"})
 	execTxnHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "tikv_cdc",
@@ -33,22 +33,14 @@ var (
 			Name:      "txn_exec_duration",
 			Help:      "Bucketed histogram of processing time (s) of a txn.",
 			Buckets:   prometheus.ExponentialBuckets(0.002 /* 2 ms */, 2, 18),
-		}, []string{"capture", "changefeed"})
-	execDDLHistogram = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Namespace: "tikv_cdc",
-			Subsystem: "sink",
-			Name:      "ddl_exec_duration",
-			Help:      "Bucketed histogram of processing time (s) of a ddl.",
-			Buckets:   prometheus.ExponentialBuckets(0.01, 2, 18),
-		}, []string{"capture", "changefeed"})
+		}, []string{"capture", "changefeed", "type"})
 	executionErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "execution_error",
 			Help:      "total count of execution errors",
-		}, []string{"capture", "changefeed"})
+		}, []string{"capture", "changefeed", "type"})
 	conflictDetectDurationHis = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "tikv_cdc",
@@ -108,7 +100,6 @@ var (
 func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(execBatchHistogram)
 	registry.MustRegister(execTxnHistogram)
-	registry.MustRegister(execDDLHistogram)
 	registry.MustRegister(executionErrorCounter)
 	registry.MustRegister(conflictDetectDurationHis)
 	registry.MustRegister(bucketSizeCounter)
