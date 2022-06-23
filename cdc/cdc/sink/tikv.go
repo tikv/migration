@@ -40,7 +40,7 @@ import (
 
 const (
 	defaultConcurrency         uint32 = 4
-	defaultTiKVBatchBytesLimit uint64 = 4 * 1024 * 1024 // 4MB
+	defaultTiKVBatchBytesLimit uint64 = 40 * 1024 * 1024 // 40MB
 	defaultTiKVBatchSizeLimit  int    = 4096
 )
 
