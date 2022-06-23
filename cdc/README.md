@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/tikv/migration/actions/workflows/ci-cdc.yml/badge.svg)](https://github.com/tikv/migration/actions/workflows/ci-cdc.yml)
 [![codecov](https://codecov.io/gh/tikv/migration/branch/main/graph/badge.svg?token=7nmbrqKeWs)](https://codecov.io/gh/tikv/migration)
-[![LICENSE](https://img.shields.io/github/license/pingcap/tiflow.svg)](https://github.com/pingcap/tiflow/blob/master/LICENSE)
+[![LICENSE](https://img.shields.io/github/license/tikv/migration)](https://github.com/tikv/migration/blob/main/cdc/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tikv/migration/cdc)](https://goreportcard.com/report/github.com/tikv/migration/cdc)
 
 **TiKV-CDC** is [TiKV](https://docs.pingcap.com/tidb/dev/tikv-overview)'s change data capture framework. It supports replicating change data to various downstreams, including message queues via the open CDC protocol and other systems such as local file storage.
