@@ -1,4 +1,4 @@
-name: CI
+name: TiKV-BR CI
 on:
   push:
     branches: main
