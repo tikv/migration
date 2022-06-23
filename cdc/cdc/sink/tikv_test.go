@@ -21,6 +21,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/pingcap/failpoint"
 	"github.com/stretchr/testify/require"
 	tikvconfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
@@ -71,6 +72,42 @@ func (c *mockRawKVClient) Close() error {
 
 var _ rawkvClient = (*mockRawKVClient)(nil)
 
+func TestExtractRawKVEntry(t *testing.T) {
+	defer testleak.AfterTestT(t)()
+	require := require.New(t)
+
+	type expected struct {
+		opType model.OpType
+		key    []byte
+		value  []byte
+		ttl    uint64
+	}
+
+	now := uint64(100)
+	cases := []*model.RawKVEntry{
+		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 0},
+		{OpType: model.OpTypeDelete, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 0},
+		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 200},
+		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 100},
+		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 1},
+	}
+	expects := []expected{
+		{model.OpTypePut, []byte("k"), []byte("v"), 0},
+		{model.OpTypeDelete, []byte("k"), nil, 0},
+		{model.OpTypePut, []byte("k"), []byte("v"), 100},
+		{model.OpTypeDelete, []byte("k"), nil, 0},
+		{model.OpTypeDelete, []byte("k"), nil, 0},
+	}
+
+	for i, c := range cases {
+		opType, key, value, ttl := extractEntry(c, now)
+		require.Equal(expects[i].opType, opType)
+		require.Equal(expects[i].key, key)
+		require.Equal(expects[i].value, value)
+		require.Equal(expects[i].ttl, ttl)
+	}
+}
+
 func TestTiKVSinkConfig(t *testing.T) {
 	defer testleak.AfterTestT(t)()
 
@@ -92,9 +129,11 @@ func TestTiKVSinkBatcher(t *testing.T) {
 	defer testleak.AfterTestT(t)()
 	require := require.New(t)
 
-	getNow = func() uint64 {
-		return 100
-	}
+	fpGetNow := "github.com/tikv/migration/cdc/cdc/sink/tikvSinkGetNow"
+	require.NoError(failpoint.Enable(fpGetNow, "return(100)"))
+	defer func() {
+		require.NoError(failpoint.Disable(fpGetNow))
+	}()
 
 	batcher := tikvBatcher{}
 	keys := []string{
@@ -121,7 +160,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 	}
 	require.Len(batcher.Batches, 3)
 	require.Equal(6, batcher.Count())
-	require.Equal(10, int(batcher.ByteSize()))
+	require.Equal(42, int(batcher.ByteSize()))
 
 	buf := &bytes.Buffer{}
 
@@ -142,9 +181,16 @@ func TestTiKVSinkBatcher(t *testing.T) {
 func TestTiKVSink(t *testing.T) {
 	defer testleak.AfterTestT(t)()
 	require := require.New(t)
+
+	fpGetNow := "github.com/tikv/migration/cdc/cdc/sink/tikvSinkGetNow"
+	require.NoError(failpoint.Enable(fpGetNow, "2*return(100)->return(200)"))
+	defer func() {
+		require.NoError(failpoint.Disable(fpGetNow))
+	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 
-	uri := "tikv://127.0.0.1:1001,127.0.0.2:1002/?concurrency=10"
+	uri := "tikv://127.0.0.1:1001,127.0.0.2:1002/?concurrency=2"
 	sinkURI, err := url.Parse(uri)
 	require.NoError(err)
 
@@ -163,45 +209,79 @@ func TestTiKVSink(t *testing.T) {
 	sink, err := createTiKVSink(ctx, fnCreate, config, pdAddr, opts, errCh)
 	require.NoError(err)
 
-	keys := []string{
-		"a", "b", "c", "d", "e", "f",
-	}
-	values := []string{
-		"1", "2", "3", "", "5", "6",
-	}
-	expires := []uint64{
-		0, 200, 300, 0, 100, 400,
-	}
-	opTypes := []model.OpType{
-		model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete, model.OpTypePut, model.OpTypePut,
-	}
-	for i := range keys {
-		entry := &model.RawKVEntry{
-			OpType:    opTypes[i],
-			Key:       []byte(keys[i]),
-			Value:     []byte(values[i]),
-			ExpiredTs: expires[i],
-			CRTs:      uint64(i),
+	// Batch 0
+	{
+		keys := []string{
+			"a", "b", "c", "d", "e", "f",
 		}
-		err = sink.EmitChangedEvents(ctx, entry)
-		require.NoError(err)
+		values := []string{
+			"1", "2", "3", "", "5", "6",
+		}
+		expires := []uint64{
+			0, 200, 300, 0, 100, 400,
+		}
+		opTypes := []model.OpType{
+			model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete, model.OpTypePut, model.OpTypePut,
+		}
+		for i := range keys {
+			entry := &model.RawKVEntry{
+				OpType:    opTypes[i],
+				Key:       []byte(keys[i]),
+				Value:     []byte(values[i]),
+				ExpiredTs: expires[i],
+				CRTs:      uint64(i),
+			}
+			err = sink.EmitChangedEvents(ctx, entry)
+			require.NoError(err)
+		}
 	}
 	checkpointTs, err := sink.FlushChangedEvents(ctx, 1, uint64(120))
 	require.NoError(err)
-	require.Equal(uint64(120), checkpointTs)
+	require.EqualValues(120, checkpointTs)
 
+	// Batch 1 with now:200
+	{
+		keys := []string{
+			"k", "m", "n",
+		}
+		values := []string{
+			"1", "2", "3",
+		}
+		expires := []uint64{
+			0, 200, 300,
+		}
+		opTypes := []model.OpType{
+			model.OpTypePut, model.OpTypePut, model.OpTypePut,
+		}
+		for i := range keys {
+			entry := &model.RawKVEntry{
+				OpType:    opTypes[i],
+				Key:       []byte(keys[i]),
+				Value:     []byte(values[i]),
+				ExpiredTs: expires[i],
+				CRTs:      uint64(i),
+			}
+			err = sink.EmitChangedEvents(ctx, entry)
+			require.NoError(err)
+		}
+	}
+	checkpointTs, err = sink.FlushChangedEvents(ctx, 1, uint64(140))
+	require.NoError(err)
+	require.EqualValues(140, checkpointTs)
+
+	// Check result
 	mockCli.CloseOutput()
 	results := make([]string, 0)
 	for r := range mockCli.Output() {
 		results = append(results, r)
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i] < results[j] })
-	require.Equal([]string{"D:d|D:e|", "P:a,1,0|", "P:b,2,100|", "P:c,3,200|", "P:f,6,300|"}, results)
+	require.Equal([]string{"D:d|D:e|", "D:m|", "P:a,1,0|", "P:b,2,100|P:c,3,200|", "P:f,6,300|", "P:k,1,0|", "P:n,3,100|"}, results)
 
-	// flush older resolved ts
+	// Flush older resolved ts
 	checkpointTs, err = sink.FlushChangedEvents(ctx, 1, uint64(110))
 	require.NoError(err)
-	require.Equal(uint64(120), checkpointTs)
+	require.EqualValues(140, checkpointTs)
 
 	err = sink.Close(ctx)
 	require.NoError(err)

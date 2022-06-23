@@ -20,8 +20,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
 	"github.com/twmb/murmur3"
 	"go.uber.org/zap"
@@ -246,53 +248,70 @@ func (b *tikvBatcher) ByteSize() uint64 {
 	return b.byteSize
 }
 
-var getNow func() uint64 = func() uint64 {
+func (b *tikvBatcher) getNow() uint64 {
+	failpoint.Inject("tikvSinkGetNow", func(val failpoint.Value) {
+		now := uint64(val.(int))
+		failpoint.Return(now)
+	})
 	return uint64(time.Now().Unix()) // TODO: use TSO ?
+}
+
+func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType, key []byte, value []byte, ttl uint64) {
+	opType = entry.OpType
+	key = entry.Key
+
+	if entry.OpType == model.OpTypePut {
+		// Expired entries have the effect the same as delete, and can not be ignored.
+		// Do the delete.
+		if entry.ExpiredTs > 0 && entry.ExpiredTs <= now {
+			opType = model.OpTypeDelete
+			return
+		}
+
+		value = entry.Value
+		if entry.ExpiredTs == 0 {
+			ttl = 0
+		} else {
+			ttl = entry.ExpiredTs - now
+		}
+	}
+	return
 }
 
 func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	log.Debug("[TRACE] tikvBatch::Append", zap.Any("event", entry))
 
 	if len(b.Batches) == 0 {
-		b.now = getNow()
+		b.now = b.getNow()
 	}
 
-	// Expired entries have the effect the same as delete, and can not be ignored.
-	// Do the delete.
-	if entry.OpType == model.OpTypePut && entry.ExpiredTs > 0 && entry.ExpiredTs <= b.now {
-		entry.OpType = model.OpTypeDelete
-		entry.Value = nil
-	}
-
-	getTTL := func(expiredTs uint64) uint64 {
-		if expiredTs == 0 {
-			return 0
-		}
-		return expiredTs - b.now
-	}
+	opType, key, value, ttl := extractEntry(entry, b.now)
 
 	// NOTE: do NOT separate PUT & DELETE operations into two batch.
 	// Change the order of entires would lead to wrong result.
-	if len(b.Batches) == 0 || len(b.Batches) >= defaultTiKVBatchSizeLimit || b.Batches[len(b.Batches)-1].OpType != entry.OpType {
+	if len(b.Batches) == 0 || len(b.Batches) >= defaultTiKVBatchSizeLimit || b.Batches[len(b.Batches)-1].OpType != opType {
 		batch := innerBatch{
-			OpType: entry.OpType,
-			Keys:   [][]byte{entry.Key},
+			OpType: opType,
+			Keys:   [][]byte{key},
 		}
-		if entry.OpType == model.OpTypePut {
-			batch.Values = [][]byte{entry.Value}
-			batch.TTLs = []uint64{getTTL(entry.ExpiredTs)}
+		if opType == model.OpTypePut {
+			batch.Values = [][]byte{value}
+			batch.TTLs = []uint64{ttl}
 		}
 		b.Batches = append(b.Batches, batch)
 	} else {
 		batch := &b.Batches[len(b.Batches)-1]
-		batch.Keys = append(batch.Keys, entry.Key)
-		if entry.OpType == model.OpTypePut {
-			batch.Values = append(batch.Values, entry.Value)
-			batch.TTLs = append(batch.TTLs, getTTL(entry.ExpiredTs))
+		batch.Keys = append(batch.Keys, key)
+		if opType == model.OpTypePut {
+			batch.Values = append(batch.Values, value)
+			batch.TTLs = append(batch.TTLs, ttl)
 		}
 	}
 	b.count += 1
-	b.byteSize += uint64(len(entry.Key) + len(entry.Value))
+	b.byteSize += uint64(len(key))
+	if opType == model.OpTypePut {
+		b.byteSize += uint64(len(value)) + uint64(unsafe.Sizeof(ttl))
+	}
 }
 
 func (b *tikvBatcher) Reset() {
