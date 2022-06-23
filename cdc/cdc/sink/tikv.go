@@ -20,8 +20,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
 	"github.com/twmb/murmur3"
 	"go.uber.org/zap"
@@ -33,12 +35,28 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/notify"
+	pd "github.com/tikv/pd/client"
 )
 
 const (
-	defaultConcurrency       uint32 = 4
-	defaultTikvByteSizeLimit int64  = 4 * 1024 * 1024 // 4MB
+	defaultConcurrency         uint32 = 4
+	defaultTiKVBatchBytesLimit uint64 = 40 * 1024 * 1024 // 40MB
+	defaultTiKVBatchSizeLimit  int    = 4096
 )
+
+type rawkvClient interface {
+	BatchPutWithTTL(ctx context.Context, keys, values [][]byte, ttls []uint64, options ...rawkv.RawOption) error
+	BatchDelete(ctx context.Context, keys [][]byte, options ...rawkv.RawOption) error
+	Close() error
+}
+
+var _ rawkvClient = &rawkv.Client{}
+
+type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error)
+
+func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error) {
+	return rawkv.NewClientV2(ctx, pdAddrs, security, opts...)
+}
 
 type tikvSink struct {
 	workerNum   uint32
@@ -51,15 +69,17 @@ type tikvSink struct {
 	resolvedNotifier *notify.Notifier
 	resolvedReceiver *notify.Receiver
 
-	config *tikvconfig.Config
-	pdAddr []string
-	opts   map[string]string
+	fnCreateCli fnCreateClient
+	config      *tikvconfig.Config
+	pdAddr      []string
+	opts        map[string]string
 
 	statistics *Statistics
 }
 
 func createTiKVSink(
 	ctx context.Context,
+	fnCreateCli fnCreateClient,
 	config *tikvconfig.Config,
 	pdAddr []string,
 	opts map[string]string,
@@ -93,9 +113,10 @@ func createTiKVSink(
 		resolvedNotifier: notifier,
 		resolvedReceiver: resolvedReceiver,
 
-		config: config,
-		pdAddr: pdAddr,
-		opts:   opts,
+		fnCreateCli: fnCreateCli,
+		config:      config,
+		pdAddr:      pdAddr,
+		opts:        opts,
 
 		statistics: NewStatistics(ctx, "TiKVSink", opts),
 	}
@@ -188,7 +209,7 @@ func (k *tikvSink) Close(ctx context.Context) error {
 }
 
 func (k *tikvSink) Barrier(cxt context.Context, keyspanID model.KeySpanID) error {
-	// Barrier does nothing because FlushRowChangedEvents in mq sink has flushed
+	// Barrier does nothing because FlushChangedEvents has flushed
 	// all buffered events forcedlly.
 	return nil
 }
@@ -209,99 +230,92 @@ type innerBatch struct {
 	OpType model.OpType
 	Keys   [][]byte
 	Values [][]byte
-	TTL    []uint64
-
-	count int
+	TTLs   []uint64
 }
 
 type tikvBatcher struct {
-	Batches        map[model.OpType]*innerBatch
-	BatchesWithTTL map[model.OpType]*innerBatch
-	count          int
-	byteSize       int64
-}
-
-func NewTiKVBatcher() *tikvBatcher {
-	tikvBatcher := &tikvBatcher{
-		Batches:        make(map[model.OpType]*innerBatch),
-		BatchesWithTTL: make(map[model.OpType]*innerBatch),
-	}
-	tikvBatcher.Batches[model.OpTypePut] = &innerBatch{
-		OpType: model.OpTypePut,
-		Keys:   [][]byte{},
-		Values: [][]byte{},
-	}
-	tikvBatcher.Batches[model.OpTypeDelete] = &innerBatch{
-		OpType: model.OpTypeDelete,
-		Keys:   [][]byte{},
-		Values: [][]byte{},
-	}
-	tikvBatcher.BatchesWithTTL[model.OpTypePut] = &innerBatch{
-		OpType: model.OpTypePut,
-		Keys:   [][]byte{},
-		Values: [][]byte{},
-	}
-	return tikvBatcher
+	Batches  []innerBatch
+	count    int
+	byteSize uint64
+	now      uint64
 }
 
 func (b *tikvBatcher) Count() int {
 	return b.count
 }
 
-func (b *tikvBatcher) ByteSize() int64 {
+func (b *tikvBatcher) ByteSize() uint64 {
 	return b.byteSize
+}
+
+func (b *tikvBatcher) getNow() uint64 {
+	failpoint.Inject("tikvSinkGetNow", func(val failpoint.Value) {
+		now := uint64(val.(int))
+		failpoint.Return(now)
+	})
+	return uint64(time.Now().Unix()) // TODO: use TSO ?
+}
+
+func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType, key []byte, value []byte, ttl uint64) {
+	opType = entry.OpType
+	key = entry.Key
+
+	if entry.OpType == model.OpTypePut {
+		// Expired entries have the effect the same as delete, and can not be ignored.
+		// Do the delete.
+		if entry.ExpiredTs > 0 && entry.ExpiredTs <= now {
+			opType = model.OpTypeDelete
+			return
+		}
+
+		value = entry.Value
+		if entry.ExpiredTs == 0 {
+			ttl = 0
+		} else {
+			ttl = entry.ExpiredTs - now
+		}
+	}
+	return
 }
 
 func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	log.Debug("[TRACE] tikvBatch::Append", zap.Any("event", entry))
 
-	var batcher *innerBatch
-	var ok bool
-	if entry.ExpiredTs == 0 {
-		batcher, ok = b.Batches[entry.OpType]
-		if !ok {
-			log.Info("Unknow operate type, support put and delete", zap.Int("OpType", int(entry.OpType)))
-			return
-		}
-	} else {
-		batcher, ok = b.BatchesWithTTL[entry.OpType]
-		if !ok {
-			log.Info("Unknow operate type, only support put", zap.Int("OpType", int(entry.OpType)))
-			return
-		}
-		// Maybe lose precision
-		batcher.TTL = append(batcher.TTL, entry.ExpiredTs-uint64(time.Now().Unix()))
+	if len(b.Batches) == 0 {
+		b.now = b.getNow()
 	}
 
-	// Use client with "no prefix" and no need to trim RawKV prefix.
-	key, value := entry.Key, entry.Value
-	batcher.Keys = append(batcher.Keys, key)
-	batcher.Values = append(batcher.Values, value)
-	batcher.count += 1
+	opType, key, value, ttl := extractEntry(entry, b.now)
 
+	// NOTE: do NOT separate PUT & DELETE operations into two batch.
+	// Change the order of entires would lead to wrong result.
+	if len(b.Batches) == 0 || len(b.Batches) >= defaultTiKVBatchSizeLimit || b.Batches[len(b.Batches)-1].OpType != opType {
+		batch := innerBatch{
+			OpType: opType,
+			Keys:   [][]byte{key},
+		}
+		if opType == model.OpTypePut {
+			batch.Values = [][]byte{value}
+			batch.TTLs = []uint64{ttl}
+		}
+		b.Batches = append(b.Batches, batch)
+	} else {
+		batch := &b.Batches[len(b.Batches)-1]
+		batch.Keys = append(batch.Keys, key)
+		if opType == model.OpTypePut {
+			batch.Values = append(batch.Values, value)
+			batch.TTLs = append(batch.TTLs, ttl)
+		}
+	}
 	b.count += 1
-	b.byteSize += int64(len(key) + len(value))
+	b.byteSize += uint64(len(key))
+	if opType == model.OpTypePut {
+		b.byteSize += uint64(len(value)) + uint64(unsafe.Sizeof(ttl))
+	}
 }
 
 func (b *tikvBatcher) Reset() {
-	b.Batches[model.OpTypePut] = &innerBatch{
-		OpType: model.OpTypePut,
-		Keys:   [][]byte{},
-		Values: [][]byte{},
-		count:  0,
-	}
-	b.Batches[model.OpTypeDelete] = &innerBatch{
-		OpType: model.OpTypeDelete,
-		Keys:   [][]byte{},
-		Values: [][]byte{},
-		count:  0,
-	}
-	b.BatchesWithTTL[model.OpTypePut] = &innerBatch{
-		OpType: model.OpTypePut,
-		Keys:   [][]byte{},
-		Values: [][]byte{},
-		count:  0,
-	}
+	b.Batches = b.Batches[:0]
 	b.count = 0
 	b.byteSize = 0
 }
@@ -310,7 +324,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	log.Info("tikvSink worker start", zap.Uint32("workerIdx", workerIdx))
 	input := k.workerInput[workerIdx]
 
-	cli, err := rawkv.NewClientV2(ctx, k.pdAddr, k.config.Security)
+	cli, err := k.fnCreateCli(ctx, k.pdAddr, k.config.Security)
 	if err != nil {
 		return err
 	}
@@ -319,7 +333,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
 
-	batcher := NewTiKVBatcher()
+	batcher := tikvBatcher{}
 
 	flushToTiKV := func() error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
@@ -328,29 +342,20 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 				return 0, nil
 			}
 
-			log.Debug("[TRACE] tikvSink::flushToTiKV", zap.Any("batches", batcher.Batches))
-
 			var err error
 			for _, batch := range batcher.Batches {
-				if batch.count != 0 {
-					if batch.OpType == model.OpTypePut {
-						err = cli.BatchPut(ctx, batch.Keys, batch.Values)
-					} else if batch.OpType == model.OpTypeDelete {
-						err = cli.BatchDelete(ctx, batch.Keys)
-					}
-					if err != nil {
-						return 0, err
-					}
+				if batch.OpType == model.OpTypePut {
+					err = cli.BatchPutWithTTL(ctx, batch.Keys, batch.Values, batch.TTLs)
+				} else if batch.OpType == model.OpTypeDelete {
+					err = cli.BatchDelete(ctx, batch.Keys)
+				} else {
+					err = errors.Errorf("unexpected OpType: %v", batch.OpType)
 				}
-			}
-
-			if batch := batcher.BatchesWithTTL[model.OpTypePut]; batch.count != 0 {
-				err = cli.BatchPutWithTTL(ctx, batch.Keys, batch.Values, batch.TTL)
 				if err != nil {
 					return 0, err
 				}
+				log.Debug("[TRACE] tikvSink::flushToTiKV", zap.Int("thisBatchSize", thisBatchSize), zap.Any("batch", batch))
 			}
-			log.Debug("[TRACE] TiKVSink flushed", zap.Int("thisBatchSize", thisBatchSize))
 			batcher.Reset()
 			return thisBatchSize, nil
 		})
@@ -385,7 +390,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		log.Debug("[TRACE] tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
 		batcher.Append(e.rawKVEntry)
 
-		if batcher.ByteSize() >= defaultTikvByteSizeLimit {
+		if batcher.ByteSize() >= defaultTiKVBatchBytesLimit {
 			if err := flushToTiKV(); err != nil {
 				return errors.Trace(err)
 			}
@@ -423,7 +428,7 @@ func newTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaConfig,
 		return nil, errors.Trace(err)
 	}
 
-	sink, err := createTiKVSink(ctx, config, pdAddr, opts, errCh)
+	sink, err := createTiKVSink(ctx, createRawKVClient, config, pdAddr, opts, errCh)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

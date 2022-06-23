@@ -29,7 +29,9 @@ ARCH  := "$(shell uname -s)"
 LINUX := "Linux"
 MAC   := "Darwin"
 CDC_PKG := github.com/tikv/migration/cdc
-PACKAGE_LIST := go list ./... | grep -vE 'vendor|proto|cdc\/tests|integration|testing_utils|pb|pbmock'
+# Can use `PACKAGE_PATH=<package path> make test` to test specified package. E.g, `PACKAGE_PATH=cdc/sink make test`.
+PACKAGE_PATH ?= ...
+PACKAGE_LIST := go list $(CDC_PKG)/$(PACKAGE_PATH) | grep -vE 'vendor|proto|cdc\/tests|integration|testing_utils|pb|pbmock'
 PACKAGES := $$($(PACKAGE_LIST))
 FILES := $$(find . -name '*.go' -type f | grep -vE 'vendor|kv_gen|proto|pb\.go|pb\.gw\.go')
 TEST_FILES := $$(find . -name '*_test.go' -type f | grep -vE 'vendor|kv_gen|integration|testing_utils')
