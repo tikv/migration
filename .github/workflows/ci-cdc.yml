@@ -1,4 +1,4 @@
-name: CI
+name: TiKV-CDC
 on:
   push:
     branches: main
