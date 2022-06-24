@@ -1,4 +1,4 @@
-name: GC-worker CI
+name: TiKV GC-worker
 on:
   push:
     branches: main
