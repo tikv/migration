@@ -26,11 +26,17 @@ import (
 	"github.com/pingcap/log"
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
+	pd "github.com/tikv/pd/client"
+	"go.etcd.io/etcd/client/v3/concurrency"
+	"go.etcd.io/etcd/server/v3/mvcc"
+	"go.uber.org/zap"
+	"golang.org/x/time/rate"
+
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/owner"
 	"github.com/tikv/migration/cdc/cdc/processor"
-
+	"github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
@@ -38,11 +44,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/pdtime"
 	"github.com/tikv/migration/cdc/pkg/version"
-	pd "github.com/tikv/pd/client"
-	"go.etcd.io/etcd/client/v3/concurrency"
-	"go.etcd.io/etcd/server/v3/mvcc"
-	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 )
 
 // Capture represents a Capture server, it monitors the changefeed information in etcd and schedules Task on it.
@@ -64,7 +65,7 @@ type Capture struct {
 	grpcPool     kv.GrpcPool
 	regionCache  *tikv.RegionCache
 	TimeAcquirer pdtime.TimeAcquirer
-	// sorterSystem *ssystem.System
+	sorterSystem *system.System
 
 	cancel context.CancelFunc
 
@@ -119,6 +120,26 @@ func (c *Capture) reset(ctx context.Context) error {
 		c.TimeAcquirer.Stop()
 	}
 	c.TimeAcquirer = pdtime.NewTimeAcquirer(c.pdClient)
+
+	if conf.Debug.EnableDBSorter {
+		if c.sorterSystem != nil {
+			err := c.sorterSystem.Stop()
+			if err != nil {
+				log.Warn("stop sorter system failed", zap.Error(err))
+			}
+		}
+		// Sorter dir has been set and checked when server starts.
+		// See https://github.com/tikv/migration/cdc/blob/9dad09/cdc/server.go#L275
+		sortDir := config.GetGlobalServerConfig().Sorter.SortDir
+		c.sorterSystem = system.NewSystem(sortDir, conf.Debug.DB)
+		err = c.sorterSystem.Start(ctx)
+		if err != nil {
+			return errors.Annotate(
+				cerror.WrapError(cerror.ErrNewCaptureFailed, err),
+				"create sorter system")
+		}
+	}
+
 	if c.grpcPool != nil {
 		c.grpcPool.Close()
 	}
@@ -182,6 +203,7 @@ func (c *Capture) run(stdCtx context.Context) error {
 		GrpcPool:     c.grpcPool,
 		RegionCache:  c.regionCache,
 		TimeAcquirer: c.TimeAcquirer,
+		SorterSystem: c.sorterSystem,
 	})
 	err := c.register(ctx)
 	if err != nil {
@@ -419,6 +441,13 @@ func (c *Capture) AsyncClose() {
 	if c.regionCache != nil {
 		c.regionCache.Close()
 		c.regionCache = nil
+	}
+	if c.sorterSystem != nil {
+		err := c.sorterSystem.Stop()
+		if err != nil {
+			log.Warn("stop sorter system failed", zap.Error(err))
+		}
+		c.sorterSystem = nil
 	}
 }
 
