@@ -18,7 +18,7 @@ There are three main modules: Manager, Processor and KeySpanPipeline(cdc/process
 The Manager's main responsibility is to maintain the Processor's life cycle, like create and destroy the processor instances.
 The Processor's main responsibility is to maintain the KeySpanPipeline's life cycle according to the state stored by ETCD,
 and calculate the local resolved TS and local checkpoint Ts and put them into ETCD.
-The KeySpanPipeline listens to the kv change logs of a specified keyspan(with its mark keyspan if it exists), and sends logs to Sink After sorting and mounting.
+The KeySpanPipeline listens to the kv change logs of a specified keyspan(with its mark keyspan if it exists), and sends logs to Sink After sorting.
 
 The relationship between the three module is as follows:
 
