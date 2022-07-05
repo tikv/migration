@@ -30,9 +30,9 @@ func TestPrint(t *testing.T) {
 		CRTs:    4,
 	})
 
-	require.Equal(t, "uid: 1, tableID: 2, startTs: 3, CRTs: 4",
+	require.Equal(t, "uid: 1, keyspanID: 2, startTs: 3, CRTs: 4",
 		Key(encoding.EncodeKey(1, 2, event)).String())
-	require.Equal(t, "uid: 1, tableID: 2, startTs: 0, CRTs: 3",
+	require.Equal(t, "uid: 1, keyspanID: 2, startTs: 0, CRTs: 3",
 		Key(encoding.EncodeTsKey(1, 2, 3)).String())
 }
 
