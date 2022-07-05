@@ -21,6 +21,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sorter"
 	"github.com/tikv/migration/cdc/cdc/sorter/encoding"
@@ -30,7 +31,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -49,12 +49,12 @@ func allocID() uint32 {
 
 // Sorter accepts out-of-order raw kv entries and output sorted entries
 type Sorter struct {
-	actorID actor.ID
-	router  *actor.Router
-	compact *CompactScheduler
-	uid     uint32
-	tableID uint64
-	serde   *encoding.MsgPackGenSerde
+	actorID   actor.ID
+	router    *actor.Router
+	compact   *CompactScheduler
+	uid       uint32
+	keyspanID uint64
+	serde     *encoding.MsgPackGenSerde
 
 	iterMaxAliveDuration  time.Duration
 	iterFirstSlowDuration time.Duration
@@ -76,7 +76,7 @@ type Sorter struct {
 
 // NewSorter creates a new Sorter
 func NewSorter(
-	ctx context.Context, tableID int64, startTs uint64,
+	ctx context.Context, keyspanID uint64, startTs uint64,
 	router *actor.Router, actorID actor.ID, compact *CompactScheduler,
 	cfg *config.DBConfig,
 ) *Sorter {
@@ -89,7 +89,7 @@ func NewSorter(
 		router:             router,
 		compact:            compact,
 		uid:                allocID(),
-		tableID:            uint64(tableID),
+		keyspanID:          keyspanID,
 		lastSentResolvedTs: startTs,
 		serde:              &encoding.MsgPackGenSerde{},
 
@@ -120,7 +120,7 @@ func (ls *Sorter) waitInputOutput(
 	ctx context.Context,
 ) (*model.PolymorphicEvent, error) {
 	// A dummy event for detecting whether output is available.
-	dummyEvent := model.NewResolvedPolymorphicEvent(0, 0)
+	dummyEvent := model.NewResolvedPolymorphicEvent(0, 0, 0)
 	select {
 	// Prefer receiving input events.
 	case ev := <-ls.inputCh:
@@ -236,7 +236,7 @@ func (ls *Sorter) buildTask(
 			continue
 		}
 
-		key := encoding.EncodeKey(ls.uid, ls.tableID, event)
+		key := encoding.EncodeKey(ls.uid, ls.keyspanID, event)
 		value := []byte{}
 		var err error
 		value, err = ls.serde.Marshal(event, value)
@@ -252,9 +252,9 @@ func (ls *Sorter) buildTask(
 	}
 
 	return message.Task{
-		UID:     ls.uid,
-		TableID: ls.tableID,
-		Events:  writes,
+		UID:       ls.uid,
+		KeySpanID: ls.keyspanID,
+		Events:    writes,
 	}, nil
 }
 
@@ -279,7 +279,7 @@ func (ls *Sorter) output(event *model.PolymorphicEvent) bool {
 
 // outputResolvedTs nonblocking outputs a resolved ts event.
 func (ls *Sorter) outputResolvedTs(rts model.Ts) {
-	ok := ls.output(model.NewResolvedPolymorphicEvent(0, rts))
+	ok := ls.output(model.NewResolvedPolymorphicEvent(0, rts, 0))
 	if ok {
 		ls.lastSentResolvedTs = rts
 	}
@@ -306,7 +306,7 @@ func (ls *Sorter) outputBufferedResolvedEvents(
 		lastCommitTs = event.CRTs
 
 		// Delete sent events.
-		key := encoding.EncodeKey(ls.uid, ls.tableID, event)
+		key := encoding.EncodeKey(ls.uid, ls.keyspanID, event)
 		buffer.appendDeleteKey(message.Key(key))
 		remainIdx = idx + 1
 	}
@@ -507,11 +507,11 @@ func (state *pollState) advanceMaxTs(maxCommitTs, maxResolvedTs uint64) {
 // When it returns a request, caller must send it.
 // When it returns true, it means there is an iterator that can be used.
 func (state *pollState) tryGetIterator(
-	uid uint32, tableID uint64,
+	uid uint32, keyspanID uint64,
 ) (*message.IterRequest, bool) {
 	if state.iter != nil && state.iterCh != nil {
 		log.Panic("assert failed, there can only be one of iter or iterCh",
-			zap.Any("iter", state.iter), zap.Uint64("tableID", tableID),
+			zap.Any("iter", state.iter), zap.Uint64("keyspanID", keyspanID),
 			zap.Uint32("uid", uid))
 	}
 
@@ -524,8 +524,8 @@ func (state *pollState) tryGetIterator(
 		state.iterCh = make(chan *message.LimitedIterator, 1)
 		return &message.IterRequest{
 			Range: [2][]byte{
-				encoding.EncodeTsKey(uid, tableID, 0),
-				encoding.EncodeTsKey(uid, tableID, state.maxResolvedTs+1),
+				encoding.EncodeTsKey(uid, keyspanID, 0),
+				encoding.EncodeTsKey(uid, keyspanID, state.maxResolvedTs+1),
 			},
 			ResolvedTs: state.maxResolvedTs,
 			IterCh:     state.iterCh,
@@ -633,7 +633,7 @@ func (ls *Sorter) poll(ctx context.Context, state *pollState) error {
 	}
 
 	var hasIter bool
-	task.IterReq, hasIter = state.tryGetIterator(ls.uid, ls.tableID)
+	task.IterReq, hasIter = state.tryGetIterator(ls.uid, ls.keyspanID)
 	// Send write/read task to leveldb.
 	err = ls.router.SendB(ctx, ls.actorID, actormsg.SorterMessage(task))
 	if err != nil {
@@ -719,10 +719,5 @@ func (ls *Sorter) Output() <-chan *model.PolymorphicEvent {
 
 // CleanupTask returns a clean up task that delete sorter's data.
 func (ls *Sorter) CleanupTask() actormsg.Message {
-	return actormsg.SorterMessage(message.NewCleanupTask(ls.uid, ls.tableID))
-}
-
-// ActorID returns the actor ID the Sorter.
-func (ls *Sorter) ActorID() actor.ID {
-	return ls.actorID
+	return actormsg.SorterMessage(message.NewCleanupTask(ls.uid, ls.keyspanID))
 }

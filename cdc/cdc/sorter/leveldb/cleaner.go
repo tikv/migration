@@ -30,7 +30,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// CleanerActor is an actor that can clean up table data asynchronously.
+// CleanerActor is an actor that can clean up keyspan data asynchronously.
 type CleanerActor struct {
 	id     actor.ID
 	db     db.DB
@@ -39,7 +39,6 @@ type CleanerActor struct {
 	deleteCount int
 	compact     *CompactScheduler
 
-	stopped  bool
 	closedWg *sync.WaitGroup
 
 	limiter *rate.Limiter
@@ -77,11 +76,9 @@ func NewCleanerActor(
 func (clean *CleanerActor) Poll(ctx context.Context, tasks []actormsg.Message) bool {
 	select {
 	case <-ctx.Done():
+		clean.close(ctx.Err())
 		return false
 	default:
-	}
-	if clean.stopped {
-		return false
 	}
 
 	reschedulePos := -1
@@ -95,6 +92,7 @@ TASKS:
 		case actormsg.TypeSorterTask:
 			task = msg.SorterTask
 		case actormsg.TypeStop:
+			clean.close(nil)
 			return false
 		default:
 			log.Panic("unexpected message", zap.Any("message", msg))
@@ -102,12 +100,9 @@ TASKS:
 		if !task.Cleanup {
 			log.Panic("unexpected message", zap.Any("message", msg))
 		}
-		if task.Test != nil {
-			time.Sleep(task.Test.Sleep)
-		}
 
-		start := encoding.EncodeTsKey(task.UID, task.TableID, 0)
-		limit := encoding.EncodeTsKey(task.UID, task.TableID+1, 0)
+		start := encoding.EncodeTsKey(task.UID, task.KeySpanID, 0)
+		limit := encoding.EncodeTsKey(task.UID, task.KeySpanID+1, 0)
 		iter := clean.db.Iterator(start, limit)
 
 		// Force writes the first batch if the task is rescheduled (rate limited).
@@ -161,13 +156,9 @@ TASKS:
 	return true
 }
 
-// OnClose releases DBActor resource.
-func (clean *CleanerActor) OnClose() {
-	if clean.stopped {
-		return
-	}
-	clean.stopped = true
-	log.Info("clean actor quit", zap.Uint64("ID", uint64(clean.id)))
+func (clean *CleanerActor) close(err error) {
+	log.Info("cleaner actor quit",
+		zap.Uint64("ID", uint64(clean.id)), zap.Error(err))
 	clean.closedWg.Done()
 }
 
@@ -220,8 +211,8 @@ func (clean *CleanerActor) reschedule(
 			// Blocking send to ensure that no tasks are lost.
 			err := clean.router.SendB(ctx, id, msgs[i])
 			if err != nil {
-				log.Warn("drop table clean-up task",
-					zap.Uint64("tableID", msgs[i].SorterTask.TableID))
+				log.Warn("drop keyspan clean-up task",
+					zap.Uint64("keyspanID", msgs[i].SorterTask.KeySpanID))
 			}
 		}
 	})

@@ -22,13 +22,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/sorter/leveldb/message"
 	"github.com/tikv/migration/cdc/pkg/actor"
 	actormsg "github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
 	"github.com/tikv/migration/cdc/pkg/leakutil"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -78,7 +78,6 @@ func TestMaybeWrite(t *testing.T) {
 	// Close db.
 	closed := !ldb.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	ldb.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }
@@ -135,7 +134,6 @@ func TestCompact(t *testing.T) {
 	// Close db.
 	closed = !ldb.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	ldb.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }
@@ -219,7 +217,6 @@ func TestPutReadDelete(t *testing.T) {
 	// Close db.
 	closed = !ldb.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	ldb.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }
@@ -241,9 +238,9 @@ func TestAcquireIterators(t *testing.T) {
 
 	// Poll two tasks.
 	tasks, iterCh1 := makeTask(make(map[message.Key][]byte), [][]byte{{0x00}, {0xff}})
-	tasks[0].SorterTask.TableID = 1
+	tasks[0].SorterTask.KeySpanID = 1
 	tasks2, iterCh2 := makeTask(make(map[message.Key][]byte), [][]byte{{0x00}, {0xff}})
-	tasks2[0].SorterTask.TableID = 2
+	tasks2[0].SorterTask.KeySpanID = 2
 	tasks = append(tasks, tasks2...)
 	closed := !ldb.Poll(ctx, tasks)
 	require.False(t, closed)
@@ -271,7 +268,6 @@ func TestAcquireIterators(t *testing.T) {
 	// Close db.
 	closed = !ldb.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	ldb.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }
@@ -299,15 +295,15 @@ func (s *sortedMap) iter(start, end message.Key) []message.Key {
 			keys = append(keys, key)
 		}
 	}
-	sort.Sort(sortableKeys(keys))
+	sort.Sort(sorkeyspanKeys(keys))
 	return keys
 }
 
-type sortableKeys []message.Key
+type sorkeyspanKeys []message.Key
 
-func (x sortableKeys) Len() int           { return len(x) }
-func (x sortableKeys) Less(i, j int) bool { return bytes.Compare([]byte(x[i]), []byte(x[j])) < 0 }
-func (x sortableKeys) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+func (x sorkeyspanKeys) Len() int           { return len(x) }
+func (x sorkeyspanKeys) Less(i, j int) bool { return bytes.Compare([]byte(x[i]), []byte(x[j])) < 0 }
+func (x sorkeyspanKeys) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 func TestModelChecking(t *testing.T) {
 	t.Parallel()
@@ -417,7 +413,6 @@ func TestContextCancel(t *testing.T) {
 	tasks, _ := makeTask(map[message.Key][]byte{"key": {}}, [][]byte{{0x00}, {0xff}})
 	closed := !ldb.Poll(ctx, tasks)
 	require.True(t, closed)
-	ldb.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }

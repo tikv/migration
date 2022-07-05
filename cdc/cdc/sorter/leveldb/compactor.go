@@ -21,12 +21,12 @@ import (
 	"time"
 
 	"github.com/pingcap/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tikv/migration/cdc/pkg/actor"
 	actormsg "github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -63,6 +63,7 @@ func NewCompactActor(
 func (c *CompactActor) Poll(ctx context.Context, tasks []actormsg.Message) bool {
 	select {
 	case <-ctx.Done():
+		c.close(ctx.Err())
 		return false
 	default:
 	}
@@ -73,6 +74,7 @@ func (c *CompactActor) Poll(ctx context.Context, tasks []actormsg.Message) bool 
 		switch msg.Tp {
 		case actormsg.TypeTick:
 		case actormsg.TypeStop:
+			c.close(nil)
 			return false
 		default:
 			log.Panic("unexpected message", zap.Any("message", msg))
@@ -91,9 +93,9 @@ func (c *CompactActor) Poll(ctx context.Context, tasks []actormsg.Message) bool 
 	return true
 }
 
-// OnClose releases CompactActor resource.
-func (c *CompactActor) OnClose() {
-	log.Info("compactor actor quit", zap.Uint64("ID", uint64(c.id)))
+func (c *CompactActor) close(err error) {
+	log.Info("compactor actor quit",
+		zap.Uint64("ID", uint64(c.id)), zap.Error(err))
 	c.closedWg.Done()
 }
 

@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sorter/encoding"
 	"github.com/tikv/migration/cdc/cdc/sorter/leveldb/message"
@@ -28,24 +29,23 @@ import (
 	actormsg "github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
-	"github.com/stretchr/testify/require"
 )
 
-func makeCleanTask(uid uint32, tableID uint64) []actormsg.Message {
+func makeCleanTask(uid uint32, keyspanID uint64) []actormsg.Message {
 	return []actormsg.Message{actormsg.SorterMessage(message.Task{
-		UID:     uid,
-		TableID: tableID,
-		Cleanup: true,
+		UID:       uid,
+		KeySpanID: keyspanID,
+		Cleanup:   true,
 	})}
 }
 
 func prepareData(t *testing.T, db db.DB, data [][]int) {
 	wb := db.Batch(0)
 	for _, d := range data {
-		count, uid, tableID := d[0], d[1], d[2]
+		count, uid, keyspanID := d[0], d[1], d[2]
 		for k := 0; k < count; k++ {
 			key := encoding.EncodeKey(
-				uint32(uid), uint64(tableID),
+				uint32(uid), uint64(keyspanID),
 				model.NewPolymorphicEvent(&model.RawKVEntry{
 					OpType:  model.OpTypeDelete,
 					Key:     []byte{byte(k)},
@@ -72,10 +72,10 @@ func TestCleanerPoll(t *testing.T) {
 	require.Nil(t, err)
 
 	// Put data to db.
-	// * 1 key of uid1 table1
-	// * 3 key of uid2 table1
-	// * 2 key of uid3 table2
-	// * 1 key of uid4 table2
+	// * 1 key of uid1 keyspan1
+	// * 3 key of uid2 keyspan1
+	// * 2 key of uid3 keyspan2
+	// * 1 key of uid4 keyspan2
 	data := [][]int{
 		{1, 1, 1},
 		{3, 2, 1},
@@ -84,46 +84,46 @@ func TestCleanerPoll(t *testing.T) {
 	}
 	prepareData(t, db, data)
 
-	// Ensure there are some key/values belongs to uid2 table1.
+	// Ensure there are some key/values belongs to uid2 keyspan1.
 	start := encoding.EncodeTsKey(2, 1, 0)
 	limit := encoding.EncodeTsKey(2, 2, 0)
 	iter := db.Iterator(start, limit)
 	require.True(t, iter.First())
 	require.Nil(t, iter.Release())
 
-	// Clean up uid2 table1
+	// Clean up uid2 keyspan1
 	closed := !clean.Poll(ctx, makeCleanTask(2, 1))
 	require.False(t, closed)
 
-	// Ensure no key/values belongs to uid2 table1
+	// Ensure no key/values belongs to uid2 keyspan1
 	iter = db.Iterator(start, limit)
 	require.False(t, iter.First())
 	require.Nil(t, iter.Release())
 
-	// Ensure uid1 table1 is untouched.
+	// Ensure uid1 keyspan1 is untouched.
 	start = encoding.EncodeTsKey(1, 1, 0)
 	limit = encoding.EncodeTsKey(1, 2, 0)
 	iter = db.Iterator(start, limit)
 	require.True(t, iter.First())
 	require.Nil(t, iter.Release())
 
-	// Ensure uid3 table2 is untouched.
+	// Ensure uid3 keyspan2 is untouched.
 	start = encoding.EncodeTsKey(3, 2, 0)
 	limit = encoding.EncodeTsKey(3, 3, 0)
 	iter = db.Iterator(start, limit)
 	require.True(t, iter.First())
 	require.Nil(t, iter.Release())
 
-	// Clean up uid3 table2
+	// Clean up uid3 keyspan2
 	closed = !clean.Poll(ctx, makeCleanTask(3, 2))
 	require.False(t, closed)
 
-	// Ensure no key/values belongs to uid3 table2
+	// Ensure no key/values belongs to uid3 keyspan2
 	iter = db.Iterator(start, limit)
 	require.False(t, iter.First())
 	require.Nil(t, iter.Release())
 
-	// Ensure uid4 table2 is untouched.
+	// Ensure uid4 keyspan2 is untouched.
 	start = encoding.EncodeTsKey(4, 2, 0)
 	limit = encoding.EncodeTsKey(4, 3, 0)
 	iter = db.Iterator(start, limit)
@@ -132,7 +132,6 @@ func TestCleanerPoll(t *testing.T) {
 
 	// Close leveldb.
 	closed = !clean.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
-	clean.OnClose()
 	require.True(t, closed)
 	closedWg.Wait()
 	require.Nil(t, db.Close())
@@ -155,7 +154,6 @@ func TestCleanerContextCancel(t *testing.T) {
 	tasks := makeCleanTask(1, 1)
 	closed := !clean.Poll(ctx, tasks)
 	require.True(t, closed)
-	clean.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }
@@ -176,10 +174,10 @@ func TestCleanerWriteRateLimited(t *testing.T) {
 	require.Nil(t, err)
 
 	// Put data to db.
-	// * 1 key of uid1 table1
-	// * 3 key of uid2 table1
-	// * 2 key of uid3 table2
-	// * 1 key of uid4 table2
+	// * 1 key of uid1 keyspan1
+	// * 3 key of uid2 keyspan1
+	// * 2 key of uid3 keyspan2
+	// * 1 key of uid4 keyspan2
 	data := [][]int{
 		{1, 1, 1},
 		{3, 2, 1},
@@ -231,7 +229,6 @@ func TestCleanerWriteRateLimited(t *testing.T) {
 	// Close leveldb.
 	closed := !clean.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	clean.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }
@@ -273,9 +270,9 @@ func TestCleanerTaskRescheduled(t *testing.T) {
 	_ = mustReceive()
 
 	// Put data to db.
-	// * 8 key of uid1 table1
-	// * 2 key of uid2 table1
-	// * 2 key of uid3 table2
+	// * 8 key of uid1 keyspan1
+	// * 2 key of uid2 keyspan1
+	// * 2 key of uid3 keyspan2
 	data := [][]int{
 		{8, 1, 1},
 		{2, 2, 1},
@@ -290,7 +287,7 @@ func TestCleanerTaskRescheduled(t *testing.T) {
 	// All tasks must be rescheduled.
 	closed := !clean.Poll(ctx, tasks)
 	require.False(t, closed)
-	// uid1 table1
+	// uid1 keyspan1
 	task := mustReceive()
 	msg := makeCleanTask(1, 1)
 	msg[0].SorterTask.CleanupRatelimited = true
@@ -330,7 +327,6 @@ func TestCleanerTaskRescheduled(t *testing.T) {
 	// Close leveldb.
 	closed = !clean.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	clean.OnClose()
 	closedWg.Wait()
 	// TODO: find a better to test if iterators are leaked.
 	// stats := leveldb.DBStats{}
@@ -364,8 +360,8 @@ func TestCleanerCompact(t *testing.T) {
 	cleaner.wbSize = 1
 
 	// Put data to db.
-	// * 1 key of uid1 table1
-	// * 2 key of uid2 table1
+	// * 1 key of uid1 keyspan1
+	// * 2 key of uid2 keyspan1
 	data := [][]int{
 		{1, 1, 1},
 		{2, 2, 1},
@@ -393,7 +389,6 @@ func TestCleanerCompact(t *testing.T) {
 	// Close db.
 	closed = !cleaner.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	cleaner.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }

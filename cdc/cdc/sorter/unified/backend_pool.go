@@ -296,8 +296,7 @@ func (p *backEndPool) terminate() {
 		log.Debug("Unified Sorter backEnd removing file", zap.String("file", file))
 		err = os.RemoveAll(file)
 		if err != nil {
-			log.Warn("Unified Sorter clean-up failed: failed to remove",
-				zap.String("fileName", file), zap.Error(err))
+			log.Warn("Unified Sorter clean-up failed: failed to remove", zap.String("file-name", file), zap.Error(err))
 		}
 	}
 
@@ -332,7 +331,7 @@ func (p *backEndPool) lockSortDir() error {
 				"Make sure that another instance of TiCDC, or any other program, is not using the directory. "+
 				"If you believe you should not see this error, try deleting the lock file and resume the changefeed. "+
 				"Report a bug or contact support if the problem persists.",
-				zap.String("lockFile", lockFileName))
+				zap.String("lock-file", lockFileName))
 			return errors.Trace(err)
 		}
 		return cerrors.ErrSortDirLockError.Wrap(err).GenWithStackByCause()
@@ -353,7 +352,7 @@ func (p *backEndPool) unlockSortDir() error {
 func (p *backEndPool) cleanUpStaleFiles() error {
 	if p.dir == "" {
 		// guard against programmer error. Must be careful when we are deleting user files.
-		log.Panic("unexpected sort-dir", zap.String("sortDir", p.dir))
+		log.Panic("unexpected sort-dir", zap.String("sort-dir", p.dir))
 	}
 
 	files, err := filepath.Glob(filepath.Join(p.dir, fmt.Sprintf("%s-*", sortDirDataFileMagicPrefix)))

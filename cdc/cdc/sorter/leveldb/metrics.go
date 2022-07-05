@@ -19,7 +19,7 @@ import (
 
 var (
 	sorterWriteBytesHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "sorter",
 		Name:      "db_write_bytes",
 		Help:      "Bucketed histogram of sorter write batch bytes",
@@ -27,7 +27,7 @@ var (
 	}, []string{"capture", "id"})
 
 	sorterWriteDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "sorter",
 		Name:      "db_write_duration_seconds",
 		Help:      "Bucketed histogram of sorter write duration",
@@ -35,7 +35,7 @@ var (
 	}, []string{"capture", "id"})
 
 	sorterCompactDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "sorter",
 		Name:      "db_compact_duration_seconds",
 		Help:      "Bucketed histogram of sorter manual compact duration",
@@ -43,7 +43,7 @@ var (
 	}, []string{"capture", "id"})
 
 	sorterIterReadDurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "sorter",
 		Name:      "db_iter_read_duration_seconds",
 		Help:      "Bucketed histogram of db sorter iterator read duration",
@@ -51,7 +51,7 @@ var (
 	}, []string{"capture", "id", "call"})
 
 	sorterCleanupKVCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "ticdc",
+		Namespace: "tikv_cdc",
 		Subsystem: "sorter",
 		Name:      "db_cleanup_kv_total",
 		Help:      "The total number of cleaned up kv entries",

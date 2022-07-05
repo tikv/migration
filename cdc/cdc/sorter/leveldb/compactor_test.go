@@ -19,11 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/actor"
 	actormsg "github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
-	"github.com/stretchr/testify/require"
 )
 
 type mockCompactDB struct {
@@ -60,7 +60,6 @@ func TestCompactorPoll(t *testing.T) {
 	// Close leveldb.
 	closed = !compactor.Poll(ctx, []actormsg.Message{actormsg.StopMessage()})
 	require.True(t, closed)
-	compactor.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }
@@ -80,7 +79,6 @@ func TestComactorContextCancel(t *testing.T) {
 	cancel()
 	closed := !ldb.Poll(ctx, []actormsg.Message{actormsg.TickMessage()})
 	require.True(t, closed)
-	ldb.OnClose()
 	closedWg.Wait()
 	require.Nil(t, db.Close())
 }

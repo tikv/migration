@@ -21,13 +21,13 @@ import (
 	"time"
 
 	"github.com/pingcap/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tikv/migration/cdc/cdc/sorter/leveldb/message"
 	"github.com/tikv/migration/cdc/pkg/actor"
 	actormsg "github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
 )
@@ -35,30 +35,30 @@ import (
 // Queue of IterRequest
 type iterQueue struct {
 	*list.List
-	// TableID set.
-	tables map[tableKey]struct{}
+	// KeySpanID set.
+	keyspans map[keyspanKey]struct{}
 }
 
 type iterItem struct {
-	key tableKey
+	key keyspanKey
 	req *message.IterRequest
 }
 
-type tableKey struct {
-	UID     uint32
-	TableID uint64
+type keyspanKey struct {
+	UID       uint32
+	KeySpanID uint64
 }
 
-func (q *iterQueue) push(uid uint32, tableID uint64, req *message.IterRequest) {
-	key := tableKey{UID: uid, TableID: tableID}
-	_, ok := q.tables[key]
+func (q *iterQueue) push(uid uint32, keyspanID uint64, req *message.IterRequest) {
+	key := keyspanKey{UID: uid, KeySpanID: keyspanID}
+	_, ok := q.keyspans[key]
 	if ok {
-		log.Panic("A table should not issue two concurrent iterator requests",
-			zap.Uint64("tableID", tableID),
+		log.Panic("A keyspan should not issue two concurrent iterator requests",
+			zap.Uint64("keyspanID", keyspanID),
 			zap.Uint32("UID", uid),
 			zap.Uint64("resolvedTs", req.ResolvedTs))
 	}
-	q.tables[key] = struct{}{}
+	q.keyspans[key] = struct{}{}
 	q.List.PushBack(iterItem{req: req, key: key})
 }
 
@@ -69,7 +69,7 @@ func (q *iterQueue) pop() (*message.IterRequest, bool) {
 	}
 	q.List.Remove(item)
 	req := item.Value.(iterItem)
-	delete(q.tables, req.key)
+	delete(q.keyspans, req.key)
 	return req.req, true
 }
 
@@ -86,7 +86,6 @@ type DBActor struct {
 	deleteCount int
 	compact     *CompactScheduler
 
-	stopped  bool
 	closedWg *sync.WaitGroup
 
 	metricWriteDuration prometheus.Observer
@@ -120,8 +119,8 @@ func NewDBActor(
 		wb:      wb,
 		iterSem: iterSema,
 		iterQ: iterQueue{
-			List:   list.New(),
-			tables: make(map[tableKey]struct{}),
+			List:     list.New(),
+			keyspans: make(map[keyspanKey]struct{}),
 		},
 		wbSize:  wbSize,
 		wbCap:   wbCap,
@@ -132,6 +131,11 @@ func NewDBActor(
 		metricWriteDuration: sorterWriteDurationHistogram.WithLabelValues(captureAddr, idTag),
 		metricWriteBytes:    sorterWriteBytesHistogram.WithLabelValues(captureAddr, idTag),
 	}, mb, nil
+}
+
+func (ldb *DBActor) close(err error) {
+	log.Info("db actor quit", zap.Uint64("ID", uint64(ldb.id)), zap.Error(err))
+	ldb.closedWg.Done()
 }
 
 func (ldb *DBActor) maybeWrite(force bool) error {
@@ -191,6 +195,7 @@ func (ldb *DBActor) acquireIterators() {
 func (ldb *DBActor) Poll(ctx context.Context, tasks []actormsg.Message) bool {
 	select {
 	case <-ctx.Done():
+		ldb.close(ctx.Err())
 		return false
 	default:
 	}
@@ -204,6 +209,7 @@ func (ldb *DBActor) Poll(ctx context.Context, tasks []actormsg.Message) bool {
 		case actormsg.TypeSorterTask:
 			task = msg.SorterTask
 		case actormsg.TypeStop:
+			ldb.close(nil)
 			return false
 		default:
 			log.Panic("unexpected message", zap.Any("message", msg))
@@ -225,11 +231,8 @@ func (ldb *DBActor) Poll(ctx context.Context, tasks []actormsg.Message) bool {
 		}
 		if task.IterReq != nil {
 			// Append to slice for later batch acquiring iterators.
-			ldb.iterQ.push(task.UID, task.TableID, task.IterReq)
+			ldb.iterQ.push(task.UID, task.KeySpanID, task.IterReq)
 			requireIter = true
-		}
-		if task.Test != nil {
-			time.Sleep(task.Test.Sleep)
 		}
 	}
 
@@ -240,14 +243,4 @@ func (ldb *DBActor) Poll(ctx context.Context, tasks []actormsg.Message) bool {
 	ldb.acquireIterators()
 
 	return true
-}
-
-// OnClose releases DBActor resource.
-func (ldb *DBActor) OnClose() {
-	if ldb.stopped {
-		return
-	}
-	ldb.stopped = true
-	log.Info("db actor quit", zap.Uint64("ID", uint64(ldb.id)))
-	ldb.closedWg.Done()
 }
