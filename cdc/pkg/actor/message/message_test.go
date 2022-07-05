@@ -12,3 +12,40 @@
 // limitations under the License.
 
 package message
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	sorter "github.com/tikv/migration/cdc/cdc/sorter/leveldb/message"
+	"github.com/tikv/migration/cdc/pkg/leakutil"
+)
+
+func TestMain(m *testing.M) {
+	leakutil.SetUpLeakTest(m)
+}
+
+// Make sure Message can be printed in JSON format, so that it can be logged by
+// pingcap/log package.
+func TestJSONPrint(t *testing.T) {
+	_, err := json.Marshal(Message{})
+	require.Nil(t, err)
+}
+
+func TestTickMessage(t *testing.T) {
+	msg := TickMessage()
+	require.Equal(t, TypeTick, msg.Tp)
+}
+
+func TestBarrierMessage(t *testing.T) {
+	msg := BarrierMessage(1)
+	require.Equal(t, TypeBarrier, msg.Tp)
+}
+
+func TestSorterMessage(t *testing.T) {
+	task := sorter.Task{UID: 1, KeySpanID: 2}
+	msg := SorterMessage(task)
+	require.Equal(t, TypeSorterTask, msg.Tp)
+	require.Equal(t, task, msg.SorterTask)
+}
