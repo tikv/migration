@@ -24,7 +24,7 @@ import (
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 
-	// ssystem "github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
+	"github.com/tikv/migration/cdc/cdc/sorter/leveldb/system"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/pdtime"
@@ -44,8 +44,7 @@ type GlobalVars struct {
 	GrpcPool     kv.GrpcPool
 	RegionCache  *tikv.RegionCache
 	TimeAcquirer pdtime.TimeAcquirer
-	// KeySpanActorSystem *system.System
-	// SorterSystem       *ssystem.System
+	SorterSystem *system.System
 
 	// OwnerRevision is the Etcd revision when the owner got elected.
 	OwnerRevision int64
