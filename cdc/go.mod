@@ -75,6 +75,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v0.8.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.2.0 // indirect
 	github.com/DataDog/zstd v1.4.6-0.20210211175136-c6db21d202f4 // indirect
+	github.com/Jeffail/gabs/v2 v2.6.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/VividCortex/ewma v1.1.1 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1581 // indirect
