@@ -90,14 +90,14 @@ bank:
 
 build-failpoint: check_failpoint_ctl
 	$(FAILPOINT_ENABLE)
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc ./cmd/cdc/main.go
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go
 	$(FAILPOINT_DISABLE)
 
 cdc:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc ./cmd/cdc/main.go
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go
 
 debug:
-	$(GOBUILD_DEBUG) -ldflags '$(LDFLAGS)' -o bin/cdc ./cmd/cdc/main.go
+	$(GOBUILD_DEBUG) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go
 
 kafka_consumer:
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc_kafka_consumer ./cmd/kafka-consumer/main.go
