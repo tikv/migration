@@ -537,6 +537,7 @@ func (s *eventFeedSession) eventFeed(ctx context.Context, ts uint64) error {
 		}
 	})
 
+	keyspanID, keyspanName := util.KeySpanInfoFromCtx(ctx)
 	cfID := util.ChangefeedIDFromCtx(ctx)
 	g.Go(func() error {
 		timer := time.NewTimer(defaultCheckRegionRateLimitInterval)
@@ -564,6 +565,7 @@ func (s *eventFeedSession) eventFeed(ctx context.Context, ts uint64) error {
 							zap.Uint64("regionID", errInfo.singleRegionInfo.verID.GetID()),
 							zap.Uint64("ts", errInfo.singleRegionInfo.ts),
 							zap.String("changefeed", cfID), zap.Stringer("span", errInfo.span),
+							zap.Uint64("keyspanID", keyspanID), zap.String("keyspanName", keyspanName),
 							zapFieldAddr)
 					}
 					// rate limit triggers, add the error info to the rate limit queue.

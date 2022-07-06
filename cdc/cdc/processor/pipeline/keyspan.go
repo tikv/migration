@@ -157,7 +157,7 @@ func (t *keyspanPipelineImpl) Wait() {
 // replicating 1024 keyspans in the worst case.
 const defaultOutputChannelSize = 64
 
-// There are 4 runners in keyspan pipeline: header, puller, sorter sink.
+// There are 4 runners in keyspan pipeline: header, puller, sorter, sink.
 const defaultRunnersSize = 4
 
 // NewKeySpanPipeline creates a keyspan pipeline

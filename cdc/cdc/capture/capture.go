@@ -118,7 +118,6 @@ func (c *Capture) reset(ctx context.Context) error {
 		c.TimeAcquirer.Stop()
 	}
 	c.TimeAcquirer = pdtime.NewTimeAcquirer(c.pdClient)
-
 	if c.grpcPool != nil {
 		c.grpcPool.Close()
 	}
