@@ -24,11 +24,8 @@ import (
 
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sorter"
-	"github.com/tikv/migration/cdc/cdc/sorter/leveldb"
 	"github.com/tikv/migration/cdc/cdc/sorter/memory"
 	"github.com/tikv/migration/cdc/cdc/sorter/unified"
-	"github.com/tikv/migration/cdc/pkg/actor"
-	"github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
@@ -51,10 +48,6 @@ type sorterNode struct {
 
 	eg     *errgroup.Group
 	cancel context.CancelFunc
-
-	cleanID     actor.ID
-	cleanTask   message.Message
-	cleanRouter *actor.Router
 
 	// The latest resolved ts that sorter has received.
 	resolvedTs model.Ts
@@ -99,27 +92,11 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 				zap.String("changefeed-id", ctx.ChangefeedVars().ID), zap.String("keyspan-name", n.keyspanName))
 		}
 
-		if config.GetGlobalServerConfig().Debug.EnableDBSorter {
-			startTs := ctx.ChangefeedVars().Info.StartTs
-			actorID := ctx.GlobalVars().SorterSystem.ActorID(n.keyspanID)
-			router := ctx.GlobalVars().SorterSystem.Router()
-			compactScheduler := ctx.GlobalVars().SorterSystem.CompactScheduler()
-			levelSorter := leveldb.NewSorter(
-				ctx, n.keyspanID, startTs, router, actorID, compactScheduler,
-				config.GetGlobalServerConfig().Debug.DB)
-			n.cleanID = actorID
-			n.cleanTask = levelSorter.CleanupTask()
-			n.cleanRouter = ctx.GlobalVars().SorterSystem.CleanerRouter()
-			eventSorter = levelSorter
-		} else {
-			// Sorter dir has been set and checked when server starts.
-			// See https://github.com/tikv/migration/cdc/blob/9dad09/cdc/server.go#L275
-			sortDir := config.GetGlobalServerConfig().Sorter.SortDir
-			var err error
-			eventSorter, err = unified.NewUnifiedSorter(sortDir, ctx.ChangefeedVars().ID, n.keyspanName, n.keyspanID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
-			if err != nil {
-				return errors.Trace(err)
-			}
+		sortDir := config.GetGlobalServerConfig().Sorter.SortDir
+		var err error
+		eventSorter, err = unified.NewUnifiedSorter(sortDir, ctx.ChangefeedVars().ID, n.keyspanName, n.keyspanID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+		if err != nil {
+			return errors.Trace(err)
 		}
 	default:
 		return cerror.ErrUnknownSortEngine.GenWithStackByArgs(sortEngine)
@@ -247,13 +224,6 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 func (n *sorterNode) Destroy(ctx pipeline.NodeContext) error {
 	defer keyspanMemoryHistogram.DeleteLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 	n.cancel()
-	if n.cleanRouter != nil {
-		// Clean up data when the keyspan sorter is canceled.
-		err := n.cleanRouter.SendB(ctx, n.cleanID, n.cleanTask)
-		if err != nil {
-			log.Warn("schedule keyspan cleanup task failed", zap.Error(err))
-		}
-	}
 	return n.eg.Wait()
 }
 
