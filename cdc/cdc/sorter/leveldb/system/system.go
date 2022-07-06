@@ -22,9 +22,9 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tiflow/pkg/actor/message"
 	lsorter "github.com/tikv/migration/cdc/cdc/sorter/leveldb"
 	"github.com/tikv/migration/cdc/pkg/actor"
+	"github.com/tikv/migration/cdc/pkg/actor/message"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/db"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"

@@ -62,8 +62,9 @@ type KeySpanPipeline interface {
 type keyspanPipelineImpl struct {
 	p *pipeline.Pipeline
 
-	keyspanID uint64
-	keyspan   regionspan.Span
+	keyspanID   uint64
+	keyspanName string
+	keyspan     regionspan.Span
 
 	sorterNode *sorterNode
 	sinkNode   *sinkNode
@@ -139,7 +140,7 @@ func (t *keyspanPipelineImpl) ID() (keyspanID uint64) {
 
 // Name returns the quoted schema and keyspan name
 func (t *keyspanPipelineImpl) Name() string {
-	return t.keyspan.Name()
+	return t.keyspanName
 }
 
 // Cancel stops this keyspan pipeline immediately and destroy all resources created by this keyspan pipeline
@@ -169,17 +170,21 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	replConfig := ctx.ChangefeedVars().Info.Config
 	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
+	keyspanName := keyspan.Name()
 	keyspanPipeline := &keyspanPipelineImpl{
-		keyspanID:  keyspanID,
-		keyspan:    keyspan,
-		cancel:     cancel,
-		replConfig: replConfig,
+		keyspanID:   keyspanID,
+		keyspanName: keyspanName,
+		keyspan:     keyspan,
+		cancel:      cancel,
+		replConfig:  replConfig,
 	}
 
 	perKeySpanMemoryQuota := serverConfig.GetGlobalServerConfig().PerKeySpanMemoryQuota
 
 	log.Debug("creating keyspan flow controller",
 		zap.String("changefeed-id", ctx.ChangefeedVars().ID),
+		zap.String("keyspan-name", keyspanName),
+		zap.Uint64("keyspan-id", keyspanID),
 		zap.Uint64("quota", perKeySpanMemoryQuota))
 
 	flowController := common.NewKeySpanFlowController(perKeySpanMemoryQuota)
@@ -188,7 +193,7 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 	p := pipeline.NewPipeline(ctx, 500*time.Millisecond, runnerSize, defaultOutputChannelSize)
 
 	sorterNode :=
-		newSorterNode(keyspanID, replicaInfo.StartTs, flowController, replConfig)
+		newSorterNode(keyspanName, keyspanID, replicaInfo.StartTs, flowController, replConfig)
 
 	sinkNode := newSinkNode(keyspanID, sink, replicaInfo.StartTs, targetTs, flowController)
 

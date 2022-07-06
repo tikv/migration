@@ -101,7 +101,7 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 
 		if config.GetGlobalServerConfig().Debug.EnableDBSorter {
 			startTs := ctx.ChangefeedVars().Info.StartTs
-			actorID := ctx.GlobalVars().SorterSystem.ActorID(uint64(n.keyspanID))
+			actorID := ctx.GlobalVars().SorterSystem.ActorID(n.keyspanID)
 			router := ctx.GlobalVars().SorterSystem.Router()
 			compactScheduler := ctx.GlobalVars().SorterSystem.CompactScheduler()
 			levelSorter := leveldb.NewSorter(
@@ -163,16 +163,6 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 					log.Panic("unexpected empty msg", zap.Reflect("msg", msg))
 				}
 				if msg.RawKV.OpType != model.OpTypeResolved {
-					// DESIGN NOTE: We send the messages to the mounter in
-					// this separate goroutine to prevent blocking
-					// the whole pipeline.
-					msg.SetUpFinishedChan()
-					select {
-					case <-ctx.Done():
-						return nil
-					case n.mounter.Input() <- msg:
-					}
-
 					commitTs := msg.CRTs
 					// We interpolate a resolved-ts if none has been sent for some time.
 					if time.Since(lastSendResolvedTsTime) > resolvedTsInterpolateInterval {
@@ -184,43 +174,10 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 						if lastCRTs > lastSentResolvedTs && commitTs > lastCRTs {
 							lastSentResolvedTs = lastCRTs
 							lastSendResolvedTsTime = time.Now()
-							ctx.SendToNextNode(pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, lastCRTs)))
+							ctx.SendToNextNode(pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, lastCRTs, n.keyspanID)))
 						}
 					}
 
-					// Must wait before accessing msg.Row
-					err := msg.WaitPrepare(ctx)
-					if err != nil {
-						if errors.Cause(err) != context.Canceled {
-							ctx.Throw(err)
-						}
-						return errors.Trace(err)
-					}
-					// We calculate memory consumption by RowChangedEvent size.
-					// It's much larger than RawKVEntry.
-					size := uint64(msg.Row.ApproximateBytes())
-					// NOTE we allow the quota to be exceeded if blocking means interrupting a transaction.
-					// Otherwise the pipeline would deadlock.
-					err = n.flowController.Consume(commitTs, size, func() error {
-						if lastCRTs > lastSentResolvedTs {
-							// If we are blocking, we send a Resolved Event here to elicit a sink-flush.
-							// Not sending a Resolved Event here will very likely deadlock the pipeline.
-							lastSentResolvedTs = lastCRTs
-							lastSendResolvedTsTime = time.Now()
-							ctx.SendToNextNode(pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, lastCRTs)))
-						}
-						return nil
-					})
-					if err != nil {
-						if cerror.ErrFlowControllerAborted.Equal(err) {
-							log.Info("flow control cancelled for keyspan",
-								zap.Uint64("keyspanID", n.keyspanID),
-								zap.String("keyspanName", n.keyspanName))
-						} else {
-							ctx.Throw(err)
-						}
-						return nil
-					}
 					lastCRTs = commitTs
 				} else {
 					// handle OpTypeResolved
@@ -260,8 +217,7 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 			}
 			atomic.StoreUint64(&n.resolvedTs, rawKV.CRTs)
 
-			if resolvedTs > n.barrierTs &&
-				!redo.IsConsistentEnabled(n.replConfig.Consistent.Level) {
+			if resolvedTs > n.barrierTs {
 				// Do not send resolved ts events that is larger than
 				// barrier ts.
 				// When DDL puller stall, resolved events that outputted by
@@ -272,7 +228,7 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 				// TODO: Remove redolog check once redolog decouples for global
 				//       resolved ts.
 				msg = pipeline.PolymorphicEventMessage(
-					model.NewResolvedPolymorphicEvent(0, n.barrierTs))
+					model.NewResolvedPolymorphicEvent(0, n.barrierTs, n.keyspanID))
 			}
 		}
 		n.sorter.AddEntry(ctx, msg.PolymorphicEvent)
