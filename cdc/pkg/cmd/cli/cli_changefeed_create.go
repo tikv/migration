@@ -180,14 +180,14 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 
 	cfg := config.GetDefaultReplicaConfig()
 	if len(o.commonChangefeedOptions.configFile) > 0 {
-		if err := o.commonChangefeedOptions.strictDecodeConfig("TiCDC changefeed", cfg); err != nil {
+		if err := o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
 			return err
 		}
 	}
 
 	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
 		cfg.EnableOldValue = false
-		log.Warn("The TiCDC cluster is built from an older version, disabling old value by default.",
+		log.Warn("The TiKV-CDC cluster is built from an older version, disabling old value by default.",
 			zap.String("version", cdcClusterVer.String()))
 	}
 

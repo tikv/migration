@@ -15,6 +15,8 @@ package sink
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -29,6 +31,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	validator "github.com/asaskevich/govalidator"
 	tikvconfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/cdc/cdc/model"
@@ -403,8 +406,13 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 
 	pdAddr := strings.Split(sinkURI.Host, ",")
 	if len(pdAddr) > 0 {
-		for i, d := range pdAddr {
-			pdAddr[i] = "http://" + d // TODO: support https
+		for i, addr := range pdAddr {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil || !validator.IsIP(host) || !validator.IsPort(port) {
+				err = fmt.Errorf("Invalid pd addr: %v, err: %v", addr, err)
+				return nil, nil, cerror.WrapError(cerror.ErrTiKVInvalidConfig, err)
+			}
+			pdAddr[i] = "http://" + addr // TODO: support https
 		}
 	} else {
 		pdAddr = append(pdAddr, "http://127.0.0.1:2379")
