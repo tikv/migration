@@ -52,9 +52,6 @@ type sorterNode struct {
 	// The latest resolved ts that sorter has received.
 	resolvedTs model.Ts
 
-	// The latest barrier ts that sorter has received.
-	barrierTs model.Ts
-
 	replConfig *config.ReplicaConfig
 }
 
@@ -67,7 +64,6 @@ func newSorterNode(
 		keyspanID:      keyspanID,
 		flowController: flowController,
 		resolvedTs:     startTs,
-		barrierTs:      startTs,
 		replConfig:     replConfig,
 	}
 }
@@ -192,29 +188,9 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 					zap.Uint64("resolvedTs", resolvedTs),
 					zap.Uint64("oldResolvedTs", oldResolvedTs))
 			}
-			atomic.StoreUint64(&n.resolvedTs, rawKV.CRTs)
-
-			if resolvedTs > n.barrierTs {
-				// Do not send resolved ts events that is larger than
-				// barrier ts.
-				// When DDL puller stall, resolved events that outputted by
-				// sorter may pile up in memory, as they have to wait DDL.
-				//
-				// Disabled if redolog is on, it requires sink reports
-				// resolved ts, conflicts to this change.
-				// TODO: Remove redolog check once redolog decouples for global
-				//       resolved ts.
-				msg = pipeline.PolymorphicEventMessage(
-					model.NewResolvedPolymorphicEvent(0, n.barrierTs, n.keyspanID))
-			}
 		}
 		n.sorter.AddEntry(ctx, msg.PolymorphicEvent)
 		return true, nil
-	case pipeline.MessageTypeBarrier:
-		if msg.BarrierTs > n.barrierTs {
-			n.barrierTs = msg.BarrierTs
-		}
-		fallthrough
 	default:
 		ctx.(pipeline.NodeContext).SendToNextNode(msg)
 		return true, nil

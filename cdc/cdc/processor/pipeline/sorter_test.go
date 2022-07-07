@@ -20,7 +20,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/cdc/sorter"
 	"github.com/tikv/migration/cdc/cdc/sorter/memory"
 	"github.com/tikv/migration/cdc/cdc/sorter/unified"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -61,80 +60,4 @@ func TestSorterResolvedTs(t *testing.T) {
 	err := sn.Receive(nctx)
 	require.Nil(t, err)
 	require.EqualValues(t, 2, sn.ResolvedTs())
-}
-
-type checkSorter struct {
-	ch chan *model.PolymorphicEvent
-}
-
-var _ sorter.EventSorter = (*checkSorter)(nil)
-
-func (c *checkSorter) Run(ctx context.Context) error {
-	return nil
-}
-
-func (c *checkSorter) AddEntry(ctx context.Context, entry *model.PolymorphicEvent) {
-	c.ch <- entry
-}
-
-func (c *checkSorter) TryAddEntry(
-	ctx context.Context, entry *model.PolymorphicEvent,
-) (bool, error) {
-	select {
-	case c.ch <- entry:
-		return true, nil
-	default:
-		return false, nil
-	}
-}
-
-func (c *checkSorter) Output() <-chan *model.PolymorphicEvent {
-	return c.ch
-}
-
-func TestSorterResolvedTsLessEqualBarrierTs(t *testing.T) {
-	t.Parallel()
-	sch := make(chan *model.PolymorphicEvent, 1)
-	s := &checkSorter{ch: sch}
-	sn := newSorterNode("keyspanName", 1, 1, nil, &config.ReplicaConfig{
-		Consistent: &config.ConsistentConfig{},
-	})
-	sn.sorter = s
-
-	ch := make(chan pipeline.Message, 1)
-	require.EqualValues(t, 1, sn.ResolvedTs())
-
-	// Resolved ts must not regress even if there is no barrier ts message.
-	resolvedTs1 := pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, 1, 1))
-	nctx := pipeline.NewNodeContext(
-		cdcContext.NewContext(context.Background(), nil), resolvedTs1, ch)
-	err := sn.Receive(nctx)
-	require.Nil(t, err)
-	require.EqualValues(t, model.NewResolvedPolymorphicEvent(0, 1, 1), <-sch)
-
-	// Advance barrier ts.
-	nctx = pipeline.NewNodeContext(
-		cdcContext.NewContext(context.Background(), nil),
-		pipeline.BarrierMessage(2),
-		ch,
-	)
-	err = sn.Receive(nctx)
-	require.Nil(t, err)
-	require.EqualValues(t, 2, sn.barrierTs)
-	// Barrier message must be passed to the next node.
-	require.EqualValues(t, pipeline.BarrierMessage(2), <-ch)
-
-	resolvedTs2 := pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, 2, 1))
-	nctx = pipeline.NewNodeContext(
-		cdcContext.NewContext(context.Background(), nil), resolvedTs2, nil)
-	err = sn.Receive(nctx)
-	require.Nil(t, err)
-	require.EqualValues(t, resolvedTs2.PolymorphicEvent, <-s.Output())
-
-	resolvedTs3 := pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, 3, 1))
-	nctx = pipeline.NewNodeContext(
-		cdcContext.NewContext(context.Background(), nil), resolvedTs3, nil)
-	err = sn.Receive(nctx)
-	require.Nil(t, err)
-	require.EqualValues(t, resolvedTs2.PolymorphicEvent, <-s.Output())
 }
