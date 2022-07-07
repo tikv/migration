@@ -36,7 +36,32 @@ func TestValidateSink(t *testing.T) {
 	err := Validate(ctx, sinkURI, replicateConfig, opts)
 	require.Nil(t, err)
 
+	sinkURI = "tikv://127.0.0.1:3306/?concurrency=4"
+	err = Validate(ctx, sinkURI, replicateConfig, opts)
+	require.Nil(t, err)
+
+	sinkURI = "tikv://127.0.0.1:3306,127.0.0.1:3307/?concurrency=4"
+	err = Validate(ctx, sinkURI, replicateConfig, opts)
+	require.Nil(t, err)
+
 	sinkURI = "blackhole://"
 	err = Validate(ctx, sinkURI, replicateConfig, opts)
 	require.Nil(t, err)
+
+	// test sink uri wrong
+	sinkURI = "tikv://http://127.0.0.1:3306/"
+	err = Validate(ctx, sinkURI, replicateConfig, opts)
+	require.NotNil(t, err)
+
+	sinkURI = "tikv://127.0.0.1:3306a/"
+	err = Validate(ctx, sinkURI, replicateConfig, opts)
+	require.NotNil(t, err)
+
+	sinkURI = "tikv://a127.0.0.1:3306/"
+	err = Validate(ctx, sinkURI, replicateConfig, opts)
+	require.NotNil(t, err)
+
+	sinkURI = "tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/"
+	err = Validate(ctx, sinkURI, replicateConfig, opts)
+	require.NotNil(t, err)
 }
