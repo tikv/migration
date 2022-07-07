@@ -31,6 +31,7 @@ import (
 
 type pullerNode struct {
 	keyspanID   model.KeySpanID
+	keyspanName string
 	keyspan     regionspan.Span
 	replicaInfo *model.KeySpanReplicaInfo
 	cancel      context.CancelFunc
@@ -43,6 +44,7 @@ func newPullerNode(
 	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
 	return &pullerNode{
 		keyspanID:   keyspanID,
+		keyspanName: keyspan.Name(),
 		keyspan:     keyspan,
 		replicaInfo: replicaInfo,
 	}
@@ -60,7 +62,7 @@ func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Gr
 	n.wg = wg
 	metricKeySpanResolvedTsGauge := keyspanResolvedTsGauge.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr, strconv.FormatUint(n.keyspanID, 10))
 	ctxC, cancel := context.WithCancel(ctx)
-	ctxC = util.PutKeySpanInfoInCtx(ctxC, n.keyspanID, n.keyspan.Name())
+	ctxC = util.PutKeySpanInfoInCtx(ctxC, n.keyspanID, n.keyspanName)
 	ctxC = util.PutCaptureAddrInCtx(ctxC, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 	ctxC = util.PutChangefeedIDInCtx(ctxC, ctx.ChangefeedVars().ID)
 

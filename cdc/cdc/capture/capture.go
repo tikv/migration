@@ -26,11 +26,16 @@ import (
 	"github.com/pingcap/log"
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
+	pd "github.com/tikv/pd/client"
+	"go.etcd.io/etcd/client/v3/concurrency"
+	"go.etcd.io/etcd/server/v3/mvcc"
+	"go.uber.org/zap"
+	"golang.org/x/time/rate"
+
 	"github.com/tikv/migration/cdc/cdc/kv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/owner"
 	"github.com/tikv/migration/cdc/cdc/processor"
-
 	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
@@ -38,11 +43,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/pdtime"
 	"github.com/tikv/migration/cdc/pkg/version"
-	pd "github.com/tikv/pd/client"
-	"go.etcd.io/etcd/client/v3/concurrency"
-	"go.etcd.io/etcd/server/v3/mvcc"
-	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 )
 
 // Capture represents a Capture server, it monitors the changefeed information in etcd and schedules Task on it.
@@ -64,7 +64,6 @@ type Capture struct {
 	grpcPool     kv.GrpcPool
 	regionCache  *tikv.RegionCache
 	TimeAcquirer pdtime.TimeAcquirer
-	// sorterSystem *ssystem.System
 
 	cancel context.CancelFunc
 

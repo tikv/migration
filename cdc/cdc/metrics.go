@@ -21,6 +21,8 @@ import (
 	keyspanpipeline "github.com/tikv/migration/cdc/cdc/processor/pipeline"
 	"github.com/tikv/migration/cdc/cdc/puller"
 	"github.com/tikv/migration/cdc/cdc/sink"
+	"github.com/tikv/migration/cdc/cdc/sorter"
+	"github.com/tikv/migration/cdc/cdc/sorter/unified"
 	"github.com/tikv/migration/cdc/pkg/db"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
@@ -41,5 +43,8 @@ func init() {
 	etcd.InitMetrics(registry)
 	initServerMetrics(registry)
 	orchestrator.InitMetrics(registry)
+	// Sorter metrics
+	sorter.InitMetrics(registry)
+	unified.InitMetrics(registry)
 	db.InitMetrics(registry)
 }

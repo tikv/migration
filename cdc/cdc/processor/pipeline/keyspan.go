@@ -29,6 +29,12 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// TODO determine a reasonable default value
+	// This is part of sink performance optimization
+	resolvedTsInterpolateInterval = 200 * time.Millisecond
+)
+
 // KeySpanPipeline is a pipeline which capture the change log from tikv in a keyspan
 type KeySpanPipeline interface {
 	// ID returns the ID of source keyspan and mark keyspan
@@ -56,12 +62,13 @@ type KeySpanPipeline interface {
 type keyspanPipelineImpl struct {
 	p *pipeline.Pipeline
 
-	keyspanID uint64
-	keyspan   regionspan.Span
+	keyspanID   uint64
+	keyspanName string
+	keyspan     regionspan.Span
 
-	// sorterNode *sorterNode
-	sinkNode *sinkNode
-	cancel   context.CancelFunc
+	sorterNode *sorterNode
+	sinkNode   *sinkNode
+	cancel     context.CancelFunc
 
 	replConfig *serverConfig.ReplicaConfig
 }
@@ -77,11 +84,7 @@ type keyspanFlowController interface {
 
 // ResolvedTs returns the resolved ts in this keyspan pipeline
 func (t *keyspanPipelineImpl) ResolvedTs() model.Ts {
-	// TODO: after TiCDC introduces p2p based resolved ts mechanism, TiCDC nodes
-	// will be able to cooperate replication status directly. Then we will add
-	// another replication barrier for consistent replication instead of reusing
-	// the global resolved-ts.
-	return t.sinkNode.ResolvedTs()
+	return t.sorterNode.ResolvedTs()
 }
 
 // CheckpointTs returns the checkpoint ts in this keyspan pipeline
@@ -137,7 +140,7 @@ func (t *keyspanPipelineImpl) ID() (keyspanID uint64) {
 
 // Name returns the quoted schema and keyspan name
 func (t *keyspanPipelineImpl) Name() string {
-	return t.keyspan.Name()
+	return t.keyspanName
 }
 
 // Cancel stops this keyspan pipeline immediately and destroy all resources created by this keyspan pipeline
@@ -154,14 +157,11 @@ func (t *keyspanPipelineImpl) Wait() {
 // replicating 1024 keyspans in the worst case.
 const defaultOutputChannelSize = 64
 
-// There are 4 or 5 runners in keyspan pipeline: header, puller,
-// sink, cyclic if cyclic replication is enabled
-const defaultRunnersSize = 3
+// There are 4 runners in keyspan pipeline: header, puller, sorter, sink.
+const defaultRunnersSize = 4
 
 // NewKeySpanPipeline creates a keyspan pipeline
-// TODO(leoppro): implement a mock kvclient to test the keyspan pipeline
 func NewKeySpanPipeline(ctx cdcContext.Context,
-	// mounter entry.Mounter,
 	keyspanID model.KeySpanID,
 	replicaInfo *model.KeySpanReplicaInfo,
 	sink sink.Sink,
@@ -170,31 +170,39 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	replConfig := ctx.ChangefeedVars().Info.Config
 	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
+	keyspanName := keyspan.Name()
 	keyspanPipeline := &keyspanPipelineImpl{
-		keyspanID:  keyspanID,
-		keyspan:    keyspan,
-		cancel:     cancel,
-		replConfig: replConfig,
+		keyspanID:   keyspanID,
+		keyspanName: keyspanName,
+		keyspan:     keyspan,
+		cancel:      cancel,
+		replConfig:  replConfig,
 	}
 
 	perKeySpanMemoryQuota := serverConfig.GetGlobalServerConfig().PerKeySpanMemoryQuota
 
 	log.Debug("creating keyspan flow controller",
 		zap.String("changefeed-id", ctx.ChangefeedVars().ID),
+		zap.String("keyspan-name", keyspanName),
+		zap.Uint64("keyspan-id", keyspanID),
 		zap.Uint64("quota", perKeySpanMemoryQuota))
 
 	flowController := common.NewKeySpanFlowController(perKeySpanMemoryQuota)
-	// config := ctx.ChangefeedVars().Info.Config
-	// cyclicEnabled := config.Cyclic != nil && config.Cyclic.IsEnabled()
 	runnerSize := defaultRunnersSize
 
 	p := pipeline.NewPipeline(ctx, 500*time.Millisecond, runnerSize, defaultOutputChannelSize)
+
+	sorterNode :=
+		newSorterNode(keyspanName, keyspanID, replicaInfo.StartTs, flowController, replConfig)
+
 	sinkNode := newSinkNode(keyspanID, sink, replicaInfo.StartTs, targetTs, flowController)
 
 	p.AppendNode(ctx, "puller", newPullerNode(keyspanID, replicaInfo))
+	p.AppendNode(ctx, "sorter", sorterNode)
 	p.AppendNode(ctx, "sink", sinkNode)
 
 	keyspanPipeline.p = p
+	keyspanPipeline.sorterNode = sorterNode
 	keyspanPipeline.sinkNode = sinkNode
 	return keyspanPipeline
 }

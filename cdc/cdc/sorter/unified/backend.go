@@ -1,4 +1,4 @@
-// Copyright 2021 PingCAP, Inc.
+// Copyright 2020 PingCAP, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,4 +11,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pipeline
+package unified
+
+import "github.com/tikv/migration/cdc/cdc/model"
+
+type backEnd interface {
+	reader() (backEndReader, error)
+	writer() (backEndWriter, error)
+	free() error
+}
+
+type backEndReader interface {
+	readNext() (*model.PolymorphicEvent, error)
+	resetAndClose() error
+}
+
+type backEndWriter interface {
+	writeNext(event *model.PolymorphicEvent) error
+	writtenCount() int
+	dataSize() uint64
+	flushAndClose() error
+}
