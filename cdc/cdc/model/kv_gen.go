@@ -122,6 +122,12 @@ func (z *RawKVEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "RegionID")
 				return
 			}
+		case "keyspan_id":
+			z.KeySpanID, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "KeySpanID")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -135,7 +141,7 @@ func (z *RawKVEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 7
+	// map header, size 8
 	// write "op_type"
 	err = en.Append(0x87, 0xa7, 0x6f, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65)
 	if err != nil {
@@ -206,15 +212,24 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "RegionID")
 		return
 	}
+	err = en.Append(0xaa, 0x6b, 0x65, 0x79, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.KeySpanID)
+	if err != nil {
+		err = msgp.WrapError(err, "KeySpanID")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *RawKVEntry) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 7
+	// map header, size 8
 	// string "op_type"
-	o = append(o, 0x87, 0xa7, 0x6f, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65)
+	o = append(o, 0x88, 0xa7, 0x6f, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65)
 	o = msgp.AppendInt(o, int(z.OpType))
 	// string "key"
 	o = append(o, 0xa3, 0x6b, 0x65, 0x79)
@@ -234,6 +249,9 @@ func (z *RawKVEntry) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "region_id"
 	o = append(o, 0xa9, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64)
 	o = msgp.AppendUint64(o, z.RegionID)
+	// string "keyspan_id"
+	o = append(o, 0xaa, 0x6b, 0x65, 0x79, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.KeySpanID)
 	return
 }
 
@@ -301,6 +319,12 @@ func (z *RawKVEntry) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "RegionID")
 				return
 			}
+		case "keyspan_id":
+			z.KeySpanID, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "KeySpanID")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -315,6 +339,6 @@ func (z *RawKVEntry) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RawKVEntry) Msgsize() (s int) {
-	s = 1 + 8 + msgp.IntSize + 4 + msgp.BytesPrefixSize + len(z.Key) + 6 + msgp.BytesPrefixSize + len(z.Value) + 10 + msgp.BytesPrefixSize + len(z.OldValue) + 9 + msgp.Uint64Size + 5 + msgp.Uint64Size + 10 + msgp.Uint64Size
+	s = 1 + 8 + msgp.IntSize + 4 + msgp.BytesPrefixSize + len(z.Key) + 6 + msgp.BytesPrefixSize + len(z.Value) + 10 + msgp.BytesPrefixSize + len(z.OldValue) + 9 + msgp.Uint64Size + 5 + msgp.Uint64Size + 10 + msgp.Uint64Size + 11 + msgp.Uint64Size
 	return
 }
