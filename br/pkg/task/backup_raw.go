@@ -27,6 +27,7 @@ const (
 	flagStartKey      = "start"
 	flagEndKey        = "end"
 	flagDstAPIVersion = "dst-api-version"
+	flagSafeInterval  = "safe-interval"
 )
 
 // DefineRawBackupFlags defines common flags for the backup command.
@@ -48,6 +49,9 @@ func DefineRawBackupFlags(command *cobra.Command) {
 
 	command.Flags().Bool(flagRemoveSchedulers, false,
 		"disable the balance, shuffle and region-merge schedulers in PD to speed up backup.")
+
+	command.Flags().Duration(flagSafeInterval, utils.DefaultBRSafeInterval,
+		"The interval between backup-ts and current tso.")
 
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = command.Flags().MarkHidden(flagCompressionType)
@@ -112,6 +116,20 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		SendCredentials: cfg.SendCreds,
 	}
 	if err = client.SetStorage(ctx, u, &opts); err != nil {
+		return errors.Trace(err)
+	}
+	backupTS, err := client.GetTS(ctx, cfg.SafeInterval, 0)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	g.Record("BackupTS", backupTS)
+	sp := utils.BRServiceSafePoint{
+		BackupTS: backupTS,
+		TTL:      client.GetGCTTL(),
+		ID:       utils.MakeSafePointID(),
+	}
+	err = utils.UpdateServiceSafePoint(ctx, mgr.GetPDClient(), sp)
+	if err != nil {
 		return errors.Trace(err)
 	}
 

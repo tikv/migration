@@ -39,6 +39,7 @@ func DefineBackupFlags(flags *pflag.FlagSet) {
 	flags.String(flagBackupTS, "", "the backup ts support TSO or datetime,"+
 		" e.g. '400036290571534337', '2018-05-11 01:42:23'")
 	flags.Int64(flagGCTTL, utils.DefaultBRGCSafePointTTL, "the TTL (in seconds) that PD holds for BR's GC safepoint")
+
 	flags.String(flagCompressionType, "zstd",
 		"backup sst file compression algorithm, value can be one of 'lz4|zstd|snappy'")
 	flags.Int32(flagCompressionLevel, 0, "compression level used for sst file compression")
@@ -51,7 +52,6 @@ func DefineBackupFlags(flags *pflag.FlagSet) {
 	_ = flags.MarkHidden(flagBackupTimeago)
 	_ = flags.MarkHidden(flagLastBackupTS)
 	_ = flags.MarkHidden(flagBackupTS)
-	_ = flags.MarkHidden(flagGCTTL)
 
 	// Disable stats by default. because of
 	// 1. DumpStatsToJson is not stable
