@@ -769,20 +769,11 @@ func (s *eventFeedSession) requestRegionToStore(
 			s.addStream(rpcCtx.Addr, stream, streamCancel)
 
 			g.Go(func() error {
-				defer func() {
-					// Use the same delay mechanism as `stream.Send` error handling, since
-					// these two errors often mean upstream store suffers an accident, which
-					// needs time to recover, kv client doesn't need to retry frequently.
-					// TODO: add a better retry backoff or rate limitter
-					time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
+				streamDeleted, err := s.receiveFromStream(ctx, g, rpcCtx.Addr, getStoreID(rpcCtx), stream.client, pendingRegions)
+				if !streamDeleted {
 					s.deleteStream(rpcCtx.Addr)
-					// Delete `pendingRegions` from `storePendingRegions` so that the next time a region of this store is
-					// requested, it will create a new one. So if the `receiveFromStream` goroutine tries to stop all
-					// pending regions, the new pending regions that are requested after reconnecting won't be stopped
-					// incorrectly.
-					delete(storePendingRegions, rpcCtx.Addr)
-				}()
-				return s.receiveFromStream(ctx, g, rpcCtx.Addr, getStoreID(rpcCtx), stream.client, pendingRegions)
+				}
+				return err
 			})
 		}
 
@@ -811,9 +802,14 @@ func (s *eventFeedSession) requestRegionToStore(
 			if err1 != nil {
 				log.Warn("failed to close stream", zap.Error(err1))
 			}
-			// Do not delete stream here, err msg will returned in receiveFromStream and the goroutine will stop
-			// Then deleteStream can be triggered at L778. Delete stream here will let L778 delete new created stream by mistake.
-
+			// Delete the stream from the map so that the next time the store is accessed, the stream will be
+			// re-established.
+			s.deleteStream(rpcCtx.Addr)
+			// Delete `pendingRegions` from `storePendingRegions` so that the next time a region of this store is
+			// requested, it will create a new one. So if the `receiveFromStream` goroutine tries to stop all
+			// pending regions, the new pending regions that are requested after reconnecting won't be stopped
+			// incorrectly.
+			delete(storePendingRegions, rpcCtx.Addr)
 			// Remove the region from pendingRegions. If it's already removed, it should be already retried by
 			// `receiveFromStream`, so no need to retry here.
 			_, ok := pendingRegions.take(requestID)
@@ -1095,7 +1091,7 @@ func (s *eventFeedSession) receiveFromStream(
 	storeID uint64,
 	stream cdcpb.ChangeData_EventFeedClient,
 	pendingRegions *syncRegionFeedStateMap,
-) error {
+) (bool, error) {
 	// Cancel the pending regions if the stream failed. Otherwise it will remain unhandled in the pendingRegions list
 	// however not registered in the new reconnected stream.
 	defer func() {
@@ -1159,16 +1155,27 @@ func (s *eventFeedSession) receiveFromStream(
 				// election
 			}
 
+			// Use the same delay mechanism as `stream.Send` error handling, since
+			// these two errors often mean upstream store suffers an accident, which
+			// needs time to recover, kv client doesn't need to retry frequently.
+			// TODO: add a better retry backoff or rate limitter
+			time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
+
+			// TODO: better to closes the send direction of the stream to notify
+			// the other side, but it is not safe to call CloseSend concurrently
+			// with SendMsg, in future refactor we should refine the recv loop
+			s.deleteStream(addr)
+
 			// send nil regionStatefulEvent to signal worker exit
 			select {
 			case worker.inputCh <- nil:
 			case <-ctx.Done():
-				return ctx.Err()
+				return true, ctx.Err()
 			}
 
 			// Do no return error but gracefully stop the goroutine here. Then the whole job will not be canceled and
 			// connection will be retried.
-			return nil
+			return true, nil
 		}
 
 		size := cevent.Size()
@@ -1185,14 +1192,14 @@ func (s *eventFeedSession) receiveFromStream(
 		for _, event := range cevent.Events {
 			err = s.sendRegionChangeEvent(ctx, event, worker, pendingRegions, addr)
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
 		if cevent.ResolvedTs != nil {
 			metricSendEventBatchResolvedSize.Observe(float64(len(cevent.ResolvedTs.Regions)))
 			err = s.sendResolvedTs(ctx, cevent.ResolvedTs, worker, addr)
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
 	}
