@@ -143,7 +143,7 @@ func (z *RawKVEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 	// map header, size 8
 	// write "op_type"
-	err = en.Append(0x87, 0xa7, 0x6f, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65)
+	err = en.Append(0x88, 0xa7, 0x6f, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65)
 	if err != nil {
 		return
 	}
@@ -212,6 +212,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "RegionID")
 		return
 	}
+	// write "keyspan_id"
 	err = en.Append(0xaa, 0x6b, 0x65, 0x79, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
 	if err != nil {
 		return
