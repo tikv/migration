@@ -51,7 +51,9 @@ func TestFlushRawKVEntry(t *testing.T) {
 		{KeySpanID: 1, CRTs: 5},
 		{KeySpanID: 1, CRTs: 6},
 	}...))
+	b.bufferMu.Lock()
 	require.Equal(t, 5, len(b.buffer[uint64(1)]))
+	b.bufferMu.Unlock()
 
 	require.Nil(t, b.EmitChangedEvents(ctx, []*model.RawKVEntry{
 		{KeySpanID: 2, CRTs: 3},
@@ -60,15 +62,20 @@ func TestFlushRawKVEntry(t *testing.T) {
 		{KeySpanID: 2, CRTs: 6},
 		{KeySpanID: 2, CRTs: 6},
 	}...))
+	b.bufferMu.Lock()
 	require.Equal(t, 5, len(b.buffer[uint64(2)]))
+	b.bufferMu.Unlock()
 
 	_, err := b.FlushChangedEvents(ctx, 1, 4)
 	require.Nil(t, err)
 	retry := 0
 	for retry < 5 {
+		b.bufferMu.Lock()
 		if backendSink.accumulated == 3 && len(b.buffer[uint64(1)]) == 2 {
+			b.bufferMu.Unlock()
 			break
 		}
+		b.bufferMu.Unlock()
 		time.Sleep(100 * time.Millisecond)
 		retry++
 	}
@@ -78,9 +85,12 @@ func TestFlushRawKVEntry(t *testing.T) {
 	require.Nil(t, err)
 	retry = 0
 	for retry < 5 {
+		b.bufferMu.Lock()
 		if backendSink.accumulated == 5 && len(b.buffer[uint64(2)]) == 3 {
+			b.bufferMu.Unlock()
 			break
 		}
+		b.bufferMu.Unlock()
 		time.Sleep(100 * time.Millisecond)
 		retry++
 	}
@@ -90,9 +100,12 @@ func TestFlushRawKVEntry(t *testing.T) {
 	require.Nil(t, err)
 	retry = 0
 	for retry < 5 {
+		b.bufferMu.Lock()
 		if backendSink.accumulated == 7 && len(b.buffer[uint64(1)]) == 0 {
+			b.bufferMu.Unlock()
 			break
 		}
+		b.bufferMu.Unlock()
 		time.Sleep(100 * time.Millisecond)
 		retry++
 	}
@@ -102,9 +115,12 @@ func TestFlushRawKVEntry(t *testing.T) {
 	require.Nil(t, err)
 	retry = 0
 	for retry < 5 {
+		b.bufferMu.Lock()
 		if backendSink.accumulated == 10 && len(b.buffer[uint64(2)]) == 0 {
+			b.bufferMu.Unlock()
 			break
 		}
+		b.bufferMu.Unlock()
 		time.Sleep(100 * time.Millisecond)
 		retry++
 	}
