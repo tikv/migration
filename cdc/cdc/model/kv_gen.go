@@ -159,7 +159,7 @@ func (z *RawKVEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 8
+	// map header, size 9
 	err = en.Append(0x89)
 	if err != nil {
 		return
@@ -260,7 +260,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *RawKVEntry) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 8
+	// map header, size 9
 	o = append(o, 0x89)
 	// string "op_type"
 	o = append(o, op_type...)
