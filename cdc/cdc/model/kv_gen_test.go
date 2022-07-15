@@ -4,13 +4,46 @@ package model
 
 import (
 	"bytes"
+	"math/rand"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
 
+func TestGenerateFeildName(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	l := rand.Intn(10)
+
+	s := ""
+	for i := 0; i < l; i++ {
+		s += string(byte(rand.Intn(26)) + 'a')
+	}
+
+	bytes := generateFeildName(s)
+
+	require.Equal(t, len(bytes), l+1)
+	require.Equal(t, int(bytes[0]-0xa0), l)
+	require.Equal(t, string(bytes[1:]), s)
+}
+
 func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
-	v := RawKVEntry{}
+	rand.Seed(time.Now().UnixNano())
+	randomNum := rand.Uint64()
+
+	v := RawKVEntry{
+		OpType:    OpTypePut,
+		Key:       []byte("key"),
+		Value:     []byte("value"),
+		OldValue:  []byte("old_value"),
+		StartTs:   randomNum,
+		CRTs:      randomNum + 1,
+		ExpiredTs: randomNum + 2,
+		RegionID:  randomNum + 3,
+		KeySpanID: randomNum + 4,
+	}
+
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -22,6 +55,17 @@ func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
 	if len(left) > 0 {
 		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
 	}
+	require.Equal(t, v, RawKVEntry{
+		OpType:    OpTypePut,
+		Key:       []byte("key"),
+		Value:     []byte("value"),
+		OldValue:  []byte("old_value"),
+		StartTs:   randomNum,
+		CRTs:      randomNum + 1,
+		ExpiredTs: randomNum + 2,
+		RegionID:  randomNum + 3,
+		KeySpanID: randomNum + 4,
+	})
 
 	left, err = msgp.Skip(bts)
 	if err != nil {
@@ -68,7 +112,20 @@ func BenchmarkUnmarshalRawKVEntry(b *testing.B) {
 }
 
 func TestEncodeDecodeRawKVEntry(t *testing.T) {
-	v := RawKVEntry{}
+	rand.Seed(time.Now().UnixNano())
+	randomNum := rand.Uint64()
+	v := RawKVEntry{
+		OpType:    OpTypePut,
+		Key:       []byte("key"),
+		Value:     []byte("value"),
+		OldValue:  []byte("old_value"),
+		StartTs:   randomNum,
+		CRTs:      randomNum + 1,
+		ExpiredTs: randomNum + 2,
+		RegionID:  randomNum + 3,
+		KeySpanID: randomNum + 4,
+	}
+
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -82,6 +139,8 @@ func TestEncodeDecodeRawKVEntry(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	require.Equal(t, v, vn)
 
 	buf.Reset()
 	msgp.Encode(&buf, &v)

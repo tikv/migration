@@ -6,6 +6,18 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+var (
+	op_type    = generateFeildName("op_type")
+	key        = generateFeildName("key")
+	value      = generateFeildName("value")
+	old_value  = generateFeildName("old_value")
+	start_ts   = generateFeildName("start_ts")
+	crts       = generateFeildName("crts")
+	expired_ts = generateFeildName("expired_ts")
+	region_id  = generateFeildName("region_id")
+	keyspan_id = generateFeildName("keyspan_id")
+)
+
 // DecodeMsg implements msgp.Decodable
 func (z *OpType) DecodeMsg(dc *msgp.Reader) (err error) {
 	{
@@ -116,6 +128,12 @@ func (z *RawKVEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "CRTs")
 				return
 			}
+		case "expired_ts":
+			z.ExpiredTs, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "ExpiredTs")
+				return
+			}
 		case "region_id":
 			z.RegionID, err = dc.ReadUint64()
 			if err != nil {
@@ -142,8 +160,12 @@ func (z *RawKVEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 	// map header, size 8
+	err = en.Append(0x89)
+	if err != nil {
+		return
+	}
 	// write "op_type"
-	err = en.Append(0x88, 0xa7, 0x6f, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65)
+	err = en.Append(op_type...)
 	if err != nil {
 		return
 	}
@@ -153,7 +175,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	// write "key"
-	err = en.Append(0xa3, 0x6b, 0x65, 0x79)
+	err = en.Append(key...)
 	if err != nil {
 		return
 	}
@@ -163,7 +185,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	// write "value"
-	err = en.Append(0xa5, 0x76, 0x61, 0x6c, 0x75, 0x65)
+	err = en.Append(value...)
 	if err != nil {
 		return
 	}
@@ -173,7 +195,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	// write "old_value"
-	err = en.Append(0xa9, 0x6f, 0x6c, 0x64, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
+	err = en.Append(old_value...)
 	if err != nil {
 		return
 	}
@@ -183,7 +205,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	// write "start_ts"
-	err = en.Append(0xa8, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x74, 0x73)
+	err = en.Append(start_ts...)
 	if err != nil {
 		return
 	}
@@ -193,7 +215,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	// write "crts"
-	err = en.Append(0xa4, 0x63, 0x72, 0x74, 0x73)
+	err = en.Append(crts...)
 	if err != nil {
 		return
 	}
@@ -202,8 +224,18 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "CRTs")
 		return
 	}
+	// write "expired_ts"
+	err = en.Append(expired_ts...)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.ExpiredTs)
+	if err != nil {
+		err = msgp.WrapError(err, "ExpiredTs")
+		return
+	}
 	// write "region_id"
-	err = en.Append(0xa9, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64)
+	err = en.Append(region_id...)
 	if err != nil {
 		return
 	}
@@ -213,7 +245,7 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	// write "keyspan_id"
-	err = en.Append(0xaa, 0x6b, 0x65, 0x79, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	err = en.Append(keyspan_id...)
 	if err != nil {
 		return
 	}
@@ -229,29 +261,33 @@ func (z *RawKVEntry) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *RawKVEntry) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 8
+	o = append(o, 0x89)
 	// string "op_type"
-	o = append(o, 0x88, 0xa7, 0x6f, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65)
+	o = append(o, op_type...)
 	o = msgp.AppendInt(o, int(z.OpType))
 	// string "key"
-	o = append(o, 0xa3, 0x6b, 0x65, 0x79)
+	o = append(o, key...)
 	o = msgp.AppendBytes(o, z.Key)
 	// string "value"
-	o = append(o, 0xa5, 0x76, 0x61, 0x6c, 0x75, 0x65)
+	o = append(o, value...)
 	o = msgp.AppendBytes(o, z.Value)
 	// string "old_value"
-	o = append(o, 0xa9, 0x6f, 0x6c, 0x64, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
+	o = append(o, old_value...)
 	o = msgp.AppendBytes(o, z.OldValue)
 	// string "start_ts"
-	o = append(o, 0xa8, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x74, 0x73)
+	o = append(o, start_ts...)
 	o = msgp.AppendUint64(o, z.StartTs)
 	// string "crts"
-	o = append(o, 0xa4, 0x63, 0x72, 0x74, 0x73)
+	o = append(o, crts...)
 	o = msgp.AppendUint64(o, z.CRTs)
+	// string "expired_ts"
+	o = append(o, expired_ts...)
+	o = msgp.AppendUint64(o, z.ExpiredTs)
 	// string "region_id"
-	o = append(o, 0xa9, 0x72, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64)
+	o = append(o, region_id...)
 	o = msgp.AppendUint64(o, z.RegionID)
 	// string "keyspan_id"
-	o = append(o, 0xaa, 0x6b, 0x65, 0x79, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	o = append(o, keyspan_id...)
 	o = msgp.AppendUint64(o, z.KeySpanID)
 	return
 }
@@ -314,6 +350,12 @@ func (z *RawKVEntry) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "CRTs")
 				return
 			}
+		case "expired_ts":
+			z.ExpiredTs, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ExpiredTs")
+				return
+			}
 		case "region_id":
 			z.RegionID, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
@@ -340,6 +382,14 @@ func (z *RawKVEntry) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RawKVEntry) Msgsize() (s int) {
-	s = 1 + 8 + msgp.IntSize + 4 + msgp.BytesPrefixSize + len(z.Key) + 6 + msgp.BytesPrefixSize + len(z.Value) + 10 + msgp.BytesPrefixSize + len(z.OldValue) + 9 + msgp.Uint64Size + 5 + msgp.Uint64Size + 10 + msgp.Uint64Size + 11 + msgp.Uint64Size
+	s = 1 + 8 + msgp.IntSize + 4 + msgp.BytesPrefixSize + len(z.Key) + 6 + msgp.BytesPrefixSize + len(z.Value) + 10 + msgp.BytesPrefixSize + len(z.OldValue) + 9 + msgp.Uint64Size + 5 + msgp.Uint64Size + 11 + msgp.Uint64Size + 10 + msgp.Uint64Size + 11 + msgp.Uint64Size
+	return
+}
+
+func generateFeildName(feildName string) (bytes []byte) {
+	l := len(feildName)
+	bytes = make([]byte, 0, l+1)
+	bytes = append(bytes, 0xa0+byte(l))
+	bytes = append(bytes, []byte(feildName)...)
 	return
 }

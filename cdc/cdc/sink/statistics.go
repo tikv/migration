@@ -84,8 +84,8 @@ type Statistics struct {
 	metricExecErrCnt   prometheus.Counter
 }
 
-// AddRowsCount records total number of rows needs to flush
-func (b *Statistics) AddRowsCount(count int) {
+// AddEntriesCount records total number of rows needs to flush
+func (b *Statistics) AddEntriesCount(count int) {
 	atomic.AddUint64(&b.totalRows, uint64(count))
 }
 
