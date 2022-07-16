@@ -22,7 +22,7 @@ const (
 	preUpdateServiceSafePointFactor = 3
 	checkGCSafePointGapTime         = 5 * time.Second
 	// DefaultBRGCSafePointTTL means PD keep safePoint limit at least 5min.
-	DefaultBRGCSafePointTTL = 5 * 60
+	DefaultBRGCSafePointTTL = time.Duration(5) * time.Minute
 	DefaultBRSafeInterval   = time.Minute // safe interval is used to calc the backup-ts.
 )
 

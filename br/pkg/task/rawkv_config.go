@@ -37,7 +37,7 @@ type RawKvConfig struct {
 	CompressionConfig
 	RemoveSchedulers bool          `json:"remove-schedulers" toml:"remove-schedulers"`
 	SafeInterval     time.Duration `json:"safe-interval" toml:"safe-interval"`
-	GCTTL            int64         `json:"gc-ttl" toml:"gc-ttl"`
+	GCTTL            time.Duration `json:"gc-ttl" toml:"gc-ttl"`
 }
 
 // ParseBackupConfigFromFlags parses the backup-related flags from the flag set.
@@ -55,7 +55,7 @@ func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
 		return errors.Trace(err)
 	}
 	cfg.SafeInterval = safeInterval
-	gcTTL, err := flags.GetInt64(flagGCTTL)
+	gcTTL, err := flags.GetDuration(flagGCTTL)
 	if err != nil {
 		return errors.Trace(err)
 	}

@@ -237,7 +237,7 @@ func (r *testBackup) TestUpdateBRGCSafePoint(c *C) {
 	curTime := oracle.GetTimeFromTS(tso)
 	backupAgo := curTime.Add(-duration)
 	expectbackupTS := oracle.ComposeTS(oracle.GetPhysical(backupAgo), logical)
-	r.backupClient.SetGCTTL(10000)
+	r.backupClient.SetGCTTL(time.Minute)
 	c.Assert(r.backupClient.GetCurAPIVersion(), Equals, kvrpcpb.APIVersion_V2)
 
 	backupTs, err := r.backupClient.UpdateBRGCSafePoint(r.ctx, duration)

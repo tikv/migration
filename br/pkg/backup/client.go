@@ -72,7 +72,7 @@ type Client struct {
 	storage storage.ExternalStorage
 	backend *backuppb.StorageBackend
 
-	gcTTL int64
+	gcTTL time.Duration
 }
 
 // NewBackupClient returns a new backup client.
@@ -145,7 +145,7 @@ func (bc *Client) UpdateBRGCSafePoint(ctx context.Context, safeInterval time.Dur
 	}
 	sp := utils.BRServiceSafePoint{
 		BackupTS: backupTS,
-		TTL:      bc.GetGCTTL(),
+		TTL:      int64(bc.GetGCTTL().Seconds()),
 		ID:       utils.MakeSafePointID(),
 	}
 	err = utils.UpdateServiceSafePoint(ctx, bc.mgr.GetPDClient(), sp)
@@ -163,7 +163,7 @@ func (bc *Client) SetLockFile(ctx context.Context) error {
 }
 
 // SetGCTTL set gcTTL for client.
-func (bc *Client) SetGCTTL(ttl int64) {
+func (bc *Client) SetGCTTL(ttl time.Duration) {
 	if ttl <= 0 {
 		ttl = utils.DefaultBRGCSafePointTTL
 	}
@@ -171,7 +171,7 @@ func (bc *Client) SetGCTTL(ttl int64) {
 }
 
 // GetGCTTL get gcTTL for this backup.
-func (bc *Client) GetGCTTL() int64 {
+func (bc *Client) GetGCTTL() time.Duration {
 	return bc.gcTTL
 }
 
