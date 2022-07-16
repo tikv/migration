@@ -126,22 +126,22 @@ func (b *bufferSink) runOnce(ctx context.Context, state *runState) (bool, error)
 		keyspanID, resolvedTs := batch[i].keyspanID, batch[i].resolvedTs
 		rawKVEntries := b.buffer[keyspanID]
 
-		i := sort.Search(len(rawKVEntries), func(i int) bool {
+		k := sort.Search(len(rawKVEntries), func(i int) bool {
 			return rawKVEntries[i].CRTs > resolvedTs
 		})
-		if i == 0 {
+		if k == 0 {
 			continue
 		}
-		state.metricTotalRows.Add(float64(i))
+		state.metricTotalRows.Add(float64(k))
 
-		err := b.Sink.EmitChangedEvents(ctx, rawKVEntries...)
+		err := b.Sink.EmitChangedEvents(ctx, rawKVEntries[:k]...)
 		if err != nil {
 			b.bufferMu.Unlock()
 			return false, errors.Trace(err)
 		}
 		// put remaining rawKVEntries back to buffer
 		// append to a new, fixed slice to avoid lazy GC
-		b.buffer[keyspanID] = append(make([]*model.RawKVEntry, 0, len(rawKVEntries[i:])), rawKVEntries[i:]...)
+		b.buffer[keyspanID] = append(make([]*model.RawKVEntry, 0, len(rawKVEntries[k:])), rawKVEntries[k:]...)
 	}
 	b.bufferMu.Unlock()
 	state.metricEmitRowDuration.Observe(time.Since(startEmit).Seconds())

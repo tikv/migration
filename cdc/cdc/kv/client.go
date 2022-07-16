@@ -769,8 +769,11 @@ func (s *eventFeedSession) requestRegionToStore(
 			s.addStream(rpcCtx.Addr, stream, streamCancel)
 
 			g.Go(func() error {
-				defer s.deleteStream(rpcCtx.Addr)
-				return s.receiveFromStream(ctx, g, rpcCtx.Addr, getStoreID(rpcCtx), stream.client, pendingRegions)
+				streamDeleted, err := s.receiveFromStream(ctx, g, rpcCtx.Addr, getStoreID(rpcCtx), stream.client, pendingRegions)
+				if !streamDeleted {
+					s.deleteStream(rpcCtx.Addr)
+				}
+				return err
 			})
 		}
 
@@ -807,7 +810,6 @@ func (s *eventFeedSession) requestRegionToStore(
 			// pending regions, the new pending regions that are requested after reconnecting won't be stopped
 			// incorrectly.
 			delete(storePendingRegions, rpcCtx.Addr)
-
 			// Remove the region from pendingRegions. If it's already removed, it should be already retried by
 			// `receiveFromStream`, so no need to retry here.
 			_, ok := pendingRegions.take(requestID)
@@ -1089,7 +1091,7 @@ func (s *eventFeedSession) receiveFromStream(
 	storeID uint64,
 	stream cdcpb.ChangeData_EventFeedClient,
 	pendingRegions *syncRegionFeedStateMap,
-) error {
+) (bool, error) {
 	// Cancel the pending regions if the stream failed. Otherwise it will remain unhandled in the pendingRegions list
 	// however not registered in the new reconnected stream.
 	defer func() {
@@ -1168,12 +1170,12 @@ func (s *eventFeedSession) receiveFromStream(
 			select {
 			case worker.inputCh <- nil:
 			case <-ctx.Done():
-				return ctx.Err()
+				return true, ctx.Err()
 			}
 
 			// Do no return error but gracefully stop the goroutine here. Then the whole job will not be canceled and
 			// connection will be retried.
-			return nil
+			return true, nil
 		}
 
 		size := cevent.Size()
@@ -1190,14 +1192,14 @@ func (s *eventFeedSession) receiveFromStream(
 		for _, event := range cevent.Events {
 			err = s.sendRegionChangeEvent(ctx, event, worker, pendingRegions, addr)
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
 		if cevent.ResolvedTs != nil {
 			metricSendEventBatchResolvedSize.Observe(float64(len(cevent.ResolvedTs.Regions)))
 			err = s.sendResolvedTs(ctx, cevent.ResolvedTs, worker, addr)
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
 	}
