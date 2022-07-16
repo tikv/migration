@@ -44,7 +44,6 @@ func TestFlushRawKVEntry(t *testing.T) {
 	go b.run(ctx, make(chan error))
 
 	check := func(keyspanID uint64, expectAccumulated, expectBufSize int) bool {
-
 		retry := 0
 		for retry < 5 {
 			b.bufferMu.Lock()
