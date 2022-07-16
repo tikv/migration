@@ -146,7 +146,7 @@ func (k *tikvSink) dispatch(entry *model.RawKVEntry) uint32 {
 
 func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
 	log.Debug("[TRACE] tikvSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
-	rowsCount := 0
+	entriesCount := 0
 
 	for _, rawKVEntry := range rawKVEntries {
 		workerIdx := k.dispatch(rawKVEntry)
@@ -158,15 +158,15 @@ func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model
 			resolvedTs uint64
 		}{rawKVEntry: rawKVEntry}:
 		}
-		rowsCount++
+		entriesCount++
 	}
 
-	k.statistics.AddRowsCount(rowsCount)
+	k.statistics.AddEntriesCount(entriesCount)
 	return nil
 }
 
 func (k *tikvSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
-	log.Debug("[TRACE] tikvSink::FlushRowChangedEvents", zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", k.checkpointTs))
+	log.Debug("[TRACE] tikvSink::FlushChangedEvents", zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", k.checkpointTs))
 
 	if resolvedTs <= k.checkpointTs {
 		return k.checkpointTs, nil
@@ -183,7 +183,7 @@ func (k *tikvSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySp
 		}
 	}
 
-	// waiting for all row events are sent to TiKV
+	// waiting for all events are sent to TiKV
 flushLoop:
 	for {
 		select {

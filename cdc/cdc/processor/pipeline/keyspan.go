@@ -192,8 +192,7 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 
 	p := pipeline.NewPipeline(ctx, 500*time.Millisecond, runnerSize, defaultOutputChannelSize)
 
-	sorterNode :=
-		newSorterNode(keyspanName, keyspanID, replicaInfo.StartTs, flowController, replConfig)
+	sorterNode := newSorterNode(keyspanName, keyspanID, replicaInfo.StartTs, flowController, replConfig)
 
 	sinkNode := newSinkNode(keyspanID, sink, replicaInfo.StartTs, targetTs, flowController)
 

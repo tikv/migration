@@ -58,7 +58,8 @@ func NewUnifiedSorter(
 	changeFeedID model.ChangeFeedID,
 	keyspanName string,
 	keyspanID model.KeySpanID,
-	captureAddr string) (*Sorter, error) {
+	captureAddr string,
+) (*Sorter, error) {
 	poolMu.Lock()
 	defer poolMu.Unlock()
 
