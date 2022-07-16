@@ -5,7 +5,6 @@ package task
 import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/spf13/pflag"
-	"github.com/tikv/migration/br/pkg/utils"
 )
 
 const (
@@ -17,8 +16,6 @@ const (
 	flagRemoveSchedulers = "remove-schedulers"
 	flagIgnoreStats      = "ignore-stats"
 	flagUseBackupMetaV2  = "use-backupmeta-v2"
-
-	flagGCTTL = "gcttl"
 )
 
 // CompressionConfig is the configuration for sst file compression.
@@ -38,7 +35,6 @@ func DefineBackupFlags(flags *pflag.FlagSet) {
 		" use for incremental backup, support TSO only")
 	flags.String(flagBackupTS, "", "the backup ts support TSO or datetime,"+
 		" e.g. '400036290571534337', '2018-05-11 01:42:23'")
-	flags.Int64(flagGCTTL, utils.DefaultBRGCSafePointTTL, "the TTL (in seconds) that PD holds for BR's GC safepoint")
 
 	flags.String(flagCompressionType, "zstd",
 		"backup sst file compression algorithm, value can be one of 'lz4|zstd|snappy'")

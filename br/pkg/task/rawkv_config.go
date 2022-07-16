@@ -50,6 +50,16 @@ func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
 	if err = cfg.parseDstAPIVersion(flags); err != nil {
 		return errors.Trace(err)
 	}
+	safeInterval, err := flags.GetDuration(flagSafeInterval)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	cfg.SafeInterval = safeInterval
+	gcTTL, err := flags.GetInt64(flagGCTTL)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	cfg.GCTTL = gcTTL
 
 	compressionCfg, err := cfg.parseCompressionFlags(flags)
 	if err != nil {
@@ -102,18 +112,6 @@ func (cfg *RawKvConfig) ParseFromFlags(flags *pflag.FlagSet) error {
 	if len(cfg.StartKey) > 0 && len(cfg.EndKey) > 0 && bytes.Compare(cfg.StartKey, cfg.EndKey) >= 0 {
 		return errors.Annotate(berrors.ErrBackupInvalidRange, "endKey must be greater than startKey")
 	}
-
-	safeInterval, err := flags.GetDuration(flagSafeInterval)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.SafeInterval = safeInterval
-
-	gcTTL, err := flags.GetInt64(flagGCTTL)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	cfg.GCTTL = gcTTL
 
 	// parse other configs.
 	if err = cfg.Config.ParseFromFlags(flags); err != nil {
