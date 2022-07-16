@@ -43,6 +43,22 @@ func TestFlushRawKVEntry(t *testing.T) {
 	b := newBufferSink(backendSink, 1, make(chan drawbackMsg))
 	go b.run(ctx, make(chan error))
 
+	check := func(keyspanID uint64, expectAccumulated, expectBufSize int) bool {
+
+		retry := 0
+		for retry < 5 {
+			b.bufferMu.Lock()
+			accumulated, bufSize := int(backendSink.accumulated), len(b.buffer[keyspanID])
+			b.bufferMu.Unlock()
+			if accumulated == expectAccumulated && bufSize == expectBufSize {
+				return true
+			}
+			time.Sleep(100 * time.Millisecond)
+			retry++
+		}
+		return false
+	}
+
 	require.Nil(t, b.EmitChangedEvents(ctx))
 	require.Nil(t, b.EmitChangedEvents(ctx, []*model.RawKVEntry{
 		{KeySpanID: 1, CRTs: 2},
@@ -51,9 +67,7 @@ func TestFlushRawKVEntry(t *testing.T) {
 		{KeySpanID: 1, CRTs: 5},
 		{KeySpanID: 1, CRTs: 6},
 	}...))
-	b.bufferMu.Lock()
-	require.Equal(t, 5, len(b.buffer[uint64(1)]))
-	b.bufferMu.Unlock()
+	require.True(t, check(1, 0, 5))
 
 	require.Nil(t, b.EmitChangedEvents(ctx, []*model.RawKVEntry{
 		{KeySpanID: 2, CRTs: 3},
@@ -62,69 +76,23 @@ func TestFlushRawKVEntry(t *testing.T) {
 		{KeySpanID: 2, CRTs: 6},
 		{KeySpanID: 2, CRTs: 6},
 	}...))
-	b.bufferMu.Lock()
-	require.Equal(t, 5, len(b.buffer[uint64(2)]))
-	b.bufferMu.Unlock()
+	require.True(t, check(2, 0, 5))
 
 	_, err := b.FlushChangedEvents(ctx, 1, 4)
 	require.Nil(t, err)
-	retry := 0
-	for retry < 5 {
-		b.bufferMu.Lock()
-		if backendSink.accumulated == 3 && len(b.buffer[uint64(1)]) == 2 {
-			b.bufferMu.Unlock()
-			break
-		}
-		b.bufferMu.Unlock()
-		time.Sleep(100 * time.Millisecond)
-		retry++
-	}
-	require.Less(t, retry, 5)
+	require.True(t, check(1, 3, 2))
 
 	_, err = b.FlushChangedEvents(ctx, 2, 4)
 	require.Nil(t, err)
-	retry = 0
-	for retry < 5 {
-		b.bufferMu.Lock()
-		if backendSink.accumulated == 5 && len(b.buffer[uint64(2)]) == 3 {
-			b.bufferMu.Unlock()
-			break
-		}
-		b.bufferMu.Unlock()
-		time.Sleep(100 * time.Millisecond)
-		retry++
-	}
-	require.Less(t, retry, 5)
+	require.True(t, check(2, 5, 3))
 
 	_, err = b.FlushChangedEvents(ctx, 1, 6)
 	require.Nil(t, err)
-	retry = 0
-	for retry < 5 {
-		b.bufferMu.Lock()
-		if backendSink.accumulated == 7 && len(b.buffer[uint64(1)]) == 0 {
-			b.bufferMu.Unlock()
-			break
-		}
-		b.bufferMu.Unlock()
-		time.Sleep(100 * time.Millisecond)
-		retry++
-	}
-	require.Less(t, retry, 5)
+	require.True(t, check(1, 7, 0))
 
 	_, err = b.FlushChangedEvents(ctx, 2, 6)
 	require.Nil(t, err)
-	retry = 0
-	for retry < 5 {
-		b.bufferMu.Lock()
-		if backendSink.accumulated == 10 && len(b.buffer[uint64(2)]) == 0 {
-			b.bufferMu.Unlock()
-			break
-		}
-		b.bufferMu.Unlock()
-		time.Sleep(100 * time.Millisecond)
-		retry++
-	}
-	require.Less(t, retry, 5)
+	require.True(t, check(2, 10, 0))
 }
 
 func TestFlushKeySpan(t *testing.T) {
