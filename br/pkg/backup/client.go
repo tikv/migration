@@ -135,6 +135,26 @@ func (bc *Client) GetCurAPIVersion() kvrpcpb.APIVersion {
 	return bc.curAPIVer
 }
 
+func (bc *Client) UpdateBRGCSafePoint(ctx context.Context, safeInterval time.Duration) (uint64, error) {
+	if bc.GetCurAPIVersion() != kvrpcpb.APIVersion_V2 {
+		return 0, nil
+	}
+	backupTS, err := bc.GetTS(ctx, safeInterval, 0)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	sp := utils.BRServiceSafePoint{
+		BackupTS: backupTS,
+		TTL:      bc.GetGCTTL(),
+		ID:       utils.MakeSafePointID(),
+	}
+	err = utils.UpdateServiceSafePoint(ctx, bc.mgr.GetPDClient(), sp)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	return backupTS, nil
+}
+
 // SetLockFile set write lock file.
 func (bc *Client) SetLockFile(ctx context.Context) error {
 	return bc.storage.WriteFile(ctx, metautil.LockFile,

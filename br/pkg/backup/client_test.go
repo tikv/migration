@@ -4,6 +4,7 @@ package backup_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	. "github.com/pingcap/check"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/errorpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/testutils"
 	"github.com/tikv/client-go/v2/tikv"
@@ -52,7 +54,7 @@ func (r *testBackup) SetUpSuite(c *C) {
 	defer httpmock.DeactivateAndReset()
 	// Exact URL match
 	httpmock.RegisterResponder("GET", `=~^/config`,
-		httpmock.NewStringResponder(200, `{"storage":{"api-version":1, "enable-ttl":false}}`))
+		httpmock.NewStringResponder(200, `{"storage":{"api-version":2, "enable-ttl":false}}`))
 
 	r.backupClient, err = backup.NewBackupClient(r.ctx, mockMgr, nil)
 	c.Assert(err, IsNil)
@@ -224,4 +226,25 @@ func (r *testBackup) TestCheckBackupIsLocked(c *C) {
 	c.Assert(err, IsNil)
 	err = backup.CheckBackupStorageIsLocked(ctx, r.storage)
 	c.Assert(err, ErrorMatches, "backup lock file and sst file exist in(.+)")
+}
+
+func (r *testBackup) TestUpdateBRGCSafePoint(c *C) {
+	r.SetUpSuite(c)
+	duration := time.Duration(1) * time.Minute
+	physical, logical, err := r.mockPDClient.GetTS(r.ctx)
+	c.Assert(err, IsNil)
+	tso := oracle.ComposeTS(physical, logical)
+	curTime := oracle.GetTimeFromTS(tso)
+	backupAgo := curTime.Add(-duration)
+	expectbackupTS := oracle.ComposeTS(oracle.GetPhysical(backupAgo), logical)
+	r.backupClient.SetGCTTL(10000)
+	c.Assert(r.backupClient.GetCurAPIVersion(), Equals, kvrpcpb.APIVersion_V2)
+
+	backupTs, err := r.backupClient.UpdateBRGCSafePoint(r.ctx, duration)
+	c.Assert(err, IsNil)
+	c.Assert(backupTs-expectbackupTS, Equals, uint64(1)) // UpdateBRGCSafePoint will get ts again, so there is a gap.
+
+	curSafePoint, err := r.mockPDClient.UpdateServiceGCSafePoint(r.ctx, "test", 100, math.MaxUint64)
+	c.Assert(err, IsNil)
+	c.Assert(curSafePoint, Equals, backupTs-1)
 }

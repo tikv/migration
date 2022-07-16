@@ -118,19 +118,14 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err = client.SetStorage(ctx, u, &opts); err != nil {
 		return errors.Trace(err)
 	}
-	backupTS, err := client.GetTS(ctx, cfg.SafeInterval, 0)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	g.Record("BackupTS", backupTS)
-	sp := utils.BRServiceSafePoint{
-		BackupTS: backupTS,
-		TTL:      client.GetGCTTL(),
-		ID:       utils.MakeSafePointID(),
-	}
-	err = utils.UpdateServiceSafePoint(ctx, mgr.GetPDClient(), sp)
-	if err != nil {
-		return errors.Trace(err)
+	client.SetGCTTL(cfg.GCTTL)
+	if curAPIVersion == kvrpcpb.APIVersion_V2 {
+		// set safepoint to avoid the logical deletion data to gc.
+		backupTs, err := client.UpdateBRGCSafePoint(ctx, cfg.SafeInterval)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		g.Record("BackupTS", backupTs)
 	}
 
 	backupRange := rtree.Range{StartKey: cfg.StartKey, EndKey: cfg.EndKey}

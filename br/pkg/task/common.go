@@ -108,6 +108,7 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 
 	flags.Bool(flagCheckRequirement, true,
 		"Whether start version check before execute command")
+	_ = flags.MarkHidden(flagCheckRequirement)
 	flags.Duration(flagSwitchModeInterval, defaultSwitchInterval, "maintain import mode on TiKV during restore")
 	_ = flags.MarkHidden(flagSwitchModeInterval)
 	flags.Duration(flagGrpcKeepaliveTime, defaultGRPCKeepaliveTime,
