@@ -27,6 +27,8 @@ const (
 	flagStartKey      = "start"
 	flagEndKey        = "end"
 	flagDstAPIVersion = "dst-api-version"
+	flagSafeInterval  = "safe-interval"
+	flagGCTTL         = "gcttl"
 )
 
 // DefineRawBackupFlags defines common flags for the backup command.
@@ -49,6 +51,12 @@ func DefineRawBackupFlags(command *cobra.Command) {
 	command.Flags().Bool(flagRemoveSchedulers, false,
 		"disable the balance, shuffle and region-merge schedulers in PD to speed up backup.")
 
+	command.Flags().Duration(flagSafeInterval, utils.DefaultBRSafeInterval,
+		"The interval between backup-ts and current tso.")
+	command.Flags().Duration(flagGCTTL, utils.DefaultBRGCSafePointTTL, "The TTL of BR's GC safepoint")
+
+	// safe-interval is difficult for common users to set one suitable value. Hide it.
+	_ = command.Flags().MarkHidden(flagSafeInterval)
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = command.Flags().MarkHidden(flagCompressionType)
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
@@ -113,6 +121,15 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	}
 	if err = client.SetStorage(ctx, u, &opts); err != nil {
 		return errors.Trace(err)
+	}
+	client.SetGCTTL(cfg.GCTTL)
+	if curAPIVersion == kvrpcpb.APIVersion_V2 {
+		// set safepoint to avoid the logical deletion data to gc.
+		backupTs, err := client.UpdateBRGCSafePoint(ctx, cfg.SafeInterval)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		g.Record("BackupTS", backupTs)
 	}
 
 	backupRange := rtree.Range{StartKey: cfg.StartKey, EndKey: cfg.EndKey}

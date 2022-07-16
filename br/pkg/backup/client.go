@@ -72,7 +72,7 @@ type Client struct {
 	storage storage.ExternalStorage
 	backend *backuppb.StorageBackend
 
-	gcTTL int64
+	gcTTL time.Duration
 }
 
 // NewBackupClient returns a new backup client.
@@ -135,6 +135,26 @@ func (bc *Client) GetCurAPIVersion() kvrpcpb.APIVersion {
 	return bc.curAPIVer
 }
 
+func (bc *Client) UpdateBRGCSafePoint(ctx context.Context, safeInterval time.Duration) (uint64, error) {
+	if bc.GetCurAPIVersion() != kvrpcpb.APIVersion_V2 {
+		return 0, nil
+	}
+	backupTS, err := bc.GetTS(ctx, safeInterval, 0)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	sp := utils.BRServiceSafePoint{
+		BackupTS: backupTS,
+		TTL:      int64(bc.GetGCTTL().Seconds()),
+		ID:       utils.MakeSafePointID(),
+	}
+	err = utils.UpdateServiceSafePoint(ctx, bc.mgr.GetPDClient(), sp)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	return backupTS, nil
+}
+
 // SetLockFile set write lock file.
 func (bc *Client) SetLockFile(ctx context.Context) error {
 	return bc.storage.WriteFile(ctx, metautil.LockFile,
@@ -143,7 +163,7 @@ func (bc *Client) SetLockFile(ctx context.Context) error {
 }
 
 // SetGCTTL set gcTTL for client.
-func (bc *Client) SetGCTTL(ttl int64) {
+func (bc *Client) SetGCTTL(ttl time.Duration) {
 	if ttl <= 0 {
 		ttl = utils.DefaultBRGCSafePointTTL
 	}
@@ -151,7 +171,7 @@ func (bc *Client) SetGCTTL(ttl int64) {
 }
 
 // GetGCTTL get gcTTL for this backup.
-func (bc *Client) GetGCTTL() int64 {
+func (bc *Client) GetGCTTL() time.Duration {
 	return bc.gcTTL
 }
 

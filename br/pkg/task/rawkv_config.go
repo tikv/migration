@@ -17,6 +17,7 @@ package task
 import (
 	"bytes"
 	"strings"
+	"time"
 
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
@@ -34,7 +35,9 @@ type RawKvConfig struct {
 	EndKey        []byte `json:"end-key" toml:"end-key"`
 	DstAPIVersion string `json:"dst-api-version" toml:"dst-api-version"`
 	CompressionConfig
-	RemoveSchedulers bool `json:"remove-schedulers" toml:"remove-schedulers"`
+	RemoveSchedulers bool          `json:"remove-schedulers" toml:"remove-schedulers"`
+	SafeInterval     time.Duration `json:"safe-interval" toml:"safe-interval"`
+	GCTTL            time.Duration `json:"gc-ttl" toml:"gc-ttl"`
 }
 
 // ParseBackupConfigFromFlags parses the backup-related flags from the flag set.
@@ -47,6 +50,16 @@ func (cfg *RawKvConfig) ParseBackupConfigFromFlags(flags *pflag.FlagSet) error {
 	if err = cfg.parseDstAPIVersion(flags); err != nil {
 		return errors.Trace(err)
 	}
+	safeInterval, err := flags.GetDuration(flagSafeInterval)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	cfg.SafeInterval = safeInterval
+	gcTTL, err := flags.GetDuration(flagGCTTL)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	cfg.GCTTL = gcTTL
 
 	compressionCfg, err := cfg.parseCompressionFlags(flags)
 	if err != nil {
