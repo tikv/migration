@@ -4,44 +4,40 @@ package model
 
 import (
 	"bytes"
-	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
 
-func TestGenerateFeildName(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-	l := rand.Intn(10)
-
-	s := ""
-	for i := 0; i < l; i++ {
-		s += string(byte(rand.Intn(26)) + 'a')
+func TestGetStructFieldNum(t *testing.T) {
+	type StructA struct {
+		field1 int
+		field2 uint64
+		field3 string
 	}
 
-	bytes := generateFeildName(s)
+	require.Equal(t, 3, getStructFieldNum(StructA{}))
+}
 
-	require.Equal(t, len(bytes), l+1)
-	require.Equal(t, int(bytes[0]-0xa0), l)
-	require.Equal(t, string(bytes[1:]), s)
+func TestGenerateFieldName(t *testing.T) {
+	s := "keyspan_id"
+	tbytes := []byte{0xaa, 0x6b, 0x65, 0x79, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64}
+	bytes := generateFeildName(s)
+	require.Equal(t, bytes, tbytes)
 }
 
 func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-	randomNum := rand.Uint64()
-
 	v := RawKVEntry{
 		OpType:    OpTypePut,
 		Key:       []byte("key"),
 		Value:     []byte("value"),
 		OldValue:  []byte("old_value"),
-		StartTs:   randomNum,
-		CRTs:      randomNum + 1,
-		ExpiredTs: randomNum + 2,
-		RegionID:  randomNum + 3,
-		KeySpanID: randomNum + 4,
+		StartTs:   0,
+		CRTs:      1,
+		ExpiredTs: 2,
+		RegionID:  3,
+		KeySpanID: 4,
 	}
 
 	bts, err := v.MarshalMsg(nil)
@@ -60,11 +56,11 @@ func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
 		Key:       []byte("key"),
 		Value:     []byte("value"),
 		OldValue:  []byte("old_value"),
-		StartTs:   randomNum,
-		CRTs:      randomNum + 1,
-		ExpiredTs: randomNum + 2,
-		RegionID:  randomNum + 3,
-		KeySpanID: randomNum + 4,
+		StartTs:   0,
+		CRTs:      1,
+		ExpiredTs: 2,
+		RegionID:  3,
+		KeySpanID: 4,
 	})
 
 	left, err = msgp.Skip(bts)
@@ -112,18 +108,16 @@ func BenchmarkUnmarshalRawKVEntry(b *testing.B) {
 }
 
 func TestEncodeDecodeRawKVEntry(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-	randomNum := rand.Uint64()
 	v := RawKVEntry{
 		OpType:    OpTypePut,
 		Key:       []byte("key"),
 		Value:     []byte("value"),
 		OldValue:  []byte("old_value"),
-		StartTs:   randomNum,
-		CRTs:      randomNum + 1,
-		ExpiredTs: randomNum + 2,
-		RegionID:  randomNum + 3,
-		KeySpanID: randomNum + 4,
+		StartTs:   0,
+		CRTs:      1,
+		ExpiredTs: 2,
+		RegionID:  3,
+		KeySpanID: 4,
 	}
 
 	var buf bytes.Buffer
