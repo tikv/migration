@@ -54,7 +54,7 @@ func (r *testBackup) SetUpSuite(c *C) {
 	defer httpmock.DeactivateAndReset()
 	// Exact URL match
 	httpmock.RegisterResponder("GET", `=~^/config`,
-		httpmock.NewStringResponder(200, `{"storage":{"api-version":2, "enable-ttl":false}}`))
+		httpmock.NewStringResponder(200, `{"storage":{"api-version":2, "enable-ttl":true}}`))
 
 	r.backupClient, err = backup.NewBackupClient(r.ctx, mockMgr, nil)
 	c.Assert(err, IsNil)

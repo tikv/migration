@@ -53,8 +53,10 @@ func DefineRawBackupFlags(command *cobra.Command) {
 
 	command.Flags().Duration(flagSafeInterval, utils.DefaultBRSafeInterval,
 		"The interval between backup-ts and current tso.")
-	command.Flags().Int64(flagGCTTL, utils.DefaultBRGCSafePointTTL, "the TTL (in seconds) that PD holds for BR's GC safepoint")
+	command.Flags().Int64(flagGCTTL, utils.DefaultBRGCSafePointTTL, "The TTL of BR's GC safepoint")
 
+	// safe-interval is difficult for common users to set one suitable value. Hide it.
+	_ = command.Flags().MarkHidden(flagSafeInterval)
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = command.Flags().MarkHidden(flagCompressionType)
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)

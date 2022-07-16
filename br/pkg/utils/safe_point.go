@@ -21,9 +21,9 @@ const (
 	brServiceSafePointIDFormat      = "br-%s"
 	preUpdateServiceSafePointFactor = 3
 	checkGCSafePointGapTime         = 5 * time.Second
-	// DefaultBRGCSafePointTTL means PD keep safePoint limit at least 72h.
-	DefaultBRGCSafePointTTL = 72 * 60 * 60 // 72h
-	DefaultBRSafeInterval   = time.Minute  // safe interval is used to calc the backup-ts.
+	// DefaultBRGCSafePointTTL means PD keep safePoint limit at least 5min.
+	DefaultBRGCSafePointTTL = 5 * 60
+	DefaultBRSafeInterval   = time.Minute // safe interval is used to calc the backup-ts.
 )
 
 // BRServiceSafePoint is metadata of service safe point from a BR 'instance'.
