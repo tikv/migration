@@ -112,6 +112,10 @@ type createChangefeedOptions struct {
 	startTs                 uint64
 	timezone                string
 
+	format   string
+	startKey string
+	endKey   string
+
 	cfg *config.ReplicaConfig
 }
 
@@ -134,6 +138,9 @@ func (o *createChangefeedOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVarP(&o.disableGCSafePointCheck, "disable-gc-check", "", false, "Disable GC safe point check")
 	cmd.PersistentFlags().Uint64Var(&o.startTs, "start-ts", 0, "Start ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.timezone, "tz", "SYSTEM", "timezone used when checking sink uri (changefeed timezone is determined by cdc server)")
+	cmd.PersistentFlags().StringVar(&o.format, "format", "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
+	cmd.PersistentFlags().StringVar(&o.startKey, "start-key", "", "The start key of the changefeed, key is inclusive.")
+	cmd.PersistentFlags().StringVar(&o.endKey, "end-key", "", "The end key of the changefeed, key is exclusive.")
 }
 
 // complete adapts from the command line args to the data and client required.
@@ -309,6 +316,9 @@ func (o *createChangefeedOptions) getInfo(cmd *cobra.Command) *model.ChangeFeedI
 		CreateTime:        time.Now(),
 		StartTs:           o.startTs,
 		TargetTs:          o.commonChangefeedOptions.targetTs,
+		StartKey:          o.startKey,
+		EndKey:            o.endKey,
+		Format:            o.format,
 		Config:            o.cfg,
 		Engine:            o.commonChangefeedOptions.sortEngine,
 		State:             model.StateNormal,
