@@ -170,39 +170,6 @@ max-backups = 1
 	c.Assert(err, check.ErrorMatches, ".*contained unknown configuration options.*")
 }
 
-func (s *utilsSuite) TestAndWriteExampleReplicaTOML(c *check.C) {
-	defer testleak.AfterTest(c)()
-	cfg := config.GetDefaultReplicaConfig()
-	err := StrictDecodeFile("changefeed.toml", "cdc", &cfg)
-	c.Assert(err, check.IsNil)
-
-	c.Assert(cfg.CaseSensitive, check.IsTrue)
-	c.Assert(cfg.Filter, check.DeepEquals, &config.FilterConfig{
-		IgnoreTxnStartTs: []uint64{1, 2},
-		Rules:            []string{"*.*", "!test.*"},
-	})
-	c.Assert(cfg.Mounter, check.DeepEquals, &config.MounterConfig{
-		WorkerNum: 16,
-	})
-	c.Assert(cfg.Sink, check.DeepEquals, &config.SinkConfig{
-		DispatchRules: []*config.DispatchRule{
-			{Dispatcher: "ts", Matcher: []string{"test1.*", "test2.*"}},
-			{Dispatcher: "rowid", Matcher: []string{"test3.*", "test4.*"}},
-		},
-		ColumnSelectors: []*config.ColumnSelector{
-			{Matcher: []string{"test1.*", "test2.*"}, Columns: []string{"column1", "column2"}},
-			{Matcher: []string{"test3.*", "test4.*"}, Columns: []string{"!a", "column3"}},
-		},
-		Protocol: "open-protocol",
-	})
-	c.Assert(cfg.Cyclic, check.DeepEquals, &config.CyclicConfig{
-		Enable:          false,
-		ReplicaID:       1,
-		FilterReplicaID: []uint64{2, 3},
-		SyncDDL:         true,
-	})
-}
-
 func (s *utilsSuite) TestAndWriteExampleServerTOML(c *check.C) {
 	defer testleak.AfterTest(c)()
 	cfg := config.GetDefaultServerConfig()

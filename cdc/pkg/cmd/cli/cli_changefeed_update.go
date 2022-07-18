@@ -153,11 +153,6 @@ func (o *updateChangefeedOptions) applyChanges(oldInfo *model.ChangeFeedInfo, cm
 			newInfo.TargetTs = o.commonChangefeedOptions.targetTs
 		case "sink-uri":
 			newInfo.SinkURI = o.commonChangefeedOptions.sinkURI
-		case "config":
-			cfg := newInfo.Config
-			if err = o.commonChangefeedOptions.strictDecodeConfig("TiCDC changefeed", cfg); err != nil {
-				log.Error("decode config file error", zap.Error(err))
-			}
 		case "opts":
 			for _, opt := range o.commonChangefeedOptions.opts {
 				s := strings.SplitN(opt, "=", 2)
@@ -177,14 +172,6 @@ func (o *updateChangefeedOptions) applyChanges(oldInfo *model.ChangeFeedInfo, cm
 
 		case "sort-engine":
 			newInfo.Engine = o.commonChangefeedOptions.sortEngine
-		case "cyclic-replica-id":
-			filter := make([]uint64, 0, len(o.commonChangefeedOptions.cyclicFilterReplicaIDs))
-			for _, id := range o.commonChangefeedOptions.cyclicFilterReplicaIDs {
-				filter = append(filter, uint64(id))
-			}
-			newInfo.Config.Cyclic.FilterReplicaID = filter
-		case "cyclic-sync-ddl":
-			newInfo.Config.Cyclic.SyncDDL = o.commonChangefeedOptions.cyclicSyncDDL
 		case "sync-point":
 			newInfo.SyncPointEnabled = o.commonChangefeedOptions.syncPointEnabled
 		case "sync-interval":

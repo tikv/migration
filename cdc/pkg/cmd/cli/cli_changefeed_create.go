@@ -29,11 +29,9 @@ import (
 	"github.com/tikv/migration/cdc/cdc/sink"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
-	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	ticdcutil "github.com/tikv/migration/cdc/pkg/util"
@@ -44,18 +42,14 @@ import (
 
 // changefeedCommonOptions defines common changefeed flags.
 type changefeedCommonOptions struct {
-	noConfirm              bool
-	targetTs               uint64
-	sinkURI                string
-	configFile             string
-	opts                   []string
-	sortEngine             string
-	sortDir                string
-	cyclicReplicaID        uint64
-	cyclicFilterReplicaIDs []uint
-	cyclicSyncDDL          bool
-	syncPointEnabled       bool
-	syncPointInterval      time.Duration
+	noConfirm         bool
+	targetTs          uint64
+	sinkURI           string
+	opts              []string
+	sortEngine        string
+	sortDir           string
+	syncPointEnabled  bool
+	syncPointInterval time.Duration
 }
 
 // newChangefeedCommonOptions creates new changefeed common options.
@@ -73,28 +67,12 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to ignore ineligible table")
 	cmd.PersistentFlags().Uint64Var(&o.targetTs, "target-ts", 0, "Target ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.sinkURI, "sink-uri", "", "sink uri")
-	cmd.PersistentFlags().StringVar(&o.configFile, "config", "", "Path of the configuration file")
 	cmd.PersistentFlags().StringSliceVar(&o.opts, "opts", nil, "Extra options, in the `key=value` format")
 	cmd.PersistentFlags().StringVar(&o.sortEngine, "sort-engine", model.SortUnified, "sort engine used for data sort")
 	cmd.PersistentFlags().StringVar(&o.sortDir, "sort-dir", "", "directory used for data sort")
-	cmd.PersistentFlags().Uint64Var(&o.cyclicReplicaID, "cyclic-replica-id", 0, "(Experimental) Cyclic replication replica ID of changefeed")
-	cmd.PersistentFlags().UintSliceVar(&o.cyclicFilterReplicaIDs, "cyclic-filter-replica-ids", []uint{}, "(Experimental) Cyclic replication filter replica ID of changefeed")
-	cmd.PersistentFlags().BoolVar(&o.cyclicSyncDDL, "cyclic-sync-ddl", true, "(Experimental) Cyclic replication sync DDL of changefeed")
 	cmd.PersistentFlags().BoolVar(&o.syncPointEnabled, "sync-point", false, "(Experimental) Set and Record syncpoint in replication(default off)")
 	cmd.PersistentFlags().DurationVar(&o.syncPointInterval, "sync-interval", 10*time.Minute, "(Experimental) Set the interval for syncpoint in replication(default 10min)")
 	_ = cmd.PersistentFlags().MarkHidden("sort-dir")
-}
-
-// strictDecodeConfig do strictDecodeFile check and only verify the rules for now.
-func (o *changefeedCommonOptions) strictDecodeConfig(component string, cfg *config.ReplicaConfig) error {
-	err := util.StrictDecodeFile(o.configFile, component, cfg)
-	if err != nil {
-		return err
-	}
-
-	_, err = filter.VerifyRules(cfg)
-
-	return err
 }
 
 // createChangefeedOptions defines common flags for the `cli changefeed crate` command.
@@ -179,11 +157,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 	}
 
 	cfg := config.GetDefaultReplicaConfig()
-	if len(o.commonChangefeedOptions.configFile) > 0 {
-		if err := o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
-			return err
-		}
-	}
 
 	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
 		cfg.EnableOldValue = false
@@ -234,26 +207,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 
 	if o.disableGCSafePointCheck {
 		cfg.CheckGCSafePoint = false
-	}
-
-	if o.commonChangefeedOptions.cyclicReplicaID != 0 || len(o.commonChangefeedOptions.cyclicFilterReplicaIDs) != 0 {
-		if !(o.commonChangefeedOptions.cyclicReplicaID != 0 && len(o.commonChangefeedOptions.cyclicFilterReplicaIDs) != 0) {
-			return errors.New("invalid cyclic config, please make sure using " +
-				"nonzero replica ID and specify filter replica IDs")
-		}
-
-		filter := make([]uint64, 0, len(o.commonChangefeedOptions.cyclicFilterReplicaIDs))
-		for _, id := range o.commonChangefeedOptions.cyclicFilterReplicaIDs {
-			filter = append(filter, uint64(id))
-		}
-
-		cfg.Cyclic = &config.CyclicConfig{
-			Enable:          true,
-			ReplicaID:       o.commonChangefeedOptions.cyclicReplicaID,
-			FilterReplicaID: filter,
-			SyncDDL:         o.commonChangefeedOptions.cyclicSyncDDL,
-			// TODO(neil) enable ID bucket.
-		}
 	}
 	// Complete cfg.
 	o.cfg = cfg

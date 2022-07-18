@@ -1,5 +1,5 @@
 
-# TiCDC Server 监听的地址，默认：127.0.0.1:8300
+# TiKV-CDC Server 监听的地址，默认：127.0.0.1:8300
 # the listening address of TiCDC server, default: 127.0.0.1:8300
 addr = "127.0.0.1:8300"
 
@@ -19,7 +19,7 @@ log-level = "info"
 # CDC GC safepoint TTL duration, specified in seconds, default: 86400(24H)
 # gc-ttl = 86400
 
-# TiCDC 集群的时区，默认： "System"
+# TiKC-CDC 集群的时区，默认： "System"
 # the time zone of TiCDC cluster, default: "System"
 # tz = "System"
 
