@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/tikv/migration/cdc/pkg/etcd"
@@ -111,19 +110,6 @@ func (o *updateChangefeedOptions) run(cmd *cobra.Command) error {
 	cmd.Printf("Diff of changefeed config:\n")
 	for _, change := range changelog {
 		cmd.Printf("%+v\n", change)
-	}
-
-	if !o.commonChangefeedOptions.noConfirm {
-		cmd.Printf("Could you agree to apply changes above to changefeed [Y/N]\n")
-		var yOrN string
-		_, err = fmt.Scan(&yOrN)
-		if err != nil {
-			return err
-		}
-		if strings.ToLower(strings.TrimSpace(yOrN)) != "y" {
-			cmd.Printf("No update to changefeed.\n")
-			return nil
-		}
 	}
 
 	err = o.etcdClient.SaveChangeFeedInfo(ctx, newInfo, o.changefeedID)

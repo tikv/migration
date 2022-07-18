@@ -42,7 +42,6 @@ import (
 
 // changefeedCommonOptions defines common changefeed flags.
 type changefeedCommonOptions struct {
-	noConfirm         bool
 	targetTs          uint64
 	sinkURI           string
 	opts              []string
@@ -64,7 +63,6 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 		return
 	}
 
-	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to ignore ineligible table")
 	cmd.PersistentFlags().Uint64Var(&o.targetTs, "target-ts", 0, "Target ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.sinkURI, "sink-uri", "", "sink uri")
 	cmd.PersistentFlags().StringSliceVar(&o.opts, "opts", nil, "Extra options, in the `key=value` format")
@@ -330,17 +328,6 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 	}
 	if err := model.ValidateChangefeedID(id); err != nil {
 		return err
-	}
-
-	if !o.commonChangefeedOptions.noConfirm {
-		currentPhysical, _, err := o.pdClient.GetTS(ctx)
-		if err != nil {
-			return err
-		}
-
-		if err := confirmLargeDataGap(cmd, currentPhysical, o.startTs); err != nil {
-			return err
-		}
 	}
 
 	info := o.getInfo(cmd)
