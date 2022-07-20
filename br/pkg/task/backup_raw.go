@@ -235,7 +235,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 			checksumMethod = checksum.StorageScanCommand
 		}
 
-		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(), curAPIVersion,
+		executor := checksum.NewExecutor(ctx, keyRanges, cfg.PD, curAPIVersion,
 			cfg.ChecksumConcurrency)
 		err = checksum.Run(ctx, cmdName, executor,
 			checksumMethod, fileChecksum)

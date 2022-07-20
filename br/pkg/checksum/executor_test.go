@@ -14,57 +14,8 @@
 
 package checksum
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/stretchr/testify/require"
-)
+func TestChecksum(t *testing.T) {
 
-/*
-type mockPdCLient struct {
-	pd.Client
-}
-
-func getStubChecksum() Checksum {
-	return Checksum{
-		Crc64Xor:   1234,
-		TotalKvs:   10,
-		TotalBytes: 100,
-	}
-}
-
-func (m *mockPdCLient) RawChecksum(ctx context.Context, in *kvrpcpb.RawChecksumRequest, opts ...grpc.CallOption) (*kvrpcpb.RawChecksumResponse, error) {
-	stubChecksum := getStubChecksum()
-	response := kvrpcpb.RawChecksumResponse{}
-	response.Checksum = stubChecksum.Crc64Xor
-	response.TotalKvs = stubChecksum.TotalKvs
-	response.TotalBytes = stubChecksum.TotalBytes
-	return &response, nil
-}
-
-func TestChecksumExecutor(t *testing.T) {
-	stubChecksum := getStubChecksum()
-	ctx := context.Background()
-	mockClient := &mockPdCLient{}
-	err := NewExecutor([]byte(""), []byte(""), kvrpcpb.APIVersion_V2, mockClient, 1).
-		Execute(ctx, stubChecksum, StorageChecksumCommand, nil)
-	require.Equal(t, err, nil)
-}*/
-
-func TestAdjustRegionRange(t *testing.T) {
-	start, end := adjustRegionRange([]byte(""), []byte(""), []byte(""), []byte(""))
-	require.Equal(t, string(start), "")
-	require.Equal(t, string(end), "")
-	start, end = adjustRegionRange([]byte(""), []byte(""), []byte("a"), []byte("z"))
-	require.Equal(t, string(start), "a")
-	require.Equal(t, string(end), "z")
-	start, end = adjustRegionRange([]byte("a"), []byte("z"), []byte(""), []byte(""))
-	require.Equal(t, string(start), "a")
-	require.Equal(t, string(end), "z")
-	start, end = adjustRegionRange([]byte("a"), []byte(""), []byte(""), []byte("z"))
-	require.Equal(t, string(start), "a")
-	require.Equal(t, string(end), "z")
-	start, end = adjustRegionRange([]byte(""), []byte("z"), []byte("a"), []byte(""))
-	require.Equal(t, string(start), "a")
-	require.Equal(t, string(end), "z")
 }

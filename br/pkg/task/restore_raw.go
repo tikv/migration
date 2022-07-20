@@ -150,7 +150,7 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		for _, file := range files {
 			finalChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
 		}
-		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(),
+		executor := checksum.NewExecutor(ctx, keyRanges, cfg.PD,
 			backupMeta.ApiVersion, cfg.ChecksumConcurrency)
 		err = checksum.Run(ctx, cmdName, executor,
 			checksum.StorageChecksumCommand, finalChecksum)

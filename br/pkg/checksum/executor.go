@@ -22,20 +22,13 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
-	"github.com/pingcap/kvproto/pkg/metapb"
-	"github.com/pingcap/kvproto/pkg/tikvpb"
-	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/backup"
-	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/gluetikv"
 	"github.com/tikv/migration/br/pkg/logutil"
-	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/utils"
-	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 )
 
 type Checksum struct {
@@ -65,34 +58,24 @@ const (
 // ExecutorBuilder is used to build
 type Executor struct {
 	keyRanges   []*utils.KeyRange
-	pdAddrs     []string
 	apiVersion  kvrpcpb.APIVersion
-	pdClient    pd.Client
+	rawkvClient *rawkv.Client
 	concurrency uint
 }
 
 // NewExecutorBuilder returns a new executor builder.
-func NewExecutor(keyRanges []*utils.KeyRange, pdAddrs []string, pdClient pd.Client, apiVersion kvrpcpb.APIVersion,
+func NewExecutor(ctx context.Context, keyRanges []*utils.KeyRange, pdAddrs []string, apiVersion kvrpcpb.APIVersion,
 	concurrency uint) *Executor {
+	rawkvClient, err := rawkv.NewClientWithOpts(ctx, pdAddrs, rawkv.WithAPIVersion(apiVersion))
+	if err != nil {
+		return nil
+	}
 	return &Executor{
 		keyRanges:   keyRanges,
-		pdAddrs:     pdAddrs,
 		apiVersion:  apiVersion,
-		pdClient:    pdClient,
+		rawkvClient: rawkvClient,
 		concurrency: concurrency,
 	}
-}
-
-func adjustRegionRange(start, end, regionStart, regionEnd []byte) ([]byte, []byte) {
-	retStart := start
-	if string(retStart) < string(regionStart) {
-		retStart = regionStart
-	}
-	retEnd := end
-	if len(retEnd) == 0 || (len(regionEnd) != 0 && string(retEnd) > string(regionEnd)) {
-		retEnd = regionEnd
-	}
-	return retStart, retEnd
 }
 
 const (
@@ -108,16 +91,11 @@ func (exec *Executor) doScanChecksumOnRange(
 	if exec.apiVersion != kvrpcpb.APIVersion_V1 && exec.apiVersion != kvrpcpb.APIVersion_V1TTL {
 		return Checksum{}, errors.New("not support scan checksum on apiv1/v1ttl")
 	}
-	rawClient, err := rawkv.NewClient(ctx, exec.pdAddrs, config.Security{})
-	if err != nil {
-		return Checksum{}, err
-	}
-	defer rawClient.Close()
 	curStart := keyRange.Start
 	checksum := Checksum{}
 	digest := crc64.New(crc64.MakeTable(crc64.ECMA))
 	for {
-		keys, values, err := rawClient.Scan(ctx, curStart, keyRange.End, MaxScanCntLimit)
+		keys, values, err := exec.rawkvClient.Scan(ctx, curStart, keyRange.End, MaxScanCntLimit)
 		if err != nil {
 			return Checksum{}, err
 		}
@@ -140,142 +118,23 @@ func (exec *Executor) doScanChecksumOnRange(
 	return checksum, nil
 }
 
-func checkDuplicateRegion(ctx context.Context, regionInfos []*restore.RegionInfo) error {
-	regionMap := make(map[uint64]*restore.RegionInfo)
-	for _, region := range regionInfos {
-		regionMap[region.Region.GetId()] = region
-	}
-	if len(regionMap) != len(regionInfos) {
-		logutil.CL(ctx).Error("get duplicated regions", zap.Int("region cnt", len(regionInfos)),
-			zap.Int("real region cnt", len(regionMap)))
-		return errors.New("get duplicated region info")
-	}
-	return nil
-}
-
-func (exec *Executor) doChecksumOnRegion(
-	ctx context.Context,
-	regionInfo *restore.RegionInfo,
-	keyRange *utils.KeyRange,
-	splitClient restore.SplitClient,
-) (Checksum, error) {
-	var peer *metapb.Peer
-	if regionInfo.Leader != nil {
-		peer = regionInfo.Leader
-	} else {
-		if len(regionInfo.Region.Peers) == 0 {
-			return Checksum{}, errors.Annotate(berrors.ErrRestoreNoPeer, "region does not have peer")
-		}
-		peer = regionInfo.Region.Peers[0]
-	}
-	storeID := peer.GetStoreId()
-	store, err := splitClient.GetStore(ctx, storeID)
-	if err != nil {
-		return Checksum{}, errors.Trace(err)
-	}
-	conn, err := grpc.Dial(store.GetAddress(), grpc.WithInsecure())
-	if err != nil {
-		return Checksum{}, errors.Trace(err)
-	}
-	defer conn.Close()
-
-	client := tikvpb.NewTikvClient(conn)
-	rangeStart, rangeEnd := adjustRegionRange(keyRange.Start, keyRange.End, regionInfo.Region.StartKey, regionInfo.Region.EndKey)
-	apiver := exec.apiVersion
-	if apiver == kvrpcpb.APIVersion_V1TTL {
-		apiver = kvrpcpb.APIVersion_V1
-	}
-	resp, err := client.RawChecksum(ctx, &kvrpcpb.RawChecksumRequest{
-		Context: &kvrpcpb.Context{
-			RegionId:    regionInfo.Region.Id,
-			RegionEpoch: regionInfo.Region.RegionEpoch,
-			Peer:        peer,
-			ApiVersion:  apiver,
-		},
-		Algorithm: kvrpcpb.ChecksumAlgorithm_Crc64_Xor,
-		Ranges: []*kvrpcpb.KeyRange{{
-			StartKey: rangeStart,
-			EndKey:   rangeEnd,
-		}},
-	})
-	if err != nil {
-		return Checksum{}, errors.Trace(err)
-	}
-	if resp.GetRegionError() != nil {
-		if resp.GetRegionError().GetEpochNotMatch() != nil {
-			return Checksum{}, berrors.ErrKVEpochNotMatch
-		} else if resp.GetRegionError().GetNotLeader() != nil {
-			return Checksum{}, berrors.ErrKVNotLeader
-		} else {
-			return Checksum{}, errors.New(resp.GetRegionError().String())
-		}
-	}
-	if resp.GetError() != "" {
-		return Checksum{}, errors.New(resp.GetError())
-	}
-	return Checksum{
-		Crc64Xor:   resp.GetChecksum(),
-		TotalKvs:   resp.GetTotalKvs(),
-		TotalBytes: resp.GetTotalBytes(),
-	}, nil
-}
-
 func (exec *Executor) doChecksumOnRange(
 	ctx context.Context,
-	splitClient restore.SplitClient,
 	keyRange *utils.KeyRange,
 ) (Checksum, error) {
-	// input key range is rawkey with 'r' prefix, but no encoding, region is encoded.
+	// rawkv client accept user key without prefix, convert to v1 format.
 	if exec.apiVersion == kvrpcpb.APIVersion_V2 {
-		keyRange = utils.EncodeKeyRange(keyRange.Start, keyRange.End)
+		keyRange = utils.ConvertBackupConfigKeyRange(keyRange.Start, keyRange.End, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1)
 	}
-	regionInfos, err := restore.PaginateScanRegion(ctx, splitClient, keyRange.Start, keyRange.End, restore.ScanRegionPaginationLimit)
+	rawChecksum, err := exec.rawkvClient.Checksum(ctx, keyRange.Start, keyRange.End)
 	if err != nil {
-		return Checksum{}, errors.Trace(err)
+		return Checksum{}, err
 	}
-	err = checkDuplicateRegion(ctx, regionInfos)
-	if err != nil {
-		return Checksum{}, errors.Trace(err)
-	}
-	// at most cases, there should be just one region.
-	checksum := Checksum{}
-	for _, regionInfo := range regionInfos {
-		ret, err := exec.doChecksumOnRegion(ctx, regionInfo, keyRange, splitClient)
-		if err != nil {
-			return Checksum{}, err
-		}
-		checksum.Update(ret.Crc64Xor, ret.TotalKvs, ret.TotalBytes)
-	}
-	logutil.CL(ctx).Info("finish checksum on range.",
-		logutil.Key("RangeStart", keyRange.Start),
-		logutil.Key("RangeEnd", keyRange.End),
-		zap.Int("RegionCnt", len(regionInfos)))
-
-	return checksum, nil
-}
-
-func (exec *Executor) doChecksumOnRangeWithRetry(
-	ctx context.Context,
-	keyRange *utils.KeyRange,
-) (Checksum, error) {
-	// reuse restore split codes, but do nothing with split.
-	splitClient := restore.NewSplitClient(exec.pdClient, nil, true)
-	checksumRet := Checksum{}
-	errRetry := utils.WithRetry(
-		ctx,
-		func() error {
-			ret, err := exec.doChecksumOnRange(ctx, splitClient, keyRange)
-			if err != nil {
-				logutil.CL(ctx).Error("checksum on range failed, will retry.", logutil.Key("Start", keyRange.Start),
-					logutil.Key("End", keyRange.End))
-				return err
-			}
-			checksumRet = ret
-			return nil
-		},
-		utils.NewChecksumBackoffer(),
-	)
-	return checksumRet, errRetry
+	return Checksum{
+		Crc64Xor:   rawChecksum.Crc64Xor,
+		TotalKvs:   rawChecksum.TotalKvs,
+		TotalBytes: rawChecksum.TotalBytes,
+	}, nil
 }
 
 // Execute executes a checksum executor.
@@ -285,6 +144,8 @@ func (exec *Executor) Execute(
 	method StorageChecksumMethod,
 	progressCallBack func(backup.ProgressUnit),
 ) error {
+	defer exec.rawkvClient.Close()
+
 	storageChecksum := Checksum{}
 	lock := sync.Mutex{}
 	workerPool := utils.NewWorkerPool(exec.concurrency, "Ranges")
@@ -295,7 +156,7 @@ func (exec *Executor) Execute(
 			var err error
 			var ret Checksum
 			if method == StorageChecksumCommand {
-				ret, err = exec.doChecksumOnRangeWithRetry(ectx, keyRange)
+				ret, err = exec.doChecksumOnRange(ectx, keyRange)
 			} else if method == StorageScanCommand {
 				ret, err = exec.doScanChecksumOnRange(ectx, keyRange)
 			} else {
