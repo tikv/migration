@@ -9,6 +9,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
+	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/checksum"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
@@ -146,12 +147,16 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	updateCh.Close()
 
 	if cfg.Checksum {
-		finalChecksum := checksum.Checksum{}
+		finalChecksum := rawkv.RawChecksum{}
 		for _, file := range files {
-			finalChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+			checksum.UpdateChecksum(&finalChecksum, file.Crc64Xor, file.TotalKvs, file.TotalBytes)
 		}
-		executor := checksum.NewExecutor(ctx, keyRanges, cfg.PD,
+		executor, err := checksum.NewExecutor(ctx, keyRanges, cfg.PD,
 			backupMeta.ApiVersion, cfg.ChecksumConcurrency)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		defer executor.Close()
 		err = checksum.Run(ctx, cmdName, executor,
 			checksum.StorageChecksumCommand, finalChecksum)
 		if err != nil {
