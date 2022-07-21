@@ -56,6 +56,9 @@ type changefeedCommonOptions struct {
 	cyclicSyncDDL          bool
 	syncPointEnabled       bool
 	syncPointInterval      time.Duration
+	format                 string
+	startKey               string
+	endKey                 string
 }
 
 // newChangefeedCommonOptions creates new changefeed common options.
@@ -83,6 +86,10 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&o.syncPointEnabled, "sync-point", false, "(Experimental) Set and Record syncpoint in replication(default off)")
 	cmd.PersistentFlags().DurationVar(&o.syncPointInterval, "sync-interval", 10*time.Minute, "(Experimental) Set the interval for syncpoint in replication(default 10min)")
 	_ = cmd.PersistentFlags().MarkHidden("sort-dir")
+	cmd.PersistentFlags().StringVar(&o.format, "format", "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
+	cmd.PersistentFlags().StringVar(&o.startKey, "start-key", "", "The start key of the changefeed, key is inclusive.")
+	cmd.PersistentFlags().StringVar(&o.endKey, "end-key", "", "The end key of the changefeed, key is exclusive.")
+
 }
 
 // strictDecodeConfig do strictDecodeFile check and only verify the rules for now.
@@ -95,6 +102,10 @@ func (o *changefeedCommonOptions) strictDecodeConfig(component string, cfg *conf
 	_, err = filter.VerifyRules(cfg)
 
 	return err
+}
+
+func (o *changefeedCommonOptions) validKeyFormat() error {
+	return ticdcutil.ValidKeyFormat(o.format, o.startKey, o.endKey)
 }
 
 // createChangefeedOptions defines common flags for the `cli changefeed crate` command.
@@ -111,10 +122,6 @@ type createChangefeedOptions struct {
 	disableGCSafePointCheck bool
 	startTs                 uint64
 	timezone                string
-
-	format   string
-	startKey string
-	endKey   string
 
 	cfg *config.ReplicaConfig
 }
@@ -138,9 +145,6 @@ func (o *createChangefeedOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVarP(&o.disableGCSafePointCheck, "disable-gc-check", "", false, "Disable GC safe point check")
 	cmd.PersistentFlags().Uint64Var(&o.startTs, "start-ts", 0, "Start ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.timezone, "tz", "SYSTEM", "timezone used when checking sink uri (changefeed timezone is determined by cdc server)")
-	cmd.PersistentFlags().StringVar(&o.format, "format", "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
-	cmd.PersistentFlags().StringVar(&o.startKey, "start-key", "", "The start key of the changefeed, key is inclusive.")
-	cmd.PersistentFlags().StringVar(&o.endKey, "end-key", "", "The end key of the changefeed, key is exclusive.")
 }
 
 // complete adapts from the command line args to the data and client required.
@@ -305,6 +309,10 @@ func (o *createChangefeedOptions) validate(ctx context.Context, cmd *cobra.Comma
 			"`%s` and `%s` are the only valid options.", o.commonChangefeedOptions.sortEngine, model.SortUnified, model.SortInMemory)
 	}
 
+	if err := o.commonChangefeedOptions.validKeyFormat(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -316,9 +324,9 @@ func (o *createChangefeedOptions) getInfo(cmd *cobra.Command) *model.ChangeFeedI
 		CreateTime:        time.Now(),
 		StartTs:           o.startTs,
 		TargetTs:          o.commonChangefeedOptions.targetTs,
-		StartKey:          o.startKey,
-		EndKey:            o.endKey,
-		Format:            o.format,
+		StartKey:          o.commonChangefeedOptions.startKey,
+		EndKey:            o.commonChangefeedOptions.endKey,
+		Format:            o.commonChangefeedOptions.format,
 		Config:            o.cfg,
 		Engine:            o.commonChangefeedOptions.sortEngine,
 		State:             model.StateNormal,

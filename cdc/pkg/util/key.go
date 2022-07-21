@@ -48,6 +48,11 @@ func EncodeKeySpan(format, start, end string) ([]byte, []byte, error) {
 	return encodedStart, encodedEnd, nil
 }
 
+func ValidKeyFormat(format, start, end string) error {
+	_, _, err := EncodeKeySpan(format, start, end)
+	return errors.Annotatef(err, "Invalid key format, start:%s, end:%s, format:%s. Err", start, end, format)
+}
+
 // ParseKey parse key by given format.
 // TODO: same code with br/pkg/utils/key.go, need make them common.
 func ParseKey(format, key string) ([]byte, error) {

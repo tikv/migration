@@ -75,6 +75,10 @@ func (o *updateChangefeedOptions) complete(f factory.Factory) error {
 	return nil
 }
 
+func (o *updateChangefeedOptions) validate() error {
+	return o.commonChangefeedOptions.validKeyFormat()
+}
+
 // run the `cli changefeed update` command.
 func (o *updateChangefeedOptions) run(cmd *cobra.Command) error {
 	ctx := cmdcontext.GetDefaultContext()
@@ -200,6 +204,12 @@ func (o *updateChangefeedOptions) applyChanges(oldInfo *model.ChangeFeedInfo, cm
 		case "pd", "log-level", "key", "cert", "ca":
 			// Do nothing, this is a flags from the cli command
 			// we don't use it to update, but we do use these flags.
+		case "start-key":
+			newInfo.StartKey = o.commonChangefeedOptions.startKey
+		case "end-key":
+			newInfo.EndKey = o.commonChangefeedOptions.endKey
+		case "format":
+			newInfo.Format = o.commonChangefeedOptions.format
 		default:
 			// use this default branch to prevent new added parameter is not added
 			log.Warn("unsupported flag, please report a bug", zap.String("flagName", flag.Name))
@@ -223,6 +233,11 @@ func newCmdUpdateChangefeed(f factory.Factory) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := o.complete(f)
+			if err != nil {
+				return err
+			}
+
+			err = o.validate()
 			if err != nil {
 				return err
 			}
