@@ -51,24 +51,24 @@ _(Will be supported soon)_
 
 #### Query the `capture` list
 ```
-tikv-cdc cli capture list --pd=http://10.2.100.122:2379
+tikv-cdc cli capture list --pd=http://192.168.100.122:2379
 ```
 ```
 [
   {
     "id": "07684765-52df-42a0-8dd1-a4e9084bb7c1",
     "is-owner": false,
-    "address": "10.2.100.9:8300"
+    "address": "192.168.100.9:8300"
   },
   {
     "id": "aea1445b-c065-4dc5-be53-a445261f7fc2",
     "is-owner": true,
-    "address": "10.2.100.26:8300"
+    "address": "192.168.100.26:8300"
   },
   {
     "id": "f29496df-f6b4-4c1e-bfa3-41a058ce2144",
     "is-owner": false,
-    "address": "10.2.100.142:8300"
+    "address": "192.168.100.142:8300"
   }
 ]
 ```
@@ -84,12 +84,12 @@ In the result above:
 
 #### Create a replication task
 ```
-tikv-cdc cli changefeed create --pd=http://10.2.100.122:2379 --sink-uri="tikv://10.2.100.61:2379/" --changefeed-id="rawkv-replication-task"
+tikv-cdc cli changefeed create --pd=http://192.168.100.122:2379 --sink-uri="tikv://192.168.100.61:2379/" --changefeed-id="rawkv-replication-task"
 ```
 ```
 Create changefeed successfully!
 ID: rawkv-replication-task
-Info: {"sink-uri":"tikv://10.2.100.61:2379","opts":{},"create-time":"2022-07-20T15:35:47.860947953+08:00","start-ts":434714063103852547,"target-ts":0,"admin-job-type":0,"sort-engine":"unified","sort-dir":"","scheduler":{"type":"keyspan-number","polling-time":-1},"state":"normal","history":null,"error":null}
+Info: {"sink-uri":"tikv://192.168.100.61:2379","opts":{},"create-time":"2022-07-20T15:35:47.860947953+08:00","start-ts":434714063103852547,"target-ts":0,"admin-job-type":0,"sort-engine":"unified","sort-dir":"","scheduler":{"type":"keyspan-number","polling-time":-1},"state":"normal","history":null,"error":null}
 ```
 
 In the command and result above:
@@ -106,15 +106,15 @@ In the command and result above:
 
 #### Configure sink URI with `tikv`
 ```
---sink-uri="tikv://10.2.100.61:2379/"
+--sink-uri="tikv://192.168.100.61:2379/"
 ```
 | Parameter/Parameter Value | Description                                                                  |
 |---------------------------|------------------------------------------------------------------------------|
-| 10.2.100.61:2379          | The endpoints of the downstream PD. Multiple addresses are separated by comma. |
+| 192.168.100.61:2379          | The endpoints of the downstream PD. Multiple addresses are separated by comma. |
 
 #### Query the replication task list
 ```
-tikv-cdc cli changefeed list --pd=http://10.2.100.122:2379
+tikv-cdc cli changefeed list --pd=http://192.168.100.122:2379
 ```
 ```
 [
@@ -142,7 +142,7 @@ In the result above:
 
 #### Query a specific replication task
 ```
-tikv-cdc cli changefeed query -s --changefeed-id rawkv-replication-task --pd=http://10.2.100.122:2379
+tikv-cdc cli changefeed query -s --changefeed-id rawkv-replication-task --pd=http://192.168.100.122:2379
 ```
 ```
 {
@@ -162,12 +162,12 @@ In the result above:
 
 
 ```
-tikv-cdc cli changefeed query --changefeed-id rawkv-replication-task --pd=http://10.2.100.122:2379
+tikv-cdc cli changefeed query --changefeed-id rawkv-replication-task --pd=http://192.168.100.122:2379
 ```
 ```
 {
   "info": {
-    "sink-uri": "tikv://10.2.100.61:2379/",
+    "sink-uri": "tikv://192.168.100.61:2379/",
     "opts": {},
     "create-time": "2022-07-20T17:21:54.115625346+08:00",
     "start-ts": 434715731964985345,
@@ -229,8 +229,8 @@ In the result above:
 
 #### Pause a replication task
 ```
-tikv-cdc cli changefeed pause --changefeed-id rawkv-replication-task --pd=http://10.2.100.122:2379
-tikv-cdc cli changefeed list --pd=http://10.2.100.122:2379
+tikv-cdc cli changefeed pause --changefeed-id rawkv-replication-task --pd=http://192.168.100.122:2379
+tikv-cdc cli changefeed list --pd=http://192.168.100.122:2379
 ```
 ```
 [
@@ -253,8 +253,8 @@ In the command above:
 
 #### Resume a replication task
 ```
-tikv-cdc cli changefeed resume --changefeed-id rawkv-replication-task --pd=http://10.2.100.122:2379
-tikv-cdc cli changefeed list --pd=http://10.2.100.122:2379
+tikv-cdc cli changefeed resume --changefeed-id rawkv-replication-task --pd=http://192.168.100.122:2379
+tikv-cdc cli changefeed list --pd=http://192.168.100.122:2379
 ```
 ```
 [
@@ -272,8 +272,8 @@ tikv-cdc cli changefeed list --pd=http://10.2.100.122:2379
 
 #### Remove a replication task
 ```
-tikv-cdc cli changefeed remove --changefeed-id rawkv-replication-task --pd=http://10.2.100.122:2379
-tikv-cdc cli changefeed list --pd=http://10.2.100.122:2379
+tikv-cdc cli changefeed remove --changefeed-id rawkv-replication-task --pd=http://192.168.100.122:2379
+tikv-cdc cli changefeed list --pd=http://192.168.100.122:2379
 ```
 ```
 []
@@ -281,7 +281,7 @@ tikv-cdc cli changefeed list --pd=http://10.2.100.122:2379
 
 ### Query processing units of replication sub-tasks (processor)
 ```
-tikv-cdc cli processor list --pd=http://10.2.100.122:2379`
+tikv-cdc cli processor list --pd=http://192.168.100.122:2379`
 ```
 ```
 [
