@@ -67,10 +67,10 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to continue creating changefeed when replicate lag tis too large")
 	cmd.PersistentFlags().Uint64Var(&o.targetTs, "target-ts", 0, "Target ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.sinkURI, "sink-uri", "", "sink uri")
+	cmd.PersistentFlags().StringVar(&o.configFile, "config", "", "Path of the configuration file")
 	cmd.PersistentFlags().StringSliceVar(&o.opts, "opts", nil, "Extra options, in the `key=value` format")
 	cmd.PersistentFlags().StringVar(&o.sortEngine, "sort-engine", model.SortUnified, "sort engine used for data sort")
 	cmd.PersistentFlags().StringVar(&o.sortDir, "sort-dir", "", "directory used for data sort")
-	cmd.PersistentFlags().StringVar(&o.configFile, "config", "", "Path of the configuration file")
 	_ = cmd.PersistentFlags().MarkHidden("sort-dir")
 }
 
@@ -166,7 +166,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 	}
 
 	cfg := config.GetDefaultReplicaConfig()
-
 	if len(o.commonChangefeedOptions.configFile) > 0 {
 		if err := o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
 			return err
