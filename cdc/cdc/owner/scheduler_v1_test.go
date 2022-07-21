@@ -101,7 +101,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	defer cancel()
 
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return nil, nil, nil
 	}
 
@@ -121,7 +121,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 	s.addCapture(captureID)
 
 	// add 4 keyspans
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1, 2, 3, 4}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'2'}},
 			2: {Start: []byte{'2'}, End: []byte{'3'}},
@@ -155,7 +155,7 @@ func (s *schedulerSuite) TestScheduleOneCapture(c *check.C) {
 
 	// two keyspans finish adding operation
 	s.finishKeySpanOperation(captureID, 2, 3)
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{3, 4, 5}, map[model.KeySpanID]regionspan.Span{
 			3: {Start: []byte{'3'}, End: []byte{'4'}},
 			4: {Start: []byte{'4'}, End: []byte{'5'}},
@@ -273,7 +273,7 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	defer cancel()
 
 	// add a keyspan
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'2'}},
 		}, nil
@@ -298,7 +298,7 @@ func (s *schedulerSuite) TestScheduleMoveKeySpan(c *check.C) {
 	s.addCapture(captureID2)
 
 	// add a keyspan
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1, 2}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'2'}},
 			2: {Start: []byte{'2'}, End: []byte{'3'}},
@@ -390,7 +390,7 @@ func (s *schedulerSuite) TestScheduleRebalance(c *check.C) {
 	defer cancel()
 
 	// rebalance keyspan
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1, 2, 3, 4, 5, 6}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'1'}},
 			2: {Start: []byte{'2'}, End: []byte{'2'}},
@@ -461,7 +461,7 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	defer cancel()
 
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{1}, map[model.KeySpanID]regionspan.Span{
 			1: {Start: []byte{'1'}, End: []byte{'3'}},
 		}, nil
@@ -495,7 +495,7 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 	})
 	s.tester.MustApplyPatches()
 
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{2, 3}, map[model.KeySpanID]regionspan.Span{
 			2: {Start: []byte{'1'}, End: []byte{'2'}}, 3: {Start: []byte{'2'}, End: []byte{'3'}},
 		}, nil
@@ -542,7 +542,7 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 	})
 	s.tester.MustApplyPatches()
 
-	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	s.scheduler.updateCurrentKeySpans = func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 		return []model.KeySpanID{4}, map[model.KeySpanID]regionspan.Span{
 			4: {Start: []byte{'1'}, End: []byte{'3'}},
 		}, nil
