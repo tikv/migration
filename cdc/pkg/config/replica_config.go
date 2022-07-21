@@ -26,7 +26,7 @@ import (
 )
 
 var defaultReplicaConfig = &ReplicaConfig{
-	EnableOldValue:   false, // For TxnKV only.
+	EnableOldValue:   true, // For TxnKV only.
 	CheckGCSafePoint: true,
 	Sink:             &SinkConfig{},
 	Scheduler: &SchedulerConfig{

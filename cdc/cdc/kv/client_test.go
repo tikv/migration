@@ -2971,6 +2971,7 @@ func (s *clientSuite) testKVClientForceReconnect(c *check.C) {
 	defer regionCache.Close()
 	cdcClient := NewCDCClient(ctx, pdClient, kvStorage, grpcPool, regionCache)
 	eventCh := make(chan model.RegionFeedEvent, 10)
+	baseAllocatedID := currentRequestID()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -2978,7 +2979,6 @@ func (s *clientSuite) testKVClientForceReconnect(c *check.C) {
 		c.Assert(errors.Cause(err), check.Equals, context.Canceled)
 	}()
 
-	baseAllocatedID := currentRequestID()
 	waitRequestID(c, baseAllocatedID+1)
 	initialized := mockInitializedEvent(regionID3, currentRequestID())
 	ch1 <- initialized
