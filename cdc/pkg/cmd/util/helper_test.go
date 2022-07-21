@@ -170,6 +170,25 @@ max-backups = 1
 	c.Assert(err, check.ErrorMatches, ".*contained unknown configuration options.*")
 }
 
+func (s *utilsSuite) TestAndWriteExampleReplicaTOML(c *check.C) {
+	defer testleak.AfterTest(c)()
+	cfg := config.GetDefaultReplicaConfig()
+	err := StrictDecodeFile("changefeed.toml", "cdc", &cfg)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(cfg.Sink, check.DeepEquals, &config.SinkConfig{
+		DispatchRules: []*config.DispatchRule{
+			{Dispatcher: "ts", Matcher: []string{"test1.*", "test2.*"}},
+			{Dispatcher: "rowid", Matcher: []string{"test3.*", "test4.*"}},
+		},
+		ColumnSelectors: []*config.ColumnSelector{
+			{Matcher: []string{"test1.*", "test2.*"}, Columns: []string{"column1", "column2"}},
+			{Matcher: []string{"test3.*", "test4.*"}, Columns: []string{"!a", "column3"}},
+		},
+		Protocol: "open-protocol",
+	})
+}
+
 func (s *utilsSuite) TestAndWriteExampleServerTOML(c *check.C) {
 	defer testleak.AfterTest(c)()
 	cfg := config.GetDefaultServerConfig()

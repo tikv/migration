@@ -29,6 +29,7 @@ import (
 	"github.com/tikv/migration/cdc/cdc/sink"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
+	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
@@ -42,13 +43,13 @@ import (
 
 // changefeedCommonOptions defines common changefeed flags.
 type changefeedCommonOptions struct {
-	targetTs          uint64
-	sinkURI           string
-	opts              []string
-	sortEngine        string
-	sortDir           string
-	syncPointEnabled  bool
-	syncPointInterval time.Duration
+	noConfirm  bool
+	targetTs   uint64
+	sinkURI    string
+	configFile string
+	opts       []string
+	sortEngine string
+	sortDir    string
 }
 
 // newChangefeedCommonOptions creates new changefeed common options.
@@ -68,9 +69,17 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringSliceVar(&o.opts, "opts", nil, "Extra options, in the `key=value` format")
 	cmd.PersistentFlags().StringVar(&o.sortEngine, "sort-engine", model.SortUnified, "sort engine used for data sort")
 	cmd.PersistentFlags().StringVar(&o.sortDir, "sort-dir", "", "directory used for data sort")
-	cmd.PersistentFlags().BoolVar(&o.syncPointEnabled, "sync-point", false, "(Experimental) Set and Record syncpoint in replication(default off)")
-	cmd.PersistentFlags().DurationVar(&o.syncPointInterval, "sync-interval", 10*time.Minute, "(Experimental) Set the interval for syncpoint in replication(default 10min)")
 	_ = cmd.PersistentFlags().MarkHidden("sort-dir")
+}
+
+// strictDecodeConfig do strictDecodeFile check and only verify the rules for now.
+func (o *changefeedCommonOptions) strictDecodeConfig(component string, cfg *config.ReplicaConfig) error {
+	err := util.StrictDecodeFile(o.configFile, component, cfg)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 // createChangefeedOptions defines common flags for the `cli changefeed crate` command.
@@ -179,11 +188,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 				break
 			}
 		}
-
-		if cfg.ForceReplicate {
-			log.Error("if use force replicate, old value feature must be enabled")
-			return cerror.ErrOldValueNotEnabled.GenWithStackByArgs()
-		}
 	}
 
 	for _, rules := range cfg.Sink.DispatchRules {
@@ -255,17 +259,15 @@ func (o *createChangefeedOptions) validate(ctx context.Context, cmd *cobra.Comma
 // getInfo constructs the information for the changefeed.
 func (o *createChangefeedOptions) getInfo(cmd *cobra.Command) *model.ChangeFeedInfo {
 	info := &model.ChangeFeedInfo{
-		SinkURI:           o.commonChangefeedOptions.sinkURI,
-		Opts:              make(map[string]string),
-		CreateTime:        time.Now(),
-		StartTs:           o.startTs,
-		TargetTs:          o.commonChangefeedOptions.targetTs,
-		Config:            o.cfg,
-		Engine:            o.commonChangefeedOptions.sortEngine,
-		State:             model.StateNormal,
-		SyncPointEnabled:  o.commonChangefeedOptions.syncPointEnabled,
-		SyncPointInterval: o.commonChangefeedOptions.syncPointInterval,
-		CreatorVersion:    version.ReleaseVersion,
+		SinkURI:        o.commonChangefeedOptions.sinkURI,
+		Opts:           make(map[string]string),
+		CreateTime:     time.Now(),
+		StartTs:        o.startTs,
+		TargetTs:       o.commonChangefeedOptions.targetTs,
+		Config:         o.cfg,
+		Engine:         o.commonChangefeedOptions.sortEngine,
+		State:          model.StateNormal,
+		CreatorVersion: version.ReleaseVersion,
 	}
 
 	if info.Engine == model.SortInFile {

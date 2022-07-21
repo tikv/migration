@@ -47,9 +47,7 @@ func TestUnifiedSorterFileLockConflict(t *testing.T) {
 
 func TestSorterResolvedTs(t *testing.T) {
 	t.Parallel()
-	sn := newSorterNode("keyspanName", 1, 1, nil, &config.ReplicaConfig{
-		Consistent: &config.ConsistentConfig{},
-	})
+	sn := newSorterNode("keyspanName", 1, 1, nil, &config.ReplicaConfig{})
 	sn.sorter = memory.NewEntrySorter()
 	require.EqualValues(t, 1, sn.ResolvedTs())
 	nctx := pipeline.NewNodeContext(
