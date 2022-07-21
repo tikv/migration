@@ -12,7 +12,7 @@ export PATH := $(CURDIR)/bin:$(path_to_add):$(PATH)
 
 SHELL := /usr/bin/env bash
 
-TEST_DIR ?= $(shell mktemp -d -t tikv_cdc_test.XXXXXXXX)
+TEST_DIR := $(shell mktemp -d -t tikv_cdc_test.XXXXXXXX)
 
 GO       := GO111MODULE=on go
 ifeq (${CDC_ENABLE_VENDOR}, 1)
