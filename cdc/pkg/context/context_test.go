@@ -28,7 +28,6 @@ func TestVars(t *testing.T) {
 	t.Parallel()
 	stdCtx := context.Background()
 	conf := config.GetDefaultReplicaConfig()
-	conf.Filter.Rules = []string{"hello.world"}
 	info := &model.ChangeFeedInfo{Config: conf}
 	ctx := NewContext(stdCtx, &GlobalVars{
 		CaptureInfo: &model.CaptureInfo{ID: "capture1"},
