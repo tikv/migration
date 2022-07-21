@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/tikv/migration/cdc/pkg/etcd"
@@ -112,6 +113,19 @@ func (o *updateChangefeedOptions) run(cmd *cobra.Command) error {
 		cmd.Printf("%+v\n", change)
 	}
 
+	if !o.commonChangefeedOptions.noConfirm {
+		cmd.Printf("Could you agree to apply changes above to changefeed [Y/N]\n")
+		var yOrN string
+		_, err = fmt.Scan(&yOrN)
+		if err != nil {
+			return err
+		}
+		if strings.ToLower(strings.TrimSpace(yOrN)) != "y" {
+			cmd.Printf("No update to changefeed.\n")
+			return nil
+		}
+	}
+
 	err = o.etcdClient.SaveChangeFeedInfo(ctx, newInfo, o.changefeedID)
 	if err != nil {
 		return err
@@ -139,6 +153,11 @@ func (o *updateChangefeedOptions) applyChanges(oldInfo *model.ChangeFeedInfo, cm
 			newInfo.TargetTs = o.commonChangefeedOptions.targetTs
 		case "sink-uri":
 			newInfo.SinkURI = o.commonChangefeedOptions.sinkURI
+		case "config":
+			cfg := newInfo.Config
+			if err = o.commonChangefeedOptions.strictDecodeConfig("TiCDC changefeed", cfg); err != nil {
+				log.Error("decode config file error", zap.Error(err))
+			}
 		case "opts":
 			for _, opt := range o.commonChangefeedOptions.opts {
 				s := strings.SplitN(opt, "=", 2)

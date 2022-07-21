@@ -15,13 +15,10 @@ package cli
 
 import (
 	"os"
-	"testing"
 
 	"github.com/pingcap/check"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
-
-func TestCliSuite(t *testing.T) { check.TestingT(t) }
 
 type cliSuite struct{}
 
