@@ -49,8 +49,14 @@ func EncodeKeySpan(format, start, end string) ([]byte, []byte, error) {
 }
 
 func ValidKeyFormat(format, start, end string) error {
-	_, _, err := EncodeKeySpan(format, start, end)
-	return errors.Annotatef(err, "Invalid key format, start:%s, end:%s, format:%s. Err", start, end, format)
+	startKey, endKey, err := EncodeKeySpan(format, start, end)
+	if err != nil {
+		return errors.Annotatef(err, "Invalid key format, start:%s, end:%s, format:%s. Err", start, end, format)
+	}
+	if bytes.Compare(startKey, endKey) >= 0 {
+		return errors.Errorf("start %s is larger or equal to end %s", start, end)
+	}
+	return nil
 }
 
 // ParseKey parse key by given format.

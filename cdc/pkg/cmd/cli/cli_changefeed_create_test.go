@@ -65,3 +65,75 @@ func (s *changefeedSuite) TestStrictDecodeConfig(c *check.C) {
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, ".*CDC:ErrFilterRuleInvalid.*")
 }
+
+type TestKeyRange struct {
+	Format   string
+	StartKey string
+	EndKey   string
+	Valid    bool
+}
+
+func (s *changefeedSuite) TestValidateKeyFormat(c *check.C) {
+	o := newChangefeedCommonOptions()
+	testCases := []TestKeyRange{
+		{
+			Format:   "hex",
+			StartKey: "",
+			EndKey:   "",
+			Valid:    true,
+		},
+		{
+			Format:   "hex",
+			StartKey: "abef5612",
+			EndKey:   "bef34689",
+			Valid:    true,
+		},
+		{
+			Format:   "abc", // supported format
+			StartKey: "",
+			EndKey:   "",
+			Valid:    false,
+		},
+		{
+			Format:   "hex",
+			StartKey: "7889efac",
+			EndKey:   "zx89efac", // wrong format
+			Valid:    false,
+		},
+		{
+			Format:   "hex",
+			StartKey: "5672acba",
+			EndKey:   "5672acaa", // end is smaller than start
+			Valid:    false,
+		},
+		{
+			Format:   "raw",
+			StartKey: "",
+			EndKey:   "",
+			Valid:    true,
+		},
+		{
+			Format:   "raw",
+			StartKey: "abc",
+			EndKey:   "def",
+			Valid:    true,
+		},
+		{
+			Format:   "escaped",
+			StartKey: "\\a\\x1",
+			EndKey:   "\\b\\f",
+			Valid:    true,
+		},
+	}
+	for _, testKeyRange := range testCases {
+		o.startKey = testKeyRange.StartKey
+		o.endKey = testKeyRange.EndKey
+		o.format = testKeyRange.Format
+		if testKeyRange.Valid {
+			c.Assert(o.validKeyFormat(), check.IsNil)
+		} else {
+			c.Assert(o.validKeyFormat(), check.NotNil)
+		}
+	}
+
+}

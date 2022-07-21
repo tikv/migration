@@ -14,6 +14,7 @@
 package owner
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -572,4 +573,51 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 			RelatedKeySpans: []model.KeySpanLocation{{CaptureID: captureID, KeySpanID: 2}, {CaptureID: captureID, KeySpanID: 3}},
 		},
 	})
+}
+
+func (s *schedulerSuite) TestUpdateCurrentKeySpansImplBySingleKeySpan(c *check.C) {
+	info := model.ChangeFeedInfo{
+		StartKey: "abc",
+		EndKey:   "def",
+		Format:   "raw",
+	}
+	keySpanIDs, spans, err := updateCurrentKeySpansImplBySingleKeySpan(
+		cdcContext.NewContext4Test(context.TODO(), false), &info)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(keySpanIDs), check.Equals, 1)
+	keySpanID := keySpanIDs[0]
+	c.Assert(spans[keySpanID].Start, check.BytesEquals, []byte{'r', 0, 0, 0, 'a', 'b', 'c'})
+	c.Assert(spans[keySpanID].End, check.BytesEquals, []byte{'r', 0, 0, 0, 'd', 'e', 'f'})
+}
+
+func (s *schedulerSuite) TestScheduleUpdateKeySpansBySingleSpan(c *check.C) {
+	defer testleak.AfterTest(c)()
+
+	s.reset(c)
+	captureID := "test-capture-0"
+	s.addCapture(captureID)
+
+	ctx := cdcContext.NewBackendContext4Test(false)
+	ctx, cancel := cdcContext.WithCancel(ctx)
+	defer cancel()
+
+	s.scheduler.updateCurrentKeySpans = updateCurrentKeySpansImplBySingleKeySpan
+	info := model.ChangeFeedInfo{
+		StartKey: "a",
+		EndKey:   "z",
+		Format:   "raw",
+	}
+	s.state.Info = &info
+	shouldUpdateState, err := s.scheduler.Tick(ctx, s.state, s.captures)
+	c.Assert(err, check.IsNil)
+	c.Assert(shouldUpdateState, check.IsFalse)
+	s.tester.MustApplyPatches()
+
+	replicaInfos := []*model.KeySpanReplicaInfo{}
+	for _, info := range s.state.TaskStatuses[captureID].KeySpans {
+		replicaInfos = append(replicaInfos, info)
+	}
+	c.Assert(len(replicaInfos), check.Equals, 1)
+	c.Assert(*replicaInfos[0], check.DeepEquals, model.KeySpanReplicaInfo{
+		StartTs: 0, Start: []byte{'r', 0, 0, 0, 'a'}, End: []byte{'r', 0, 0, 0, 'z'}})
 }

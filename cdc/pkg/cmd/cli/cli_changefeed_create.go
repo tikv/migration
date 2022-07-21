@@ -309,11 +309,7 @@ func (o *createChangefeedOptions) validate(ctx context.Context, cmd *cobra.Comma
 			"`%s` and `%s` are the only valid options.", o.commonChangefeedOptions.sortEngine, model.SortUnified, model.SortInMemory)
 	}
 
-	if err := o.commonChangefeedOptions.validKeyFormat(); err != nil {
-		return err
-	}
-
-	return nil
+	return o.commonChangefeedOptions.validKeyFormat()
 }
 
 // getInfo constructs the information for the changefeed.
