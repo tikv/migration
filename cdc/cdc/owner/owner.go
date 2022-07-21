@@ -453,11 +453,13 @@ func (o *Owner) handleQueries(query *ownerQuery) {
 			if cfReactor.state == nil {
 				continue
 			}
-			for captureID := range cfReactor.state.TaskStatuses {
-				ret = append(ret, &model.ProcInfoSnap{
-					CfID:      cfID,
-					CaptureID: captureID,
-				})
+			for captureID, taskStatus := range cfReactor.state.TaskStatuses {
+				if len(taskStatus.KeySpans) != 0 {
+					ret = append(ret, &model.ProcInfoSnap{
+						CfID:      cfID,
+						CaptureID: captureID,
+					})
+				}
 			}
 		}
 		query.data = ret
