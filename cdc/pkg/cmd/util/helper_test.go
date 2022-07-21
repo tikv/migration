@@ -176,14 +176,6 @@ func (s *utilsSuite) TestAndWriteExampleReplicaTOML(c *check.C) {
 	err := StrictDecodeFile("changefeed.toml", "cdc", &cfg)
 	c.Assert(err, check.IsNil)
 
-	c.Assert(cfg.CaseSensitive, check.IsTrue)
-	c.Assert(cfg.Filter, check.DeepEquals, &config.FilterConfig{
-		IgnoreTxnStartTs: []uint64{1, 2},
-		Rules:            []string{"*.*", "!test.*"},
-	})
-	c.Assert(cfg.Mounter, check.DeepEquals, &config.MounterConfig{
-		WorkerNum: 16,
-	})
 	c.Assert(cfg.Sink, check.DeepEquals, &config.SinkConfig{
 		DispatchRules: []*config.DispatchRule{
 			{Dispatcher: "ts", Matcher: []string{"test1.*", "test2.*"}},
@@ -194,12 +186,6 @@ func (s *utilsSuite) TestAndWriteExampleReplicaTOML(c *check.C) {
 			{Matcher: []string{"test3.*", "test4.*"}, Columns: []string{"!a", "column3"}},
 		},
 		Protocol: "open-protocol",
-	})
-	c.Assert(cfg.Cyclic, check.DeepEquals, &config.CyclicConfig{
-		Enable:          false,
-		ReplicaID:       1,
-		FilterReplicaID: []uint64{2, 3},
-		SyncDDL:         true,
 	})
 }
 

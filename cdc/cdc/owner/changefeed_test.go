@@ -15,12 +15,10 @@ package owner
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
 	"github.com/tikv/migration/cdc/cdc/model"
-	"github.com/tikv/migration/cdc/pkg/config"
 	cdcContext "github.com/tikv/migration/cdc/pkg/context"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
@@ -127,11 +125,6 @@ func (s *changefeedSuite) TestRemoveChangefeed(c *check.C) {
 	baseCtx, cancel := context.WithCancel(context.Background())
 	ctx := cdcContext.NewContext4Test(baseCtx, true)
 	info := ctx.ChangefeedVars().Info
-	dir := c.MkDir()
-	info.Config.Consistent = &config.ConsistentConfig{
-		Level:   "eventual",
-		Storage: filepath.Join("nfs://", dir),
-	}
 	ctx = cdcContext.WithChangefeedVars(ctx, &cdcContext.ChangefeedVars{
 		ID:   ctx.ChangefeedVars().ID,
 		Info: info,
@@ -146,11 +139,6 @@ func (s *changefeedSuite) TestRemovePausedChangefeed(c *check.C) {
 	ctx := cdcContext.NewContext4Test(baseCtx, true)
 	info := ctx.ChangefeedVars().Info
 	info.State = model.StateStopped
-	dir := c.MkDir()
-	info.Config.Consistent = &config.ConsistentConfig{
-		Level:   "eventual",
-		Storage: filepath.Join("nfs://", dir),
-	}
 	ctx = cdcContext.WithChangefeedVars(ctx, &cdcContext.ChangefeedVars{
 		ID:   ctx.ChangefeedVars().ID,
 		Info: info,

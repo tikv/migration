@@ -15,20 +15,8 @@ package config
 
 const (
 	testCfgTestReplicaConfigOutDated = `{
-  "case-sensitive": false,
   "enable-old-value": true,
-  "force-replicate": true,
   "check-gc-safe-point": true,
-  "filter": {
-    "rules": [
-      "1.1"
-    ],
-    "ignore-txn-start-ts": null,
-    "ddl-allow-list": null
-  },
-  "mounter": {
-    "worker-num": 3
-  },
   "sink": {
     "dispatch-rules": [
       {
@@ -49,22 +37,9 @@ const (
     ],
     "protocol": "open-protocol"
   },
-  "cyclic-replication": {
-    "enable": false,
-    "replica-id": 0,
-    "filter-replica-ids": null,
-    "id-buckets": 0,
-    "sync-ddl": false
-  },
   "scheduler": {
     "type": "keyspan-number",
     "polling-time": -1
-  },
-  "consistent": {
-    "level": "none",
-    "max-log-size": 64,
-    "flush-interval": 1000,
-    "storage": ""
   }
 }`
 
@@ -131,19 +106,8 @@ const (
 }`
 
 	testCfgTestReplicaConfigMarshal1 = `{
-  "case-sensitive": false,
   "enable-old-value": true,
-  "force-replicate": true,
   "check-gc-safe-point": true,
-  "filter": {
-    "rules": [
-      "1.1"
-    ],
-    "ignore-txn-start-ts": null
-  },
-  "mounter": {
-    "worker-num": 3
-  },
   "sink": {
     "dispatchers": null,
     "protocol": "open-protocol",
@@ -159,39 +123,15 @@ const (
       }
     ]
   },
-  "cyclic-replication": {
-    "enable": false,
-    "replica-id": 0,
-    "filter-replica-ids": null,
-    "id-buckets": 0,
-    "sync-ddl": false
-  },
   "scheduler": {
     "type": "keyspan-number",
     "polling-time": -1
-  },
-  "consistent": {
-    "level": "none",
-    "max-log-size": 64,
-    "flush-interval": 1000,
-    "storage": ""
   }
 }`
 
 	testCfgTestReplicaConfigMarshal2 = `{
-  "case-sensitive": false,
   "enable-old-value": true,
-  "force-replicate": true,
   "check-gc-safe-point": true,
-  "filter": {
-    "rules": [
-      "1.1"
-    ],
-    "ignore-txn-start-ts": null
-  },
-  "mounter": {
-    "worker-num": 3
-  },
   "sink": {
     "dispatchers": null,
     "protocol": "open-protocol",
@@ -207,22 +147,9 @@ const (
       }
     ]
   },
-  "cyclic-replication": {
-    "enable": false,
-    "replica-id": 0,
-    "filter-replica-ids": null,
-    "id-buckets": 0,
-    "sync-ddl": false
-  },
   "scheduler": {
     "type": "keyspan-number",
     "polling-time": -1
-  },
-  "consistent": {
-    "level": "none",
-    "max-log-size": 64,
-    "flush-interval": 1000,
-    "storage": ""
   }
 }`
 )
