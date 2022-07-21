@@ -1,4 +1,4 @@
-### Makefile for ticdc
+### Makefile for TiKV-CDC
 .PHONY: build test check clean fmt cdc release debug
 
 PROJECT=migration/cdc
@@ -12,7 +12,7 @@ export PATH := $(CURDIR)/bin:$(path_to_add):$(PATH)
 
 SHELL := /usr/bin/env bash
 
-TEST_DIR ?= /tmp/tikv_cdc_test
+TEST_DIR ?= $(shell mktemp -d -t tikv_cdc_test.XXXXXXXX)
 
 GO       := GO111MODULE=on go
 ifeq (${CDC_ENABLE_VENDOR}, 1)
@@ -43,8 +43,8 @@ FAILPOINT_DISABLE := $$(echo $(FAILPOINT_DIR) | xargs $(FAILPOINT) disable >/dev
 
 RELEASE_VERSION =
 ifeq ($(RELEASE_VERSION),)
-	RELEASE_VERSION := v5.4.0-master
-	release_version_regex := ^v5\..*$$
+	RELEASE_VERSION := v1.0.0-master
+	release_version_regex := ^v[0-9]\..*$$
 	release_branch_regex := "^release-[0-9]\.[0-9].*$$|^HEAD$$|^.*/*tags/v[0-9]\.[0-9]\..*$$"
 	ifneq ($(shell git rev-parse --abbrev-ref HEAD | egrep $(release_branch_regex)),)
 		# If we are in release branch, try to use tag version.

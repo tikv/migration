@@ -19,8 +19,6 @@ import (
 	"testing"
 	"time"
 
-	filter "github.com/pingcap/tidb-tools/pkg/table-filter"
-	"github.com/pingcap/tidb/parser/model"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/pkg/config"
@@ -43,45 +41,6 @@ func TestFillV1(t *testing.T) {
     "sort-engine":"memory",
     "sort-dir":".",
     "config":{
-        "case-sensitive":true,
-        "filter":{
-            "do-tables":[
-                {
-                    "db-name":"test",
-                    "tbl-name":"tbl1"
-                },
-                {
-                    "db-name":"test",
-                    "tbl-name":"tbl2"
-                }
-            ],
-            "do-dbs":[
-                "test1",
-                "sys1"
-            ],
-            "ignore-tables":[
-                {
-                    "db-name":"test",
-                    "tbl-name":"tbl3"
-                },
-                {
-                    "db-name":"test",
-                    "tbl-name":"tbl4"
-                }
-            ],
-            "ignore-dbs":[
-                "test",
-                "sys"
-            ],
-            "ignore-txn-start-ts":[
-                1,
-                2
-            ],
-            "ddl-allow-list":"AQI="
-        },
-        "mounter":{
-            "worker-num":64
-        },
         "sink":{
             "dispatch-rules":[
                 {
@@ -95,16 +54,6 @@ func TestFillV1(t *testing.T) {
                     "rule":"rowid"
                 }
             ]
-        },
-        "cyclic-replication":{
-            "enable":true,
-            "replica-id":1,
-            "filter-replica-ids":[
-                2,
-                3
-            ],
-            "id-buckets":4,
-            "sync-ddl":true
         }
     }
 }
@@ -119,44 +68,11 @@ func TestFillV1(t *testing.T) {
 		Engine:  "memory",
 		SortDir: ".",
 		Config: &config.ReplicaConfig{
-			CaseSensitive: true,
-			Filter: &config.FilterConfig{
-				MySQLReplicationRules: &filter.MySQLReplicationRules{
-					DoTables: []*filter.Table{{
-						Schema: "test",
-						Name:   "tbl1",
-					}, {
-						Schema: "test",
-						Name:   "tbl2",
-					}},
-					DoDBs: []string{"test1", "sys1"},
-					IgnoreTables: []*filter.Table{{
-						Schema: "test",
-						Name:   "tbl3",
-					}, {
-						Schema: "test",
-						Name:   "tbl4",
-					}},
-					IgnoreDBs: []string{"test", "sys"},
-				},
-				IgnoreTxnStartTs: []uint64{1, 2},
-				DDLAllowlist:     []model.ActionType{1, 2},
-			},
-			Mounter: &config.MounterConfig{
-				WorkerNum: 64,
-			},
 			Sink: &config.SinkConfig{
 				DispatchRules: []*config.DispatchRule{
 					{Matcher: []string{"test.tbl3"}, Dispatcher: "ts"},
 					{Matcher: []string{"test.tbl4"}, Dispatcher: "rowid"},
 				},
-			},
-			Cyclic: &config.CyclicConfig{
-				Enable:          true,
-				ReplicaID:       1,
-				FilterReplicaID: []uint64{2, 3},
-				IDBuckets:       4,
-				SyncDDL:         true,
 			},
 		},
 	}, cfg)
@@ -170,8 +86,7 @@ func TestVerifyAndComplete(t *testing.T) {
 		Opts:    map[string]string{},
 		StartTs: 417257993615179777,
 		Config: &config.ReplicaConfig{
-			CaseSensitive:    true,
-			EnableOldValue:   true,
+			EnableOldValue:   false,
 			CheckGCSafePoint: true,
 		},
 	}
@@ -622,7 +537,6 @@ func TestChangeFeedInfoClone(t *testing.T) {
 		Opts:    map[string]string{},
 		StartTs: 417257993615179777,
 		Config: &config.ReplicaConfig{
-			CaseSensitive:    true,
 			EnableOldValue:   true,
 			CheckGCSafePoint: true,
 		},
