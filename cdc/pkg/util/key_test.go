@@ -29,8 +29,14 @@ func TestParseKey(t *testing.T) {
 		},
 		{
 			Format: "escaped",
-			Key:    "abcde",
-			Expect: []byte{0x61, 0x62, 0x63, 0x64, 0x65},
+			Key:    "\\a\\x1",
+			Expect: []byte("\a\x01"),
+			Valid:  true,
+		},
+		{
+			Format: "escaped",
+			Key:    "\\b\\f",
+			Expect: []byte("\b\f"),
 			Valid:  true,
 		},
 		{
@@ -54,6 +60,7 @@ func TestParseKey(t *testing.T) {
 type TestKeyRange struct {
 	StartKey []byte
 	EndKey   []byte
+	Valid    bool
 }
 
 func TestEncodeKeySpan(t *testing.T) {
@@ -61,18 +68,27 @@ func TestEncodeKeySpan(t *testing.T) {
 		{
 			StartKey: []byte{},
 			EndKey:   []byte{},
+			Valid:    true,
 		},
 		{
 			StartKey: []byte{},
 			EndKey:   []byte{'z'},
+			Valid:    true,
 		},
 		{
 			StartKey: []byte{'a'},
 			EndKey:   []byte{},
+			Valid:    true,
 		},
 		{
 			StartKey: []byte{'a'},
 			EndKey:   []byte{'z'},
+			Valid:    true,
+		},
+		{
+			StartKey: []byte{'z'},
+			EndKey:   []byte{'y'},
+			Valid:    false,
 		},
 	}
 	expect := []TestKeyRange{
@@ -94,9 +110,15 @@ func TestEncodeKeySpan(t *testing.T) {
 		},
 	}
 	for i, testSpan := range keySpans {
-		start, end, err := EncodeKeySpan("raw", string(testSpan.StartKey), string(testSpan.EndKey))
-		require.Nil(t, err)
-		require.Equal(t, expect[i].StartKey, start)
-		require.Equal(t, expect[i].EndKey, end)
+		err := ValidKeyFormat("raw", string(testSpan.StartKey), string(testSpan.EndKey))
+		if testSpan.Valid {
+			require.Nil(t, err)
+			start, end, err := EncodeKeySpan("raw", string(testSpan.StartKey), string(testSpan.EndKey))
+			require.Nil(t, err)
+			require.Equal(t, expect[i].StartKey, start)
+			require.Equal(t, expect[i].EndKey, end)
+		} else {
+			require.NotNil(t, err)
+		}
 	}
 }

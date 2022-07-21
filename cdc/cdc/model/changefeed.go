@@ -119,6 +119,7 @@ type ChangeFeedInfo struct {
 	// The End Key of changefeed, exclusive
 	EndKey string `json:"end-key"`
 	// Format of StartKey and EndKey, "raw", "escaped", "hex"
+	// Persist format to show exact same start/end key input when query changefeed.
 	Format string `json:"format"`
 	// used for admin job notification, trigger watch event in capture
 	AdminJobType AdminJobType `json:"admin-job-type"`
