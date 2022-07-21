@@ -40,8 +40,7 @@ func (s *changefeedSuite) TestStrictDecodeConfig(c *check.C) {
 	dir := c.MkDir()
 	path := filepath.Join(dir, "config.toml")
 	content := `
-	[filter]
-	rules = ['*.*', '!test.*']`
+	check-gc-safe-point = true`
 	err := os.WriteFile(path, []byte(content), 0o644)
 	c.Assert(err, check.IsNil)
 
@@ -53,8 +52,7 @@ func (s *changefeedSuite) TestStrictDecodeConfig(c *check.C) {
 
 	path = filepath.Join(dir, "config1.toml")
 	content = `
-	[filter]
-	rules = ['*.*', '!test.*','rtest1']`
+	check-gc-safe-point? = true`
 	err = os.WriteFile(path, []byte(content), 0o644)
 	c.Assert(err, check.IsNil)
 
@@ -63,7 +61,7 @@ func (s *changefeedSuite) TestStrictDecodeConfig(c *check.C) {
 	cfg = config.GetDefaultReplicaConfig()
 	err = o.strictDecodeConfig("cdc", cfg)
 	c.Assert(err, check.NotNil)
-	c.Assert(err, check.ErrorMatches, ".*CDC:ErrFilterRuleInvalid.*")
+	c.Assert(err, check.ErrorMatches, "toml: .*")
 }
 
 type TestKeyRange struct {

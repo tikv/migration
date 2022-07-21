@@ -101,17 +101,15 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 
 	// init ChangefeedInfo
 	info := &model.ChangeFeedInfo{
-		SinkURI:           changefeedConfig.SinkURI,
-		Opts:              make(map[string]string),
-		CreateTime:        time.Now(),
-		StartTs:           changefeedConfig.StartTS,
-		TargetTs:          changefeedConfig.TargetTS,
-		Config:            replicaConfig,
-		Engine:            sortEngine,
-		State:             model.StateNormal,
-		SyncPointEnabled:  false,
-		SyncPointInterval: 10 * time.Minute,
-		CreatorVersion:    version.ReleaseVersion,
+		SinkURI:        changefeedConfig.SinkURI,
+		Opts:           make(map[string]string),
+		CreateTime:     time.Now(),
+		StartTs:        changefeedConfig.StartTS,
+		TargetTs:       changefeedConfig.TargetTS,
+		Config:         replicaConfig,
+		Engine:         sortEngine,
+		State:          model.StateNormal,
+		CreatorVersion: version.ReleaseVersion,
 	}
 
 	tz, err := util.GetTimezone(changefeedConfig.TimeZone)

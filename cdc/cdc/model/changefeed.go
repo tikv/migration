@@ -133,9 +133,7 @@ type ChangeFeedInfo struct {
 	ErrorHis []int64               `json:"history"`
 	Error    *RunningError         `json:"error"`
 
-	SyncPointEnabled  bool          `json:"sync-point-enabled"`
-	SyncPointInterval time.Duration `json:"sync-point-interval"`
-	CreatorVersion    string        `json:"creator-version"`
+	CreatorVersion string `json:"creator-version"`
 }
 
 const changeFeedIDMaxLen = 128
@@ -244,23 +242,11 @@ func (info *ChangeFeedInfo) VerifyAndComplete() error {
 	if info.Engine == "" {
 		info.Engine = SortUnified
 	}
-	if info.Config.Filter == nil {
-		info.Config.Filter = defaultConfig.Filter
-	}
-	if info.Config.Mounter == nil {
-		info.Config.Mounter = defaultConfig.Mounter
-	}
 	if info.Config.Sink == nil {
 		info.Config.Sink = defaultConfig.Sink
 	}
-	if info.Config.Cyclic == nil {
-		info.Config.Cyclic = defaultConfig.Cyclic
-	}
 	if info.Config.Scheduler == nil {
 		info.Config.Scheduler = defaultConfig.Scheduler
-	}
-	if info.Config.Consistent == nil {
-		info.Config.Consistent = defaultConfig.Consistent
 	}
 	return nil
 }

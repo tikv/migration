@@ -226,7 +226,7 @@ func (p *processor) createTaskPosition() (skipThisTick bool) {
 	return true
 }
 
-// lazyInitImpl create Filter, SchemaStorage, Mounter instances at the first tick.
+// lazyInitImpl create instances at the first tick.
 func (p *processor) lazyInitImpl(ctx cdcContext.Context) error {
 	if p.initialized {
 		return nil
