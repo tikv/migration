@@ -596,11 +596,7 @@ func (h *HTTPHandler) GetProcessor(c *gin.Context) {
 			Count:        position.Count,
 			Error:        position.Error,
 		}
-		keyspans := make([]uint64, 0)
-		for keyspanID := range status.KeySpans {
-			keyspans = append(keyspans, keyspanID)
-		}
-		processorDetail.KeySpans = keyspans
+		processorDetail.KeySpans = status.KeySpans
 	}
 	c.IndentedJSON(http.StatusOK, &processorDetail)
 }

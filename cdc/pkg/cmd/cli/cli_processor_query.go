@@ -121,18 +121,9 @@ func (o *queryProcessorOptions) runCliWithAPIClient(ctx context.Context, cmd *co
 		return err
 	}
 
-	keyspans := make(map[uint64]*model.KeySpanReplicaInfo)
-	for _, keyspanID := range processor.KeySpans {
-		keyspans[keyspanID] = &model.KeySpanReplicaInfo{
-			// to be compatible with old version `cli processor query`,
-			// set this field to 0
-			StartTs: 0,
-		}
-	}
-
 	meta := &processorMeta{
 		Status: &model.TaskStatus{
-			KeySpans: keyspans,
+			KeySpans: processor.KeySpans,
 			// Operations, AdminJobType and ModRevision are vacant
 		},
 		Position: &model.TaskPosition{
