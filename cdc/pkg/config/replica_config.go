@@ -26,28 +26,12 @@ import (
 )
 
 var defaultReplicaConfig = &ReplicaConfig{
-	CaseSensitive:    true,
-	EnableOldValue:   true,
+	EnableOldValue:   true, // For TxnKV only.
 	CheckGCSafePoint: true,
-	Filter: &FilterConfig{
-		Rules: []string{"*.*"},
-	},
-	Mounter: &MounterConfig{
-		WorkerNum: 16,
-	},
-	Sink: &SinkConfig{},
-	Cyclic: &CyclicConfig{
-		Enable: false,
-	},
+	Sink:             &SinkConfig{},
 	Scheduler: &SchedulerConfig{
 		Tp:          "keyspan-number",
 		PollingTime: -1,
-	},
-	Consistent: &ConsistentConfig{
-		Level:             "none",
-		MaxLogSize:        64,
-		FlushIntervalInMs: 1000,
-		Storage:           "",
 	},
 }
 
@@ -55,17 +39,10 @@ var defaultReplicaConfig = &ReplicaConfig{
 type ReplicaConfig replicaConfig
 
 type replicaConfig struct {
-	CaseSensitive    bool `toml:"case-sensitive" json:"case-sensitive"`
-	EnableOldValue   bool `toml:"enable-old-value" json:"enable-old-value"`
-	ForceReplicate   bool `toml:"force-replicate" json:"force-replicate"`
-	CheckGCSafePoint bool `toml:"check-gc-safe-point" json:"check-gc-safe-point"`
-	// TODO(zeminzhou): Maybe TiKV CDC don't need this
-	Filter     *FilterConfig     `toml:"filter" json:"filter"`
-	Mounter    *MounterConfig    `toml:"mounter" json:"mounter"`
-	Sink       *SinkConfig       `toml:"sink" json:"sink"`
-	Cyclic     *CyclicConfig     `toml:"cyclic-replication" json:"cyclic-replication"`
-	Scheduler  *SchedulerConfig  `toml:"scheduler" json:"scheduler"`
-	Consistent *ConsistentConfig `toml:"consistent" json:"consistent"`
+	EnableOldValue   bool             `toml:"enable-old-value" json:"enable-old-value"`
+	CheckGCSafePoint bool             `toml:"check-gc-safe-point" json:"check-gc-safe-point"`
+	Sink             *SinkConfig      `toml:"sink" json:"sink"`
+	Scheduler        *SchedulerConfig `toml:"scheduler" json:"scheduler"`
 }
 
 // Marshal returns the json marshal format of a ReplicationConfig

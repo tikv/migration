@@ -33,7 +33,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/pkg/txnutil/gc"
 	ticdcutil "github.com/tikv/migration/cdc/pkg/util"
@@ -42,20 +41,25 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: define other flags in Command.
+const (
+	flagStartKey  = "start-key"
+	flagEndKey    = "end-key"
+	flagKeyFormat = "format"
+)
+
 // changefeedCommonOptions defines common changefeed flags.
 type changefeedCommonOptions struct {
-	noConfirm              bool
-	targetTs               uint64
-	sinkURI                string
-	configFile             string
-	opts                   []string
-	sortEngine             string
-	sortDir                string
-	cyclicReplicaID        uint64
-	cyclicFilterReplicaIDs []uint
-	cyclicSyncDDL          bool
-	syncPointEnabled       bool
-	syncPointInterval      time.Duration
+	noConfirm  bool
+	targetTs   uint64
+	sinkURI    string
+	configFile string
+	opts       []string
+	sortEngine string
+	sortDir    string
+	format     string
+	startKey   string
+	endKey     string
 }
 
 // newChangefeedCommonOptions creates new changefeed common options.
@@ -77,12 +81,11 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringSliceVar(&o.opts, "opts", nil, "Extra options, in the `key=value` format")
 	cmd.PersistentFlags().StringVar(&o.sortEngine, "sort-engine", model.SortUnified, "sort engine used for data sort")
 	cmd.PersistentFlags().StringVar(&o.sortDir, "sort-dir", "", "directory used for data sort")
-	cmd.PersistentFlags().Uint64Var(&o.cyclicReplicaID, "cyclic-replica-id", 0, "(Experimental) Cyclic replication replica ID of changefeed")
-	cmd.PersistentFlags().UintSliceVar(&o.cyclicFilterReplicaIDs, "cyclic-filter-replica-ids", []uint{}, "(Experimental) Cyclic replication filter replica ID of changefeed")
-	cmd.PersistentFlags().BoolVar(&o.cyclicSyncDDL, "cyclic-sync-ddl", true, "(Experimental) Cyclic replication sync DDL of changefeed")
-	cmd.PersistentFlags().BoolVar(&o.syncPointEnabled, "sync-point", false, "(Experimental) Set and Record syncpoint in replication(default off)")
-	cmd.PersistentFlags().DurationVar(&o.syncPointInterval, "sync-interval", 10*time.Minute, "(Experimental) Set the interval for syncpoint in replication(default 10min)")
 	_ = cmd.PersistentFlags().MarkHidden("sort-dir")
+	cmd.PersistentFlags().StringVar(&o.format, flagKeyFormat, "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
+	cmd.PersistentFlags().StringVar(&o.startKey, flagStartKey, "", "The start key of the changefeed, key is inclusive.")
+	cmd.PersistentFlags().StringVar(&o.endKey, flagEndKey, "", "The end key of the changefeed, key is exclusive.")
+
 }
 
 // strictDecodeConfig do strictDecodeFile check and only verify the rules for now.
@@ -92,9 +95,11 @@ func (o *changefeedCommonOptions) strictDecodeConfig(component string, cfg *conf
 		return err
 	}
 
-	_, err = filter.VerifyRules(cfg)
-
 	return err
+}
+
+func (o *changefeedCommonOptions) validKeyFormat() error {
+	return ticdcutil.ValidKeyFormat(o.format, o.startKey, o.endKey)
 }
 
 // createChangefeedOptions defines common flags for the `cli changefeed crate` command.
@@ -208,11 +213,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 				break
 			}
 		}
-
-		if cfg.ForceReplicate {
-			log.Error("if use force replicate, old value feature must be enabled")
-			return cerror.ErrOldValueNotEnabled.GenWithStackByArgs()
-		}
 	}
 
 	for _, rules := range cfg.Sink.DispatchRules {
@@ -236,25 +236,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 		cfg.CheckGCSafePoint = false
 	}
 
-	if o.commonChangefeedOptions.cyclicReplicaID != 0 || len(o.commonChangefeedOptions.cyclicFilterReplicaIDs) != 0 {
-		if !(o.commonChangefeedOptions.cyclicReplicaID != 0 && len(o.commonChangefeedOptions.cyclicFilterReplicaIDs) != 0) {
-			return errors.New("invalid cyclic config, please make sure using " +
-				"nonzero replica ID and specify filter replica IDs")
-		}
-
-		filter := make([]uint64, 0, len(o.commonChangefeedOptions.cyclicFilterReplicaIDs))
-		for _, id := range o.commonChangefeedOptions.cyclicFilterReplicaIDs {
-			filter = append(filter, uint64(id))
-		}
-
-		cfg.Cyclic = &config.CyclicConfig{
-			Enable:          true,
-			ReplicaID:       o.commonChangefeedOptions.cyclicReplicaID,
-			FilterReplicaID: filter,
-			SyncDDL:         o.commonChangefeedOptions.cyclicSyncDDL,
-			// TODO(neil) enable ID bucket.
-		}
-	}
 	// Complete cfg.
 	o.cfg = cfg
 
@@ -298,23 +279,24 @@ func (o *createChangefeedOptions) validate(ctx context.Context, cmd *cobra.Comma
 			"`%s` and `%s` are the only valid options.", o.commonChangefeedOptions.sortEngine, model.SortUnified, model.SortInMemory)
 	}
 
-	return nil
+	return o.commonChangefeedOptions.validKeyFormat()
 }
 
 // getInfo constructs the information for the changefeed.
 func (o *createChangefeedOptions) getInfo(cmd *cobra.Command) *model.ChangeFeedInfo {
 	info := &model.ChangeFeedInfo{
-		SinkURI:           o.commonChangefeedOptions.sinkURI,
-		Opts:              make(map[string]string),
-		CreateTime:        time.Now(),
-		StartTs:           o.startTs,
-		TargetTs:          o.commonChangefeedOptions.targetTs,
-		Config:            o.cfg,
-		Engine:            o.commonChangefeedOptions.sortEngine,
-		State:             model.StateNormal,
-		SyncPointEnabled:  o.commonChangefeedOptions.syncPointEnabled,
-		SyncPointInterval: o.commonChangefeedOptions.syncPointInterval,
-		CreatorVersion:    version.ReleaseVersion,
+		SinkURI:        o.commonChangefeedOptions.sinkURI,
+		Opts:           make(map[string]string),
+		CreateTime:     time.Now(),
+		StartTs:        o.startTs,
+		TargetTs:       o.commonChangefeedOptions.targetTs,
+		StartKey:       o.commonChangefeedOptions.startKey,
+		EndKey:         o.commonChangefeedOptions.endKey,
+		Format:         o.commonChangefeedOptions.format,
+		Config:         o.cfg,
+		Engine:         o.commonChangefeedOptions.sortEngine,
+		State:          model.StateNormal,
+		CreatorVersion: version.ReleaseVersion,
 	}
 
 	if info.Engine == model.SortInFile {
