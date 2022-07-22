@@ -74,7 +74,7 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 		return
 	}
 
-	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to ignore ineligible table")
+	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to confirm warnings")
 	cmd.PersistentFlags().Uint64Var(&o.targetTs, "target-ts", 0, "Target ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.sinkURI, "sink-uri", "", "sink uri")
 	cmd.PersistentFlags().StringVar(&o.configFile, "config", "", "Path of the configuration file")
@@ -235,7 +235,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 	if o.disableGCSafePointCheck {
 		cfg.CheckGCSafePoint = false
 	}
-
 	// Complete cfg.
 	o.cfg = cfg
 
@@ -366,7 +365,6 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 		if err != nil {
 			return err
 		}
-
 		if err := confirmLargeDataGap(cmd, currentPhysical, o.startTs); err != nil {
 			return err
 		}
