@@ -41,6 +41,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: define other flags in Command.
+const (
+	flagStartKey  = "start-key"
+	flagEndKey    = "end-key"
+	flagKeyFormat = "format"
+)
+
 // changefeedCommonOptions defines common changefeed flags.
 type changefeedCommonOptions struct {
 	noConfirm  bool
@@ -50,6 +57,9 @@ type changefeedCommonOptions struct {
 	opts       []string
 	sortEngine string
 	sortDir    string
+	format     string
+	startKey   string
+	endKey     string
 }
 
 // newChangefeedCommonOptions creates new changefeed common options.
@@ -72,6 +82,10 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&o.sortEngine, "sort-engine", model.SortUnified, "sort engine used for data sort")
 	cmd.PersistentFlags().StringVar(&o.sortDir, "sort-dir", "", "directory used for data sort")
 	_ = cmd.PersistentFlags().MarkHidden("sort-dir")
+	cmd.PersistentFlags().StringVar(&o.format, flagKeyFormat, "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
+	cmd.PersistentFlags().StringVar(&o.startKey, flagStartKey, "", "The start key of the changefeed, key is inclusive.")
+	cmd.PersistentFlags().StringVar(&o.endKey, flagEndKey, "", "The end key of the changefeed, key is exclusive.")
+
 }
 
 // strictDecodeConfig do strictDecodeFile check and only verify the rules for now.
@@ -82,6 +96,10 @@ func (o *changefeedCommonOptions) strictDecodeConfig(component string, cfg *conf
 	}
 
 	return err
+}
+
+func (o *changefeedCommonOptions) validKeyFormat() error {
+	return ticdcutil.ValidKeyFormat(o.format, o.startKey, o.endKey)
 }
 
 // createChangefeedOptions defines common flags for the `cli changefeed crate` command.
@@ -260,7 +278,7 @@ func (o *createChangefeedOptions) validate(ctx context.Context, cmd *cobra.Comma
 			"`%s` and `%s` are the only valid options.", o.commonChangefeedOptions.sortEngine, model.SortUnified, model.SortInMemory)
 	}
 
-	return nil
+	return o.commonChangefeedOptions.validKeyFormat()
 }
 
 // getInfo constructs the information for the changefeed.
@@ -271,6 +289,9 @@ func (o *createChangefeedOptions) getInfo(cmd *cobra.Command) *model.ChangeFeedI
 		CreateTime:     time.Now(),
 		StartTs:        o.startTs,
 		TargetTs:       o.commonChangefeedOptions.targetTs,
+		StartKey:       o.commonChangefeedOptions.startKey,
+		EndKey:         o.commonChangefeedOptions.endKey,
+		Format:         o.commonChangefeedOptions.format,
 		Config:         o.cfg,
 		Engine:         o.commonChangefeedOptions.sortEngine,
 		State:          model.StateNormal,

@@ -114,6 +114,13 @@ type ChangeFeedInfo struct {
 	StartTs uint64 `json:"start-ts"`
 	// The ChangeFeed will exits until sync to timestamp TargetTs
 	TargetTs uint64 `json:"target-ts"`
+	// The Start Key of changefeed, inclusive
+	StartKey string `json:"start-key"`
+	// The End Key of changefeed, exclusive
+	EndKey string `json:"end-key"`
+	// Format of StartKey and EndKey, "raw", "escaped", "hex"
+	// Persist format to show exact same start/end key input when query changefeed.
+	Format string `json:"format"`
 	// used for admin job notification, trigger watch event in capture
 	AdminJobType AdminJobType `json:"admin-job-type"`
 	Engine       SortEngine   `json:"sort-engine"`
