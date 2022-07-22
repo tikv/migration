@@ -45,10 +45,10 @@ func (s *gcServiceSuite) TestCheckSafetyOfStartTs(c *check.C) {
 	err = EnsureChangefeedStartTsSafety(ctx, s.pdCli, "changefeed2", TTL, 65)
 	c.Assert(err, check.IsNil)
 	c.Assert(s.pdCli.serviceSafePoint, check.DeepEquals, map[string]uint64{
-		"service1":                   60,
-		"service2":                   80,
-		"service3":                   70,
-		"ticdc-creating-changefeed2": 65,
+		"service1":                     60,
+		"service2":                     80,
+		"service3":                     70,
+		"tikvcdc-creating-changefeed2": 65,
 	})
 
 	s.pdCli.enableLeaderSwitch = true

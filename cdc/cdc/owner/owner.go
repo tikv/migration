@@ -147,7 +147,7 @@ func (o *Owner) Tick(stdCtx context.Context, rawState orchestrator.ReactorState)
 		return state, nil
 	}
 	// Owner should update GC safepoint before initializing changefeed, so
-	// changefeed can remove its "ticdc-creating" service GC safepoint during
+	// changefeed can remove its "tikvcdc-creating" service GC safepoint during
 	// initializing.
 	//
 	// See more gc doc.
