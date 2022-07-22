@@ -64,7 +64,7 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 		return
 	}
 
-	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to continue creating changefeed when replicate lag tis too large")
+	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to confirm warnings")
 	cmd.PersistentFlags().Uint64Var(&o.targetTs, "target-ts", 0, "Target ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.sinkURI, "sink-uri", "", "sink uri")
 	cmd.PersistentFlags().StringVar(&o.configFile, "config", "", "Path of the configuration file")
