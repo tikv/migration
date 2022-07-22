@@ -26,12 +26,13 @@ import (
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/orchestrator"
 	"github.com/tikv/migration/cdc/pkg/regionspan"
+	"github.com/tikv/migration/cdc/pkg/util"
 	"go.uber.org/zap"
 )
 
 type (
 	schedulerJobType          string
-	updateCurrentKeySpansFunc func(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
+	updateCurrentKeySpansFunc func(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error)
 )
 
 const (
@@ -89,7 +90,7 @@ func (s *oldScheduler) Tick(
 	s.state = state
 	s.captures = captures
 
-	currentKeySpanIDs, currentKeySpans, err := s.updateCurrentKeySpans(ctx)
+	currentKeySpanIDs, currentKeySpans, err := s.updateCurrentKeySpans(ctx, state.Info)
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -463,8 +464,12 @@ func (s *oldScheduler) rebalanceByKeySpanNum() (shouldUpdateState bool) {
 }
 
 // updateCurrentKeySpansImplBySingleKeySpan is the most simple scheduler that treat the whole RawKV key span as a task.
-func updateCurrentKeySpansImplBySingleKeySpan(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
-	keyspan := regionspan.Span{Start: regionspan.RawKvStartKey, End: regionspan.RawKvEndKey}
+func updateCurrentKeySpansImplBySingleKeySpan(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+	startKey, endKey, err := util.EncodeKeySpan(info.Format, info.StartKey, info.EndKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	keyspan := regionspan.Span{Start: startKey, End: endKey}
 	id := keyspan.ID()
 
 	currentKeySpansID := []model.KeySpanID{id}
@@ -475,13 +480,17 @@ func updateCurrentKeySpansImplBySingleKeySpan(ctx cdcContext.Context) ([]model.K
 }
 
 // nolint:deadcode,unused
-func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+func updateCurrentKeySpansImpl(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 	limit := -1 // TODO: make a loop
 	tikvRequestMaxBackoff := 20000
+	spanStartKey, spanEndKey, err := util.EncodeKeySpan(info.Format, info.StartKey, info.EndKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	bo := tikv.NewBackoffer(ctx, tikvRequestMaxBackoff)
 
 	regionCache := ctx.GlobalVars().RegionCache
-	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, regionspan.RawKvStartKey, regionspan.RawKvEndKey, limit)
+	regions, err := regionCache.BatchLoadRegionsWithKeyRange(bo, spanStartKey, spanEndKey, limit)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -493,10 +502,10 @@ func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[m
 		endKey := region.EndKey()
 
 		if i == 0 {
-			startKey = regionspan.RawKvStartKey
+			startKey = spanStartKey
 		}
 		if i == len(regions)-1 {
-			endKey = regionspan.RawKvEndKey
+			endKey = spanEndKey
 		}
 
 		keyspan := regionspan.Span{Start: startKey, End: endKey}
@@ -509,7 +518,7 @@ func updateCurrentKeySpansImpl(ctx cdcContext.Context) ([]model.KeySpanID, map[m
 	return currentKeySpansID, currentKeySpans, nil
 }
 
-func updateCurrentKeySpansImpl4Test(ctx cdcContext.Context) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
+func updateCurrentKeySpansImpl4Test(ctx cdcContext.Context, info *model.ChangeFeedInfo) ([]model.KeySpanID, map[model.KeySpanID]regionspan.Span, error) {
 	return nil, nil, nil
 }
 

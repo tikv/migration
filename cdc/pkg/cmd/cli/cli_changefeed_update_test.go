@@ -54,6 +54,14 @@ func (s *changefeedUpdateSuite) TestApplyChanges(c *check.C) {
 	_, err = o.applyChanges(oldInfo, cmd)
 	c.Assert(err, check.IsNil)
 
+	oldInfo = &model.ChangeFeedInfo{StartKey: "", EndKey: "", Format: "hex"}
+	c.Assert(cmd.ParseFlags([]string{"--start-key=abc", "--end-key=edf", "--format=raw"}), check.IsNil)
+	newInfo, err = o.applyChanges(oldInfo, cmd)
+	c.Assert(err, check.IsNil)
+	c.Assert(newInfo.StartKey, check.Equals, "abc")
+	c.Assert(newInfo.EndKey, check.Equals, "edf")
+	c.Assert(newInfo.Format, check.Equals, "raw")
+
 	dir := c.MkDir()
 	filename := filepath.Join(dir, "log.txt")
 	reset, err := initTestLogger(filename)

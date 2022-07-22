@@ -27,16 +27,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	rawKvStartKey string = "r"
-	rawKvEndKey   string = "s"
-)
-
-var (
-	RawKvStartKey = []byte(rawKvStartKey) // to make RawKvStartKey & RawKvEndKey immutable.
-	RawKvEndKey   = []byte(rawKvEndKey)
-)
-
 // Span represents an arbitrary kv range
 type Span struct {
 	Start []byte
