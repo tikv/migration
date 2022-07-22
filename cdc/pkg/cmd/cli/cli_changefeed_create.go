@@ -41,6 +41,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: define other flags in Command.
+const (
+	flagStartKey  = "start-key"
+	flagEndKey    = "end-key"
+	flagKeyFormat = "format"
+)
+
 // changefeedCommonOptions defines common changefeed flags.
 type changefeedCommonOptions struct {
 	noConfirm  bool
@@ -75,9 +82,9 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&o.sortEngine, "sort-engine", model.SortUnified, "sort engine used for data sort")
 	cmd.PersistentFlags().StringVar(&o.sortDir, "sort-dir", "", "directory used for data sort")
 	_ = cmd.PersistentFlags().MarkHidden("sort-dir")
-	cmd.PersistentFlags().StringVar(&o.format, "format", "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
-	cmd.PersistentFlags().StringVar(&o.startKey, "start-key", "", "The start key of the changefeed, key is inclusive.")
-	cmd.PersistentFlags().StringVar(&o.endKey, "end-key", "", "The end key of the changefeed, key is exclusive.")
+	cmd.PersistentFlags().StringVar(&o.format, flagKeyFormat, "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
+	cmd.PersistentFlags().StringVar(&o.startKey, flagStartKey, "", "The start key of the changefeed, key is inclusive.")
+	cmd.PersistentFlags().StringVar(&o.endKey, flagEndKey, "", "The end key of the changefeed, key is exclusive.")
 
 }
 
