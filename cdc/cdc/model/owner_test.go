@@ -220,7 +220,7 @@ func TestTaskStatusMarshal(t *testing.T) {
 			1: {StartTs: 420875942036766723},
 		},
 	}
-	expected := `{"keyspans":{"1":{"start-ts":420875942036766723,"Start":null,"End":null}},"operation":null,"admin-job-type":0}`
+	expected := `{"keyspans":{"1":{"start-ts":420875942036766723,"start":null,"end":null}},"operation":null,"admin-job-type":0}`
 
 	data, err := status.Marshal()
 	require.Nil(t, err)
