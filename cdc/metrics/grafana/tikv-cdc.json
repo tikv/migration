@@ -9654,6 +9654,14 @@
               "legendFormat": "{{instance}}-min-resolved-ts",
               "refId": "C",
               "step": 10
+            },
+            {
+              "expr": "histogram_quantile(1.0, sum(rate(tikv_cdc_raw_outlier_resolved_ts_gap_seconds_bucket{tidb_cluster=\"$tidb_cluster\", instance=~\"$tikv_instance\"}[1m])) by (le, instance))",
+              "legendFormat": "{{instance}}-raw-outlier-region-lag",
+              "interval": "",
+              "refId": "D",
+              "hide": false,
+              "intervalFactor": 2
             }
           ],
           "thresholds": [],
