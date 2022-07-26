@@ -47,7 +47,7 @@ func newResumeChangefeedOptions() *resumeChangefeedOptions {
 // flags related to template printing to it.
 func (o *resumeChangefeedOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&o.changefeedID, "changefeed-id", "c", "", "Replication task (changefeed) ID")
-	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to ignore ineligible table")
+	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to confirm warning")
 	_ = cmd.MarkPersistentFlagRequired("changefeed-id")
 }
 
