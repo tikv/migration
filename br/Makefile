@@ -28,6 +28,7 @@ COVERAGE_DIR   ?= build
 TEST_PARALLEL  ?= 8
 PD_ADDR        ?= 127.0.0.1:2379
 BR_LOCAL_STORE ?= /tmp/backup_restore_test
+API_VERSION    ?= 1
 
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
@@ -57,10 +58,11 @@ test: tools/bin/gocov tools/bin/gocov-xml
 	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
 	make failpoint/disable
 
-test/integration: build/br-test build/rawkv-helper
-	./tests/rawkv/run.py --test-helper=bin/rawkv --pd=$(PD_ADDR) \
-		--br='$(TEST_BIN_PATH) -test.coverprofile=cov.br_rawkv.out.log DEVEL' \
-		--br-storage=local://$(BR_LOCAL_STORE)
+test/integration: build/br-test build/rawkv-integration-test
+	./bin/rawkv_test --pd=${PD_ADDR} \
+		--br='${TEST_BIN_PATH}' \
+		--br-storage=${BR_LOCAL_STORE} \
+		--api-version=${API_VERSION}
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
@@ -86,8 +88,8 @@ build:
 release:
 	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
 
-build/rawkv-helper:
-	cd tests/rawkv && $(GO) build -mod=mod -o ../../bin/rawkv client.go
+build/rawkv-integration-test:
+	cd tests/rawkv && $(GO) build -mod=mod -o ../../bin/rawkv_test *.go
 
 build/br-test:
 	@make failpoint/enable

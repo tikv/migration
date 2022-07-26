@@ -28,32 +28,33 @@ class rawkvTester:
         self.helper = global_args.helper
         self.br_storage = global_args.br_storage
         self.failpoints = failpoints
+        self.api_version = global_args.api_version
 
 
-    def test_dst_apiv1(self):
+    def test_dst_apiv1(self, test_restore):
         test_name = self.test_dst_apiv1.__name__
         storage_dir = self.br_storage + "/" + test_name
 
         self._clean(storage_dir)
-        self._run_br_test("v1", storage_dir)
+        self._run_br_test("v1", storage_dir, test_restore)
         self._success_msg(test_name)
 
 
-    def test_dst_apiv1ttl(self):
+    def test_dst_apiv1ttl(self, test_restore):
         test_name = self.test_dst_apiv1ttl.__name__
         storage_dir = self.br_storage + "/" + test_name
 
         self._clean(storage_dir)
-        self._run_br_test("v1ttl", storage_dir)
+        self._run_br_test("v1ttl", storage_dir, test_restore)
         self._success_msg(test_name)
 
 
-    def test_dst_apiv2(self):
+    def test_dst_apiv2(self, test_restore):
         test_name = self.test_dst_apiv2.__name__
         storage_dir = self.br_storage + "/" + test_name
 
         self._clean(storage_dir)
-        self._run_br_test("v2", storage_dir)
+        self._run_br_test("v2", storage_dir, test_restore)
         self._success_msg(test_name)
 
     def _clean(self, storage_dir):
@@ -67,7 +68,7 @@ class rawkvTester:
         print(f"PASSED: {case_name}")
 
 
-    def _run_br_test(self, dst_api_version, storage_dir):
+    def _run_br_test(self, dst_api_version, storage_dir, test_restore):
         outer_start, outer_end = "31", "3130303030303030"
         inner_start, inner_end = "311111", "311122"
 
@@ -77,34 +78,41 @@ class rawkvTester:
 
         # prepare and backup data
         self._randgen(outer_start, outer_end)
-        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "put",
+        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "put", "-api-version", self.api_version,
                 "-put-data", "311121:31, 31112100:32, 311122:33, 31112200:34, 3111220000:35, 311123:36")
-        self._backup_range(outer_start, outer_end, dst_api_version, storage_dir)
+        output = self._backup_range(outer_start, outer_end, dst_api_version, storage_dir)
+        print(output)
+        matched = re.search("BackupTS=.*", output)
+        if matched:
+            print("found BackupTS")
+            print(matched)
+            print(str(matched.group(0))[len("BackupTS="):])
+        else:
+            print("Not found BackupTS")
+
         cs_outer_origin = self._get_checksum(outer_start, outer_end)
         cs_inner_origin = self._get_checksum(inner_start, inner_end)
 
-        # clean and restore outer range
-        self._clean_range(outer_start, outer_end)
-        cs_outer_clean = self._get_checksum(outer_start, outer_end)
-        self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
-        self._restore_range(outer_start, outer_end, dst_api_version, storage_dir)
-        cs_outer_restore = self._get_checksum(outer_start, outer_end)
-        self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_restore, cs_outer_origin)
+        if test_restore:
+            # clean and restore outer range
+            self._clean_range(outer_start, outer_end)
+            cs_outer_clean = self._get_checksum(outer_start, outer_end)
+            self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
+            self._restore_range(outer_start, outer_end, dst_api_version, storage_dir)
+            cs_outer_restore = self._get_checksum(outer_start, outer_end)
+            self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_restore, cs_outer_origin)
 
-        # clean and restore inner range
-        self._clean_range(outer_start, outer_end)
-        cs_outer_clean = self._get_checksum(outer_start, outer_end)
-        self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
-        #self._restore_range(inner_start, inner_end, dst_api_version, storage_dir)
-        #cs_inner_restore = self._get_checksum(inner_start, inner_end)
-        #self._assert("restore failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_inner_restore, cs_inner_origin)
+            # clean and restore inner range
+            self._clean_range(outer_start, outer_end)
+            cs_outer_clean = self._get_checksum(outer_start, outer_end)
+            self._assert("clean range failed, checksum mismatch.\n  actual: {}\n  expect: {}", cs_outer_clean, cs_outer_empty)
 
 
     def _backup_range(self, start_key, end_key, dst_api_version, storage_dir):
         env = {
             'GO_FAILPOINTS': self.failpoints,
         }
-        self._run_cmd(self.br, "--pd", self.pd, "backup", "raw", "-s", storage_dir,
+        return self._run_cmd(self.br, "--pd", self.pd, "backup", "raw", "-s", storage_dir,
                 "--start", start_key, "--end", end_key, "--format", "hex", "--dst-api-version", dst_api_version,
                 "--check-requirements=false", "-L", "debug", **env)
 
@@ -119,15 +127,21 @@ class rawkvTester:
 
 
     def _randgen(self, start_key, end_key):
-        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "rand-gen", "-start-key", start_key, "-end-key", end_key, "-duration", "10")
+        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "rand-gen",
+            "-start-key", start_key, "-end-key", end_key, "-duration", "10",
+             "-api-version", self.api_version)
 
 
     def _clean_range(self, start_key, end_key):
-        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "delete", "-start-key", start_key, "-end-key", end_key)
+        self._run_cmd(self.helper, "-pd", self.pd, "-mode", "delete",
+            "-start-key", start_key, "-end-key", end_key,
+             "-api-version", self.api_version)
 
 
     def _get_checksum(self, start_key, end_key):
-        output = self._run_cmd(self.helper, "-pd", self.pd, "-mode", "checksum", "-start-key", start_key, "-end-key", end_key)
+        output = self._run_cmd(self.helper, "-pd", self.pd, "-mode", "checksum",
+            "-start-key", start_key, "-end-key", end_key,
+             "-api-version", self.api_version)
         matched = re.search("Checksum result: .*", output)
         if matched:
             return str(matched.group(0))[len("Checksum result: "):]
@@ -173,10 +187,11 @@ def main():
     args = parse_args()
     for failpoint in [''] + FAILPOINTS:
         tester = rawkvTester(args, failpoints=failpoint)
-        # tester.test_dst_apiv1() // does not support v1ttl --> v1
-        tester.test_dst_apiv1ttl()
-        # v1ttl -> v2 is not supported in current TiKV, enable this after V1/V1ttl -> V2 is enabled.
-        # tester.test_dst_apiv2()
+        if args.api_version == "1":
+            tester.test_dst_apiv1ttl(True)
+            tester.test_dst_apiv2(False) # test apiversion conversion
+        else:
+            tester.test_dst_apiv2(True)
 
 
 def parse_args():
@@ -189,6 +204,8 @@ def parse_args():
             help = "The url to store SST files of backup/resotre. Default: 'local:///tmp/backup_restore_test'")
     parser.add_argument("--test-helper", dest = "helper", default = "./rawkv",
             help = "The test helper binary to be used to populate and clean data for the TiKV cluster. Default: './rawkv'")
+    parser.add_argument("--api-version", dest = "api_version", default = "1", required = True,
+            help = "The api version of tikv-server")
     args = parser.parse_args()
     return args
 
