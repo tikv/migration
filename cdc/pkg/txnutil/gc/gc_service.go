@@ -27,7 +27,7 @@ import (
 
 const (
 	// cdcChangefeedCreatingServiceGCSafePointID is service GC safe point ID
-	cdcChangefeedCreatingServiceGCSafePointID = "ticdc-creating-"
+	cdcChangefeedCreatingServiceGCSafePointID = "tikvcdc-creating-"
 )
 
 // EnsureChangefeedStartTsSafety checks if the startTs less than the minimum of
