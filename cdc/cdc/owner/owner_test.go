@@ -231,7 +231,7 @@ func (s *ownerSuite) TestCheckClusterVersion(c *check.C) {
 	ctx, cancel := cdcContext.WithCancel(ctx)
 	defer cancel()
 
-	tester.MustUpdate("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300","version":"v6.0.0"}`))
+	tester.MustUpdate("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600","version":"v6.0.0"}`))
 
 	changefeedID := "test-changefeed"
 	changefeedInfo := &model.ChangeFeedInfo{
@@ -253,7 +253,7 @@ func (s *ownerSuite) TestCheckClusterVersion(c *check.C) {
 	c.Assert(owner.changefeeds, check.Not(check.HasKey), changefeedID)
 
 	tester.MustUpdate("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225",
-		[]byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300","version":"`+ctx.GlobalVars().CaptureInfo.Version+`"}`))
+		[]byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600","version":"`+ctx.GlobalVars().CaptureInfo.Version+`"}`))
 
 	// check the tick is not skipped and the changefeed will be handled normally
 	_, err = owner.Tick(ctx, state)

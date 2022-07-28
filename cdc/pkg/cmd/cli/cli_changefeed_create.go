@@ -85,7 +85,6 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&o.format, flagKeyFormat, "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
 	cmd.PersistentFlags().StringVar(&o.startKey, flagStartKey, "", "The start key of the changefeed, key is inclusive.")
 	cmd.PersistentFlags().StringVar(&o.endKey, flagEndKey, "", "The end key of the changefeed, key is exclusive.")
-
 }
 
 // strictDecodeConfig do strictDecodeFile check and only verify the rules for now.

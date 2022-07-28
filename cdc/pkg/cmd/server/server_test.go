@@ -201,7 +201,7 @@ func TestParseCfg(t *testing.T) {
 func TestDecodeCfg(t *testing.T) {
 	dataDir := t.TempDir()
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "ticdc.toml")
+	configPath := filepath.Join(tmpDir, "tikv-cdc.toml")
 	configContent := fmt.Sprintf(`
 addr = "128.0.0.1:1234"
 advertise-addr = "127.0.0.1:1111"
@@ -330,7 +330,7 @@ server-worker-pool-size = 16
 func TestDecodeCfgWithFlags(t *testing.T) {
 	dataDir := t.TempDir()
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "ticdc.toml")
+	configPath := filepath.Join(tmpDir, "tikv-cdc.toml")
 	configContent := fmt.Sprintf(`
 addr = "128.0.0.1:1234"
 advertise-addr = "127.0.0.1:1111"
@@ -457,7 +457,7 @@ cert-allowed-cn = ["dd","ee"]
 
 func TestDecodeUnkownDebugCfg(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "ticdc.toml")
+	configPath := filepath.Join(tmpDir, "tikv-cdc.toml")
 	configContent := `
 [debug]
 unknown1 = 1

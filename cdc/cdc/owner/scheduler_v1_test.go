@@ -576,6 +576,7 @@ func (s *schedulerSuite) TestRelatedKeySpans(c *check.C) {
 }
 
 func (s *schedulerSuite) TestUpdateCurrentKeySpansImplBySingleKeySpan(c *check.C) {
+	defer testleak.AfterTest(c)()
 	info := model.ChangeFeedInfo{
 		StartKey: "abc",
 		EndKey:   "def",
@@ -619,5 +620,6 @@ func (s *schedulerSuite) TestScheduleUpdateKeySpansBySingleSpan(c *check.C) {
 	}
 	c.Assert(len(replicaInfos), check.Equals, 1)
 	c.Assert(*replicaInfos[0], check.DeepEquals, model.KeySpanReplicaInfo{
-		StartTs: 0, Start: []byte{'r', 0, 0, 0, 'a'}, End: []byte{'r', 0, 0, 0, 'z'}})
+		StartTs: 0, Start: []byte{'r', 0, 0, 0, 'a'}, End: []byte{'r', 0, 0, 0, 'z'},
+	})
 }

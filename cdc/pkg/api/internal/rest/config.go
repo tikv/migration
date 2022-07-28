@@ -39,7 +39,7 @@ type Config struct {
 func defaultServerURLFromConfig(config *Config) (*url.URL, string, error) {
 	host := config.Host
 	if host == "" {
-		host = "127.0.0.1:8300"
+		host = "127.0.0.1:8600"
 	}
 	base := host
 	hostURL, err := url.Parse(base)

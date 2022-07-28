@@ -18,11 +18,11 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.18.3'
-      - name: make check-static
+      - name: make check
         shell: bash
         run: |
           cd cdc/
-          make check-static
+          make check
   cdc-check-gosec:
     runs-on: ubuntu-latest
     steps:
