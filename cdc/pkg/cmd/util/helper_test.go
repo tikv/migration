@@ -105,7 +105,7 @@ func (s *utilsSuite) TestStrictDecodeValidFile(c *check.C) {
 	defer testleak.AfterTest(c)()
 	dataDir := c.MkDir()
 	tmpDir := c.MkDir()
-	configPath := filepath.Join(tmpDir, "ticdc.toml")
+	configPath := filepath.Join(tmpDir, "tikv-cdc.toml")
 	configContent := fmt.Sprintf(`
 addr = "128.0.0.1:1234"
 advertise-addr = "127.0.0.1:1111"
@@ -152,7 +152,7 @@ func (s *utilsSuite) TestStrictDecodeInvalidFile(c *check.C) {
 	defer testleak.AfterTest(c)()
 	dataDir := c.MkDir()
 	tmpDir := c.MkDir()
-	configPath := filepath.Join(tmpDir, "ticdc.toml")
+	configPath := filepath.Join(tmpDir, "tikv-cdc.toml")
 	configContent := fmt.Sprintf(`
 unknown = "128.0.0.1:1234"
 data-dir = "%+v"
@@ -192,10 +192,10 @@ func (s *utilsSuite) TestAndWriteExampleReplicaTOML(c *check.C) {
 func (s *utilsSuite) TestAndWriteExampleServerTOML(c *check.C) {
 	defer testleak.AfterTest(c)()
 	cfg := config.GetDefaultServerConfig()
-	err := StrictDecodeFile("ticdc.toml", "cdc", &cfg)
+	err := StrictDecodeFile("tikv-cdc.toml", "cdc", &cfg)
 	c.Assert(err, check.IsNil)
 	defcfg := config.GetDefaultServerConfig()
-	defcfg.AdvertiseAddr = "127.0.0.1:8300"
+	defcfg.AdvertiseAddr = "127.0.0.1:8600"
 	defcfg.LogFile = "/tmp/ticdc/ticdc.log"
 	c.Assert(cfg, check.DeepEquals, defcfg)
 }
@@ -228,7 +228,7 @@ func (s *utilsSuite) TestIgnoreStrictCheckItem(c *check.C) {
 	defer testleak.AfterTest(c)()
 	dataDir := c.MkDir()
 	tmpDir := c.MkDir()
-	configPath := filepath.Join(tmpDir, "ticdc.toml")
+	configPath := filepath.Join(tmpDir, "tikv-cdc.toml")
 	configContent := fmt.Sprintf(`
 data-dir = "%+v"
 [unknown]

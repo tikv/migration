@@ -46,7 +46,7 @@ func createChangefeed4Test(ctx cdcContext.Context, c *check.C) (*changefeed, *or
 		info = ctx.ChangefeedVars().Info
 		return info, true, nil
 	})
-	tester.MustUpdate("/tikv/cdc/capture/"+ctx.GlobalVars().CaptureInfo.ID, []byte(`{"id":"`+ctx.GlobalVars().CaptureInfo.ID+`","address":"127.0.0.1:8300"}`))
+	tester.MustUpdate("/tikv/cdc/capture/"+ctx.GlobalVars().CaptureInfo.ID, []byte(`{"id":"`+ctx.GlobalVars().CaptureInfo.ID+`","address":"127.0.0.1:8600"}`))
 	tester.MustApplyPatches()
 	captures := map[model.CaptureID]*model.CaptureInfo{ctx.GlobalVars().CaptureInfo.ID: ctx.GlobalVars().CaptureInfo}
 	return cf, state, captures, tester

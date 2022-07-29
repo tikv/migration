@@ -26,7 +26,7 @@ sed -i'~' -e '
 
 for i in $@; do
 	if ! cmp -s $i $i~; then
-		gofumpt -s -w $i
+		gofumpt -w $i
 	fi
 	rm -f $i~
 done

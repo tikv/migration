@@ -72,6 +72,7 @@ type TestKeyRange struct {
 }
 
 func (s *changefeedSuite) TestValidateKeyFormat(c *check.C) {
+	defer testleak.AfterTest(c)()
 	o := newChangefeedCommonOptions()
 	testCases := []TestKeyRange{
 		{
@@ -133,5 +134,4 @@ func (s *changefeedSuite) TestValidateKeyFormat(c *check.C) {
 			c.Assert(o.validKeyFormat(), check.NotNil)
 		}
 	}
-
 }
