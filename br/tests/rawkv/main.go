@@ -27,6 +27,7 @@ var (
 	maxMsgSize   = int(128 * units.MiB) // pd.ScanRegion may return a large response
 	maxBatchSize = uint(1024)           // max batch size with BatchPut
 
+	keyCnt        = flag.Uint("keycnt", 10000, "KeyCnt of testing")
 	pdAddr        = flag.String("pd", "127.0.0.1:2379", "Address of PD")
 	apiVersionInt = flag.Uint("api-version", 1, "Api version of tikv-server")
 	br            = flag.String("br", "br", "The br binary to be tested.")
@@ -126,7 +127,7 @@ func (t *RawKVBRTester) PreloadData(ctx context.Context, keyCnt uint, prefix []b
 }
 
 func (t *RawKVBRTester) CleanData(ctx context.Context, prefix []byte) error {
-	return t.rawkvClient.DeleteRange(ctx, prefix, append(prefix, 0))
+	return t.rawkvClient.DeleteRange(ctx, prefix, append(prefix, []byte{0xFF, 0xFF, 0xFF, 0xFF}...))
 }
 
 func (t *RawKVBRTester) Checksum(ctx context.Context) (rawkv.RawChecksum, error) {
@@ -232,8 +233,7 @@ func runTestWithFailPoint(failpoint string) error {
 	}
 
 	prefix := []byte("index")
-	keyCnt := uint(10000)
-	err = tester.PreloadData(ctx, keyCnt, prefix)
+	err = tester.PreloadData(ctx, *keyCnt, prefix)
 	if err != nil {
 		return errors.Annotate(err, "Preload data fail")
 	}
