@@ -34,21 +34,21 @@ import (
 
 var (
 	// minPDVersion is the version of the minimal compatible PD.
-	minPDVersion *semver.Version = semver.New("6.2.0-alpha")
+	minPDVersion *semver.Version = semver.New("6.2.0")
 	// maxPDVersion is the version of the maximum compatible PD.
 	// Compatible versions are in [minPDVersion, maxPDVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxPDVersion *semver.Version = semver.New("9999.0.0")
 
 	// MinTiKVVersion is the version of the minimal compatible TiKV.
-	MinTiKVVersion *semver.Version = semver.New("6.2.0-alpha")
+	MinTiKVVersion *semver.Version = semver.New("6.2.0")
 	// maxTiKVVersion is the version of the maximum compatible TiKV.
 	// Compatible versions are in [MinTiKVVersion, maxTiKVVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxTiKVVersion *semver.Version = semver.New("9999.0.0")
 
 	// minTiKVCDCVersion is the version of the minimal compatible TiKVCDC.
-	minTiKVCDCVersion *semver.Version = semver.New("1.0.0-master")
+	minTiKVCDCVersion *semver.Version = semver.New("1.0.0")
 	// Compatible versions are in [MinTiKVCDCVersion, MaxTiKVCDCVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxTiKVCDCVersion *semver.Version = semver.New("9999.0.0")
