@@ -16,6 +16,8 @@ package version
 import (
 	"testing"
 
+	"fmt"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,49 +33,31 @@ func TestChangefeedStateFromAdminJob(t *testing.T) {
 			expected:       true,
 		},
 		{
-			creatorVersion: "4.0.12",
+			creatorVersion: "1.0.12",
 			expected:       true,
 		},
 		{
-			creatorVersion: "4.0.14",
+			creatorVersion: "1.0.14",
 			expected:       true,
 		},
 		{
-			creatorVersion: "4.0.15",
+			creatorVersion: "1.0.0",
 			expected:       true,
 		},
 		{
-			creatorVersion: "4.0.16",
+			creatorVersion: "0.9.16",
 			expected:       false,
 		},
 		{
-			creatorVersion: "5.0.0",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.0.1",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.0.6",
-			expected:       false,
-		},
-		{
-			creatorVersion: "5.1.0",
-			expected:       false,
-		},
-		{
-			creatorVersion: "5.2.0",
-			expected:       false,
-		},
-		{
-			creatorVersion: "5.3.0",
+			creatorVersion: "0.0.3",
 			expected:       false,
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		creatorVersionGate := CreatorVersionGate{version: tc.creatorVersion}
+		fmt.Println(i)
+
 		require.Equal(t, tc.expected, creatorVersionGate.ChangefeedStateFromAdminJob())
 	}
 }
@@ -87,42 +71,14 @@ func TestChangefeedAcceptUnknownProtocols(t *testing.T) {
 	}{
 		{
 			creatorVersion: "",
-			expected:       true,
+			expected:       false,
 		},
 		{
-			creatorVersion: "4.0.12",
-			expected:       true,
+			creatorVersion: "1.0.0",
+			expected:       false,
 		},
 		{
-			creatorVersion: "4.0.14",
-			expected:       true,
-		},
-		{
-			creatorVersion: "4.0.15",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.0.0",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.0.1",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.1.0",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.2.0",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.3.0",
-			expected:       true,
-		},
-		{
-			creatorVersion: "5.4.0",
+			creatorVersion: "1.1.0",
 			expected:       false,
 		},
 	}

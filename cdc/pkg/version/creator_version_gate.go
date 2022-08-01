@@ -23,19 +23,14 @@ type CreatorVersionGate struct {
 	version string
 }
 
-// changefeedStateFromAdminJobVersions specifies the version before
+// changefeedStateFromAdminJobVersions specifies the version after
 // which we use the admin job type to control the state of the changefeed.
 var changefeedStateFromAdminJobVersions = []semver.Version{
-	// Introduced in https://github.com/tikv/migration/cdc/pull/3014.
-	*semver.New("4.0.16"),
-	// Introduced in https://github.com/tikv/migration/cdc/pull/2946.
-	*semver.New("5.0.6"),
+	*semver.New("1.0.0"),
 }
 
-// changefeedAcceptUnknownProtocolsVersion specifies the version
-// of TiCDC for which changefeed supports accepting unknown protocols.
-// Introduced in https://github.com/pingcap/ticdc/pull/3811.
-var changefeedAcceptUnknownProtocolsVersion = *semver.New("5.4.0")
+// Now TiKVCDC don't supports accepting unknown protocols.
+var changefeedAcceptUnknownProtocolsVersion = *semver.New("9999.0.0")
 
 // NewCreatorVersionGate creates the creator version gate.
 func NewCreatorVersionGate(version string) *CreatorVersionGate {
@@ -47,7 +42,6 @@ func NewCreatorVersionGate(version string) *CreatorVersionGate {
 // ChangefeedStateFromAdminJob determines if admin job is the state
 // of changefeed based on the version of the creator.
 func (f *CreatorVersionGate) ChangefeedStateFromAdminJob() bool {
-	// Introduced in https://github.com/tikv/migration/cdc/pull/1341.
 	// The changefeed before it was introduced was using the old owner.
 	if f.version == "" {
 		return true
@@ -57,7 +51,7 @@ func (f *CreatorVersionGate) ChangefeedStateFromAdminJob() bool {
 	for _, version := range changefeedStateFromAdminJobVersions {
 		// NOTICE: To compare against the same major version.
 		if creatorVersion.Major == version.Major &&
-			creatorVersion.LessThan(version) {
+			!creatorVersion.LessThan(version) {
 			return true
 		}
 	}
@@ -68,12 +62,6 @@ func (f *CreatorVersionGate) ChangefeedStateFromAdminJob() bool {
 // ChangefeedAcceptUnknownProtocols determines whether to accept
 // unknown protocols based on the creator's version.
 func (f *CreatorVersionGate) ChangefeedAcceptUnknownProtocols() bool {
-	// Introduced in https://github.com/pingcap/ticdc/pull/1341.
-	// So it was supported at the time.
-	if f.version == "" {
-		return true
-	}
-
-	creatorVersion := semver.New(removeVAndHash(f.version))
-	return creatorVersion.LessThan(changefeedAcceptUnknownProtocolsVersion)
+	// Now TiKVCDC don't supports accepting unknown protocols.
+	return false
 }

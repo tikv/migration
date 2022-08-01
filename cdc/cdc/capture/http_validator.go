@@ -86,14 +86,14 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		return nil, err
 	}
 	// set sortEngine and EnableOldValue
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
+	cdcClusterVer, err := version.GetTiKVCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
 	if err != nil {
 		return nil, err
 	}
 	sortEngine := model.SortUnified
 	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
 		replicaConfig.EnableOldValue = false
-		log.Warn("The TiCDC cluster is built from unknown branch or less than 5.0.0-rc, the old-value are disabled by default.")
+		log.Warn("The TiKVCDC cluster is built from unknown branch or less than 5.0.0-rc, the old-value are disabled by default.")
 		if !cdcClusterVer.ShouldEnableUnifiedSorterByDefault() {
 			sortEngine = model.SortInMemory
 		}

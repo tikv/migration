@@ -73,7 +73,7 @@ func (o *queryProcessorOptions) complete(f factory.Factory) error {
 	if err != nil {
 		return err
 	}
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
+	cdcClusterVer, err := version.GetTiKVCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -81,7 +81,7 @@ func (o *queryProcessorOptions) complete(f factory.Factory) error {
 	o.runWithAPIClient = true
 	if !cdcClusterVer.ShouldRunCliWithAPIClientByDefault() {
 		o.runWithAPIClient = false
-		log.Warn("The TiCDC cluster is built from an older version, run cli with etcd client by default.",
+		log.Warn("The TiKVCDC cluster is built from an older version, run cli with etcd client by default.",
 			zap.String("version", cdcClusterVer.String()))
 	}
 

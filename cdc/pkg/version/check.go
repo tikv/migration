@@ -34,31 +34,28 @@ import (
 
 var (
 	// minPDVersion is the version of the minimal compatible PD.
-	// TODO bump 5.2.0-alpha once PD releases.
-	minPDVersion *semver.Version = semver.New("5.1.0-alpha")
+	minPDVersion *semver.Version = semver.New("6.2.0-alpha")
 	// maxPDVersion is the version of the maximum compatible PD.
 	// Compatible versions are in [minPDVersion, maxPDVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxPDVersion *semver.Version = semver.New("9999.0.0")
 
 	// MinTiKVVersion is the version of the minimal compatible TiKV.
-	// TODO bump 5.2.0-alpha once TiKV releases.
-	MinTiKVVersion *semver.Version = semver.New("5.1.0-alpha")
+	MinTiKVVersion *semver.Version = semver.New("6.2.0-alpha")
 	// maxTiKVVersion is the version of the maximum compatible TiKV.
 	// Compatible versions are in [MinTiKVVersion, maxTiKVVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxTiKVVersion *semver.Version = semver.New("9999.0.0")
 
-	// minTiCDCVersion is the version of the minimal compatible TiCDC.
-	// TODO bump 5.2.0-alpha once TiCDC releases.
-	minTiCDCVersion *semver.Version = semver.New("5.1.0-alpha")
-	// Compatible versions are in [MinTiCDCVersion, MaxTiCDCVersion)
+	// minTiKVCDCVersion is the version of the minimal compatible TiKVCDC.
+	minTiKVCDCVersion *semver.Version = semver.New("1.0.0-master")
+	// Compatible versions are in [MinTiKVCDCVersion, MaxTiKVCDCVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
-	maxTiCDCVersion *semver.Version = semver.New("9999.0.0")
+	maxTiKVCDCVersion *semver.Version = semver.New("9999.0.0")
 
 	// CaptureInfo.Version is added since v4.0.11,
 	// we use the minimal release version as default.
-	defaultTiCDCVersion *semver.Version = semver.New("4.0.1")
+	defaultTiKVCDCVersion *semver.Version = semver.New("1.0.0")
 )
 
 var versionHash = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}(-dev)?")
@@ -190,52 +187,49 @@ func CheckStoreVersion(ctx context.Context, client pd.Client, storeID uint64) er
 	return nil
 }
 
-// TiCDCClusterVersion is the version of TiCDC cluster
-type TiCDCClusterVersion struct {
+// TiKVCDCClusterVersion is the version of TiKVCDC cluster
+type TiKVCDCClusterVersion struct {
 	*semver.Version
 }
 
 // IsUnknown returns whether this is an unknown version
-func (v *TiCDCClusterVersion) IsUnknown() bool {
+func (v *TiKVCDCClusterVersion) IsUnknown() bool {
 	return v.Version == nil
 }
 
 // ShouldEnableOldValueByDefault returns whether old value should be enabled by default
-func (v *TiCDCClusterVersion) ShouldEnableOldValueByDefault() bool {
+func (v *TiKVCDCClusterVersion) ShouldEnableOldValueByDefault() bool {
 	// we assume the unknown version to be the latest version
-	return v.Version == nil || !v.LessThan(*semver.New("5.0.0-rc"))
+	// Now TiKV CDC don't support old value
+	return false
 }
 
 // ShouldEnableUnifiedSorterByDefault returns whether Unified Sorter should be enabled by default
-func (v *TiCDCClusterVersion) ShouldEnableUnifiedSorterByDefault() bool {
+func (v *TiKVCDCClusterVersion) ShouldEnableUnifiedSorterByDefault() bool {
 	if v.Version == nil {
 		// we assume the unknown version to be the latest version
 		return true
 	}
-	// x >= 4.0.13 AND x != 5.0.0-rc
-	if v.String() == "5.0.0-rc" {
-		return false
-	}
-	return !v.LessThan(*semver.New("4.0.13")) || (v.Major == 4 && v.Minor == 0 && v.Patch == 13)
+	return !v.LessThan(*semver.New("1.0.0")) || (v.Major == 1 && v.Minor == 0 && v.Patch == 0)
 }
 
 // ShouldRunCliWithAPIClientByDefault returns whether to run cmd cli with api client by default
-func (v *TiCDCClusterVersion) ShouldRunCliWithAPIClientByDefault() bool {
+func (v *TiKVCDCClusterVersion) ShouldRunCliWithAPIClientByDefault() bool {
 	// we assume the unknown version to be the latest version
 	if v.Version == nil {
 		return true
 	}
 
-	return !v.LessThan(*semver.New("5.4.0")) || (v.Major == 5 && v.Minor == 4 && v.Patch == 0)
+	return !v.LessThan(*semver.New("1.0.0")) || (v.Major == 1 && v.Minor == 0 && v.Patch == 0)
 }
 
-// TiCDCClusterVersionUnknown is a read-only variable to represent the unknown cluster version
-var TiCDCClusterVersionUnknown = TiCDCClusterVersion{}
+// TiKVCDCClusterVersionUnknown is a read-only variable to represent the unknown cluster version
+var TiKVCDCClusterVersionUnknown = TiKVCDCClusterVersion{}
 
-// GetTiCDCClusterVersion returns the version of ticdc cluster
-func GetTiCDCClusterVersion(captureVersion []string) (TiCDCClusterVersion, error) {
+// GetTiKVCDCClusterVersion returns the version of ticdc cluster
+func GetTiKVCDCClusterVersion(captureVersion []string) (TiKVCDCClusterVersion, error) {
 	if len(captureVersion) == 0 {
-		return TiCDCClusterVersionUnknown, nil
+		return TiKVCDCClusterVersionUnknown, nil
 	}
 	var minVer *semver.Version
 	for _, versionStr := range captureVersion {
@@ -244,36 +238,36 @@ func GetTiCDCClusterVersion(captureVersion []string) (TiCDCClusterVersion, error
 		if versionStr != "" {
 			ver, err = semver.NewVersion(removeVAndHash(versionStr))
 		} else {
-			ver = defaultTiCDCVersion
+			ver = defaultTiKVCDCVersion
 		}
 		if err != nil {
-			return TiCDCClusterVersionUnknown, cerror.WrapError(cerror.ErrNewSemVersion, err)
+			return TiKVCDCClusterVersionUnknown, cerror.WrapError(cerror.ErrNewSemVersion, err)
 		}
 		if minVer == nil || ver.Compare(*minVer) < 0 {
 			minVer = ver
 		}
 	}
-	return TiCDCClusterVersion{minVer}, nil
+	return TiKVCDCClusterVersion{minVer}, nil
 }
 
-// CheckTiCDCClusterVersion returns the version of ticdc cluster
-func CheckTiCDCClusterVersion(cdcClusterVer TiCDCClusterVersion) (unknown bool, err error) {
+// CheckTiKVCDCClusterVersion returns the version of ticdc cluster
+func CheckTiKVCDCClusterVersion(cdcClusterVer TiKVCDCClusterVersion) (unknown bool, err error) {
 	if cdcClusterVer.Version == nil {
 		return true, nil
 	}
 	ver := cdcClusterVer.Version
-	minOrd := ver.Compare(*minTiCDCVersion)
+	minOrd := ver.Compare(*minTiKVCDCVersion)
 	if minOrd < 0 {
-		arg := fmt.Sprintf("TiCDC %s is not supported, the minimal compatible version is %s"+
+		arg := fmt.Sprintf("TiKVCDC %s is not supported, the minimal compatible version is %s"+
 			"try tiup ctl:%s cdc [COMMAND]",
-			ver, minTiCDCVersion, ver)
+			ver, minTiKVCDCVersion, ver)
 		return false, cerror.ErrVersionIncompatible.GenWithStackByArgs(arg)
 	}
-	maxOrd := ver.Compare(*maxTiCDCVersion)
+	maxOrd := ver.Compare(*maxTiKVCDCVersion)
 	if maxOrd >= 0 {
-		arg := fmt.Sprintf("TiCDC %s is not supported, the maximum compatible version is %s"+
+		arg := fmt.Sprintf("TiKVCDC %s is not supported, the maximum compatible version is %s"+
 			"try tiup ctl:%s cdc [COMMAND]",
-			ver, maxTiCDCVersion, ver)
+			ver, maxTiKVCDCVersion, ver)
 		return false, cerror.ErrVersionIncompatible.GenWithStackByArgs(arg)
 	}
 	return false, nil

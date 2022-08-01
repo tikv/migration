@@ -177,7 +177,7 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 		return err
 	}
 
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
+	cdcClusterVer, err := version.GetTiKVCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -227,7 +227,7 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 
 	if o.commonChangefeedOptions.sortEngine == model.SortUnified && !cdcClusterVer.ShouldEnableUnifiedSorterByDefault() {
 		o.commonChangefeedOptions.sortEngine = model.SortInMemory
-		log.Warn("The TiCDC cluster is built from an older version, disabling Unified Sorter by default",
+		log.Warn("The TiKVCDC cluster is built from an older version, disabling Unified Sorter by default",
 			zap.String("version", cdcClusterVer.String()))
 	}
 
