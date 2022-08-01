@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/log"
 	"github.com/r3labs/diff"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
@@ -93,7 +92,6 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 	sortEngine := model.SortUnified
 	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
 		replicaConfig.EnableOldValue = false
-		log.Warn("The TiKVCDC cluster is built from unknown branch or less than 5.0.0-rc, the old-value are disabled by default.")
 		if !cdcClusterVer.ShouldEnableUnifiedSorterByDefault() {
 			sortEngine = model.SortInMemory
 		}

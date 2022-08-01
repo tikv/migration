@@ -16,8 +16,6 @@ package version
 import (
 	"testing"
 
-	"fmt"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,10 +52,8 @@ func TestChangefeedStateFromAdminJob(t *testing.T) {
 		},
 	}
 
-	for i, tc := range testCases {
+	for _, tc := range testCases {
 		creatorVersionGate := CreatorVersionGate{version: tc.creatorVersion}
-		fmt.Println(i)
-
 		require.Equal(t, tc.expected, creatorVersionGate.ChangefeedStateFromAdminJob())
 	}
 }
