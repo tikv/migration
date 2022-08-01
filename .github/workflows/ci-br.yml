@@ -60,7 +60,7 @@ jobs:
           cd br
           make test
   br-integration-test:
-    name: br-integration-test-${{ matrix.tikv_version }}
+    name: br-integration-test-${{ matrix.tikv_version }}-apiv${{ matrix.api_version }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
