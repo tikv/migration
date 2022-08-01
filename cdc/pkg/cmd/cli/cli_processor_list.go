@@ -88,11 +88,17 @@ func (o *listProcessorOptions) run(cmd *cobra.Command) error {
 		return util.JSONPrint(cmd, processors)
 	}
 
-	info, err := o.etcdClient.GetProcessors(ctx)
+	infos, err := o.etcdClient.GetProcessors(ctx)
 	if err != nil {
 		return err
 	}
-	return util.JSONPrint(cmd, info)
+	processors := []*model.ProcInfoSnap{}
+	for _, info := range infos {
+		if len(info.KeySpans) != 0 {
+			processors = append(processors, info)
+		}
+	}
+	return util.JSONPrint(cmd, processors)
 }
 
 // newCmdListProcessor creates the `cli processor list` command.
