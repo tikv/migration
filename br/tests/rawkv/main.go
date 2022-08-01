@@ -13,7 +13,7 @@ import (
 	"time"
 
 	units "github.com/docker/go-units"
-	"github.com/juju/errors"
+	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/oracle"
@@ -209,7 +209,7 @@ func CheckBackupTS(apiVersion kvrpcpb.APIVersion, tso uint64, backupOutput []byt
 	}
 }
 
-func runTestWithFailPoint(failpoint string) {
+func runTestWithFailPoint(failpoint string) error {
 	apiVersion := kvrpcpb.APIVersion_V1TTL
 	if *apiVersionInt == 2 {
 		apiVersion = kvrpcpb.APIVersion_V2
@@ -220,70 +220,72 @@ func runTestWithFailPoint(failpoint string) {
 
 	tester, err := NewRawKVBRTester(ctx, *pdAddr, *br, *brStorage, apiVersion)
 	if err != nil {
-		log.Panic("New Tester Error", zap.Error(err))
+		return errors.Annotate(err, "New Tester Fail")
 	}
 	err = tester.InjectFailpoint(failpoint)
 	if err != nil {
-		log.Panic("Inject failpoint Error", zap.Error(err))
+		return errors.Annotatef(err, "Inject failpoint % s fail", failpoint)
 	}
 
 	if err := tester.ClearStorage(); err != nil {
-		log.Panic("ClearStorage fail", zap.Error(err))
+		return errors.Annotate(err, "ClearStorage fail")
 	}
 
-	prefix := []byte{'a'}
-	err = tester.PreloadData(ctx, 1000, prefix)
+	prefix := []byte("index")
+	keyCnt := uint(10000)
+	err = tester.PreloadData(ctx, keyCnt, prefix)
 	if err != nil {
-		log.Panic("Preload data fail", zap.Error(err))
+		return errors.Annotate(err, "Preload data fail")
 	}
 
 	oriChecksum, err := tester.Checksum(ctx)
 	if err != nil {
-		log.Panic("Checksum fail", zap.Error(err))
+		return errors.Annotate(err, "Preload checksum fail")
 	}
 
 	tso := uint64(0)
 	if apiVersion == kvrpcpb.APIVersion_V2 {
 		tso, err = tester.GetTso(ctx)
 		if err != nil {
-			log.Panic("Get tso fail", zap.Error(err))
+			return errors.Annotate(err, "Get tso fail")
 		}
 	}
 	safeInterval := int64(120) // 2m
 	backupOutput, err := tester.Backup(ctx, apiVersion, safeInterval)
 	if err != nil {
-		log.Panic("Backup fail", zap.Error(err), zap.ByteString("output", backupOutput))
+		return errors.Annotatef(err, "Backup fail:%s", backupOutput)
 	}
 	log.Info("backup finish:", zap.ByteString("output", backupOutput))
 	CheckBackupTS(apiVersion, tso, backupOutput, safeInterval)
 
 	err = tester.CleanData(ctx, prefix)
 	if err != nil {
-		log.Panic("Clean data fail", zap.Error(err))
+		return errors.Annotate(err, "Clean data fail")
 	}
 	restoreOutput, err := tester.Restore(ctx)
 	if err != nil {
-		log.Panic("Restore fail", zap.Error(err), zap.ByteString("output", restoreOutput))
+		return errors.Annotatef(err, "Restore fail: %s", restoreOutput)
 	}
 	log.Info("Restore finish:", zap.ByteString("output", restoreOutput))
 	restoreChecksum, err := tester.Checksum(ctx)
 	if err != nil {
-		log.Panic("Checksum fail", zap.Error(err))
+		return errors.Annotate(err, "Checksum fail")
 	}
 	if oriChecksum != restoreChecksum {
-		log.Panic("Checksum mismatch", zap.Reflect("OriChecksum", oriChecksum), zap.Reflect("RestoreChecksum", restoreChecksum))
+		return errors.Annotatef(err, "Checksum mismatch, src:%v, dst:%v", oriChecksum, restoreChecksum)
 	}
 
 	if apiVersion == kvrpcpb.APIVersion_V1TTL {
 		if err := tester.ClearStorage(); err != nil {
-			log.Panic("ClearStorage fail", zap.Error(err))
+			return errors.Annotate(err, "ClearStorage fail")
 		}
 		backupOutput, err := tester.Backup(ctx, kvrpcpb.APIVersion_V2, safeInterval)
 		if err != nil {
-			log.Panic("Backup fail", zap.Error(err), zap.ByteString("output", backupOutput))
+			return errors.Annotatef(err, "Backup fail:%s", backupOutput)
 		}
 		log.Info("backup conversion finish:", zap.ByteString("output", backupOutput))
 	}
+	return nil
 }
 
 func main() {
@@ -292,6 +294,10 @@ func main() {
 		"github.com/tikv/migration/br/pkg/backup/tikv-region-error=return(\"region error\")",
 	}
 	for _, failpoint := range failpoints {
-		runTestWithFailPoint(failpoint)
+		err := runTestWithFailPoint(failpoint)
+		if err != nil {
+			log.Error("run test with failpoint fails", zap.Error(err))
+			os.Exit(1)
+		}
 	}
 }
