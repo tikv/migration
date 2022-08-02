@@ -70,9 +70,9 @@ func (b *mockFlushTaskBuilder) generateRowChanges(tsRangeBegin, tsRangeEnd uint6
 	}
 	density := float64(tsRangeEnd-tsRangeBegin) / float64(count)
 	for fTs := float64(tsRangeBegin); fTs < float64(tsRangeEnd); fTs += density {
-		ts := uint64(fTs)
-		kvEntry := generateMockRawKV(ts)
-		_ = b.writer.writeNext(model.NewPolymorphicEvent(kvEntry))
+		ts := int(fTs)
+		kvEntry := generateMockRawKV(0, ts)
+		_ = b.writer.writeNext(model.NewPolymorphicEvent(kvEntry[0]))
 		b.totalCount++
 	}
 	return b

@@ -54,7 +54,7 @@ func (s *fileBackendSuite) TestNoSpace(c *check.C) {
 	w, err := fb.writer()
 	c.Assert(err, check.IsNil)
 
-	err = w.writeNext(model.NewPolymorphicEvent(generateMockRawKV(0)))
+	err = w.writeNext(model.NewPolymorphicEvent(generateMockRawKV(0, 0)[0]))
 	if err == nil {
 		// Due to write buffering, `writeNext` might not return an error when the filesystem is full.
 		err = w.flushAndClose()
