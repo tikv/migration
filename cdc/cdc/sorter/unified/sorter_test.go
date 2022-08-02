@@ -234,7 +234,7 @@ func testSorter(ctx context.Context, c *check.C, sorter sorter.EventSorter, coun
 					}
 					fmt.Println(string(event.RawKV.Key))
 					if lastEvent != nil &&
-						bytes.Compare(lastEvent.RawKV.Key, event.RawKV.Key) == 0 {
+						bytes.Equal(lastEvent.RawKV.Key, event.RawKV.Key) {
 						fmt.Println(string(lastEvent.RawKV.Key))
 						c.Assert(lastEvent.RawKV.Value, check.BytesEquals, []byte("value1"))
 						c.Assert(event.RawKV.Value, check.BytesEquals, []byte("value2"))

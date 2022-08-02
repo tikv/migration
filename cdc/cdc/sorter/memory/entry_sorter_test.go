@@ -307,7 +307,7 @@ func (s *mockEntrySorterSuite) TestEntrySorterRandomly(c *check.C) {
 		if entry.RawKV.OpType == model.OpTypeResolved {
 			resolvedTs = entry.CRTs
 		} else {
-			if lastEntry != nil && bytes.Compare(lastEntry.RawKV.Key, entry.RawKV.Key) == 0 {
+			if lastEntry != nil && bytes.Equal(lastEntry.RawKV.Key, entry.RawKV.Key) {
 				c.Assert(lastEntry.RawKV.Value, check.BytesEquals, []byte("value1"))
 				c.Assert(entry.RawKV.Value, check.BytesEquals, []byte("value2"))
 			}
