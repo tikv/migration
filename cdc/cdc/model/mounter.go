@@ -54,6 +54,25 @@ func (e *PolymorphicEvent) RegionID() uint64 {
 	return e.RawKV.RegionID
 }
 
+// IsResolved returns true if the event is resolved. Note that this function can
+// only be called when `RawKV != nil`.
+func (e *PolymorphicEvent) IsResolved() bool {
+	return e.RawKV.OpType == OpTypeResolved
+}
+
+// ComparePolymorphicEvents compares two events by CRTs, Resolved order.
+// It returns true if and only if i should precede j.
+func ComparePolymorphicEvents(i, j *PolymorphicEvent) bool {
+	if i.CRTs == j.CRTs {
+		if i.IsResolved() {
+			return false
+		} else if j.IsResolved() {
+			return true
+		}
+	}
+	return i.CRTs < j.CRTs
+}
+
 // SetUpFinishedChan creates an internal channel to support PrepareFinished and WaitPrepare
 func (e *PolymorphicEvent) SetUpFinishedChan() {
 	if e.finished == nil {
