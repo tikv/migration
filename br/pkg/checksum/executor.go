@@ -44,7 +44,7 @@ const (
 	StorageScanCommand     StorageChecksumMethod = 1
 )
 
-type ChecksumClient interface {
+type Client interface {
 	Checksum(ctx context.Context, startKey, endKey []byte, options ...rawkv.RawOption) (check rawkv.RawChecksum, err error)
 	Scan(ctx context.Context, startKey, endKey []byte, limit int, options ...rawkv.RawOption) (keys [][]byte, values [][]byte, err error)
 	Close() error
@@ -54,7 +54,7 @@ type ChecksumClient interface {
 type Executor struct {
 	keyRanges      []*utils.KeyRange
 	apiVersion     kvrpcpb.APIVersion
-	checksumClient ChecksumClient
+	checksumClient Client
 	concurrency    uint
 }
 
