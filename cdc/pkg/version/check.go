@@ -197,32 +197,6 @@ func (v *TiKVCDCClusterVersion) IsUnknown() bool {
 	return v.Version == nil
 }
 
-// ShouldEnableOldValueByDefault returns whether old value should be enabled by default
-func (v *TiKVCDCClusterVersion) ShouldEnableOldValueByDefault() bool {
-	// we assume the unknown version to be the latest version
-	// Now TiKV CDC don't support old value
-	return false
-}
-
-// ShouldEnableUnifiedSorterByDefault returns whether Unified Sorter should be enabled by default
-func (v *TiKVCDCClusterVersion) ShouldEnableUnifiedSorterByDefault() bool {
-	if v.Version == nil {
-		// we assume the unknown version to be the latest version
-		return true
-	}
-	return !v.LessThan(*semver.New("1.0.0")) || (v.Major == 1 && v.Minor == 0 && v.Patch == 0)
-}
-
-// ShouldRunCliWithAPIClientByDefault returns whether to run cmd cli with api client by default
-func (v *TiKVCDCClusterVersion) ShouldRunCliWithAPIClientByDefault() bool {
-	// we assume the unknown version to be the latest version
-	if v.Version == nil {
-		return true
-	}
-
-	return !v.LessThan(*semver.New("1.0.0")) || (v.Major == 1 && v.Minor == 0 && v.Patch == 0)
-}
-
 // TiKVCDCClusterVersionUnknown is a read-only variable to represent the unknown cluster version
 var TiKVCDCClusterVersionUnknown = TiKVCDCClusterVersion{}
 
@@ -259,14 +233,14 @@ func CheckTiKVCDCClusterVersion(cdcClusterVer TiKVCDCClusterVersion) (unknown bo
 	minOrd := ver.Compare(*minTiKVCDCVersion)
 	if minOrd < 0 {
 		arg := fmt.Sprintf("TiKVCDC %s is not supported, the minimal compatible version is %s"+
-			"try tiup ctl:%s cdc [COMMAND]",
+			"try tiup ctl:%s tikv-cdc [COMMAND]",
 			ver, minTiKVCDCVersion, ver)
 		return false, cerror.ErrVersionIncompatible.GenWithStackByArgs(arg)
 	}
 	maxOrd := ver.Compare(*maxTiKVCDCVersion)
 	if maxOrd >= 0 {
 		arg := fmt.Sprintf("TiKVCDC %s is not supported, the maximum compatible version is %s"+
-			"try tiup ctl:%s cdc [COMMAND]",
+			"try tiup ctl:%s tikv-cdc [COMMAND]",
 			ver, maxTiKVCDCVersion, ver)
 		return false, cerror.ErrVersionIncompatible.GenWithStackByArgs(arg)
 	}

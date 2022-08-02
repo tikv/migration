@@ -27,7 +27,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
-	"github.com/tikv/migration/cdc/pkg/version"
 	"go.uber.org/zap"
 )
 
@@ -254,18 +253,7 @@ func (info *ChangeFeedInfo) VerifyAndComplete() error {
 
 // FixIncompatible fixes incompatible changefeed meta info.
 func (info *ChangeFeedInfo) FixIncompatible() {
-	creatorVersionGate := version.NewCreatorVersionGate(info.CreatorVersion)
-	if creatorVersionGate.ChangefeedStateFromAdminJob() {
-		log.Info("Start fixing incompatible changefeed state", zap.String("changefeed", info.String()))
-		info.fixState()
-		log.Info("Fix incompatibility changefeed state completed", zap.String("changefeed", info.String()))
-	}
-
-	if creatorVersionGate.ChangefeedAcceptUnknownProtocols() {
-		log.Info("Start fixing incompatible changefeed sink protocol", zap.String("changefeed", info.String()))
-		info.fixSinkProtocol()
-		log.Info("Fix incompatibility changefeed sink protocol completed", zap.String("changefeed", info.String()))
-	}
+	// TODO: keep this method?
 }
 
 // fixState attempts to fix state loss from upgrading the old owner to the new owner.

@@ -230,36 +230,6 @@ func TestGetTiKVCDCClusterVersion(t *testing.T) {
 	}
 }
 
-func TestTiKVCDCClusterVersionFeaturesCompatible(t *testing.T) {
-	t.Parallel()
-	ver := TiKVCDCClusterVersion{semver.New("0.9.10")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), false)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiKVCDCClusterVersion{semver.New("0.0.0")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), false)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiKVCDCClusterVersion{semver.New("1.0.0")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiKVCDCClusterVersion{semver.New("1.0.0-master")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiKVCDCClusterVersion{semver.New("1.0.10")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiKVCDCClusterVersion{semver.New("1.1.0-rc")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	require.Equal(t, TiKVCDCClusterVersionUnknown.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, TiKVCDCClusterVersionUnknown.ShouldEnableOldValueByDefault(), false)
-}
-
 func TestCheckTiKVCDCClusterVersion(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

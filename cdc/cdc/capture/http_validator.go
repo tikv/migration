@@ -80,23 +80,6 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		replicaConfig.Sink = changefeedConfig.SinkConfig
 	}
 
-	captureInfos, err := capture.owner.StatusProvider().GetCaptures(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// set sortEngine and EnableOldValue
-	cdcClusterVer, err := version.GetTiKVCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return nil, err
-	}
-	sortEngine := model.SortUnified
-	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
-		replicaConfig.EnableOldValue = false
-		if !cdcClusterVer.ShouldEnableUnifiedSorterByDefault() {
-			sortEngine = model.SortInMemory
-		}
-	}
-
 	// init ChangefeedInfo
 	info := &model.ChangeFeedInfo{
 		SinkURI:        changefeedConfig.SinkURI,
@@ -105,7 +88,7 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		StartTs:        changefeedConfig.StartTS,
 		TargetTs:       changefeedConfig.TargetTS,
 		Config:         replicaConfig,
-		Engine:         sortEngine,
+		Engine:         model.SortUnified,
 		State:          model.StateNormal,
 		CreatorVersion: version.ReleaseVersion,
 	}

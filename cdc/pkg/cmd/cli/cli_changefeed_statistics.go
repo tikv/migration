@@ -18,19 +18,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pingcap/errors"
-	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/client-go/v2/oracle"
-	"github.com/tikv/migration/cdc/cdc/model"
 	apiv1client "github.com/tikv/migration/cdc/pkg/api/v1"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/version"
 	pd "github.com/tikv/pd/client"
-	"go.uber.org/zap"
 )
 
 // status specifies the current status of the changefeed.
@@ -90,22 +85,6 @@ func (o *statisticsChangefeedOptions) complete(f factory.Factory) error {
 		return err
 	}
 	o.pdClient = pdClient
-
-	_, captureInfos, err := o.etcdClient.GetCaptures(ctx)
-	if err != nil {
-		return err
-	}
-	cdcClusterVer, err := version.GetTiKVCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	o.runWithAPIClient = true
-	if !cdcClusterVer.ShouldRunCliWithAPIClientByDefault() {
-		o.runWithAPIClient = false
-		log.Warn("The TiKVCDC cluster is built from an older version, run cli with etcd client by default.",
-			zap.String("version", cdcClusterVer.String()))
-	}
 
 	return nil
 }

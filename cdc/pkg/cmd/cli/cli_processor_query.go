@@ -16,8 +16,6 @@ package cli
 import (
 	"context"
 
-	"github.com/pingcap/errors"
-	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/cdc/model"
 	apiv1client "github.com/tikv/migration/cdc/pkg/api/v1"
@@ -26,8 +24,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/version"
-	"go.uber.org/zap"
 )
 
 type processorMeta struct {
@@ -67,22 +63,6 @@ func (o *queryProcessorOptions) complete(f factory.Factory) error {
 	o.apiClient, err = apiv1client.NewAPIClient(owner.AdvertiseAddr, nil)
 	if err != nil {
 		return err
-	}
-
-	_, captureInfos, err := o.etcdClient.GetCaptures(ctx)
-	if err != nil {
-		return err
-	}
-	cdcClusterVer, err := version.GetTiKVCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	o.runWithAPIClient = true
-	if !cdcClusterVer.ShouldRunCliWithAPIClientByDefault() {
-		o.runWithAPIClient = false
-		log.Warn("The TiKVCDC cluster is built from an older version, run cli with etcd client by default.",
-			zap.String("version", cdcClusterVer.String()))
 	}
 
 	return nil
