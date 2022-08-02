@@ -365,7 +365,7 @@ func (s *mockEntrySorterSuite) TestEventLess(c *check.C) {
 					OpType: model.OpTypeResolved,
 				},
 			},
-			true,
+			false,
 		},
 		{
 			&model.PolymorphicEvent{
