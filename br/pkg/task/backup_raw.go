@@ -11,6 +11,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
+	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/checksum"
 	"github.com/tikv/migration/br/pkg/glue"
@@ -66,11 +67,11 @@ func DefineRawBackupFlags(command *cobra.Command) {
 }
 
 // CalcChecksumFromBackupMeta read the backup meta and return Checksum
-func CalcChecksumAndRangeFromBackupMeta(ctx context.Context, backupMeta *backuppb.BackupMeta, curAPIVersion kvrpcpb.APIVersion) (checksum.Checksum, []*utils.KeyRange) {
-	fileChecksum := checksum.Checksum{}
+func CalcChecksumAndRangeFromBackupMeta(ctx context.Context, backupMeta *backuppb.BackupMeta, curAPIVersion kvrpcpb.APIVersion) (rawkv.RawChecksum, []*utils.KeyRange) {
+	fileChecksum := rawkv.RawChecksum{}
 	keyRanges := make([]*utils.KeyRange, 0, len(backupMeta.Files))
 	for _, file := range backupMeta.Files {
-		fileChecksum.Update(file.Crc64Xor, file.TotalKvs, file.TotalBytes)
+		checksum.UpdateChecksum(&fileChecksum, file.Crc64Xor, file.TotalKvs, file.TotalBytes)
 		keyRange := utils.ConvertBackupConfigKeyRange(file.StartKey, file.EndKey, backupMeta.ApiVersion, curAPIVersion)
 		keyRanges = append(keyRanges, keyRange)
 	}
@@ -235,8 +236,12 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 			checksumMethod = checksum.StorageScanCommand
 		}
 
-		executor := checksum.NewExecutor(keyRanges, cfg.PD, mgr.GetPDClient(), curAPIVersion,
+		executor, err := checksum.NewExecutor(ctx, keyRanges, cfg.PD, curAPIVersion,
 			cfg.ChecksumConcurrency)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		defer executor.Close()
 		err = checksum.Run(ctx, cmdName, executor,
 			checksumMethod, fileChecksum)
 		if err != nil {

@@ -273,8 +273,12 @@ func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
 		checksumMethod = checksum.StorageScanCommand
 	}
 
-	executor := checksum.NewExecutor(keyRanges, cfg.PD, pdCtrl.GetPDClient(), storageAPIVersion,
+	executor, err := checksum.NewExecutor(ctx, keyRanges, cfg.PD, storageAPIVersion,
 		cfg.ChecksumConcurrency)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	defer executor.Close()
 	err = checksum.Run(ctx, cmdName, executor, checksumMethod, fileChecksum)
 	if err != nil {
 		return errors.Trace(err)
