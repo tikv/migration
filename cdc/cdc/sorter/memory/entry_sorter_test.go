@@ -298,12 +298,10 @@ func (s *mockEntrySorterSuite) TestEntrySorterRandomly(c *check.C) {
 		lastEntry  *model.PolymorphicEvent
 		resolvedTs uint64
 	)
-	// lastOpType := model.OpTypePut
 	for entry := range es.Output() {
 		c.Assert(entry.CRTs, check.GreaterEqual, lastTs)
 		c.Assert(entry.CRTs, check.Greater, resolvedTs)
 		lastTs = entry.CRTs
-		//	lastOpType = entry.RawKV.OpType
 		if entry.RawKV.OpType == model.OpTypeResolved {
 			resolvedTs = entry.CRTs
 		} else {
