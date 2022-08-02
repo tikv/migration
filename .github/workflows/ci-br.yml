@@ -90,6 +90,9 @@ jobs:
         run: |
           cd br
           make test/integration
+      - name: display backup log
+        run: |
+          cat /tmp/br.log*
 # comments low version CI as they fail without checksum & split region capability.
 # Plan to support low version with feature gate in the future.
 #  br-integration-test-5X:
