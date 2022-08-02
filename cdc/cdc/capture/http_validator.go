@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/log"
 	"github.com/r3labs/diff"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
@@ -81,24 +80,6 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		replicaConfig.Sink = changefeedConfig.SinkConfig
 	}
 
-	captureInfos, err := capture.owner.StatusProvider().GetCaptures(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// set sortEngine and EnableOldValue
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return nil, err
-	}
-	sortEngine := model.SortUnified
-	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
-		replicaConfig.EnableOldValue = false
-		log.Warn("The TiCDC cluster is built from unknown branch or less than 5.0.0-rc, the old-value are disabled by default.")
-		if !cdcClusterVer.ShouldEnableUnifiedSorterByDefault() {
-			sortEngine = model.SortInMemory
-		}
-	}
-
 	// init ChangefeedInfo
 	info := &model.ChangeFeedInfo{
 		SinkURI:        changefeedConfig.SinkURI,
@@ -107,7 +88,7 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		StartTs:        changefeedConfig.StartTS,
 		TargetTs:       changefeedConfig.TargetTS,
 		Config:         replicaConfig,
-		Engine:         sortEngine,
+		Engine:         model.SortUnified,
 		State:          model.StateNormal,
 		CreatorVersion: version.ReleaseVersion,
 	}

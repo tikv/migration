@@ -166,29 +166,29 @@ func JSONPrint(cmd *cobra.Command, v interface{}) error {
 	return nil
 }
 
-// VerifyAndGetTiCDCClusterVersion verifies and gets the version of ticdc.
+// VerifyAndGetTiKVCDCClusterVersion verifies and gets the version of ticdc.
 // If it is an incompatible version, an error is returned.
-func VerifyAndGetTiCDCClusterVersion(
+func VerifyAndGetTiKVCDCClusterVersion(
 	ctx context.Context, cdcEtcdCli *etcd.CDCEtcdClient,
-) (version.TiCDCClusterVersion, error) {
+) (version.TiKVCDCClusterVersion, error) {
 	_, captureInfos, err := cdcEtcdCli.GetCaptures(ctx)
 	if err != nil {
-		return version.TiCDCClusterVersion{}, err
+		return version.TiKVCDCClusterVersion{}, err
 	}
 
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
+	cdcClusterVer, err := version.GetTiKVCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
 	if err != nil {
-		return version.TiCDCClusterVersion{}, err
+		return version.TiKVCDCClusterVersion{}, err
 	}
 
-	// Check TiCDC cluster version.
-	isUnknownVersion, err := version.CheckTiCDCClusterVersion(cdcClusterVer)
+	// Check TiKVCDC cluster version.
+	isUnknownVersion, err := version.CheckTiKVCDCClusterVersion(cdcClusterVer)
 	if err != nil {
-		return version.TiCDCClusterVersion{}, err
+		return version.TiKVCDCClusterVersion{}, err
 	}
 
 	if isUnknownVersion {
-		return version.TiCDCClusterVersion{}, errors.NewNoStackError("TiCDC cluster is unknown, please start TiCDC cluster")
+		return version.TiKVCDCClusterVersion{}, errors.NewNoStackError("TiKVCDC cluster is unknown, please start TiKVCDC cluster")
 	}
 
 	return cdcClusterVer, nil

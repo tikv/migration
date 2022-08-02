@@ -18,19 +18,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pingcap/errors"
-	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/client-go/v2/oracle"
-	"github.com/tikv/migration/cdc/cdc/model"
 	apiv1client "github.com/tikv/migration/cdc/pkg/api/v1"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/version"
 	pd "github.com/tikv/pd/client"
-	"go.uber.org/zap"
 )
 
 // status specifies the current status of the changefeed.
@@ -47,9 +42,8 @@ type statisticsChangefeedOptions struct {
 	pdClient   pd.Client
 	apiClient  apiv1client.APIV1Interface
 
-	changefeedID     string
-	interval         uint
-	runWithAPIClient bool
+	changefeedID string
+	interval     uint
 }
 
 // newStatisticsChangefeedOptions creates new options for the `cli changefeed statistics` command.
@@ -91,62 +85,7 @@ func (o *statisticsChangefeedOptions) complete(f factory.Factory) error {
 	}
 	o.pdClient = pdClient
 
-	_, captureInfos, err := o.etcdClient.GetCaptures(ctx)
-	if err != nil {
-		return err
-	}
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	o.runWithAPIClient = true
-	if !cdcClusterVer.ShouldRunCliWithAPIClientByDefault() {
-		o.runWithAPIClient = false
-		log.Warn("The TiCDC cluster is built from an older version, run cli with etcd client by default.",
-			zap.String("version", cdcClusterVer.String()))
-	}
-
 	return nil
-}
-
-// run cli command with etcd client
-func (o *statisticsChangefeedOptions) runCliWithEtcdClient(ctx context.Context, cmd *cobra.Command, lastCount *uint64, lastTime *time.Time) error {
-	now := time.Now()
-
-	changefeedStatus, _, err := o.etcdClient.GetChangeFeedStatus(ctx, o.changefeedID)
-	if err != nil {
-		return err
-	}
-
-	taskPositions, err := o.etcdClient.GetAllTaskPositions(ctx, o.changefeedID)
-	if err != nil {
-		return err
-	}
-
-	var count uint64
-	for _, pinfo := range taskPositions {
-		count += pinfo.Count
-	}
-
-	ts, _, err := o.pdClient.GetTS(ctx)
-	if err != nil {
-		return err
-	}
-
-	sinkGap := oracle.ExtractPhysical(changefeedStatus.ResolvedTs) - oracle.ExtractPhysical(changefeedStatus.CheckpointTs)
-	replicationGap := ts - oracle.ExtractPhysical(changefeedStatus.CheckpointTs)
-
-	statistics := status{
-		OPS:            (count - (*lastCount)) / uint64(now.Unix()-lastTime.Unix()),
-		SinkGap:        fmt.Sprintf("%dms", sinkGap),
-		ReplicationGap: fmt.Sprintf("%dms", replicationGap),
-		Count:          count,
-	}
-
-	*lastCount = count
-	*lastTime = now
-	return util.JSONPrint(cmd, statistics)
 }
 
 // run cli command with api client
@@ -204,11 +143,7 @@ func (o *statisticsChangefeedOptions) run(cmd *cobra.Command) error {
 				return err
 			}
 		case <-tick.C:
-			if o.runWithAPIClient {
-				_ = o.runCliWithAPIClient(ctx, cmd, &lastCount, &lastTime)
-			} else {
-				_ = o.runCliWithEtcdClient(ctx, cmd, &lastCount, &lastTime)
-			}
+			_ = o.runCliWithAPIClient(ctx, cmd, &lastCount, &lastTime)
 		}
 	}
 }
