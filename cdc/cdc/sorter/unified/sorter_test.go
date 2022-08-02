@@ -175,14 +175,14 @@ func testSorter(ctx context.Context, c *check.C, sorter sorter.EventSorter, coun
 				default:
 				}
 
-				rawKVs := generateMockRawKV(i, j)
+				rawKVs := generateMockRawKV(finalI, j)
 				sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[0]))
 				sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[1]))
 				if j%10000 == 0 {
 					atomic.StoreUint64(&producerProgress[finalI], uint64(j)<<5)
 				}
 			}
-			rawKVs := generateMockRawKV(i, count+1)
+			rawKVs := generateMockRawKV(finalI, count+1)
 			sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[0]))
 			sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[1]))
 			atomic.StoreUint64(&producerProgress[finalI], uint64(count+1)<<5)

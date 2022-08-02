@@ -28,9 +28,6 @@ func (h sortHeap) Less(i, j int) bool {
 		if h[j].entry.RawKV.OpType == model.OpTypeResolved && h[i].entry.RawKV.OpType != model.OpTypeResolved {
 			return true
 		}
-		if h[i].entry.RawKV.OpType == model.OpTypeDelete && h[j].entry.RawKV.OpType != model.OpTypeDelete {
-			return true
-		}
 	}
 	return h[i].entry.CRTs < h[j].entry.CRTs
 }
