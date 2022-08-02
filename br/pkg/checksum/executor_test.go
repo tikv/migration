@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"hash/crc64"
 	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
@@ -29,17 +30,17 @@ import (
 	"github.com/tikv/migration/br/pkg/utils"
 )
 
-type TestChecksumClient struct {
+type mockChecksumClient struct {
 	store map[string]string
 }
 
-func (c *TestChecksumClient) PutBatch(ctx context.Context, keys, values []string) {
+func (c *mockChecksumClient) PutBatch(ctx context.Context, keys, values []string) {
 	for i, key := range keys {
 		c.store[key] = values[i]
 	}
 }
 
-func (c *TestChecksumClient) Checksum(ctx context.Context, startKey, endKey []byte, options ...rawkv.RawOption) (check rawkv.RawChecksum, err error) {
+func (c *mockChecksumClient) Checksum(ctx context.Context, startKey, endKey []byte, options ...rawkv.RawOption) (check rawkv.RawChecksum, err error) {
 	digest := crc64.New(crc64.MakeTable(crc64.ECMA))
 	checksum := rawkv.RawChecksum{}
 	allKeys := []string{}
@@ -64,7 +65,7 @@ func (c *TestChecksumClient) Checksum(ctx context.Context, startKey, endKey []by
 	}
 	return checksum, nil
 }
-func (c *TestChecksumClient) Scan(ctx context.Context, startKey, endKey []byte, limit int, options ...rawkv.RawOption) (keys [][]byte, values [][]byte, err error) {
+func (c *mockChecksumClient) Scan(ctx context.Context, startKey, endKey []byte, limit int, options ...rawkv.RawOption) (keys [][]byte, values [][]byte, err error) {
 	retKeys := [][]byte{}
 	retValues := [][]byte{}
 	allKeys := []string{}
@@ -86,41 +87,41 @@ func (c *TestChecksumClient) Scan(ctx context.Context, startKey, endKey []byte, 
 	return retKeys, retValues, nil
 }
 
-func (c *TestChecksumClient) Close() error {
+func (c *mockChecksumClient) Close() error {
 	return nil
 }
 
-func GenerateTestData(keyIdx int64) (key, value string) {
+func generateTestData(keyIdx int64) (key, value string) {
 	key = fmt.Sprintf("indexInfo_:%019d", keyIdx)
 	value = fmt.Sprintf("v0%020d", keyIdx)
 	return
 }
 
-func BatchGenerateData(keyCnt int64) (keys, values []string) {
+func batchGenerateData(keyCnt int64) (keys, values []string) {
 	keys = make([]string, 0, keyCnt)
 	values = make([]string, 0, keyCnt)
 	for idx := int64(0); idx < keyCnt; idx++ {
-		key, value := GenerateTestData(idx)
+		key, value := generateTestData(idx)
 		keys = append(keys, key)
 		values = append(values, value)
 	}
 	return
 }
 
-func TestChecksumAPIV1(t *testing.T) {
+func TestChecksumExcutor(t *testing.T) {
 	ctx := context.TODO()
-	client := TestChecksumClient{
+	client := mockChecksumClient{
 		store: make(map[string]string),
 	}
 	keyCnt := int64(10240)
 	rangeCnt := int64(5)
-	keys, values := BatchGenerateData(keyCnt)
+	keys, values := batchGenerateData(keyCnt)
 	client.PutBatch(ctx, keys, values)
 
 	keyRanges := []*utils.KeyRange{}
 	for i := int64(0); i < rangeCnt; i++ {
-		start, _ := GenerateTestData(keyCnt / rangeCnt * i)
-		end, _ := GenerateTestData(keyCnt / rangeCnt * (i + 1))
+		start, _ := generateTestData(keyCnt / rangeCnt * i)
+		end, _ := generateTestData(keyCnt / rangeCnt * (i + 1))
 		keyRanges = append(keyRanges, &utils.KeyRange{
 			Start: []byte(start),
 			End:   []byte(end),
@@ -134,17 +135,16 @@ func TestChecksumAPIV1(t *testing.T) {
 	}
 	rawChecksum, err := client.Checksum(ctx, []byte("a"), []byte("z"))
 	require.Nil(t, err)
-	callbakcCnt := int64(0)
+	callbackCnt := int64(0)
 	callback := func(unit backup.ProgressUnit) {
-		callbakcCnt += 1
+		atomic.AddInt64(&callbackCnt, 1)
 	}
 	err = executor.Execute(ctx, rawChecksum, StorageChecksumCommand, callback)
 	require.Nil(t, err)
-	require.Equal(t, callbakcCnt, rangeCnt)
+	require.Equal(t, callbackCnt, rangeCnt)
 
-	callbakcCnt = int64(0)
+	callbackCnt = int64(0)
 	expectConvert := rawkv.RawChecksum{}
-	callbakcCnt = 0
 	digest := crc64.New(crc64.MakeTable(crc64.ECMA))
 	for i, key := range keys {
 		digest.Reset()
@@ -157,13 +157,13 @@ func TestChecksumAPIV1(t *testing.T) {
 	}
 	err = executor.Execute(ctx, expectConvert, StorageScanCommand, callback)
 	require.Nil(t, err)
-	require.Equal(t, callbakcCnt, rangeCnt)
+	require.Equal(t, callbackCnt, rangeCnt)
 
-	callbakcCnt = int64(0)
+	callbackCnt = int64(0)
 	apiv2KeyRanges := []*utils.KeyRange{}
 	for i := int64(0); i < rangeCnt; i++ {
-		start, _ := GenerateTestData(keyCnt / rangeCnt * i)
-		end, _ := GenerateTestData(keyCnt / rangeCnt * (i + 1))
+		start, _ := generateTestData(keyCnt / rangeCnt * i)
+		end, _ := generateTestData(keyCnt / rangeCnt * (i + 1))
 		apiv2KeyRanges = append(apiv2KeyRanges, &utils.KeyRange{
 			Start: utils.FormatAPIV2Key([]byte(start), false),
 			End:   utils.FormatAPIV2Key([]byte(end), false),
@@ -177,5 +177,5 @@ func TestChecksumAPIV1(t *testing.T) {
 	}
 	err = executor.Execute(ctx, rawChecksum, StorageChecksumCommand, callback)
 	require.Nil(t, err)
-	require.Equal(t, callbakcCnt, rangeCnt)
+	require.Equal(t, callbackCnt, rangeCnt)
 }

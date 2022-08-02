@@ -63,7 +63,7 @@ func NewExecutor(ctx context.Context, keyRanges []*utils.KeyRange, pdAddrs []str
 	concurrency uint) (*Executor, error) {
 	rawkvClient, err := rawkv.NewClientWithOpts(ctx, pdAddrs, rawkv.WithAPIVersion(apiVersion))
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	return &Executor{
 		keyRanges:      keyRanges,
