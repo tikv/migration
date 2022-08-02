@@ -36,9 +36,8 @@ type queryProcessorOptions struct {
 	etcdClient *etcd.CDCEtcdClient
 	apiClient  apiv1client.APIV1Interface
 
-	changefeedID     string
-	captureID        string
-	runWithAPIClient bool
+	changefeedID string
+	captureID    string
 }
 
 // newQueryProcessorOptions creates new options for the `cli changefeed query` command.
@@ -120,11 +119,7 @@ func (o *queryProcessorOptions) runCliWithAPIClient(ctx context.Context, cmd *co
 // run runs the `cli processor query` command.
 func (o *queryProcessorOptions) run(cmd *cobra.Command) error {
 	ctx := cmdcontext.GetDefaultContext()
-	if o.runWithAPIClient {
-		return o.runCliWithAPIClient(ctx, cmd)
-	}
-
-	return o.runCliWithEtcdClient(ctx, cmd)
+	return o.runCliWithAPIClient(ctx, cmd)
 }
 
 // newCmdQueryProcessor creates the `cli processor query` command.

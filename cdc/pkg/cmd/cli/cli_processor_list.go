@@ -24,9 +24,8 @@ import (
 
 // listProcessorOptions defines flags for the `cli processor list` command.
 type listProcessorOptions struct {
-	etcdClient       *etcd.CDCEtcdClient
-	apiClient        apiv1client.APIV1Interface
-	runWithAPIClient bool
+	etcdClient *etcd.CDCEtcdClient
+	apiClient  apiv1client.APIV1Interface
 }
 
 // newListProcessorOptions creates new listProcessorOptions for the `cli processor list` command.
@@ -59,19 +58,11 @@ func (o *listProcessorOptions) complete(f factory.Factory) error {
 // run runs the `cli processor list` command.
 func (o *listProcessorOptions) run(cmd *cobra.Command) error {
 	ctx := cmdcontext.GetDefaultContext()
-	if o.runWithAPIClient {
-		processors, err := o.apiClient.Processors().List(ctx)
-		if err != nil {
-			return err
-		}
-		return util.JSONPrint(cmd, processors)
-	}
-
-	info, err := o.etcdClient.GetProcessors(ctx)
+	processors, err := o.apiClient.Processors().List(ctx)
 	if err != nil {
 		return err
 	}
-	return util.JSONPrint(cmd, info)
+	return util.JSONPrint(cmd, processors)
 }
 
 // newCmdListProcessor creates the `cli processor list` command.

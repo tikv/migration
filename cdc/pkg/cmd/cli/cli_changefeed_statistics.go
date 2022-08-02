@@ -42,9 +42,8 @@ type statisticsChangefeedOptions struct {
 	pdClient   pd.Client
 	apiClient  apiv1client.APIV1Interface
 
-	changefeedID     string
-	interval         uint
-	runWithAPIClient bool
+	changefeedID string
+	interval     uint
 }
 
 // newStatisticsChangefeedOptions creates new options for the `cli changefeed statistics` command.
@@ -183,11 +182,7 @@ func (o *statisticsChangefeedOptions) run(cmd *cobra.Command) error {
 				return err
 			}
 		case <-tick.C:
-			if o.runWithAPIClient {
-				_ = o.runCliWithAPIClient(ctx, cmd, &lastCount, &lastTime)
-			} else {
-				_ = o.runCliWithEtcdClient(ctx, cmd, &lastCount, &lastTime)
-			}
+			_ = o.runCliWithAPIClient(ctx, cmd, &lastCount, &lastTime)
 		}
 	}
 }
