@@ -46,7 +46,7 @@ check/golangci-lint: tools/bin/golangci-lint
 	GO111MODULE=on CGO_ENABLED=0 tools/bin/golangci-lint run -v $$($(DIRECTORIES)) --config ../.golangci.yml --timeout 5m
 
 check/gosec:
-	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.11.0
+	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.12.0
 	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
 test: tools/bin/gocov tools/bin/gocov-xml
