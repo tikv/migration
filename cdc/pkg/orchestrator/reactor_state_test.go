@@ -37,7 +37,7 @@ func (s *stateSuite) TestCheckCaptureAlive(c *check.C) {
 	stateTester := NewReactorStateTester(c, state, nil)
 	state.CheckCaptureAlive("6bbc01c8-0605-4f86-a0f9-b3119109b225")
 	c.Assert(stateTester.ApplyPatches(), check.ErrorMatches, ".*[CDC:ErrLeaseExpired].*")
-	err := stateTester.Update("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`))
+	err := stateTester.Update("/tikv/cdc/capture/6bbc01c8-0605-4f86-a0f9-b3119109b225", []byte(`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600"}`))
 	c.Assert(err, check.IsNil)
 	state.CheckCaptureAlive("6bbc01c8-0605-4f86-a0f9-b3119109b225")
 	stateTester.MustApplyPatches()
@@ -69,7 +69,7 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
 				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
-				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
+				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600"}`,
 			},
 			expected: ChangefeedReactorState{
 				ID: "test1",
@@ -120,11 +120,11 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
 				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
-				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
+				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600"}`,
 				`{"checkpoint-ts":11332244,"resolved-ts":312321,"count":8,"error":null}`,
 				`{"keyspans":{"46":{"start-ts":412341234,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"46":{"workload":3}}`,
-				`{"id":"666777888","address":"127.0.0.1:8300"}`,
+				`{"id":"666777888","address":"127.0.0.1:8600"}`,
 			},
 			expected: ChangefeedReactorState{
 				ID: "test1",
@@ -181,7 +181,7 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
 				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
-				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
+				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600"}`,
 				`fake value`,
 				`fake value`,
 				`fake value`,
@@ -244,7 +244,7 @@ func (s *stateSuite) TestChangefeedStateUpdate(c *check.C) {
 				`{"checkpoint-ts":421980720003809281,"resolved-ts":421980720003809281,"count":0,"error":null}`,
 				`{"keyspans":{"45":{"start-ts":421980685886554116,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
-				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
+				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600"}`,
 				`{"checkpoint-ts":11332244,"resolved-ts":312321,"count":8,"error":null}`,
 				`{"keyspans":{"46":{"start-ts":412341234,"mark-keyspan-id":0}},"operation":null,"admin-job-type":0}`,
 				`{"46":{"workload":3}}`,
@@ -540,7 +540,7 @@ func (s *stateSuite) TestGlobalStateUpdate(c *check.C) {
 			updateValue: []string{
 				`6bbc01c8-0605-4f86-a0f9-b3119109b225`,
 				`55551111`,
-				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
+				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600"}`,
 				`{"resolved-ts":421980720003809281,"checkpoint-ts":421980719742451713,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
 				`{"46":{"workload":1}}`,
@@ -549,7 +549,7 @@ func (s *stateSuite) TestGlobalStateUpdate(c *check.C) {
 				Owner: map[string]struct{}{"22317526c4fc9a37": {}, "22317526c4fc9a38": {}},
 				Captures: map[model.CaptureID]*model.CaptureInfo{"6bbc01c8-0605-4f86-a0f9-b3119109b225": {
 					ID:            "6bbc01c8-0605-4f86-a0f9-b3119109b225",
-					AdvertiseAddr: "127.0.0.1:8300",
+					AdvertiseAddr: "127.0.0.1:8600",
 				}},
 				Changefeeds: map[model.ChangeFeedID]*ChangefeedReactorState{
 					"test1": {
@@ -588,7 +588,7 @@ func (s *stateSuite) TestGlobalStateUpdate(c *check.C) {
 			updateValue: []string{
 				`6bbc01c8-0605-4f86-a0f9-b3119109b225`,
 				`55551111`,
-				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8300"}`,
+				`{"id":"6bbc01c8-0605-4f86-a0f9-b3119109b225","address":"127.0.0.1:8600"}`,
 				`{"resolved-ts":421980720003809281,"checkpoint-ts":421980719742451713,"admin-job-type":0}`,
 				`{"45":{"workload":1}}`,
 				`{"46":{"workload":1}}`,
@@ -636,7 +636,7 @@ func (s *stateSuite) TestCaptureChangeHooks(c *check.C) {
 	state.onCaptureAdded = func(captureID model.CaptureID, addr string) {
 		callCount++
 		c.Check(captureID, check.Equals, "capture-1")
-		c.Check(addr, check.Equals, "ip-1:8300")
+		c.Check(addr, check.Equals, "ip-1:8600")
 	}
 	state.onCaptureRemoved = func(captureID model.CaptureID) {
 		callCount++
@@ -645,7 +645,7 @@ func (s *stateSuite) TestCaptureChangeHooks(c *check.C) {
 
 	captureInfo := &model.CaptureInfo{
 		ID:            "capture-1",
-		AdvertiseAddr: "ip-1:8300",
+		AdvertiseAddr: "ip-1:8600",
 	}
 	captureInfoBytes, err := json.Marshal(captureInfo)
 	c.Check(err, check.IsNil)

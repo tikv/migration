@@ -74,7 +74,7 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 		return
 	}
 
-	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to ignore ineligible table")
+	cmd.PersistentFlags().BoolVar(&o.noConfirm, "no-confirm", false, "Don't ask user whether to confirm warnings")
 	cmd.PersistentFlags().Uint64Var(&o.targetTs, "target-ts", 0, "Target ts of changefeed")
 	cmd.PersistentFlags().StringVar(&o.sinkURI, "sink-uri", "", "sink uri")
 	cmd.PersistentFlags().StringVar(&o.configFile, "config", "", "Path of the configuration file")
@@ -85,7 +85,6 @@ func (o *changefeedCommonOptions) addFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&o.format, flagKeyFormat, "hex", "The format of start and end key. Available options: \"raw\", \"escaped\", \"hex\".")
 	cmd.PersistentFlags().StringVar(&o.startKey, flagStartKey, "", "The start key of the changefeed, key is inclusive.")
 	cmd.PersistentFlags().StringVar(&o.endKey, flagEndKey, "", "The end key of the changefeed, key is exclusive.")
-
 }
 
 // strictDecodeConfig do strictDecodeFile check and only verify the rules for now.
@@ -173,27 +172,11 @@ func (o *createChangefeedOptions) complete(ctx context.Context, f factory.Factor
 
 // completeCfg complete the replica config from file and cmd flags.
 func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Command) error {
-	_, captureInfos, err := o.etcdClient.GetCaptures(ctx)
-	if err != nil {
-		return err
-	}
-
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
 	cfg := config.GetDefaultReplicaConfig()
 	if len(o.commonChangefeedOptions.configFile) > 0 {
 		if err := o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
 			return err
 		}
-	}
-
-	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
-		cfg.EnableOldValue = false
-		log.Warn("The TiKV-CDC cluster is built from an older version, disabling old value by default.",
-			zap.String("version", cdcClusterVer.String()))
 	}
 
 	if !cfg.EnableOldValue {
@@ -226,16 +209,9 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 		}
 	}
 
-	if o.commonChangefeedOptions.sortEngine == model.SortUnified && !cdcClusterVer.ShouldEnableUnifiedSorterByDefault() {
-		o.commonChangefeedOptions.sortEngine = model.SortInMemory
-		log.Warn("The TiCDC cluster is built from an older version, disabling Unified Sorter by default",
-			zap.String("version", cdcClusterVer.String()))
-	}
-
 	if o.disableGCSafePointCheck {
 		cfg.CheckGCSafePoint = false
 	}
-
 	// Complete cfg.
 	o.cfg = cfg
 
@@ -366,7 +342,6 @@ func (o *createChangefeedOptions) run(ctx context.Context, cmd *cobra.Command) e
 		if err != nil {
 			return err
 		}
-
 		if err := confirmLargeDataGap(cmd, currentPhysical, o.startTs); err != nil {
 			return err
 		}

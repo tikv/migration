@@ -146,8 +146,8 @@ type ProcessorDetail struct {
 	CheckPointTs uint64 `json:"checkpoint_ts"`
 	// The event that satisfies CommitTs <= ResolvedTs can be synchronized.
 	ResolvedTs uint64 `json:"resolved_ts"`
-	// all keyspan ids that this processor are replicating
-	KeySpans []uint64 `json:"keyspan_ids"`
+	// all keyspan that this processor are replicating
+	KeySpans map[KeySpanID]*KeySpanReplicaInfo `json:"keyspans"`
 	// The count of events that have been replicated.
 	Count uint64 `json:"count"`
 	// Error code when error happens

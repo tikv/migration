@@ -36,7 +36,7 @@ _(Will be supported soon)_
 3. Start a replication changefeed by `tikv-cdc cli changefeed create --pd <upstream PD endpoints> --sink-uri tikv://<downstream PD endpoints>`
 
 ### Arguments for start TiKV-CDC server
-* `addr`: The listening address of TiKV-CDC, the HTTP API address, and the Prometheus address of the TiKV-CDC service. The default value is 127.0.0.1:8300.
+* `addr`: The listening address of TiKV-CDC, the HTTP API address, and the Prometheus address of the TiKV-CDC service. The default value is 127.0.0.1:8600.
 * `advertise-addr`: The advertised address via which clients access TiKV-CDC. If unspecified, the value is the same as `addr`.
 * `pd`: A comma-separated list of PD endpoints.
 * `config`: The address of the configuration file that TiKV-CDC uses (optional).
@@ -58,17 +58,17 @@ tikv-cdc cli capture list --pd=http://192.168.100.122:2379
   {
     "id": "07684765-52df-42a0-8dd1-a4e9084bb7c1",
     "is-owner": false,
-    "address": "192.168.100.9:8300"
+    "address": "192.168.100.9:8600"
   },
   {
     "id": "aea1445b-c065-4dc5-be53-a445261f7fc2",
     "is-owner": true,
-    "address": "192.168.100.26:8300"
+    "address": "192.168.100.26:8600"
   },
   {
     "id": "f29496df-f6b4-4c1e-bfa3-41a058ce2144",
     "is-owner": false,
-    "address": "192.168.100.142:8300"
+    "address": "192.168.100.142:8600"
   }
 ]
 ```

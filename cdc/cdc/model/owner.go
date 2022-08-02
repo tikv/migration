@@ -216,9 +216,9 @@ func (w *TaskWorkload) Marshal() (string, error) {
 
 // KeySpanReplicaInfo records the keyspan replica info
 type KeySpanReplicaInfo struct {
-	StartTs Ts `json:"start-ts"`
-	Start   []byte
-	End     []byte
+	StartTs Ts     `json:"start-ts"`
+	Start   []byte `json:"start"`
+	End     []byte `json:"end"`
 }
 
 // Clone clones a KeySpanReplicaInfo

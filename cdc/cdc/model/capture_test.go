@@ -24,10 +24,10 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 	info := &CaptureInfo{
 		ID:            "9ff52aca-aea6-4022-8ec4-fbee3f2c7890",
-		AdvertiseAddr: "127.0.0.1:8300",
+		AdvertiseAddr: "127.0.0.1:8600",
 		Version:       "dev",
 	}
-	expected := `{"id":"9ff52aca-aea6-4022-8ec4-fbee3f2c7890","address":"127.0.0.1:8300","version":"dev"}`
+	expected := `{"id":"9ff52aca-aea6-4022-8ec4-fbee3f2c7890","address":"127.0.0.1:8600","version":"dev"}`
 	data, err := info.Marshal()
 	require.Nil(t, err)
 	require.Equal(t, expected, string(data))
@@ -41,12 +41,12 @@ func TestListVersionsFromCaptureInfos(t *testing.T) {
 	infos := []*CaptureInfo{
 		{
 			ID:            "9ff52aca-aea6-4022-8ec4-fbee3f2c7891",
-			AdvertiseAddr: "127.0.0.1:8300",
+			AdvertiseAddr: "127.0.0.1:8600",
 			Version:       "dev",
 		},
 		{
 			ID:            "9ff52aca-aea6-4022-8ec4-fbee3f2c7891",
-			AdvertiseAddr: "127.0.0.1:8300",
+			AdvertiseAddr: "127.0.0.1:8600",
 			Version:       "",
 		},
 	}

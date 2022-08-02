@@ -41,7 +41,7 @@ func (o *processorOptions) addFlags(cmd *cobra.Command) {
 	_ = cmd.PersistentFlags().MarkHidden("disable-version-check")
 }
 
-// run checks the TiCDC cluster version.
+// run checks the TiKVCDC cluster version.
 func (o *processorOptions) run(f factory.Factory) error {
 	if o.disableVersionCheck {
 		return nil
@@ -52,7 +52,7 @@ func (o *processorOptions) run(f factory.Factory) error {
 		return err
 	}
 
-	_, err = util.VerifyAndGetTiCDCClusterVersion(ctx, etcdClient)
+	_, err = util.VerifyAndGetTiKVCDCClusterVersion(ctx, etcdClient)
 	if err != nil {
 		return err
 	}

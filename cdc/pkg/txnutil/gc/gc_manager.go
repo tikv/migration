@@ -31,7 +31,7 @@ import (
 
 const (
 	// CDCServiceSafePointID is the ID of CDC service in pd.UpdateServiceGCSafePoint.
-	CDCServiceSafePointID = "ticdc"
+	CDCServiceSafePointID = "tikvcdc"
 )
 
 // gcSafepointUpdateInterval is the minimum interval that CDC can update gc safepoint

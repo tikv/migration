@@ -16,18 +16,13 @@ package cli
 import (
 	"context"
 
-	"github.com/pingcap/errors"
-	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/cdc/cdc/model"
 	apiv1client "github.com/tikv/migration/cdc/pkg/api/v1"
 	cmdcontext "github.com/tikv/migration/cdc/pkg/cmd/context"
 	"github.com/tikv/migration/cdc/pkg/cmd/factory"
 	"github.com/tikv/migration/cdc/pkg/cmd/util"
-	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/etcd"
-	"github.com/tikv/migration/cdc/pkg/version"
-	"go.uber.org/zap"
 )
 
 type processorMeta struct {
@@ -40,9 +35,8 @@ type queryProcessorOptions struct {
 	etcdClient *etcd.CDCEtcdClient
 	apiClient  apiv1client.APIV1Interface
 
-	changefeedID     string
-	captureID        string
-	runWithAPIClient bool
+	changefeedID string
+	captureID    string
 }
 
 // newQueryProcessorOptions creates new options for the `cli changefeed query` command.
@@ -69,22 +63,6 @@ func (o *queryProcessorOptions) complete(f factory.Factory) error {
 		return err
 	}
 
-	_, captureInfos, err := o.etcdClient.GetCaptures(ctx)
-	if err != nil {
-		return err
-	}
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	o.runWithAPIClient = true
-	if !cdcClusterVer.ShouldRunCliWithAPIClientByDefault() {
-		o.runWithAPIClient = false
-		log.Warn("The TiCDC cluster is built from an older version, run cli with etcd client by default.",
-			zap.String("version", cdcClusterVer.String()))
-	}
-
 	return nil
 }
 
@@ -97,23 +75,6 @@ func (o *queryProcessorOptions) addFlags(cmd *cobra.Command) {
 	_ = cmd.MarkPersistentFlagRequired("capture-id")
 }
 
-// run cli cmd with etcd client
-func (o *queryProcessorOptions) runCliWithEtcdClient(ctx context.Context, cmd *cobra.Command) error {
-	_, status, err := o.etcdClient.GetTaskStatus(ctx, o.changefeedID, o.captureID)
-	if err != nil && cerror.ErrTaskStatusNotExists.Equal(err) {
-		return err
-	}
-
-	_, position, err := o.etcdClient.GetTaskPosition(ctx, o.changefeedID, o.captureID)
-	if err != nil && cerror.ErrTaskPositionNotExists.Equal(err) {
-		return err
-	}
-
-	meta := &processorMeta{Status: status, Position: position}
-
-	return util.JSONPrint(cmd, meta)
-}
-
 // run cli cmd with api client
 func (o *queryProcessorOptions) runCliWithAPIClient(ctx context.Context, cmd *cobra.Command) error {
 	processor, err := o.apiClient.Processors().Get(ctx, o.changefeedID, o.captureID)
@@ -121,18 +82,9 @@ func (o *queryProcessorOptions) runCliWithAPIClient(ctx context.Context, cmd *co
 		return err
 	}
 
-	keyspans := make(map[uint64]*model.KeySpanReplicaInfo)
-	for _, keyspanID := range processor.KeySpans {
-		keyspans[keyspanID] = &model.KeySpanReplicaInfo{
-			// to be compatible with old version `cli processor query`,
-			// set this field to 0
-			StartTs: 0,
-		}
-	}
-
 	meta := &processorMeta{
 		Status: &model.TaskStatus{
-			KeySpans: keyspans,
+			KeySpans: processor.KeySpans,
 			// Operations, AdminJobType and ModRevision are vacant
 		},
 		Position: &model.TaskPosition{
@@ -149,11 +101,7 @@ func (o *queryProcessorOptions) runCliWithAPIClient(ctx context.Context, cmd *co
 // run runs the `cli processor query` command.
 func (o *queryProcessorOptions) run(cmd *cobra.Command) error {
 	ctx := cmdcontext.GetDefaultContext()
-	if o.runWithAPIClient {
-		return o.runCliWithAPIClient(ctx, cmd)
-	}
-
-	return o.runCliWithEtcdClient(ctx, cmd)
+	return o.runCliWithAPIClient(ctx, cmd)
 }
 
 // newCmdQueryProcessor creates the `cli processor query` command.
