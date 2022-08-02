@@ -639,8 +639,8 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
 github.com/tiancaiamao/appdash v0.0.0-20181126055449-889f96f722a2/go.mod h1:2PfKggNGDuadAa0LElHrByyrz4JPZ9fFx6Gs7nx7ZZU=
 github.com/tikv/client-go/v2 v2.0.0-rc.0.20220217140116-589cf79b2ab5/go.mod h1:gaHSp8rnxZ0w36qb6QPPNPh9P0Mu5vAEwCQcc0Brni4=
-github.com/tikv/client-go/v2 v2.0.1-0.20220720064224-aa9ded37d17d h1:xllx8pkveVLcnAkWIa+cRpCVckbJF7LHS+9pURqp0Ig=
-github.com/tikv/client-go/v2 v2.0.1-0.20220720064224-aa9ded37d17d/go.mod h1:UmDQEoeHXza8RSHBXVFERpxH54VBOf8yKZVphyel3l4=
+github.com/tikv/client-go/v2 v2.0.1-0.20220721031657-e38d2b07de3f h1:fCAWVzUJYee1pDqYTBt5j2G1WuUfOL7A2mZoONoaHgs=
+github.com/tikv/client-go/v2 v2.0.1-0.20220721031657-e38d2b07de3f/go.mod h1:UmDQEoeHXza8RSHBXVFERpxH54VBOf8yKZVphyel3l4=
 github.com/tikv/pd/client v0.0.0-20220216070739-26c668271201/go.mod h1:fEvI5fhAuJn1Fn87VJF8ByE9Vc16EzWGoePZB21/nL8=
 github.com/tikv/pd/client v0.0.0-20220216080339-1b8f82378ee7/go.mod h1:fEvI5fhAuJn1Fn87VJF8ByE9Vc16EzWGoePZB21/nL8=
 github.com/tikv/pd/client v0.0.0-20220307081149-841fa61e9710 h1:jxgmKOscXSjaFEKQGRyY5qOpK8hLqxs2irb/uDJMtwk=

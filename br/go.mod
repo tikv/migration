@@ -30,7 +30,7 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/tikv/client-go/v2 v2.0.1-0.20220720064224-aa9ded37d17d
+	github.com/tikv/client-go/v2 v2.0.1-0.20220721031657-e38d2b07de3f
 	github.com/tikv/pd/client v0.0.0-20220307081149-841fa61e9710
 	go.uber.org/goleak v1.1.12
 	go.uber.org/multierr v1.7.0
