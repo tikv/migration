@@ -15,7 +15,7 @@ package config
 
 const (
 	testCfgTestReplicaConfigOutDated = `{
-  "enable-old-value": true,
+  "enable-old-value": false,
   "check-gc-safe-point": true,
   "sink": {
     "dispatch-rules": [
@@ -106,7 +106,7 @@ const (
 }`
 
 	testCfgTestReplicaConfigMarshal1 = `{
-  "enable-old-value": true,
+  "enable-old-value": false,
   "check-gc-safe-point": true,
   "sink": {
     "dispatchers": null,
@@ -130,7 +130,7 @@ const (
 }`
 
 	testCfgTestReplicaConfigMarshal2 = `{
-  "enable-old-value": true,
+  "enable-old-value": false,
   "check-gc-safe-point": true,
   "sink": {
     "dispatchers": null,

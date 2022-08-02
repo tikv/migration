@@ -253,7 +253,13 @@ func (info *ChangeFeedInfo) VerifyAndComplete() error {
 
 // FixIncompatible fixes incompatible changefeed meta info.
 func (info *ChangeFeedInfo) FixIncompatible() {
-	// TODO: keep this method?
+	log.Info("Start fixing incompatible changefeed state", zap.String("changefeed", info.String()))
+	info.fixState()
+	log.Info("Fix incompatibility changefeed state completed", zap.String("changefeed", info.String()))
+
+	log.Info("Start fixing incompatible changefeed sink protocol", zap.String("changefeed", info.String()))
+	info.fixSinkProtocol()
+	log.Info("Fix incompatibility changefeed sink protocol completed", zap.String("changefeed", info.String()))
 }
 
 // fixState attempts to fix state loss from upgrading the old owner to the new owner.

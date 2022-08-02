@@ -86,7 +86,7 @@ func TestVerifyAndComplete(t *testing.T) {
 		Opts:    map[string]string{},
 		StartTs: 417257993615179777,
 		Config: &config.ReplicaConfig{
-			EnableOldValue:   true,
+			EnableOldValue:   false,
 			CheckGCSafePoint: true,
 		},
 	}
