@@ -235,12 +235,10 @@ func testSorter(ctx context.Context, c *check.C, sorter sorter.EventSorter, coun
 					if lastEvent != nil &&
 						bytes.Equal(lastEvent.RawKV.Key, event.RawKV.Key) {
 						if !bytes.Equal(lastEvent.RawKV.Value, []byte("value1")) {
-							errMsg := fmt.Sprintf("lastEvent value isn't equal to value1:\n")
-							panic(errMsg)
+							panic("lastEvent value isn't equal to value1")
 						}
 						if !bytes.Equal(event.RawKV.Value, []byte("value2")) {
-							errMsg := fmt.Sprintf("event value isn't equal to value2:\n")
-							panic(errMsg)
+							panic("event value isn't equal to value2")
 						}
 					}
 					lastEvent = event
