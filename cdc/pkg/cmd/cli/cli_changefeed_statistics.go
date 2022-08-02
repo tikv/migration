@@ -88,45 +88,6 @@ func (o *statisticsChangefeedOptions) complete(f factory.Factory) error {
 	return nil
 }
 
-// run cli command with etcd client
-func (o *statisticsChangefeedOptions) runCliWithEtcdClient(ctx context.Context, cmd *cobra.Command, lastCount *uint64, lastTime *time.Time) error {
-	now := time.Now()
-
-	changefeedStatus, _, err := o.etcdClient.GetChangeFeedStatus(ctx, o.changefeedID)
-	if err != nil {
-		return err
-	}
-
-	taskPositions, err := o.etcdClient.GetAllTaskPositions(ctx, o.changefeedID)
-	if err != nil {
-		return err
-	}
-
-	var count uint64
-	for _, pinfo := range taskPositions {
-		count += pinfo.Count
-	}
-
-	ts, _, err := o.pdClient.GetTS(ctx)
-	if err != nil {
-		return err
-	}
-
-	sinkGap := oracle.ExtractPhysical(changefeedStatus.ResolvedTs) - oracle.ExtractPhysical(changefeedStatus.CheckpointTs)
-	replicationGap := ts - oracle.ExtractPhysical(changefeedStatus.CheckpointTs)
-
-	statistics := status{
-		OPS:            (count - (*lastCount)) / uint64(now.Unix()-lastTime.Unix()),
-		SinkGap:        fmt.Sprintf("%dms", sinkGap),
-		ReplicationGap: fmt.Sprintf("%dms", replicationGap),
-		Count:          count,
-	}
-
-	*lastCount = count
-	*lastTime = now
-	return util.JSONPrint(cmd, statistics)
-}
-
 // run cli command with api client
 func (o *statisticsChangefeedOptions) runCliWithAPIClient(ctx context.Context, cmd *cobra.Command, lastCount *uint64, lastTime *time.Time) error {
 	now := time.Now()
