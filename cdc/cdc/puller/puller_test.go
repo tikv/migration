@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"testing"
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
@@ -38,6 +39,10 @@ import (
 type pullerSuite struct{}
 
 var _ = check.Suite(&pullerSuite{})
+
+func TestSuite(t *testing.T) {
+	check.TestingT(t)
+}
 
 type mockPdClientForPullerTest struct {
 	pd.Client
@@ -220,6 +225,38 @@ func (s *pullerSuite) TestPullerRawKV(c *check.C) {
 	ev = <-plr.Output()
 	c.Assert(ev.OpType, check.Equals, model.OpTypePut)
 	c.Assert(ev.Key, check.DeepEquals, []byte("d"))
+
+	store.Close()
+	cancel()
+	wg.Wait()
+}
+
+func (s *pullerSuite) TestAssignSequence(c *check.C) {
+	defer testleak.AfterTest(c)()
+	spans := []regionspan.Span{
+		{Start: []byte("t_a"), End: []byte("t_z")},
+	}
+	checkpointTs := uint64(999)
+	plr, cancel, wg, store := s.newPullerForTest(c, spans, checkpointTs)
+	go func() {
+		for i := 1; i <= 100; i++ {
+			plr.cli.Returns(model.RegionFeedEvent{
+				Val: &model.RawKVEntry{
+					OpType: model.OpTypePut,
+					Key:    []byte("t_b"),
+					Value:  []byte("test-value"),
+					CRTs:   checkpointTs + uint64(i),
+				},
+			})
+		}
+	}()
+
+	seq := uint64(0)
+	for seq < uint64(100) {
+		ev := <-plr.Output()
+		c.Assert(ev.Sequence, check.Equals, seq)
+		seq += 1
+	}
 
 	store.Close()
 	cancel()

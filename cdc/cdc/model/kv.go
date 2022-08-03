@@ -87,11 +87,13 @@ type RawKVEntry struct {
 	// Additional debug info
 	RegionID  uint64 `msg:"region_id"`
 	KeySpanID uint64 `msg:"keyspan_id"`
+	// For sort
+	Sequence uint64 `msg:"sequence"`
 }
 
 func (v *RawKVEntry) String() string {
-	return fmt.Sprintf("OpType: %v, Key: %s, Value: %s, StartTs: %d, CRTs: %d, RegionID: %d",
-		v.OpType, string(v.Key), string(v.Value), v.StartTs, v.CRTs, v.RegionID)
+	return fmt.Sprintf("OpType: %v, Key: %s, Value: %s, StartTs: %d, CRTs: %d, RegionID: %d, KeySpanID: %d, Sequence: %d",
+		v.OpType, string(v.Key), string(v.Value), v.StartTs, v.CRTs, v.RegionID, v.KeySpanID, v.Sequence)
 }
 
 // ApproximateDataSize calculate the approximate size of protobuf binary

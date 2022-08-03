@@ -38,6 +38,7 @@ func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
 		ExpiredTs: 2,
 		RegionID:  3,
 		KeySpanID: 4,
+		Sequence:  5,
 	}
 
 	bts, err := v.MarshalMsg(nil)
@@ -61,6 +62,7 @@ func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
 		ExpiredTs: 2,
 		RegionID:  3,
 		KeySpanID: 4,
+		Sequence:  5,
 	})
 
 	left, err = msgp.Skip(bts)
@@ -118,6 +120,7 @@ func TestEncodeDecodeRawKVEntry(t *testing.T) {
 		ExpiredTs: 2,
 		RegionID:  3,
 		KeySpanID: 4,
+		Sequence:  5,
 	}
 
 	var buf bytes.Buffer
