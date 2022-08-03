@@ -302,7 +302,7 @@ func (h *heapSorter) init(ctx context.Context, onError func(err error)) {
 	poolHandle := heapSorterPool.RegisterEvent(func(ctx context.Context, eventI interface{}) error {
 		event := eventI.(*model.PolymorphicEvent)
 		heap.Push(&h.heap, &sortItem{entry: event})
-		isResolvedEvent := event.RawKV != nil && event.RawKV.OpType == model.OpTypeResolved
+		isResolvedEvent := event.RawKV != nil && event.IsResolved()
 
 		if isResolvedEvent {
 			if event.RawKV.CRTs < state.maxResolved {

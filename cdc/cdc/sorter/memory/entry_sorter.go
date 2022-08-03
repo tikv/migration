@@ -107,7 +107,7 @@ func (es *EntrySorter) Run(ctx context.Context) error {
 				}
 				toSort = append(toSort, resEvents...)
 				startTime := time.Now()
-				sort.Slice(toSort, func(i, j int) bool {
+				sort.SliceStable(toSort, func(i, j int) bool {
 					return eventLess(toSort[i], toSort[j])
 				})
 				metricEntrySorterSortDuration.Observe(time.Since(startTime).Seconds())
@@ -159,16 +159,7 @@ func (es *EntrySorter) Output() <-chan *model.PolymorphicEvent {
 }
 
 func eventLess(i *model.PolymorphicEvent, j *model.PolymorphicEvent) bool {
-	if i.CRTs == j.CRTs {
-		if i.RawKV.OpType == model.OpTypeDelete {
-			return true
-		}
-
-		if j.RawKV.OpType == model.OpTypeResolved {
-			return true
-		}
-	}
-	return i.CRTs < j.CRTs
+	return model.ComparePolymorphicEvents(i, j)
 }
 
 func mergeEvents(kvsA []*model.PolymorphicEvent, kvsB []*model.PolymorphicEvent, output func(*model.PolymorphicEvent)) {
