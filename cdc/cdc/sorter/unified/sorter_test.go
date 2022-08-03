@@ -14,9 +14,7 @@
 package unified
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"math"
 	_ "net/http/pprof"
 	"os"
@@ -47,27 +45,15 @@ var _ = check.SerialSuites(&sorterSuite{})
 
 func Test(t *testing.T) { check.TestingT(t) }
 
-func generateMockRawKV(i, j int) [2]*model.RawKVEntry {
-	ts := uint64(j) << 5
-	return [2]*model.RawKVEntry{
-		{
-			OpType:   model.OpTypePut,
-			Key:      []byte(fmt.Sprintf("key%d-%d", i, j)),
-			Value:    []byte("value1"),
-			OldValue: nil,
-			StartTs:  ts,
-			CRTs:     ts,
-			RegionID: 0,
-		},
-		{
-			OpType:   model.OpTypeDelete,
-			Key:      []byte(fmt.Sprintf("key%d-%d", i, j)),
-			Value:    []byte("value2"),
-			OldValue: nil,
-			StartTs:  ts,
-			CRTs:     ts,
-			RegionID: 0,
-		},
+func generateMockRawKV(ts uint64) *model.RawKVEntry {
+	return &model.RawKVEntry{
+		OpType:   model.OpTypePut,
+		Key:      []byte{},
+		Value:    []byte{},
+		OldValue: nil,
+		StartTs:  ts - 5,
+		CRTs:     ts,
+		RegionID: 0,
 	}
 }
 
@@ -88,10 +74,9 @@ func (s *sorterSuite) TestSorterBasic(c *check.C) {
 	}
 	config.StoreGlobalServerConfig(conf)
 
-	var sorter sorter.EventSorter
 	err := os.MkdirAll(conf.Sorter.SortDir, 0o755)
 	c.Assert(err, check.IsNil)
-	sorter, err = NewUnifiedSorter(conf.Sorter.SortDir, "test-cf", "test", 0, "0.0.0.0:0")
+	sorter, err := NewUnifiedSorter(conf.Sorter.SortDir, "test-cf", "test", 0, "0.0.0.0:0")
 	c.Assert(err, check.IsNil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -175,16 +160,12 @@ func testSorter(ctx context.Context, c *check.C, sorter sorter.EventSorter, coun
 				default:
 				}
 
-				rawKVs := generateMockRawKV(finalI, j)
-				sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[0]))
-				sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[1]))
+				sorter.AddEntry(ctx, model.NewPolymorphicEvent(generateMockRawKV(uint64(j)<<5)))
 				if j%10000 == 0 {
 					atomic.StoreUint64(&producerProgress[finalI], uint64(j)<<5)
 				}
 			}
-			rawKVs := generateMockRawKV(finalI, count+1)
-			sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[0]))
-			sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[1]))
+			sorter.AddEntry(ctx, model.NewPolymorphicEvent(generateMockRawKV(uint64(count+1)<<5)))
 			atomic.StoreUint64(&producerProgress[finalI], uint64(count+1)<<5)
 			return nil
 		})
@@ -216,11 +197,8 @@ func testSorter(ctx context.Context, c *check.C, sorter sorter.EventSorter, coun
 
 	// launch the consumer
 	errg.Go(func() error {
-		var (
-			counter   int
-			lastTs    uint64
-			lastEvent *model.PolymorphicEvent
-		)
+		counter := 0
+		lastTs := uint64(0)
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -232,16 +210,6 @@ func testSorter(ctx context.Context, c *check.C, sorter sorter.EventSorter, coun
 					if event.CRTs < lastTs {
 						panic("regressed")
 					}
-					if lastEvent != nil &&
-						bytes.Equal(lastEvent.RawKV.Key, event.RawKV.Key) {
-						if !bytes.Equal(lastEvent.RawKV.Value, []byte("value1")) {
-							panic("lastEvent value isn't equal to value1")
-						}
-						if !bytes.Equal(event.RawKV.Value, []byte("value2")) {
-							panic("event value isn't equal to value2")
-						}
-					}
-					lastEvent = event
 					lastTs = event.CRTs
 					counter += 1
 					if counter%10000 == 0 {
@@ -483,9 +451,7 @@ func (s *sorterSuite) TestSortClosedAddEntry(c *check.C) {
 	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel1()
 	for i := 0; i < 10000; i++ {
-		rawKVs := generateMockRawKV(0, i)
-		sorter.AddEntry(ctx1, model.NewPolymorphicEvent(rawKVs[0]))
-		sorter.AddEntry(ctx1, model.NewPolymorphicEvent(rawKVs[1]))
+		sorter.AddEntry(ctx1, model.NewPolymorphicEvent(generateMockRawKV(uint64(i))))
 	}
 
 	select {
