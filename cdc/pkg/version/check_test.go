@@ -94,7 +94,7 @@ func TestCheckClusterVersion(t *testing.T) {
 
 	{
 		mock.getVersion = func() string {
-			return `v1.0.0-alpha-271-g824ae7fd`
+			return `v0.9.0-alpha-271-g824ae7fd`
 		}
 		mock.getAllStores = func() []*metapb.Store {
 			return []*metapb.Store{{Version: MinTiKVVersion.String()}}
@@ -121,7 +121,7 @@ func TestCheckClusterVersion(t *testing.T) {
 		}
 		mock.getAllStores = func() []*metapb.Store {
 			// TiKV does not include 'v'.
-			return []*metapb.Store{{Version: `1.0.0-alpha-271-g824ae7fd`}}
+			return []*metapb.Store{{Version: `0.9.0-alpha-271-g824ae7fd`}}
 		}
 		err := CheckClusterVersion(context.Background(), &mock, pdAddrs, nil, true)
 		require.Regexp(t, ".*TiKV .* is not supported.*", err)
@@ -174,8 +174,8 @@ func TestReleaseSemver(t *testing.T) {
 	cases := []struct{ releaseVersion, releaseSemver string }{
 		{"None", ""},
 		{"HEAD", ""},
-		{"v4.0.5", "4.0.5"},
-		{"v4.0.2-152-g62d7075-dev", "4.0.2"},
+		{"v1.0.0", "1.0.0"},
+		{"v1.0.0-152-g62d7075-dev", "1.0.0"},
 	}
 
 	for _, cs := range cases {
@@ -184,15 +184,15 @@ func TestReleaseSemver(t *testing.T) {
 	}
 }
 
-func TestGetTiCDCClusterVersion(t *testing.T) {
+func TestGetTiKVCDCClusterVersion(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		captureVersions []string
-		expected        TiCDCClusterVersion
+		expected        TiKVCDCClusterVersion
 	}{
 		{
 			captureVersions: []string{},
-			expected:        TiCDCClusterVersionUnknown,
+			expected:        TiKVCDCClusterVersionUnknown,
 		},
 		{
 			captureVersions: []string{
@@ -200,125 +200,67 @@ func TestGetTiCDCClusterVersion(t *testing.T) {
 				"",
 				"",
 			},
-			expected: TiCDCClusterVersion{defaultTiCDCVersion},
+			expected: TiKVCDCClusterVersion{defaultTiKVCDCVersion},
 		},
 		{
 			captureVersions: []string{
-				"5.0.1",
-				"4.0.7",
-				"5.0.0-rc",
+				"1.0.1",
+				"1.0.7",
+				"1.0.0-master",
 			},
-			expected: TiCDCClusterVersion{semver.New("4.0.7")},
+			expected: TiKVCDCClusterVersion{semver.New("1.0.0-master")},
 		},
 		{
 			captureVersions: []string{
-				"5.0.0-rc",
+				"1.0.0-master",
 			},
-			expected: TiCDCClusterVersion{semver.New("5.0.0-rc")},
+			expected: TiKVCDCClusterVersion{semver.New("1.0.0-master")},
 		},
 		{
 			captureVersions: []string{
-				"5.0.0",
+				"1.1.0",
 			},
-			expected: TiCDCClusterVersion{semver.New("5.0.0")},
-		},
-		{
-			captureVersions: []string{
-				"4.1.0",
-			},
-			expected: TiCDCClusterVersion{semver.New("4.1.0")},
-		},
-		{
-			captureVersions: []string{
-				"4.0.10",
-			},
-			expected: TiCDCClusterVersion{semver.New("4.0.10")},
+			expected: TiKVCDCClusterVersion{semver.New("1.1.0")},
 		},
 	}
 	for _, tc := range testCases {
-		ver, err := GetTiCDCClusterVersion(tc.captureVersions)
+		ver, err := GetTiKVCDCClusterVersion(tc.captureVersions)
 		require.Nil(t, err)
 		require.Equal(t, ver, tc.expected)
 	}
 }
 
-func TestTiCDCClusterVersionFeaturesCompatible(t *testing.T) {
-	t.Parallel()
-	ver := TiCDCClusterVersion{semver.New("4.0.10")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), false)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiCDCClusterVersion{semver.New("4.0.12")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), false)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiCDCClusterVersion{semver.New("4.0.13")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiCDCClusterVersion{semver.New("4.0.13-hotfix")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiCDCClusterVersion{semver.New("4.0.14")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), false)
-
-	ver = TiCDCClusterVersion{semver.New("5.0.0-rc")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), false)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), true)
-
-	ver = TiCDCClusterVersion{semver.New("5.0.0")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), true)
-
-	ver = TiCDCClusterVersion{semver.New("5.1.0")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), true)
-
-	ver = TiCDCClusterVersion{semver.New("5.2.0-alpha")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), true)
-
-	ver = TiCDCClusterVersion{semver.New("5.2.0-master")}
-	require.Equal(t, ver.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, ver.ShouldEnableOldValueByDefault(), true)
-
-	require.Equal(t, TiCDCClusterVersionUnknown.ShouldEnableUnifiedSorterByDefault(), true)
-	require.Equal(t, TiCDCClusterVersionUnknown.ShouldEnableOldValueByDefault(), true)
-}
-
-func TestCheckTiCDCClusterVersion(t *testing.T) {
+func TestCheckTiKVCDCClusterVersion(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		cdcClusterVersion TiCDCClusterVersion
+		cdcClusterVersion TiKVCDCClusterVersion
 		expectedErr       string
 		expectedUnknown   bool
 	}{
 		{
-			cdcClusterVersion: TiCDCClusterVersionUnknown,
+			cdcClusterVersion: TiKVCDCClusterVersionUnknown,
 			expectedErr:       "",
 			expectedUnknown:   true,
 		},
 		{
-			cdcClusterVersion: TiCDCClusterVersion{Version: minTiCDCVersion},
+			cdcClusterVersion: TiKVCDCClusterVersion{Version: minTiKVCDCVersion},
 			expectedErr:       "",
 			expectedUnknown:   false,
 		},
 		{
-			cdcClusterVersion: TiCDCClusterVersion{Version: semver.New("1.0.0")},
+			cdcClusterVersion: TiKVCDCClusterVersion{Version: semver.New("0.9.0")},
 			expectedErr:       ".*minimal compatible version.*",
 			expectedUnknown:   false,
 		},
 		{
-			cdcClusterVersion: TiCDCClusterVersion{Version: semver.New("10000.0.0")},
+			cdcClusterVersion: TiKVCDCClusterVersion{Version: semver.New("10000.0.0")},
 			expectedErr:       ".*maximum compatible version.*",
 			expectedUnknown:   false,
 		},
 	}
 
 	for _, tc := range testCases {
-		isUnknown, err := CheckTiCDCClusterVersion(tc.cdcClusterVersion)
+		isUnknown, err := CheckTiKVCDCClusterVersion(tc.cdcClusterVersion)
 		require.Equal(t, isUnknown, tc.expectedUnknown)
 		if len(tc.expectedErr) != 0 {
 			require.Regexp(t, tc.expectedErr, err)

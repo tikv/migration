@@ -220,6 +220,7 @@ func (s *ownerSuite) TestFixChangefeedState(c *check.C) {
 	tester.MustApplyPatches()
 	c.Assert(err, check.IsNil)
 	c.Assert(owner.changefeeds, check.HasKey, changefeedID)
+
 	// The meta information is fixed correctly.
 	c.Assert(owner.changefeeds[changefeedID].state.Info.State, check.Equals, model.StateStopped)
 }

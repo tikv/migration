@@ -172,27 +172,11 @@ func (o *createChangefeedOptions) complete(ctx context.Context, f factory.Factor
 
 // completeCfg complete the replica config from file and cmd flags.
 func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Command) error {
-	_, captureInfos, err := o.etcdClient.GetCaptures(ctx)
-	if err != nil {
-		return err
-	}
-
-	cdcClusterVer, err := version.GetTiCDCClusterVersion(model.ListVersionsFromCaptureInfos(captureInfos))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
 	cfg := config.GetDefaultReplicaConfig()
 	if len(o.commonChangefeedOptions.configFile) > 0 {
 		if err := o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
 			return err
 		}
-	}
-
-	if !cdcClusterVer.ShouldEnableOldValueByDefault() {
-		cfg.EnableOldValue = false
-		log.Warn("The TiKV-CDC cluster is built from an older version, disabling old value by default.",
-			zap.String("version", cdcClusterVer.String()))
 	}
 
 	if !cfg.EnableOldValue {
@@ -223,12 +207,6 @@ func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Co
 					"switching on the old value, so please use caution! dispatch-rules: %#v", rules)
 			}
 		}
-	}
-
-	if o.commonChangefeedOptions.sortEngine == model.SortUnified && !cdcClusterVer.ShouldEnableUnifiedSorterByDefault() {
-		o.commonChangefeedOptions.sortEngine = model.SortInMemory
-		log.Warn("The TiCDC cluster is built from an older version, disabling Unified Sorter by default",
-			zap.String("version", cdcClusterVer.String()))
 	}
 
 	if o.disableGCSafePointCheck {

@@ -79,12 +79,14 @@ var _ btree.Item = &Range{}
 // All the ranges it stored do not overlap.
 type RangeTree struct {
 	*btree.BTree
+	hasValidRange bool
 }
 
 // NewRangeTree returns an empty range tree.
 func NewRangeTree() RangeTree {
 	return RangeTree{
-		BTree: btree.New(32),
+		BTree:         btree.New(32),
+		hasValidRange: false,
 	}
 }
 
@@ -140,6 +142,7 @@ func (rangeTree *RangeTree) Update(rg Range) {
 		rangeTree.Delete(item)
 	}
 	rangeTree.ReplaceOrInsert(&rg)
+	rangeTree.hasValidRange = true
 }
 
 // Put forms a range and inserts it into tree.
@@ -214,6 +217,11 @@ func (rangeTree *RangeTree) GetIncompleteRange(
 			incomplete =
 				append(incomplete, Range{StartKey: start, EndKey: end})
 		}
+	}
+	// is no valid range in Btree, and startKey/endKey are both empty, incomplete is empty too.
+	// This is not the result we need, append the whole input range.
+	if !rangeTree.hasValidRange && len(incomplete) == 0 {
+		incomplete = append(incomplete, Range{StartKey: startKey, EndKey: endKey})
 	}
 	return incomplete
 }

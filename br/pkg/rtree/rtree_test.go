@@ -17,6 +17,14 @@ func newRange(start, end []byte) *rtree.Range {
 	}
 }
 
+func TestEmptyRange(t *testing.T) {
+	rangeTree := rtree.NewRangeTree()
+	inCompelete := rangeTree.GetIncompleteRange([]byte(""), []byte(""))
+	require.Equal(t, len(inCompelete), 1)
+	require.Equal(t, inCompelete[0].StartKey, []byte(""))
+	require.Equal(t, inCompelete[0].EndKey, []byte(""))
+}
+
 func TestRangeTree(t *testing.T) {
 	rangeTree := rtree.NewRangeTree()
 	require.Nil(t, rangeTree.Get(newRange([]byte(""), []byte(""))))
