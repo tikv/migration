@@ -47,8 +47,7 @@ var _ = check.SerialSuites(&sorterSuite{})
 
 func Test(t *testing.T) { check.TestingT(t) }
 
-func generateMockRawKV(i, j int) [2]*model.RawKVEntry {
-	ts := uint64(j) << 5
+func generateMockRawKV(i, j int, ts uint64) [2]*model.RawKVEntry {
 	return [2]*model.RawKVEntry{
 		{
 			OpType:   model.OpTypePut,
@@ -176,14 +175,14 @@ func testSorter(ctx context.Context, c *check.C, sorter sorter.EventSorter, coun
 				default:
 				}
 
-				rawKVs := generateMockRawKV(finalI, j)
+				rawKVs := generateMockRawKV(finalI, j, uint64(j)<<5)
 				sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[0]))
 				sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[1]))
 				if j%10000 == 0 {
 					atomic.StoreUint64(&producerProgress[finalI], uint64(j)<<5)
 				}
 			}
-			rawKVs := generateMockRawKV(finalI, count+1)
+			rawKVs := generateMockRawKV(finalI, count+1, uint64(count+1)<<5)
 			sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[0]))
 			sorter.AddEntry(ctx, model.NewPolymorphicEvent(rawKVs[1]))
 			atomic.StoreUint64(&producerProgress[finalI], uint64(count+1)<<5)
@@ -484,7 +483,7 @@ func (s *sorterSuite) TestSortClosedAddEntry(c *check.C) {
 	ctx1, cancel1 := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel1()
 	for i := 0; i < 10000; i++ {
-		rawKVs := generateMockRawKV(0, i)
+		rawKVs := generateMockRawKV(0, 0, uint64(i))
 		sorter.AddEntry(ctx1, model.NewPolymorphicEvent(rawKVs[0]))
 		sorter.AddEntry(ctx1, model.NewPolymorphicEvent(rawKVs[1]))
 	}
