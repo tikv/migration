@@ -58,6 +58,7 @@ type pullerImpl struct {
 	resolvedTs     uint64
 	initialized    int64
 	enableOldValue bool
+	eventSeq       uint64
 }
 
 // NewPuller create a new Puller fetch event start from checkpointTs
@@ -95,6 +96,7 @@ func NewPuller(
 		resolvedTs:     checkpointTs,
 		initialized:    0,
 		enableOldValue: enableOldValue,
+		eventSeq:       0,
 	}
 	return p
 }
@@ -185,6 +187,8 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 			log.Debug("[TRACE] revcive region feed event", zap.Stringer("event", e))
 
 			if e.Val != nil {
+				e.Val.Sequence = p.eventSeq
+				p.eventSeq += 1
 				metricTxnCollectCounterKv.Inc()
 				if err := output(e.Val); err != nil {
 					return errors.Trace(err)

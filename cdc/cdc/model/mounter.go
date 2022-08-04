@@ -60,6 +60,11 @@ func (e *PolymorphicEvent) IsResolved() bool {
 	return e.RawKV.OpType == OpTypeResolved
 }
 
+// Sequence returns the sequence of the event.
+func (e *PolymorphicEvent) Sequence() uint64 {
+	return e.RawKV.Sequence
+}
+
 // ComparePolymorphicEvents compares two events by CRTs, Resolved order.
 // It returns true if and only if i should precede j.
 func ComparePolymorphicEvents(i, j *PolymorphicEvent) bool {
@@ -69,6 +74,8 @@ func ComparePolymorphicEvents(i, j *PolymorphicEvent) bool {
 		} else if j.IsResolved() {
 			return true
 		}
+
+		return i.Sequence() < j.Sequence()
 	}
 	return i.CRTs < j.CRTs
 }

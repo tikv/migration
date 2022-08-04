@@ -72,3 +72,121 @@ func TestPolymorphicEventPrepare(t *testing.T) {
 	err := polyEvent.WaitPrepare(cctx)
 	require.Equal(t, context.Canceled, err)
 }
+
+func TestComparePolymorphicEvents(t *testing.T) {
+	testCases := []struct {
+		i        *PolymorphicEvent
+		j        *PolymorphicEvent
+		expected bool
+	}{
+		{
+			&PolymorphicEvent{
+				CRTs: 1,
+			},
+			&PolymorphicEvent{
+				CRTs: 2,
+			},
+			true,
+		},
+		{
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType: OpTypeResolved,
+				},
+			},
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType: OpTypePut,
+				},
+			},
+			false,
+		},
+		{
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType: OpTypeResolved,
+				},
+			},
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType: OpTypeResolved,
+				},
+			},
+			false,
+		},
+		{
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType: OpTypePut,
+				},
+			},
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType: OpTypeResolved,
+				},
+			},
+			true,
+		},
+		{
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType:   OpTypePut,
+					Sequence: 1,
+				},
+			},
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType:   OpTypePut,
+					Sequence: 2,
+				},
+			},
+			true,
+		},
+		{
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType:   OpTypePut,
+					Sequence: 2,
+				},
+			},
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType:   OpTypePut,
+					Sequence: 1,
+				},
+			},
+			false,
+		},
+		{
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType:   OpTypeResolved,
+					Sequence: 1,
+				},
+			},
+			&PolymorphicEvent{
+				CRTs: 2,
+				RawKV: &RawKVEntry{
+					OpType:   OpTypePut,
+					Sequence: 2,
+				},
+			},
+			false,
+		},
+	}
+
+	for _, tc := range testCases {
+		require.Equal(t, tc.expected, ComparePolymorphicEvents(tc.i, tc.j))
+	}
+}
