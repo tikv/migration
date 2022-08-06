@@ -732,7 +732,7 @@ func (w *regionWorker) handleResolvedTs(
 	}
 	regionID := state.sri.verID.GetID()
 
-	lastResolvedTs := state.lastResolvedTs[1]
+	lastResolvedTs0, lastResolvedTs := state.lastResolvedTs[0], state.lastResolvedTs[1]
 	if resolvedTs < lastResolvedTs {
 		// TODO: panic ?
 		log.Warn("The resolvedTs is fallen back in kvclient",
@@ -744,7 +744,7 @@ func (w *regionWorker) handleResolvedTs(
 	}
 	state.lastResolvedTs[0], state.lastResolvedTs[1] = lastResolvedTs, resolvedTs
 
-	if lastResolvedTs != 0 {
+	if lastResolvedTs0 != 0 {
 		// Send resolved ts update in non blocking way, since we can re-query real
 		// resolved ts from region state even if resolved ts update is discarded.
 		// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic
