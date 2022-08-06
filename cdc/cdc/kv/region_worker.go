@@ -736,6 +736,7 @@ func (w *regionWorker) handleResolvedTs(
 		log.Warn("The resolvedTs is smaller than the ResolvedTsSafeInterval",
 			zap.Uint64("resolvedTs", resolvedTs),
 			zap.Uint64("regionID", regionID))
+		return nil
 	}
 	// Send resolved ts update in non blocking way, since we can re-query real
 	// resolved ts from region state even if resolved ts update is discarded.
@@ -743,25 +744,25 @@ func (w *regionWorker) handleResolvedTs(
 	// (1) if it is a fallback resolvedTs event, it will be discarded and accumulate penalty on the progress;
 	// (2) if it is a normal one, update rtsManager and check sinceLastResolvedTs
 	select {
-	case w.rtsUpdateCh <- &regionTsInfo{regionID: regionID, ts: newResolvedTsItem(resolvedTs)}:
+	case w.rtsUpdateCh <- &regionTsInfo{regionID: regionID, ts: newResolvedTsItem(safeResolvedTs)}:
 	default:
 	}
 
-	if resolvedTs < state.lastResolvedTs {
+	if safeResolvedTs < state.lastResolvedTs {
 		log.Warn("The resolvedTs is fallen back in kvclient",
 			zap.String("Event Type", "RESOLVED"),
-			zap.Uint64("resolvedTs", resolvedTs),
+			zap.Uint64("safeResolvedTs", safeResolvedTs),
 			zap.Uint64("lastResolvedTs", state.lastResolvedTs),
 			zap.Uint64("regionID", regionID))
 		return nil
 	}
-	state.lastResolvedTs = resolvedTs
+	state.lastResolvedTs = safeResolvedTs
 	// emit a checkpointTs
 	revent := model.RegionFeedEvent{
 		RegionID: regionID,
 		Resolved: &model.ResolvedSpan{
 			Span:       state.sri.span,
-			ResolvedTs: resolvedTs,
+			ResolvedTs: safeResolvedTs,
 		},
 	}
 
