@@ -207,7 +207,7 @@ func (s *regionFeedState) isStopped() bool {
 func (s *regionFeedState) getLastResolvedTs() uint64 {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	return s.lastResolvedTs[1]
+	return s.lastResolvedTs[0]
 }
 
 func (s *regionFeedState) getRegionSpan() regionspan.ComparableSpan {
