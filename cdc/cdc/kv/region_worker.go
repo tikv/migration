@@ -730,6 +730,13 @@ func (w *regionWorker) handleResolvedTs(
 		return nil
 	}
 	regionID := state.sri.verID.GetID()
+
+	safeResolvedTs := GetSafeResolvedTs(resolvedTs)
+	if safeResolvedTs == 0 {
+		log.Warn("The resolvedTs is smaller than the ResolvedTsSafeInterval",
+			zap.Uint64("resolvedTs", resolvedTs),
+			zap.Uint64("regionID", regionID))
+	}
 	// Send resolved ts update in non blocking way, since we can re-query real
 	// resolved ts from region state even if resolved ts update is discarded.
 	// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic
@@ -827,4 +834,18 @@ func RunWorkerPool(ctx context.Context) error {
 		return errors.Trace(regionWorkerPool.Run(ctx))
 	})
 	return errg.Wait()
+}
+
+func GetSafeResolvedTs(resolvedTs uint64) uint64 {
+	cfg := config.GetGlobalServerConfig().KVClient
+
+	logicalTs := oracle.ExtractLogical(resolvedTs)
+	time := oracle.GetTimeFromTS(resolvedTs)
+
+	safeTime := time.Add(-cfg.ResolvedTsSafeInterval)
+	if safeTime.IsZero() {
+		return 0
+	}
+
+	return oracle.ComposeTS(oracle.GetPhysical(safeTime), logicalTs)
 }

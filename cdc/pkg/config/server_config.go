@@ -93,9 +93,10 @@ var defaultServerConfig = &ServerConfig{
 	Security:              &SecurityConfig{},
 	PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10MB
 	KVClient: &KVClientConfig{
-		WorkerConcurrent: 8,
-		WorkerPoolSize:   0, // 0 will use NumCPU() * 2
-		RegionScanLimit:  40,
+		WorkerConcurrent:       8,
+		WorkerPoolSize:         0, // 0 will use NumCPU() * 2
+		RegionScanLimit:        40,
+		ResolvedTsSafeInterval: 3 * time.Second,
 	},
 	Debug: &DebugConfig{
 		EnableKeySpanActor: false,
