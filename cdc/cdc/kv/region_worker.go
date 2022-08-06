@@ -661,12 +661,12 @@ func (w *regionWorker) handleEventEntry(
 				return errors.Trace(err)
 			}
 
-			if entry.CommitTs <= state.lastResolvedTs[1] {
+			if entry.CommitTs <= state.lastResolvedTs[0] {
 				// TODO(resolved-ts): should panic. Just logging as error now.
 				log.Error("The CommitTs must be greater than the resolvedTs",
 					zap.String("Event Type", "COMMITTED"),
 					zap.Uint64("CommitTs", entry.CommitTs),
-					zap.Uint64("resolvedTs", state.lastResolvedTs[1]),
+					zap.Uint64("resolvedTs", state.lastResolvedTs[0]),
 					zap.Uint64("regionID", regionID),
 					zap.Any("entry", entry),
 				)
@@ -683,11 +683,11 @@ func (w *regionWorker) handleEventEntry(
 			state.matcher.putPrewriteRow(entry)
 		case cdcpb.Event_COMMIT:
 			w.metrics.metricPullEventCommitCounter.Inc()
-			if entry.CommitTs <= state.lastResolvedTs[1] {
+			if entry.CommitTs <= state.lastResolvedTs[0] {
 				logPanic("The CommitTs must be greater than the resolvedTs",
 					zap.String("Event Type", "COMMIT"),
 					zap.Uint64("CommitTs", entry.CommitTs),
-					zap.Uint64("resolvedTs", state.lastResolvedTs[1]),
+					zap.Uint64("resolvedTs", state.lastResolvedTs[0]),
 					zap.Uint64("regionID", regionID))
 				return errUnreachable
 			}
@@ -744,7 +744,7 @@ func (w *regionWorker) handleResolvedTs(
 	}
 	state.lastResolvedTs[0], state.lastResolvedTs[1] = lastResolvedTs, resolvedTs
 
-	if lastResolvedTs0 != 0 {
+	if lastResolvedTs0 != lastResolvedTs {
 		// Send resolved ts update in non blocking way, since we can re-query real
 		// resolved ts from region state even if resolved ts update is discarded.
 		// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic

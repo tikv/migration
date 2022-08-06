@@ -191,7 +191,7 @@ func newRegionFeedState(sri singleRegionInfo, requestID uint64) *regionFeedState
 
 func (s *regionFeedState) start() {
 	s.startFeedTime = time.Now()
-	s.lastResolvedTs[0] = 0
+	s.lastResolvedTs[0] = s.sri.ts
 	s.lastResolvedTs[1] = s.sri.ts
 	s.matcher = newMatcher()
 }
