@@ -844,9 +844,10 @@ func GetSafeResolvedTs(resolvedTs uint64) uint64 {
 	time := oracle.GetTimeFromTS(resolvedTs)
 
 	safeTime := time.Add(-cfg.ResolvedTsSafeInterval)
-	if safeTime.IsZero() {
+	physicalTs := oracle.GetPhysical(safeTime)
+	if physicalTs < 0 {
 		return 0
 	}
 
-	return oracle.ComposeTS(oracle.GetPhysical(safeTime), logicalTs)
+	return oracle.ComposeTS(physicalTs, logicalTs)
 }
