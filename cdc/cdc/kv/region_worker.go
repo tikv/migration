@@ -41,7 +41,7 @@ var (
 	regionWorkerPool workerpool.WorkerPool
 	workerPoolOnce   sync.Once
 	// The magic number here is keep the same with some magic numbers in some
-	// other components in TiCDC, including worker pool task chan size, mounter
+	// other components in TiKV-CDC, including worker pool task chan size, mounter
 	// chan size etc.
 	// TODO: unified channel buffer mechanism
 	regionWorkerInputChanSize = 128
@@ -236,8 +236,8 @@ func (w *regionWorker) checkShouldExit() error {
 }
 
 func (w *regionWorker) handleSingleRegionError(err error, state *regionFeedState) error {
-	if state.lastResolvedTs > state.sri.ts {
-		state.sri.ts = state.lastResolvedTs
+	if state.lastResolvedTs[0] > state.sri.ts {
+		state.sri.ts = state.lastResolvedTs[0]
 	}
 	regionID := state.sri.verID.GetID()
 	log.Info("single region event feed disconnected",
@@ -331,6 +331,7 @@ func (w *regionWorker) resolveLock(ctx context.Context) error {
 					continue
 				}
 				// recheck resolved ts from region state, which may be larger than that in resolved ts heap
+
 				lastResolvedTs := state.getLastResolvedTs()
 				sinceLastResolvedTs := currentTimeFromPD.Sub(oracle.GetTimeFromTS(lastResolvedTs))
 				if sinceLastResolvedTs >= resolveLockInterval {
@@ -660,12 +661,12 @@ func (w *regionWorker) handleEventEntry(
 				return errors.Trace(err)
 			}
 
-			if entry.CommitTs <= state.lastResolvedTs {
+			if entry.CommitTs <= state.lastResolvedTs[1] {
 				// TODO(resolved-ts): should panic. Just logging as error now.
 				log.Error("The CommitTs must be greater than the resolvedTs",
 					zap.String("Event Type", "COMMITTED"),
 					zap.Uint64("CommitTs", entry.CommitTs),
-					zap.Uint64("resolvedTs", state.lastResolvedTs),
+					zap.Uint64("resolvedTs", state.lastResolvedTs[1]),
 					zap.Uint64("regionID", regionID),
 					zap.Any("entry", entry),
 				)
@@ -682,11 +683,11 @@ func (w *regionWorker) handleEventEntry(
 			state.matcher.putPrewriteRow(entry)
 		case cdcpb.Event_COMMIT:
 			w.metrics.metricPullEventCommitCounter.Inc()
-			if entry.CommitTs <= state.lastResolvedTs {
+			if entry.CommitTs <= state.lastResolvedTs[1] {
 				logPanic("The CommitTs must be greater than the resolvedTs",
 					zap.String("Event Type", "COMMIT"),
 					zap.Uint64("CommitTs", entry.CommitTs),
-					zap.Uint64("resolvedTs", state.lastResolvedTs),
+					zap.Uint64("resolvedTs", state.lastResolvedTs[1]),
 					zap.Uint64("regionID", regionID))
 				return errUnreachable
 			}
@@ -730,39 +731,45 @@ func (w *regionWorker) handleResolvedTs(
 		return nil
 	}
 	regionID := state.sri.verID.GetID()
-	// Send resolved ts update in non blocking way, since we can re-query real
-	// resolved ts from region state even if resolved ts update is discarded.
-	// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic
-	// (1) if it is a fallback resolvedTs event, it will be discarded and accumulate penalty on the progress;
-	// (2) if it is a normal one, update rtsManager and check sinceLastResolvedTs
-	select {
-	case w.rtsUpdateCh <- &regionTsInfo{regionID: regionID, ts: newResolvedTsItem(resolvedTs)}:
-	default:
-	}
 
-	if resolvedTs < state.lastResolvedTs {
+	lastResolvedTs := state.lastResolvedTs[1]
+	if resolvedTs < lastResolvedTs {
+		// TODO: panic ?
 		log.Warn("The resolvedTs is fallen back in kvclient",
 			zap.String("Event Type", "RESOLVED"),
 			zap.Uint64("resolvedTs", resolvedTs),
-			zap.Uint64("lastResolvedTs", state.lastResolvedTs),
+			zap.Uint64("lastResolvedTs", lastResolvedTs),
 			zap.Uint64("regionID", regionID))
 		return nil
 	}
-	state.lastResolvedTs = resolvedTs
-	// emit a checkpointTs
-	revent := model.RegionFeedEvent{
-		RegionID: regionID,
-		Resolved: &model.ResolvedSpan{
-			Span:       state.sri.span,
-			ResolvedTs: resolvedTs,
-		},
-	}
+	state.lastResolvedTs[0], state.lastResolvedTs[1] = lastResolvedTs, resolvedTs
 
-	select {
-	case w.outputCh <- revent:
-		w.metrics.metricSendEventResolvedCounter.Inc()
-	case <-ctx.Done():
-		return errors.Trace(ctx.Err())
+	if lastResolvedTs != 0 {
+		// Send resolved ts update in non blocking way, since we can re-query real
+		// resolved ts from region state even if resolved ts update is discarded.
+		// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic
+		// (1) if it is a fallback resolvedTs event, it will be discarded and accumulate penalty on the progress;
+		// (2) if it is a normal one, update rtsManager and check sinceLastResolvedTs
+		select {
+		case w.rtsUpdateCh <- &regionTsInfo{regionID: regionID, ts: newResolvedTsItem(lastResolvedTs)}:
+		default:
+		}
+
+		// emit a checkpointTs
+		revent := model.RegionFeedEvent{
+			RegionID: regionID,
+			Resolved: &model.ResolvedSpan{
+				Span:       state.sri.span,
+				ResolvedTs: lastResolvedTs,
+			},
+		}
+
+		select {
+		case w.outputCh <- revent:
+			w.metrics.metricSendEventResolvedCounter.Inc()
+		case <-ctx.Done():
+			return errors.Trace(ctx.Err())
+		}
 	}
 	return nil
 }
@@ -781,8 +788,8 @@ func (w *regionWorker) evictAllRegions() {
 			}
 			state.markStopped()
 			w.delRegionState(state.sri.verID.GetID())
-			if state.lastResolvedTs > state.sri.ts {
-				state.sri.ts = state.lastResolvedTs
+			if state.lastResolvedTs[0] > state.sri.ts {
+				state.sri.ts = state.lastResolvedTs[0]
 			}
 			revokeToken := !state.initialized
 			state.lock.Unlock()

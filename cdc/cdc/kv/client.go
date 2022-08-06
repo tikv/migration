@@ -178,7 +178,7 @@ type regionFeedState struct {
 	initialized    bool
 	matcher        *matcher
 	startFeedTime  time.Time
-	lastResolvedTs uint64
+	lastResolvedTs [2]uint64
 }
 
 func newRegionFeedState(sri singleRegionInfo, requestID uint64) *regionFeedState {
@@ -191,7 +191,8 @@ func newRegionFeedState(sri singleRegionInfo, requestID uint64) *regionFeedState
 
 func (s *regionFeedState) start() {
 	s.startFeedTime = time.Now()
-	s.lastResolvedTs = s.sri.ts
+	s.lastResolvedTs[0] = 0
+	s.lastResolvedTs[1] = s.sri.ts
 	s.matcher = newMatcher()
 }
 
@@ -206,7 +207,7 @@ func (s *regionFeedState) isStopped() bool {
 func (s *regionFeedState) getLastResolvedTs() uint64 {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	return s.lastResolvedTs
+	return s.lastResolvedTs[1]
 }
 
 func (s *regionFeedState) getRegionSpan() regionspan.ComparableSpan {
