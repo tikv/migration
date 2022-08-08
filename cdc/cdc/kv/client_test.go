@@ -332,7 +332,6 @@ func waitRequestID(c *check.C, allocatedID uint64) {
 func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	wg := &sync.WaitGroup{}
 	ch2 := make(chan *cdcpb.ChangeDataEvent, 10)
 	srv := newMockChangeDataService(c, ch2)
@@ -340,6 +339,7 @@ func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 	defer func() {
 		close(ch2)
 		server2.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -424,8 +424,6 @@ func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 	c.Assert(ok, check.IsTrue)
 	empty := bucket.recycle()
 	c.Assert(empty, check.IsTrue)
-
-	cancel()
 }
 
 func (s *clientSuite) TestRecvLargeMessageSize(c *check.C) {
@@ -438,10 +436,9 @@ func (s *clientSuite) TestRecvLargeMessageSize(c *check.C) {
 	defer func() {
 		close(ch2)
 		server2.Stop()
+		cancel()
 		wg.Wait()
 	}()
-	// Cancel first, and then close the server.
-	defer cancel()
 
 	rpcClient, cluster, pdClient, err := testutils.NewMockTiKV("", mockcopr.NewCoprRPCHandler())
 	c.Assert(err, check.IsNil)
@@ -510,7 +507,6 @@ func (s *clientSuite) TestRecvLargeMessageSize(c *check.C) {
 		c.Fatalf("receiving message takes too long")
 	}
 	c.Assert(len(event.Val.Value), check.Equals, largeValSize)
-	cancel()
 }
 
 func (s *clientSuite) TestHandleError(c *check.C) {
@@ -531,6 +527,7 @@ func (s *clientSuite) TestHandleError(c *check.C) {
 		server1.Stop()
 		close(ch2)
 		server2.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -679,7 +676,6 @@ consumePreResolvedTs:
 	c.Assert(event.Resolved, check.NotNil)
 	c.Assert(event.Resolved.ResolvedTs, check.Equals, uint64(120))
 
-	cancel()
 }
 
 // TestCompatibilityWithSameConn tests kv client returns an error when TiKV returns
@@ -696,6 +692,7 @@ func (s *clientSuite) TestCompatibilityWithSameConn(c *check.C) {
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -744,7 +741,6 @@ func (s *clientSuite) TestCompatibilityWithSameConn(c *check.C) {
 	}}
 	ch1 <- incompatibility
 	wg2.Wait()
-	cancel()
 }
 
 // TestClusterIDMismatch tests kv client returns an error when TiKV returns
@@ -761,6 +757,7 @@ func (s *clientSuite) TestClusterIDMismatch(c *check.C) {
 	defer func() {
 		close(changeDataCh)
 		mockService.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -816,7 +813,6 @@ func (s *clientSuite) TestClusterIDMismatch(c *check.C) {
 	changeDataCh <- clusterIDMismatchEvent
 
 	wg2.Wait()
-	cancel()
 }
 
 func (s *clientSuite) testHandleFeedEvent(c *check.C) {
@@ -830,6 +826,7 @@ func (s *clientSuite) testHandleFeedEvent(c *check.C) {
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -1230,8 +1227,6 @@ func (s *clientSuite) testHandleFeedEvent(c *check.C) {
 			c.Errorf("expected event %v not received", multipleExpected)
 		}
 	}
-
-	cancel()
 }
 
 func (s *clientSuite) TestHandleFeedEvent(c *check.C) {
@@ -1259,8 +1254,10 @@ func (s *clientSuite) TestStreamSendWithError(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
-	defer wg.Wait()
-	defer cancel()
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
 
 	server1Stopped := make(chan struct{})
 	ch1 := make(chan *cdcpb.ChangeDataEvent, 10)
@@ -1383,6 +1380,7 @@ func (s *clientSuite) testStreamRecvWithError(c *check.C, failpointStr string) {
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -1486,7 +1484,6 @@ eventLoop:
 		}
 	}
 	c.Assert(events, check.DeepEquals, expected)
-	cancel()
 }
 
 // TestStreamRecvWithErrorAndResolvedGoBack mainly tests the scenario that the `Recv` call of a gPRC
@@ -1722,6 +1719,7 @@ func (s *clientSuite) TestIncompatibleTiKV(c *check.C) {
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -1786,7 +1784,6 @@ func (s *clientSuite) TestIncompatibleTiKV(c *check.C) {
 		c.Errorf("expected events are not receive")
 	}
 
-	cancel()
 }
 
 // TestPendingRegionError tests kv client should return an error when receiving
@@ -1803,6 +1800,7 @@ func (s *clientSuite) TestNoPendingRegionError(c *check.C) {
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -1863,7 +1861,6 @@ func (s *clientSuite) TestNoPendingRegionError(c *check.C) {
 	c.Assert(ev.Resolved, check.NotNil)
 	c.Assert(ev.Resolved.ResolvedTs, check.Equals, uint64(200))
 
-	cancel()
 }
 
 // TestDropStaleRequest tests kv client should drop an event if its request id is outdated.
@@ -1879,6 +1876,7 @@ func (s *clientSuite) TestDropStaleRequest(c *check.C) {
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -1967,7 +1965,6 @@ func (s *clientSuite) TestDropStaleRequest(c *check.C) {
 			c.Errorf("expected event %v not received", expectedEv)
 		}
 	}
-	cancel()
 }
 
 // TestResolveLock tests the resolve lock logic in kv client
@@ -1983,6 +1980,7 @@ func (s *clientSuite) TestResolveLock(c *check.C) {
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -2062,8 +2060,6 @@ func (s *clientSuite) TestResolveLock(c *check.C) {
 	// sleep 10s to simulate no resolved event longer than ResolveLockInterval
 	// resolve lock check ticker is 5s.
 	time.Sleep(10 * time.Second)
-
-	cancel()
 }
 
 func (s *clientSuite) testEventCommitTsFallback(c *check.C, events []*cdcpb.ChangeDataEvent) {
@@ -2077,6 +2073,7 @@ func (s *clientSuite) testEventCommitTsFallback(c *check.C, events []*cdcpb.Chan
 	defer func() {
 		close(ch1)
 		server1.Stop()
+		cancel()
 		wg.Wait()
 	}()
 
@@ -2128,7 +2125,6 @@ func (s *clientSuite) testEventCommitTsFallback(c *check.C, events []*cdcpb.Chan
 		ch1 <- event
 	}
 	clientWg.Wait()
-	cancel()
 }
 
 // TODO(resolved-ts): should panic. Just logging as error now.
