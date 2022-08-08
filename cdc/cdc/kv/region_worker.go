@@ -842,6 +842,7 @@ func GetSafeResolvedTs(resolvedTs uint64) uint64 {
 
 	safeTime := physicalTime.Add(-cfg.ResolvedTsSafeInterval)
 	physicalTs := oracle.GetPhysical(safeTime)
+
 	if physicalTs < 0 {
 		log.Warn("The resolvedTs is smaller than the ResolvedTsSafeInterval",
 			zap.Uint64("resolvedTs", resolvedTs))
