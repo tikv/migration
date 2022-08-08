@@ -24,5 +24,5 @@ type KVClientConfig struct {
 	// region incremental scan limit for one table in a single store
 	RegionScanLimit int `toml:"region-scan-limit" json:"region-scan-limit"`
 	// the safe interval to move forward resolved ts
-	ResolvedTsSafeInterval time.Duration `toml:"reoslved-ts-safe-interval" json:"reoslvedts-safe-interval"`
+	ResolvedTsSafeInterval time.Duration `toml:"reoslved-ts-safe-interval" json:"reoslved-ts-safe-interval"`
 }

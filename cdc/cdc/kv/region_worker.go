@@ -731,35 +731,36 @@ func (w *regionWorker) handleResolvedTs(
 	}
 	regionID := state.sri.verID.GetID()
 
-	// In TiKV, hen a leader transfer occurs, the old leader may send the last
+	// In TiKV, when a leader transfer occurs, the old leader may send the last
 	// resolved ts, which may be larger than the new leader appends key to ts.
 	// So we fallback the resolved ts to a safe interval to make sure it's correct.
-	safeResolvedTs := GetSafeResolvedTs(resolvedTs)
+	resolvedTs = GetSafeResolvedTs(resolvedTs)
+
 	// Send resolved ts update in non blocking way, since we can re-query real
 	// resolved ts from region state even if resolved ts update is discarded.
 	// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic
 	// (1) if it is a fallback resolvedTs event, it will be discarded and accumulate penalty on the progress;
 	// (2) if it is a normal one, update rtsManager and check sinceLastResolvedTs
 	select {
-	case w.rtsUpdateCh <- &regionTsInfo{regionID: regionID, ts: newResolvedTsItem(safeResolvedTs)}:
+	case w.rtsUpdateCh <- &regionTsInfo{regionID: regionID, ts: newResolvedTsItem(resolvedTs)}:
 	default:
 	}
 
-	if safeResolvedTs < state.lastResolvedTs {
+	if resolvedTs < state.lastResolvedTs {
 		log.Warn("The resolvedTs is fallen back in kvclient",
 			zap.String("Event Type", "RESOLVED"),
-			zap.Uint64("safeResolvedTs", safeResolvedTs),
+			zap.Uint64("resolvedTs", resolvedTs),
 			zap.Uint64("lastResolvedTs", state.lastResolvedTs),
 			zap.Uint64("regionID", regionID))
 		return nil
 	}
-	state.lastResolvedTs = safeResolvedTs
+	state.lastResolvedTs = resolvedTs
 	// emit a checkpointTs
 	revent := model.RegionFeedEvent{
 		RegionID: regionID,
 		Resolved: &model.ResolvedSpan{
 			Span:       state.sri.span,
-			ResolvedTs: safeResolvedTs,
+			ResolvedTs: resolvedTs,
 		},
 	}
 
