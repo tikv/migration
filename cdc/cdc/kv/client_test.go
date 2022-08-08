@@ -2044,7 +2044,7 @@ func (s *clientSuite) TestResolveLock(c *check.C) {
 		{
 			Resolved: &model.ResolvedSpan{
 				Span:       regionspan.ComparableSpan{Start: []byte("a"), End: []byte("b")},
-				ResolvedTs: tso,
+				ResolvedTs: GetSafeResolvedTs(tso),
 			},
 			RegionID: regionID,
 		},
