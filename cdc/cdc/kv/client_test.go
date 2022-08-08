@@ -410,14 +410,14 @@ func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 	case <-time.After(time.Second):
 		c.Fatalf("reconnection not succeed in 1 second")
 	}
-	checkEvent(event, 1)
+	checkEvent(event, GetSafeResolvedTs(1))
 
 	select {
 	case event = <-eventCh:
 	case <-time.After(time.Second):
 		c.Fatalf("reconnection not succeed in 1 second")
 	}
-	checkEvent(event, ver.Ver)
+	checkEvent(event, GetSafeResolvedTs(ver.Ver))
 
 	// check gRPC connection active counter is updated correctly
 	bucket, ok := grpcPool.bucketConns[invalidStore]
