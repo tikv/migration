@@ -135,3 +135,38 @@ func (s *regionWorkerSuite) TestRegionWorkerPoolSize(c *check.C) {
 	size = getWorkerPoolSize()
 	c.Assert(size, check.Equals, maxWorkerPoolSize)
 }
+
+func (s *regionWorkerSuite) TestGetSafeResolvedTs(c *check.C) {
+	defer testleak.AfterTest(c)()
+
+	testCases := []struct {
+		resolvedTs uint64
+		expected   uint64
+	}{
+		{
+			resolvedTs: 0,
+			expected:   0,
+		},
+		{
+			resolvedTs: 10,
+			expected:   10,
+		},
+		{
+			resolvedTs: (1 << 18) * 3 * 1000,
+			expected:   0,
+		},
+		{
+			resolvedTs: (1<<18)*3*1000 + 1,
+			expected:   1,
+		},
+		{
+			resolvedTs: (1<<18)*4*1000 + 1,
+			expected:   (1<<18)*1000 + 1,
+		},
+	}
+
+	for _, testCase := range testCases {
+		safeResolvedTs := GetSafeResolvedTs(testCase.resolvedTs)
+		c.Assert(testCase.expected, check.Equals, safeResolvedTs)
+	}
+}

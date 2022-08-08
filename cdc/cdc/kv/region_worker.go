@@ -730,6 +730,15 @@ func (w *regionWorker) handleResolvedTs(
 		return nil
 	}
 	regionID := state.sri.verID.GetID()
+
+	// In TiKV, when a leader transfer occurs, the old leader may send the last
+	// resolved ts, which may be larger than the new leader's first causal
+	// timestamp after transfer. So we fallback the resolved ts to a safe
+	// interval to make sure it's correct.
+	// See https://github.com/tikv/migration/issues/193.
+	// TODO: fix the issue completely.
+	resolvedTs = GetSafeResolvedTs(resolvedTs)
+
 	// Send resolved ts update in non blocking way, since we can re-query real
 	// resolved ts from region state even if resolved ts update is discarded.
 	// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic
@@ -827,4 +836,22 @@ func RunWorkerPool(ctx context.Context) error {
 		return errors.Trace(regionWorkerPool.Run(ctx))
 	})
 	return errg.Wait()
+}
+
+func GetSafeResolvedTs(resolvedTs uint64) uint64 {
+	cfg := config.GetGlobalServerConfig().KVClient
+
+	logicalTs := oracle.ExtractLogical(resolvedTs)
+	physicalTime := oracle.GetTimeFromTS(resolvedTs)
+
+	safeTime := physicalTime.Add(-cfg.ResolvedTsSafeInterval)
+	physicalTs := oracle.GetPhysical(safeTime)
+
+	if physicalTs < 0 {
+		log.Warn("The resolvedTs is smaller than the ResolvedTsSafeInterval",
+			zap.Uint64("resolvedTs", resolvedTs))
+		return resolvedTs
+	}
+
+	return oracle.ComposeTS(physicalTs, logicalTs)
 }

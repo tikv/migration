@@ -170,9 +170,10 @@ func TestParseCfg(t *testing.T) {
 		},
 		PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10M
 		KVClient: &config.KVClientConfig{
-			WorkerConcurrent: 8,
-			WorkerPoolSize:   0,
-			RegionScanLimit:  40,
+			WorkerConcurrent:       8,
+			WorkerPoolSize:         0,
+			RegionScanLimit:        40,
+			ResolvedTsSafeInterval: 3 * time.Second,
 		},
 		Debug: &config.DebugConfig{
 			EnableKeySpanActor: false,
@@ -299,9 +300,10 @@ server-worker-pool-size = 16
 		Security:              &config.SecurityConfig{},
 		PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10M
 		KVClient: &config.KVClientConfig{
-			WorkerConcurrent: 8,
-			WorkerPoolSize:   0,
-			RegionScanLimit:  40,
+			WorkerConcurrent:       8,
+			WorkerPoolSize:         0,
+			RegionScanLimit:        40,
+			ResolvedTsSafeInterval: 3 * time.Second,
 		},
 		Debug: &config.DebugConfig{
 			EnableKeySpanActor: false,
@@ -427,9 +429,10 @@ cert-allowed-cn = ["dd","ee"]
 		},
 		PerKeySpanMemoryQuota: 10 * 1024 * 1024, // 10M
 		KVClient: &config.KVClientConfig{
-			WorkerConcurrent: 8,
-			WorkerPoolSize:   0,
-			RegionScanLimit:  40,
+			WorkerConcurrent:       8,
+			WorkerPoolSize:         0,
+			RegionScanLimit:        40,
+			ResolvedTsSafeInterval: 3 * time.Second,
 		},
 		Debug: &config.DebugConfig{
 			EnableKeySpanActor: false,

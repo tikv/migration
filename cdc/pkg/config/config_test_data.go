@@ -80,7 +80,8 @@ const (
   "kv-client": {
     "worker-concurrent": 8,
     "worker-pool-size": 0,
-    "region-scan-limit": 40
+    "region-scan-limit": 40,
+    "resolved-ts-safe-interval": 3000000000
   },
   "debug": {
     "enable-keyspan-actor": false,
