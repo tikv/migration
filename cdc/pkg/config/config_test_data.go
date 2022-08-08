@@ -81,7 +81,7 @@ const (
     "worker-concurrent": 8,
     "worker-pool-size": 0,
     "region-scan-limit": 40
-	"ResolvedTsSafeInterval": 3000000000,
+	"resolvedts-safe-interval": 3000000000,
   },
   "debug": {
     "enable-keyspan-actor": false,
