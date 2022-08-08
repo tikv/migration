@@ -144,8 +144,16 @@ func (s *regionWorkerSuite) TestGetSafeResolvedTs(c *check.C) {
 		expected   uint64
 	}{
 		{
+			resolvedTs: 0,
+			expected:   0,
+		},
+		{
 			resolvedTs: 10,
 			expected:   10,
+		},
+		{
+			resolvedTs: (1 << 18) * 3 * 1000,
+			expected:   0,
 		},
 		{
 			resolvedTs: (1<<18)*3*1000 + 1,

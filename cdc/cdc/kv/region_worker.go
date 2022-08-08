@@ -732,8 +732,11 @@ func (w *regionWorker) handleResolvedTs(
 	regionID := state.sri.verID.GetID()
 
 	// In TiKV, when a leader transfer occurs, the old leader may send the last
-	// resolved ts, which may be larger than the new leader appends key to ts.
-	// So we fallback the resolved ts to a safe interval to make sure it's correct.
+	// resolved ts, which may be larger than the new leader's first causal
+	// timestamp after transfer. So we fallback the resolved ts to a safe
+	// interval to make sure it's correct.
+	// See https://github.com/tikv/migration/issues/193.
+	// TODO: fix the issue completely.
 	resolvedTs = GetSafeResolvedTs(resolvedTs)
 
 	// Send resolved ts update in non blocking way, since we can re-query real
