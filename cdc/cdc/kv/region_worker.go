@@ -731,13 +731,10 @@ func (w *regionWorker) handleResolvedTs(
 	}
 	regionID := state.sri.verID.GetID()
 
+	// In TiKV, hen a leader transfer occurs, the old leader may send the last
+	// resolved ts, which may be larger than the new leader appends key to ts.
+	// So we fallback the resolved ts to a safe interval to make sure it's correct.
 	safeResolvedTs := GetSafeResolvedTs(resolvedTs)
-	if safeResolvedTs == 0 {
-		log.Warn("The resolvedTs is smaller than the ResolvedTsSafeInterval",
-			zap.Uint64("resolvedTs", resolvedTs),
-			zap.Uint64("regionID", regionID))
-		return nil
-	}
 	// Send resolved ts update in non blocking way, since we can re-query real
 	// resolved ts from region state even if resolved ts update is discarded.
 	// NOTICE: We send any regionTsInfo to resolveLock thread to give us a chance to trigger resolveLock logic
@@ -841,12 +838,14 @@ func GetSafeResolvedTs(resolvedTs uint64) uint64 {
 	cfg := config.GetGlobalServerConfig().KVClient
 
 	logicalTs := oracle.ExtractLogical(resolvedTs)
-	time := oracle.GetTimeFromTS(resolvedTs)
+	physicalTime := oracle.GetTimeFromTS(resolvedTs)
 
-	safeTime := time.Add(-cfg.ResolvedTsSafeInterval)
+	safeTime := physicalTime.Add(-cfg.ResolvedTsSafeInterval)
 	physicalTs := oracle.GetPhysical(safeTime)
 	if physicalTs < 0 {
-		return 0
+		log.Warn("The resolvedTs is smaller than the ResolvedTsSafeInterval",
+			zap.Uint64("resolvedTs", resolvedTs))
+		return resolvedTs
 	}
 
 	return oracle.ComposeTS(physicalTs, logicalTs)
