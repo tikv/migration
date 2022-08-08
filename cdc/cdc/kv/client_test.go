@@ -675,7 +675,6 @@ consumePreResolvedTs:
 	}
 	c.Assert(event.Resolved, check.NotNil)
 	c.Assert(event.Resolved.ResolvedTs, check.Equals, uint64(120))
-
 }
 
 // TestCompatibilityWithSameConn tests kv client returns an error when TiKV returns
@@ -1783,7 +1782,6 @@ func (s *clientSuite) TestIncompatibleTiKV(c *check.C) {
 	case <-time.After(time.Second):
 		c.Errorf("expected events are not receive")
 	}
-
 }
 
 // TestPendingRegionError tests kv client should return an error when receiving
@@ -1860,7 +1858,6 @@ func (s *clientSuite) TestNoPendingRegionError(c *check.C) {
 	ev = <-eventCh
 	c.Assert(ev.Resolved, check.NotNil)
 	c.Assert(ev.Resolved.ResolvedTs, check.Equals, uint64(200))
-
 }
 
 // TestDropStaleRequest tests kv client should drop an event if its request id is outdated.
