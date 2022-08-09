@@ -34,28 +34,27 @@ import (
 
 var (
 	// minPDVersion is the version of the minimal compatible PD.
-	minPDVersion *semver.Version = semver.New("6.2.0")
+	minPDVersion *semver.Version = semver.New("6.2.0-alpha")
 	// maxPDVersion is the version of the maximum compatible PD.
 	// Compatible versions are in [minPDVersion, maxPDVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxPDVersion *semver.Version = semver.New("9999.0.0")
 
 	// MinTiKVVersion is the version of the minimal compatible TiKV.
-	MinTiKVVersion *semver.Version = semver.New("6.2.0")
+	MinTiKVVersion *semver.Version = semver.New("6.2.0-alpha")
 	// maxTiKVVersion is the version of the maximum compatible TiKV.
 	// Compatible versions are in [MinTiKVVersion, maxTiKVVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxTiKVVersion *semver.Version = semver.New("9999.0.0")
 
 	// minTiKVCDCVersion is the version of the minimal compatible TiKVCDC.
-	minTiKVCDCVersion *semver.Version = semver.New("1.0.0")
+	minTiKVCDCVersion *semver.Version = semver.New("1.0.0-alpha")
 	// Compatible versions are in [MinTiKVCDCVersion, MaxTiKVCDCVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxTiKVCDCVersion *semver.Version = semver.New("9999.0.0")
 
-	// CaptureInfo.Version is added since v4.0.11,
 	// we use the minimal release version as default.
-	defaultTiKVCDCVersion *semver.Version = semver.New("1.0.0")
+	defaultTiKVCDCVersion *semver.Version = semver.New("1.0.0-alpha")
 )
 
 var versionHash = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}(-dev)?")
