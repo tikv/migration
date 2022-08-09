@@ -48,14 +48,13 @@ var (
 	maxTiKVVersion *semver.Version = semver.New("9999.0.0")
 
 	// minTiKVCDCVersion is the version of the minimal compatible TiKVCDC.
-	minTiKVCDCVersion *semver.Version = semver.New("1.0.0")
+	minTiKVCDCVersion *semver.Version = semver.New("1.0.0-alpha")
 	// Compatible versions are in [MinTiKVCDCVersion, MaxTiKVCDCVersion)
 	// 9999.0.0 disables the check effectively in the master branch.
 	maxTiKVCDCVersion *semver.Version = semver.New("9999.0.0")
 
-	// CaptureInfo.Version is added since v4.0.11,
 	// we use the minimal release version as default.
-	defaultTiKVCDCVersion *semver.Version = semver.New("1.0.0")
+	defaultTiKVCDCVersion *semver.Version = semver.New("1.0.0-alpha")
 )
 
 var versionHash = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}(-dev)?")
