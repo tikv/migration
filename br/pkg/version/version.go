@@ -30,6 +30,7 @@ var (
 func removeVAndHash(v string) string {
 	v = versionHash.ReplaceAllLiteralString(v, "")
 	v = strings.TrimSuffix(v, "-dirty")
+	v = strings.TrimPrefix(v, "br-") // tag is named with br-vx.x.x
 	return strings.TrimPrefix(v, "v")
 }
 
