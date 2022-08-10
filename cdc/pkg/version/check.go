@@ -65,6 +65,7 @@ func removeVAndHash(v string) string {
 	}
 	v = versionHash.ReplaceAllLiteralString(v, "")
 	v = strings.TrimSuffix(v, "-dirty")
+	v = strings.TrimPrefix(v, "cdc-") // tag is named with cdc-vx.x.x
 	return strings.TrimPrefix(v, "v")
 }
 

@@ -46,7 +46,7 @@ func TestCheckClusterVersion(t *testing.T) {
 	}
 
 	{
-		build.ReleaseVersion = "v0.1"
+		build.ReleaseVersion = "br-v0.1"
 		mock.getAllStores = func() []*metapb.Store {
 			return tiflash("v4.0.0-rc.1")
 		}
@@ -56,7 +56,7 @@ func TestCheckClusterVersion(t *testing.T) {
 	}
 
 	{
-		build.ReleaseVersion = "v3.1.0-beta.2"
+		build.ReleaseVersion = "br-v3.1.0-beta.2"
 		mock.getAllStores = func() []*metapb.Store {
 			return []*metapb.Store{{Version: minTiKVVersion.String()}}
 		}
@@ -65,7 +65,16 @@ func TestCheckClusterVersion(t *testing.T) {
 	}
 
 	{
-		build.ReleaseVersion = "v0.1.0"
+		build.ReleaseVersion = "rb-v3.1.0-beta.2"
+		mock.getAllStores = func() []*metapb.Store {
+			return []*metapb.Store{{Version: minTiKVVersion.String()}}
+		}
+		err := CheckClusterVersion(context.Background(), &mock, CheckVersionForBR)
+		require.Regexp(t, `rb is not in dotted-tri format`, err.Error())
+	}
+
+	{
+		build.ReleaseVersion = "br-v0.1.0"
 		mock.getAllStores = func() []*metapb.Store {
 			return []*metapb.Store{{Version: "v6.1.0"}}
 		}
