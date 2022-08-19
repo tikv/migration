@@ -57,11 +57,15 @@ func TestValidateSink(t *testing.T) {
 	err = Validate(ctx, sinkURI, replicateConfig, opts)
 	require.NotNil(t, err)
 
-	sinkURI = "tikv://a127.0.0.1:3306/"
+	sinkURI = "tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/"
 	err = Validate(ctx, sinkURI, replicateConfig, opts)
 	require.NotNil(t, err)
 
-	sinkURI = "tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/"
+	sinkURI = "tikv://hostname:3306"
+	err = Validate(ctx, sinkURI, replicateConfig, opts)
+	require.Nil(t, err)
+
+	sinkURI = "tikv://hostname:3306x"
 	err = Validate(ctx, sinkURI, replicateConfig, opts)
 	require.NotNil(t, err)
 }
