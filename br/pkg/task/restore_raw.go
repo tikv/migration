@@ -24,9 +24,6 @@ func DefineRawRestoreFlags(command *cobra.Command) {
 	command.Flags().StringP(flagKeyFormat, "", "hex", "start/end key format, support raw|escaped|hex")
 	command.Flags().StringP(flagStartKey, "", "", "restore raw kv start key, key is inclusive")
 	command.Flags().StringP(flagEndKey, "", "", "restore raw kv end key, key is exclusive")
-	_ = command.Flags().MarkHidden(flagKeyFormat)
-	_ = command.Flags().MarkHidden(flagStartKey)
-	_ = command.Flags().MarkHidden(flagEndKey)
 	DefineRestoreCommonFlags(command.PersistentFlags())
 }
 

@@ -61,9 +61,6 @@ func DefineRawBackupFlags(command *cobra.Command) {
 	// This flag can impact the online cluster, so hide it in case of abuse.
 	_ = command.Flags().MarkHidden(flagCompressionType)
 	_ = command.Flags().MarkHidden(flagRemoveSchedulers)
-	_ = command.Flags().MarkHidden(flagStartKey)
-	_ = command.Flags().MarkHidden(flagEndKey)
-	_ = command.Flags().MarkHidden(flagKeyFormat)
 }
 
 // CalcChecksumFromBackupMeta read the backup meta and return Checksum

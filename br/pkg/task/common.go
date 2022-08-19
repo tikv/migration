@@ -89,13 +89,9 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 	flags.String(flagKey, "", "Private key path for TLS connection")
 	flags.Uint(flagChecksumConcurrency, defaultChecksumConcurrency, "The concurrency of table checksumming")
 	_ = flags.MarkHidden(flagSendCreds)
-	_ = flags.MarkHidden(flagCA)
-	_ = flags.MarkHidden(flagCert)
-	_ = flags.MarkHidden(flagKey)
 	_ = flags.MarkHidden(flagChecksumConcurrency)
 
 	flags.Uint64(flagRateLimit, unlimited, "The rate limit of the task, MB/s per node")
-	_ = flags.MarkHidden(flagRateLimit)
 	flags.Bool(flagChecksum, false, "Run checksum at end of task")
 	// Default concurrency is different for backup and restore.
 	// Leave it 0 and let them adjust the value.
@@ -133,8 +129,6 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 		"aes-crypter key, used to encrypt/decrypt the data "+
 			"by the hexadecimal string, eg: \"0123456789abcdef0123456789abcdef\"")
 	flags.String(flagCipherKeyFile, "", "FilePath, its content is used as the cipher-key")
-	_ = flags.MarkHidden(flagCipherType)
-	_ = flags.MarkHidden(flagCipherKey)
 	_ = flags.MarkHidden(flagCipherKeyFile)
 	storage.DefineFlags(flags)
 }
