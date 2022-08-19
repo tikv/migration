@@ -11,7 +11,7 @@ RUN make failpoint-disable
 FROM alpine:3.15
 RUN apk add --no-cache tzdata bash curl socat
 COPY --from=builder /go/src/github.com/tikv/migration/cdc/bin/tikv-cdc /usr/bin/
-# Tikv-cdc use ticdc operator to run tikv-cdc server, ticdc operator will use '/cdc' to start server 
+# TiKV-CDC use TiCDC operator to run TiKV-CDC server, TiCDC operator will use '/cdc' to start server 
 COPY --from=builder /go/src/github.com/tikv/migration/cdc/bin/tikv-cdc /cdc 
 EXPOSE 8600
 CMD [ "tikv-cdc" ]
