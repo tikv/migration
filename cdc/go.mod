@@ -19,7 +19,7 @@ require (
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
-	github.com/google/btree v1.0.1
+	github.com/google/btree v1.1.2
 	github.com/google/go-cmp v0.5.8
 	github.com/google/uuid v1.1.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
@@ -31,7 +31,7 @@ require (
 	github.com/pingcap/check v0.0.0-20211026125417-57bd13f7b5f0
 	github.com/pingcap/errors v0.11.5-0.20211224045212-9687c2b0f87c
 	github.com/pingcap/failpoint v0.0.0-20220423142525-ae43b7f4e5c3
-	github.com/pingcap/kvproto v0.0.0-20220525022339-6aaebf466305
+	github.com/pingcap/kvproto v0.0.0-20220805093305-ab1ee4d521ab
 	github.com/pingcap/log v1.1.0
 	github.com/pingcap/tidb v1.1.0-beta.0.20220528045048-5495dc6c4360
 	github.com/pingcap/tidb-tools v6.0.1-0.20220516050036-b3ea358e374a+incompatible
@@ -44,11 +44,11 @@ require (
 	github.com/stretchr/testify v1.7.2
 	github.com/swaggo/files v0.0.0-20210815190702-a29dd2bc99b2
 	github.com/swaggo/gin-swagger v1.4.3
-	github.com/swaggo/swag v1.8.2
+	github.com/swaggo/swag v1.8.3
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/tikv/client-go/v2 v2.0.1-0.20220518162527-de7ca289ac77
-	github.com/tikv/pd v1.1.0-beta.0.20220303060546-3695d8164800
-	github.com/tikv/pd/client v0.0.0-20220307081149-841fa61e9710
+	github.com/tikv/pd v1.1.0-beta.0.20220818095452-f4800393ea08
+	github.com/tikv/pd/client v0.0.0-20220818095452-f4800393ea08
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.3
 	github.com/xdg/scram v1.0.5
@@ -162,7 +162,7 @@ require (
 	github.com/pingcap/badger v1.5.1-0.20220314162537-ab58fbf40580 // indirect
 	github.com/pingcap/goleveldb v0.0.0-20191226122134-f82aafb29989 // indirect
 	github.com/pingcap/sysutil v0.0.0-20220114020952-ea68d2dbf5b4 // indirect
-	github.com/pingcap/tipb v0.0.0-20220314125451-bfb5c2c55188 // indirect
+	github.com/pingcap/tipb v0.0.0-20220718022156-3e2483c20a9e // indirect
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -206,7 +206,7 @@ require (
 	go.opentelemetry.io/otel/trace v0.20.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.7.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
+	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/exp v0.0.0-20220426173459-3bcf042a4bf5 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
@@ -217,7 +217,7 @@ require (
 	google.golang.org/api v0.69.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220216160803-4663080d8bc8 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
