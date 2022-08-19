@@ -47,8 +47,8 @@ require (
 	github.com/swaggo/swag v1.8.3
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/tikv/client-go/v2 v2.0.1-0.20220518162527-de7ca289ac77
-	github.com/tikv/pd v1.1.0-beta.0.20220818095452-f4800393ea08
-	github.com/tikv/pd/client v0.0.0-20220818095452-f4800393ea08
+	github.com/tikv/pd v1.1.0-beta.0.20220725055910-7187a7ab72db
+	github.com/tikv/pd/client v0.0.0-20220725055910-7187a7ab72db
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.3
 	github.com/xdg/scram v1.0.5
