@@ -1,0 +1,14 @@
+FROM golang:1.18.0-alpine3.15 as builder
+RUN apk add --no-cache git make bash
+WORKDIR /go/src/github.com/tikv/migration/cdc
+COPY . .
+ENV CDC_ENABLE_VENDOR=0
+RUN make release
+
+FROM alpine:3.15
+RUN apk add --no-cache tzdata bash curl socat
+COPY --from=builder /go/src/github.com/tikv/migration/cdc/bin/tikv-cdc /usr/bin/
+# TiKV-CDC use TiCDC operator to run TiKV-CDC server, TiCDC operator will use '/cdc' to start server 
+COPY --from=builder /go/src/github.com/tikv/migration/cdc/bin/tikv-cdc /cdc 
+EXPOSE 8600
+CMD [ "tikv-cdc" ]
