@@ -31,41 +31,23 @@ func TestValidateSink(t *testing.T) {
 	replicateConfig := config.GetDefaultReplicaConfig()
 	opts := make(map[string]string)
 
-	// test sink uri right
-	sinkURI := "tikv://127.0.0.1:3306/"
-	err := Validate(ctx, sinkURI, replicateConfig, opts)
-	require.Nil(t, err)
+	testCases := []struct {
+		sinkURI  string
+		expected bool
+	}{
+		{"tikv://127.0.0.1:3306/", true},
+		{"tikv://127.0.0.1:3306/?concurrency=4", true},
+		{"blackhole://", true},
+		{"tikv://127.0.0.1:3306,127.0.0.1:3307/", true},
+		{"tikv://hostname:3306", true},
+		{"tikv://http://127.0.0.1:3306/", false},
+		{"tikv://127.0.0.1:3306a/", false},
+		{"tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/", false},
+		{"tikv://hostname:3306x", false},
+	}
 
-	sinkURI = "tikv://127.0.0.1:3306/?concurrency=4"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.Nil(t, err)
-
-	sinkURI = "tikv://127.0.0.1:3306,127.0.0.1:3307/?concurrency=4"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.Nil(t, err)
-
-	sinkURI = "blackhole://"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.Nil(t, err)
-
-	// test sink uri wrong
-	sinkURI = "tikv://http://127.0.0.1:3306/"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.NotNil(t, err)
-
-	sinkURI = "tikv://127.0.0.1:3306a/"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.NotNil(t, err)
-
-	sinkURI = "tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.NotNil(t, err)
-
-	sinkURI = "tikv://hostname:3306"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.Nil(t, err)
-
-	sinkURI = "tikv://hostname:3306x"
-	err = Validate(ctx, sinkURI, replicateConfig, opts)
-	require.NotNil(t, err)
+	for _, tc := range testCases {
+		err := Validate(ctx, tc.sinkURI, replicateConfig, opts)
+		require.Equal(t, tc.expected, err == nil)
+	}
 }
