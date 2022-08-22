@@ -127,13 +127,6 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 			End:   file.EndKey,
 		})
 	}
-	if needEncodeKey {
-		for _, file := range files {
-			keyRange := utils.EncodeKeyRange(file.StartKey, file.EndKey)
-			file.StartKey = keyRange.Start
-			file.EndKey = keyRange.End
-		}
-	}
 
 	err = client.RestoreRaw(ctx, cfg.StartKey, cfg.EndKey, files, updateCh)
 	if err != nil {

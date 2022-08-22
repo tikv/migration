@@ -68,6 +68,21 @@ func (b *TiKVBrRunCmd) CheckReq(checkReq bool) *TiKVBrRunCmd {
 	return b
 }
 
+func (b *TiKVBrRunCmd) StartKey(start []byte) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--start=%s", string(start)))
+	return b
+}
+
+func (b *TiKVBrRunCmd) EndKey(end []byte) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--end=%s", string(end)))
+	return b
+}
+
+func (b *TiKVBrRunCmd) Format(format string) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--format=%s", format))
+	return b
+}
+
 func (t *TiKVBrRunCmd) Command(command string) *TiKVBrRunCmd {
 	t.command = command
 	return t
