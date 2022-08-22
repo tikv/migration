@@ -408,7 +408,7 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 	if len(pdAddr) > 0 {
 		for i, addr := range pdAddr {
 			host, port, err := net.SplitHostPort(addr)
-			if err != nil || !validator.IsIP(host) || !validator.IsPort(port) {
+			if err != nil || !validator.IsHost(host) || !validator.IsPort(port) {
 				err = fmt.Errorf("Invalid pd addr: %v, err: %v", addr, err)
 				return nil, nil, cerror.WrapError(cerror.ErrTiKVInvalidConfig, err)
 			}
