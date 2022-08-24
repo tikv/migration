@@ -1,0 +1,87 @@
+# # Global variables are applied to all deployments and used as the default value of
+# # the deployments if a specific deployment value is missing.
+global:
+  # # The user who runs the tidb cluster.
+  user: "tidb"
+  # # group is used to specify the group name the user belong to,if it's not the same as user.
+  # group: "tidb"
+  # # SSH port of servers in the managed cluster.
+  ssh_port: 22
+  # # Storage directory for cluster deployment files, startup scripts, and configuration files.
+  deploy_dir: "/tidb-deploy"
+  # # TiDB Cluster data storage directory
+  data_dir: "/tidb-data"
+  # # Supported values: "amd64", "arm64" (default: "amd64")
+  arch: "amd64"
+
+# # Monitored variables are applied to all the machines.
+monitored:
+  # # The communication port for reporting system information of each node in the TiDB cluster.
+  node_exporter_port: 9100
+  # # Blackbox_exporter communication port, used for TiDB cluster port monitoring.
+  blackbox_exporter_port: 9115
+
+# # Server configs are used to specify the runtime configuration of TiDB components.
+# # All configuration items can be found in TiDB docs:
+# # - TiDB: https://pingcap.com/docs/stable/reference/configuration/tidb-server/configuration-file/
+# # - TiKV: https://pingcap.com/docs/stable/reference/configuration/tikv-server/configuration-file/
+# # - PD: https://pingcap.com/docs/stable/reference/configuration/pd-server/configuration-file/
+# # - TiKV-CDC: https://github.com/tikv/migration/blob/main/cdc/README.md
+# #
+# # All configuration items use points to represent the hierarchy, e.g:
+# #   readpool.storage.use-unified-pool
+# #           ^       ^
+# # - example: https://github.com/pingcap/tiup/blob/master/embed/examples/cluster/topology.example.yaml
+# # You can overwrite this configuration via the instance-level `config` field.
+server_configs:
+  # tidb:
+  tikv:
+    storage.api-version: 2
+    storage.enable-ttl: true
+  # pd:
+  # tikv-cdc:
+  #   gc-ttl: 86400 # The TTL (Time To Live) of the service level `GC safepoint` in PD set by TiKV-CDC
+
+# # Server configs are used to specify the configuration of PD Servers.
+pd_servers:
+  - host: 10.0.1.11
+  - host: 10.0.1.12
+  - host: 10.0.1.13
+
+# # Server configs are used to specify the configuration of TiDB Servers.
+tidb_servers:
+  - host: 10.0.1.14
+  - host: 10.0.1.14
+
+# # Server configs are used to specify the configuration of TiKV Servers.
+tikv_servers:
+  - host: 10.0.1.16
+  - host: 10.0.1.16
+  - host: 10.0.1.17
+  - host: 10.0.1.17
+
+# # Server configs are used to specify the configuration of TiKV-CDC Servers.
+tikv-cdc_servers:
+  - host: 10.0.1.20
+    # # SSH port of the server.
+    # ssh_port: 22
+    # # TiKV-CDC Server communication port.
+    # port: 8600
+    # # TiKV-CDC Server data storage directory.
+    # data_dir: "/data1/tidb-data/tikv-cdc-8600"
+    # # TiKV-CDC Server log file storage directory.
+    # log_dir: "/data1/tidb-deploy/tikv-cdc-8600/log"
+  - host: 10.0.1.21
+  - host: 10.0.1.22
+
+# # Server configs are used to specify the configuration of Prometheus Server.  
+monitoring_servers:
+  - host: 10.0.1.21
+
+# # Server configs are used to specify the configuration of Grafana Servers.  
+grafana_servers:
+  - host: 10.0.1.21
+
+# # Server configs are used to specify the configuration of Alertmanager Servers.  
+alertmanager_servers:
+  - host: 10.0.1.21
