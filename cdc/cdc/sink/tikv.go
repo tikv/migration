@@ -262,9 +262,11 @@ func (b *tikvBatcher) getNow() uint64 {
 	return uint64(time.Now().Unix()) // TODO: use TSO ?
 }
 
-func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType, key []byte, value []byte, ttl uint64) {
+func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
+	key []byte, value []byte, ttl uint64, err error) {
+
 	opType = entry.OpType
-	key = util.DecodeV2Key(entry.Key)
+	key, err = util.DecodeV2Key(entry.Key)
 
 	if entry.OpType == model.OpTypePut {
 		// Expired entries have the effect the same as delete, and can not be ignored.
@@ -291,7 +293,11 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 		b.now = b.getNow()
 	}
 
-	opType, key, value, ttl := extractEntry(entry, b.now)
+	opType, key, value, ttl, err := extractEntry(entry, b.now)
+	if err != nil {
+		log.Warn("ignore this entry because of failed to extract entry", zap.Any("event", entry), zap.Error(err))
+		return
+	}
 
 	// NOTE: do NOT separate PUT & DELETE operations into two batch.
 	// Change the order of entires would lead to wrong result.

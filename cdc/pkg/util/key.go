@@ -35,11 +35,11 @@ func EncodeV2Key(key []byte) []byte {
 	return append(APIV2RawKeyPrefix, key...)
 }
 
-func DecodeV2Key(key []byte) []byte {
-	if len(key) < len(APIV2RawKeyPrefix) {
-		return key
+func DecodeV2Key(key []byte) ([]byte, error) {
+	if bytes.HasPrefix(key, APIV2RawKeyPrefix) {
+		return key[len(APIV2RawKeyPrefix):], nil
 	}
-	return key[len(APIV2RawKeyPrefix):]
+	return nil, fmt.Errorf("%s is not a valid API V2 key", key)
 }
 
 // EncodeV2Range encode a range into API V2 format.

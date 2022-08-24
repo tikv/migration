@@ -27,7 +27,6 @@ import (
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	pd "github.com/tikv/pd/client"
 )
 
 type mockRawKVClient struct {
@@ -202,7 +201,7 @@ func TestTiKVSink(t *testing.T) {
 
 	mockCli := newMockRawKVClient()
 
-	fnCreate := func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error) {
+	fnCreate := func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
 		return mockCli, nil
 	}
 
