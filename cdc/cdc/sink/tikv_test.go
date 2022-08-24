@@ -26,6 +26,7 @@ import (
 	tikvconfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/cdc/cdc/model"
+	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
@@ -80,30 +81,34 @@ func TestExtractRawKVEntry(t *testing.T) {
 		key    []byte
 		value  []byte
 		ttl    uint64
+		err    error
 	}
 
 	now := uint64(100)
 	cases := []*model.RawKVEntry{
-		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 0},
-		{OpType: model.OpTypeDelete, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 0},
-		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 200},
-		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 100},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 0},
+		{OpType: model.OpTypeDelete, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 0},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 200},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 100},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 1},
 		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 1},
 	}
 	expects := []expected{
-		{model.OpTypePut, []byte("k"), []byte("v"), 0},
-		{model.OpTypeDelete, []byte("k"), nil, 0},
-		{model.OpTypePut, []byte("k"), []byte("v"), 100},
-		{model.OpTypeDelete, []byte("k"), nil, 0},
-		{model.OpTypeDelete, []byte("k"), nil, 0},
+		{model.OpTypePut, []byte("k"), []byte("v"), 0, nil},
+		{model.OpTypeDelete, []byte("k"), nil, 0, nil},
+		{model.OpTypePut, []byte("k"), []byte("v"), 100, nil},
+		{model.OpTypeDelete, []byte("k"), nil, 0, nil},
+		{model.OpTypeDelete, []byte("k"), nil, 0, nil},
+		{model.OpTypePut, nil, nil, 0, fmt.Errorf("%s is not a valid API V2 key", []byte("k"))},
 	}
 
 	for i, c := range cases {
-		opType, key, value, ttl := extractEntry(c, now)
+		opType, key, value, ttl, err := extractEntry(c, now)
 		require.Equal(expects[i].opType, opType)
 		require.Equal(expects[i].key, key)
 		require.Equal(expects[i].value, value)
 		require.Equal(expects[i].ttl, ttl)
+		require.Equal(expects[i].err, err)
 	}
 }
 

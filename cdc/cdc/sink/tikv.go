@@ -263,10 +263,13 @@ func (b *tikvBatcher) getNow() uint64 {
 }
 
 func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
-	key []byte, value []byte, ttl uint64, err error) {
-
+	key []byte, value []byte, ttl uint64, err error,
+) {
 	opType = entry.OpType
 	key, err = util.DecodeV2Key(entry.Key)
+	if err != nil {
+		return
+	}
 
 	if entry.OpType == model.OpTypePut {
 		// Expired entries have the effect the same as delete, and can not be ignored.
