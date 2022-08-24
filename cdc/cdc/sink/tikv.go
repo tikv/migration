@@ -26,6 +26,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/twmb/murmur3"
 	"go.uber.org/zap"
@@ -38,7 +39,7 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/notify"
-	pd "github.com/tikv/pd/client"
+	"github.com/tikv/migration/cdc/pkg/util"
 )
 
 const (
@@ -55,10 +56,12 @@ type rawkvClient interface {
 
 var _ rawkvClient = &rawkv.Client{}
 
-type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error)
+type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error)
 
-func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error) {
-	return rawkv.NewClientV2(ctx, pdAddrs, security, opts...)
+func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
+	opts = append(opts, rawkv.WithSecurity(security))
+	opts = append(opts, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	return rawkv.NewClientWithOpts(ctx, pdAddrs, opts...)
 }
 
 type tikvSink struct {
@@ -261,7 +264,7 @@ func (b *tikvBatcher) getNow() uint64 {
 
 func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType, key []byte, value []byte, ttl uint64) {
 	opType = entry.OpType
-	key = entry.Key
+	key = util.DecodeV2Key(entry.Key)
 
 	if entry.OpType == model.OpTypePut {
 		// Expired entries have the effect the same as delete, and can not be ignored.

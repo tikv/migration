@@ -135,3 +135,28 @@ func TestEncodeKeySpan(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeKey(t *testing.T) {
+	testCases := []struct {
+		key       []byte
+		expectKey []byte
+	}{
+		{
+			key:       APIV2RawKeyPrefix,
+			expectKey: []byte{},
+		},
+		{
+			key:       append(APIV2RawKeyPrefix, 'a'),
+			expectKey: []byte{'a'},
+		},
+		{
+			key:       []byte{'a'},
+			expectKey: []byte{'a'},
+		},
+	}
+
+	for _, testCase := range testCases {
+		key := DecodeV2Key(testCase.key)
+		require.Equal(t, testCase.expectKey, key)
+	}
+}

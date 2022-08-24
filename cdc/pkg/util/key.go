@@ -35,6 +35,13 @@ func EncodeV2Key(key []byte) []byte {
 	return append(APIV2RawKeyPrefix, key...)
 }
 
+func DecodeV2Key(key []byte) []byte {
+	if len(key) < len(APIV2RawKeyPrefix) {
+		return key
+	}
+	return key[len(APIV2RawKeyPrefix):]
+}
+
 // EncodeV2Range encode a range into API V2 format.
 // TODO: resue code in client-go
 func EncodeV2Range(start, end []byte) ([]byte, []byte) {
