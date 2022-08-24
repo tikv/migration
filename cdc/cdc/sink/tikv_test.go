@@ -280,7 +280,7 @@ func TestTiKVSink(t *testing.T) {
 		results = append(results, r)
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i] < results[j] })
-	require.Equal([]string{"D:d|D:e|", "D:m|", "P:a,1,0|", "P:b,2,100|P:c,3,200|", "P:f,6,300|", "P:k,1,0|", "P:n,3,100|"}, results)
+	require.Equal([]string{"D:d|", "D:e|", "D:m|", "P:a,1,0|", "P:b,2,100|P:c,3,200|", "P:f,6,300|", "P:k,1,0|", "P:n,3,100|"}, results)
 
 	// Flush older resolved ts
 	checkpointTs, err = sink.FlushChangedEvents(ctx, 1, uint64(110))
