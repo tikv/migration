@@ -155,7 +155,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 	for i := range keys {
 		entry := &model.RawKVEntry{
 			OpType:    opTypes[i],
-			Key:       []byte(keys[i]),
+			Key:       util.EncodeV2Key([]byte(keys[i])),
 			Value:     []byte(values[i]),
 			ExpiredTs: expires[i],
 			CRTs:      uint64(i),
@@ -230,7 +230,7 @@ func TestTiKVSink(t *testing.T) {
 		for i := range keys {
 			entry := &model.RawKVEntry{
 				OpType:    opTypes[i],
-				Key:       []byte(keys[i]),
+				Key:       util.EncodeV2Key([]byte(keys[i])),
 				Value:     []byte(values[i]),
 				ExpiredTs: expires[i],
 				CRTs:      uint64(i),
@@ -260,7 +260,7 @@ func TestTiKVSink(t *testing.T) {
 		for i := range keys {
 			entry := &model.RawKVEntry{
 				OpType:    opTypes[i],
-				Key:       []byte(keys[i]),
+				Key:       util.EncodeV2Key([]byte(keys[i])),
 				Value:     []byte(values[i]),
 				ExpiredTs: expires[i],
 				CRTs:      uint64(i),
