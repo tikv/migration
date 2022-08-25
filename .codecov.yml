@@ -8,7 +8,7 @@ coverage:
   status:
     project:
       default:
-        target: 85%
+        target: auto
         threshold: 3% #Allow the coverage to drop by threshold%, and posting a success status.
         branches:
           - master
