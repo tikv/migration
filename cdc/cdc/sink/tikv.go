@@ -61,7 +61,10 @@ type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvcon
 func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
 	opts = append(opts, rawkv.WithSecurity(security))
 	opts = append(opts, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
-	return rawkv.NewClientWithOpts(ctx, pdAddrs, opts...)
+	return rawkv.NewClientWithOpts(ctx, pdAddrs,
+		rawkv.WithSecurity(security),
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+	)
 }
 
 type tikvSink struct {
@@ -298,7 +301,7 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 
 	opType, key, value, ttl, err := extractEntry(entry, b.now)
 	if err != nil {
-		log.Warn("ignore this entry because of failed to extract entry", zap.Any("event", entry), zap.Error(err))
+		log.Error("failed to extract entry", zap.Any("event", entry), zap.Error(err))
 		return
 	}
 
