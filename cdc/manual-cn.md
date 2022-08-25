@@ -22,8 +22,8 @@ tiup cluster scale-out <cluster-name> scale-out.yaml
 ### 手工部署
 
 1. 部署两个 TiKV 集群，分别作为上游集群和下游集群。
-2. 启动 TiKV-CDC 集群，包含一个或多个 TiKV-CDC servers。TiKV-CDC server 的启动命令是 `tikv-cdc server --pd <upstream PD endpoints>`.
-3. 通过以下命令启动同步任务：`tikv-cdc cli changefeed create --pd <upstream PD endpoints> --sink-uri tikv://<downstream PD endpoints>`
+2. 启动 TiKV-CDC 集群，包含一个或多个 TiKV-CDC servers。TiKV-CDC server 的启动命令是 `tikv-cdc server --pd <upstream PD endpoints>`。
+3. 通过以下命令启动同步任务：`tikv-cdc cli changefeed create --pd <upstream PD endpoints> --sink-uri tikv://<downstream PD endpoints>`。
 
 ### TiKV-CDC server 启动参数
 * addr：TiKV-CDC 的监听地址，提供服务的 HTTP API 查询地址和 Prometheus 查询地址，默认为 127.0.0.1:8600。
@@ -92,7 +92,7 @@ Info: {"sink-uri":"tikv://192.168.100.61:2379","opts":{},"create-time":"2022-07-
 [scheme]://[userinfo@][host]:[port][/path]?[query_parameters]
 ```
 
-* `--start-ts`: 指定 changefeed 的开始 TSO。TiKV-CDC 集群将从这个 TSO 开始拉取数据。默认为当前时间。如果在一个存量集群上部署同步任务，建议使用 [TiKV-BR](https://github.com/tikv/migration/tree/main/br) 对现有数据进行备份并恢复到下游集群，并从 `TiKV-BR` 的备份结果中获取 `backup-ts` 作为 `start-ts` （`--start-ts=<backup-ts+1>`）.
+* `--start-ts`: 指定 changefeed 的开始 TSO。TiKV-CDC 集群将从这个 TSO 开始拉取数据。默认为当前时间。如果在一个存量集群上部署同步任务，建议使用 [TiKV-BR](https://github.com/tikv/migration/tree/main/br) 对现有数据进行备份并恢复到下游集群，并从 `TiKV-BR` 的备份结果中获取 `backup-ts` 作为 `start-ts` （`--start-ts=<backup-ts+1>`）。
 
 #### Sink URI 配置 `tikv`
 ```
