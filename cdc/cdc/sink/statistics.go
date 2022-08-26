@@ -41,7 +41,7 @@ func NewStatistics(ctx context.Context, name string, opts map[string]string) *St
 	statistics.metricExecTxnHis = execTxnHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 	statistics.metricExecBatchHis = execBatchHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 	statistics.metricExecErrCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
-	statistics.metricInvalidKeyCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name+"invalid_key")
+	statistics.metricInvalidKeyCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name+"_invalid_key")
 
 	// Flush metrics in background for better accuracy and efficiency.
 	captureAddr, changefeedID := statistics.captureAddr, statistics.changefeedID
@@ -106,7 +106,7 @@ func (b *Statistics) AddDDLCount() {
 	atomic.AddUint64(&b.totalDDLCount, 1)
 }
 
-// AddInvalid records total number of invalid keys
+// AddInvalidKeyCount records total number of invalid keys
 func (b *Statistics) AddInvalidKeyCount() {
 	b.metricInvalidKeyCnt.Inc()
 }

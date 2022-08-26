@@ -161,6 +161,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 			ExpiredTs: expires[i],
 			CRTs:      uint64(i),
 		}
+		// entry1 that is with invalid key will be ignored
 		entry1 := &model.RawKVEntry{
 			OpType:    opTypes[i],
 			Key:       []byte(keys[i]),
