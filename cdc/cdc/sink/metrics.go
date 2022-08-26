@@ -101,14 +101,6 @@ var (
 			Name:      "buffer_sink_total_rows_count",
 			Help:      "The total count of rows that are processed by buffer sink",
 		}, []string{"capture", "changefeed"})
-
-	tikvSinkInvalidKeyCountCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "tikv_cdc",
-			Subsystem: "sink",
-			Name:      "tikv_sinK_invalid_key_count",
-			Help:      "Total count of invalid keys",
-		}, []string{"capture", "changefeed", "type"})
 )
 
 // InitMetrics registers all metrics in this file
@@ -123,5 +115,4 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(flushRowChangedDuration)
 	registry.MustRegister(keyspanSinkTotalEventsCountCounter)
 	registry.MustRegister(bufferSinkTotalRowsCountCounter)
-	registry.MustRegister(tikvSinkInvalidKeyCountCounter)
 }

@@ -41,7 +41,7 @@ func NewStatistics(ctx context.Context, name string, opts map[string]string) *St
 	statistics.metricExecTxnHis = execTxnHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 	statistics.metricExecBatchHis = execBatchHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 	statistics.metricExecErrCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
-	statistics.metricInvalidKeyCnt = tikvSinkInvalidKeyCountCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
+	statistics.metricInvalidKeyCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name+"invalid_key")
 
 	// Flush metrics in background for better accuracy and efficiency.
 	captureAddr, changefeedID := statistics.captureAddr, statistics.changefeedID

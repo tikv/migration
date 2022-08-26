@@ -245,6 +245,15 @@ type tikvBatcher struct {
 	count    int
 	byteSize uint64
 	now      uint64
+
+	statistics *Statistics
+}
+
+func newTiKVBatcher(statistics *Statistics) *tikvBatcher {
+	b := &tikvBatcher{
+		statistics: statistics,
+	}
+	return b
 }
 
 func (b *tikvBatcher) Count() int {
@@ -290,7 +299,7 @@ func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
 	return
 }
 
-func (b *tikvBatcher) Append(entry *model.RawKVEntry) error {
+func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	log.Debug("[TRACE] tikvBatch::Append", zap.Any("event", entry))
 
 	if len(b.Batches) == 0 {
@@ -300,7 +309,8 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) error {
 	opType, key, value, ttl, err := extractEntry(entry, b.now)
 	if err != nil {
 		log.Error("failed to extract entry", zap.Any("event", entry), zap.Error(err))
-		return err
+		b.statistics.AddInvalidKeyCount()
+		return
 	}
 
 	// NOTE: do NOT separate PUT & DELETE operations into two batch.
@@ -328,7 +338,6 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) error {
 	if opType == model.OpTypePut {
 		b.byteSize += uint64(len(value)) + uint64(unsafe.Sizeof(ttl))
 	}
-	return nil
 }
 
 func (b *tikvBatcher) Reset() {
@@ -350,7 +359,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
 
-	batcher := tikvBatcher{}
+	batcher := newTiKVBatcher(k.statistics)
 
 	flushToTiKV := func() error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
@@ -386,10 +395,8 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-tick.C:
-			if batcher.byteSize > 0 {
-				if err := flushToTiKV(); err != nil {
-					return errors.Trace(err)
-				}
+			if err := flushToTiKV(); err != nil {
+				return errors.Trace(err)
 			}
 			continue
 		case e = <-input:
@@ -397,10 +404,8 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		if e.rawKVEntry == nil {
 			if e.resolvedTs != 0 {
 				log.Debug("[TRACE] tikvSink::runWorker push workerResolvedTs", zap.Uint32("workerIdx", workerIdx), zap.Uint64("event.resolvedTs", e.resolvedTs))
-				if batcher.byteSize > 0 {
-					if err := flushToTiKV(); err != nil {
-						return errors.Trace(err)
-					}
+				if err := flushToTiKV(); err != nil {
+					return errors.Trace(err)
 				}
 				atomic.StoreUint64(&k.workerResolvedTs[workerIdx], e.resolvedTs)
 				k.resolvedNotifier.Notify()
@@ -408,9 +413,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 			continue
 		}
 		log.Debug("[TRACE] tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
-		if err := batcher.Append(e.rawKVEntry); err != nil {
-			k.statistics.AddInvalidKeyCount()
-		}
+		batcher.Append(e.rawKVEntry)
 
 		if batcher.ByteSize() >= defaultTiKVBatchBytesLimit {
 			if err := flushToTiKV(); err != nil {
@@ -431,7 +434,8 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 				err = fmt.Errorf("Invalid pd addr: %v, err: %v", addr, err)
 				return nil, nil, cerror.WrapError(cerror.ErrTiKVInvalidConfig, err)
 			}
-			pdAddr[i] = "http://" + addr // TODO: support https
+			// TODO: support https
+			pdAddr[i] = "http://" + addr
 		}
 	} else {
 		pdAddr = append(pdAddr, "http://127.0.0.1:2379")

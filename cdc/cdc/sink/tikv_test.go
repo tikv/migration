@@ -139,7 +139,8 @@ func TestTiKVSinkBatcher(t *testing.T) {
 		require.NoError(failpoint.Disable(fpGetNow))
 	}()
 
-	batcher := tikvBatcher{}
+	statistics := NewStatistics(context.Background(), "TiKV", map[string]string{})
+	batcher := newTiKVBatcher(statistics)
 	keys := []string{
 		"a", "b", "c", "d", "e", "f",
 	}
@@ -153,21 +154,28 @@ func TestTiKVSinkBatcher(t *testing.T) {
 		model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete, model.OpTypePut, model.OpTypePut,
 	}
 	for i := range keys {
-		entry := &model.RawKVEntry{
+		entry0 := &model.RawKVEntry{
 			OpType:    opTypes[i],
 			Key:       util.EncodeV2Key([]byte(keys[i])),
 			Value:     []byte(values[i]),
 			ExpiredTs: expires[i],
 			CRTs:      uint64(i),
 		}
-		batcher.Append(entry)
+		entry1 := &model.RawKVEntry{
+			OpType:    opTypes[i],
+			Key:       []byte(keys[i]),
+			Value:     []byte(values[i]),
+			ExpiredTs: expires[i],
+			CRTs:      uint64(i),
+		}
+		batcher.Append(entry0)
+		batcher.Append(entry1)
 	}
 	require.Len(batcher.Batches, 3)
 	require.Equal(6, batcher.Count())
 	require.Equal(42, int(batcher.ByteSize()))
 
 	buf := &bytes.Buffer{}
-
 	for _, batch := range batcher.Batches {
 		fmt.Fprintf(buf, "%+v\n", batch)
 	}
