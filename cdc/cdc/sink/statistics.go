@@ -41,6 +41,7 @@ func NewStatistics(ctx context.Context, name string, opts map[string]string) *St
 	statistics.metricExecTxnHis = execTxnHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 	statistics.metricExecBatchHis = execBatchHistogram.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 	statistics.metricExecErrCnt = executionErrorCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
+	statistics.metricInvalidKeyCnt = tikvSinkInvalidKeyCountCounter.WithLabelValues(statistics.captureAddr, statistics.changefeedID, name)
 
 	// Flush metrics in background for better accuracy and efficiency.
 	captureAddr, changefeedID := statistics.captureAddr, statistics.changefeedID
@@ -79,9 +80,10 @@ type Statistics struct {
 	lastPrintStatusTotalRows uint64
 	lastPrintStatusTime      time.Time
 
-	metricExecTxnHis   prometheus.Observer
-	metricExecBatchHis prometheus.Observer
-	metricExecErrCnt   prometheus.Counter
+	metricExecTxnHis    prometheus.Observer
+	metricExecBatchHis  prometheus.Observer
+	metricExecErrCnt    prometheus.Counter
+	metricInvalidKeyCnt prometheus.Counter
 }
 
 // AddEntriesCount records total number of rows needs to flush
@@ -102,6 +104,11 @@ func (b *Statistics) TotalRowsCount() uint64 {
 // AddDDLCount records total number of ddl needs to flush
 func (b *Statistics) AddDDLCount() {
 	atomic.AddUint64(&b.totalDDLCount, 1)
+}
+
+// AddInvalid records total number of invalid keys
+func (b *Statistics) AddInvalidKeyCount() {
+	b.metricInvalidKeyCnt.Inc()
 }
 
 // RecordBatchExecution records the cost time of batch execution and batch size

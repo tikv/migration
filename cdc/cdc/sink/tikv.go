@@ -59,8 +59,6 @@ var _ rawkvClient = &rawkv.Client{}
 type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error)
 
 func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
-	opts = append(opts, rawkv.WithSecurity(security))
-	opts = append(opts, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
 	return rawkv.NewClientWithOpts(ctx, pdAddrs,
 		rawkv.WithSecurity(security),
 		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
@@ -292,7 +290,7 @@ func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
 	return
 }
 
-func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
+func (b *tikvBatcher) Append(entry *model.RawKVEntry) error {
 	log.Debug("[TRACE] tikvBatch::Append", zap.Any("event", entry))
 
 	if len(b.Batches) == 0 {
@@ -302,7 +300,7 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	opType, key, value, ttl, err := extractEntry(entry, b.now)
 	if err != nil {
 		log.Error("failed to extract entry", zap.Any("event", entry), zap.Error(err))
-		return
+		return err
 	}
 
 	// NOTE: do NOT separate PUT & DELETE operations into two batch.
@@ -330,6 +328,7 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	if opType == model.OpTypePut {
 		b.byteSize += uint64(len(value)) + uint64(unsafe.Sizeof(ttl))
 	}
+	return nil
 }
 
 func (b *tikvBatcher) Reset() {
@@ -387,8 +386,10 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-tick.C:
-			if err := flushToTiKV(); err != nil {
-				return errors.Trace(err)
+			if batcher.byteSize > 0 {
+				if err := flushToTiKV(); err != nil {
+					return errors.Trace(err)
+				}
 			}
 			continue
 		case e = <-input:
@@ -396,17 +397,20 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		if e.rawKVEntry == nil {
 			if e.resolvedTs != 0 {
 				log.Debug("[TRACE] tikvSink::runWorker push workerResolvedTs", zap.Uint32("workerIdx", workerIdx), zap.Uint64("event.resolvedTs", e.resolvedTs))
-				if err := flushToTiKV(); err != nil {
-					return errors.Trace(err)
+				if batcher.byteSize > 0 {
+					if err := flushToTiKV(); err != nil {
+						return errors.Trace(err)
+					}
 				}
-
 				atomic.StoreUint64(&k.workerResolvedTs[workerIdx], e.resolvedTs)
 				k.resolvedNotifier.Notify()
 			}
 			continue
 		}
 		log.Debug("[TRACE] tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
-		batcher.Append(e.rawKVEntry)
+		if err := batcher.Append(e.rawKVEntry); err != nil {
+			k.statistics.AddInvalidKeyCount()
+		}
 
 		if batcher.ByteSize() >= defaultTiKVBatchBytesLimit {
 			if err := flushToTiKV(); err != nil {
