@@ -108,7 +108,7 @@ var (
 			Subsystem: "sink",
 			Name:      "tikv_sinK_invalid_key_count",
 			Help:      "Total count of invalid keys",
-		}, []string{"capture", "changefeed"})
+		}, []string{"capture", "changefeed", "type"})
 )
 
 // InitMetrics registers all metrics in this file
