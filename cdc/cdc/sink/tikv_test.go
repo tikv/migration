@@ -26,8 +26,8 @@ import (
 	tikvconfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/cdc/cdc/model"
+	"github.com/tikv/migration/cdc/pkg/util"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
-	pd "github.com/tikv/pd/client"
 )
 
 type mockRawKVClient struct {
@@ -81,30 +81,34 @@ func TestExtractRawKVEntry(t *testing.T) {
 		key    []byte
 		value  []byte
 		ttl    uint64
+		err    error
 	}
 
 	now := uint64(100)
 	cases := []*model.RawKVEntry{
-		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 0},
-		{OpType: model.OpTypeDelete, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 0},
-		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 200},
-		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 100},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 0},
+		{OpType: model.OpTypeDelete, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 0},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 200},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 100},
+		{OpType: model.OpTypePut, Key: util.EncodeV2Key([]byte("k")), Value: []byte("v"), ExpiredTs: 1},
 		{OpType: model.OpTypePut, Key: []byte("k"), Value: []byte("v"), ExpiredTs: 1},
 	}
 	expects := []expected{
-		{model.OpTypePut, []byte("k"), []byte("v"), 0},
-		{model.OpTypeDelete, []byte("k"), nil, 0},
-		{model.OpTypePut, []byte("k"), []byte("v"), 100},
-		{model.OpTypeDelete, []byte("k"), nil, 0},
-		{model.OpTypeDelete, []byte("k"), nil, 0},
+		{model.OpTypePut, []byte("k"), []byte("v"), 0, nil},
+		{model.OpTypeDelete, []byte("k"), nil, 0, nil},
+		{model.OpTypePut, []byte("k"), []byte("v"), 100, nil},
+		{model.OpTypeDelete, []byte("k"), nil, 0, nil},
+		{model.OpTypeDelete, []byte("k"), nil, 0, nil},
+		{model.OpTypePut, nil, nil, 0, fmt.Errorf("%s is not a valid API V2 key", []byte("k"))},
 	}
 
 	for i, c := range cases {
-		opType, key, value, ttl := extractEntry(c, now)
+		opType, key, value, ttl, err := extractEntry(c, now)
 		require.Equal(expects[i].opType, opType)
 		require.Equal(expects[i].key, key)
 		require.Equal(expects[i].value, value)
 		require.Equal(expects[i].ttl, ttl)
+		require.Equal(expects[i].err, err)
 	}
 }
 
@@ -135,7 +139,8 @@ func TestTiKVSinkBatcher(t *testing.T) {
 		require.NoError(failpoint.Disable(fpGetNow))
 	}()
 
-	batcher := tikvBatcher{}
+	statistics := NewStatistics(context.Background(), "TiKV", map[string]string{})
+	batcher := newTiKVBatcher(statistics)
 	keys := []string{
 		"a", "b", "c", "d", "e", "f",
 	}
@@ -149,21 +154,29 @@ func TestTiKVSinkBatcher(t *testing.T) {
 		model.OpTypePut, model.OpTypePut, model.OpTypePut, model.OpTypeDelete, model.OpTypePut, model.OpTypePut,
 	}
 	for i := range keys {
-		entry := &model.RawKVEntry{
+		entry0 := &model.RawKVEntry{
+			OpType:    opTypes[i],
+			Key:       util.EncodeV2Key([]byte(keys[i])),
+			Value:     []byte(values[i]),
+			ExpiredTs: expires[i],
+			CRTs:      uint64(i),
+		}
+		// entry1 that is with invalid key will be ignored
+		entry1 := &model.RawKVEntry{
 			OpType:    opTypes[i],
 			Key:       []byte(keys[i]),
 			Value:     []byte(values[i]),
 			ExpiredTs: expires[i],
 			CRTs:      uint64(i),
 		}
-		batcher.Append(entry)
+		batcher.Append(entry0)
+		batcher.Append(entry1)
 	}
 	require.Len(batcher.Batches, 3)
 	require.Equal(6, batcher.Count())
 	require.Equal(42, int(batcher.ByteSize()))
 
 	buf := &bytes.Buffer{}
-
 	for _, batch := range batcher.Batches {
 		fmt.Fprintf(buf, "%+v\n", batch)
 	}
@@ -202,7 +215,7 @@ func TestTiKVSink(t *testing.T) {
 
 	mockCli := newMockRawKVClient()
 
-	fnCreate := func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error) {
+	fnCreate := func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
 		return mockCli, nil
 	}
 
@@ -226,7 +239,7 @@ func TestTiKVSink(t *testing.T) {
 		for i := range keys {
 			entry := &model.RawKVEntry{
 				OpType:    opTypes[i],
-				Key:       []byte(keys[i]),
+				Key:       util.EncodeV2Key([]byte(keys[i])),
 				Value:     []byte(values[i]),
 				ExpiredTs: expires[i],
 				CRTs:      uint64(i),
@@ -256,7 +269,7 @@ func TestTiKVSink(t *testing.T) {
 		for i := range keys {
 			entry := &model.RawKVEntry{
 				OpType:    opTypes[i],
-				Key:       []byte(keys[i]),
+				Key:       util.EncodeV2Key([]byte(keys[i])),
 				Value:     []byte(values[i]),
 				ExpiredTs: expires[i],
 				CRTs:      uint64(i),
@@ -276,7 +289,7 @@ func TestTiKVSink(t *testing.T) {
 		results = append(results, r)
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i] < results[j] })
-	require.Equal([]string{"D:d|D:e|", "D:m|", "P:a,1,0|", "P:b,2,100|P:c,3,200|", "P:f,6,300|", "P:k,1,0|", "P:n,3,100|"}, results)
+	require.Equal([]string{"D:d|", "D:e|", "D:m|", "P:a,1,0|", "P:b,2,100|P:c,3,200|", "P:f,6,300|", "P:k,1,0|", "P:n,3,100|"}, results)
 
 	// Flush older resolved ts
 	checkpointTs, err = sink.FlushChangedEvents(ctx, 1, uint64(110))

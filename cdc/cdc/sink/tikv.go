@@ -26,6 +26,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/twmb/murmur3"
 	"go.uber.org/zap"
@@ -38,7 +39,7 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/notify"
-	pd "github.com/tikv/pd/client"
+	"github.com/tikv/migration/cdc/pkg/util"
 )
 
 const (
@@ -55,10 +56,13 @@ type rawkvClient interface {
 
 var _ rawkvClient = &rawkv.Client{}
 
-type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error)
+type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error)
 
-func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...pd.ClientOption) (rawkvClient, error) {
-	return rawkv.NewClientV2(ctx, pdAddrs, security, opts...)
+func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
+	return rawkv.NewClientWithOpts(ctx, pdAddrs,
+		rawkv.WithSecurity(security),
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+	)
 }
 
 type tikvSink struct {
@@ -241,6 +245,15 @@ type tikvBatcher struct {
 	count    int
 	byteSize uint64
 	now      uint64
+
+	statistics *Statistics
+}
+
+func newTiKVBatcher(statistics *Statistics) *tikvBatcher {
+	b := &tikvBatcher{
+		statistics: statistics,
+	}
+	return b
 }
 
 func (b *tikvBatcher) Count() int {
@@ -259,9 +272,14 @@ func (b *tikvBatcher) getNow() uint64 {
 	return uint64(time.Now().Unix()) // TODO: use TSO ?
 }
 
-func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType, key []byte, value []byte, ttl uint64) {
+func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
+	key []byte, value []byte, ttl uint64, err error,
+) {
 	opType = entry.OpType
-	key = entry.Key
+	key, err = util.DecodeV2Key(entry.Key)
+	if err != nil {
+		return
+	}
 
 	if entry.OpType == model.OpTypePut {
 		// Expired entries have the effect the same as delete, and can not be ignored.
@@ -288,7 +306,12 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 		b.now = b.getNow()
 	}
 
-	opType, key, value, ttl := extractEntry(entry, b.now)
+	opType, key, value, ttl, err := extractEntry(entry, b.now)
+	if err != nil {
+		log.Error("failed to extract entry", zap.Any("event", entry), zap.Error(err))
+		b.statistics.AddInvalidKeyCount()
+		return
+	}
 
 	// NOTE: do NOT separate PUT & DELETE operations into two batch.
 	// Change the order of entires would lead to wrong result.
@@ -336,7 +359,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
 
-	batcher := tikvBatcher{}
+	batcher := newTiKVBatcher(k.statistics)
 
 	flushToTiKV := func() error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
@@ -384,7 +407,6 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 				if err := flushToTiKV(); err != nil {
 					return errors.Trace(err)
 				}
-
 				atomic.StoreUint64(&k.workerResolvedTs[workerIdx], e.resolvedTs)
 				k.resolvedNotifier.Notify()
 			}
@@ -412,7 +434,8 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 				err = fmt.Errorf("Invalid pd addr: %v, err: %v", addr, err)
 				return nil, nil, cerror.WrapError(cerror.ErrTiKVInvalidConfig, err)
 			}
-			pdAddr[i] = "http://" + addr // TODO: support https
+			// TODO: support https
+			pdAddr[i] = "http://" + addr
 		}
 	} else {
 		pdAddr = append(pdAddr, "http://127.0.0.1:2379")

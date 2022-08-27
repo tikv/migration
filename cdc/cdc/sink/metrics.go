@@ -26,6 +26,7 @@ var (
 			Help:      "Bucketed histogram of batch size of a txn.",
 			Buckets:   prometheus.ExponentialBuckets(1, 2, 18),
 		}, []string{"capture", "changefeed", "type"})
+
 	execTxnHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "tikv_cdc",
@@ -34,13 +35,15 @@ var (
 			Help:      "Bucketed histogram of processing time (s) of a txn.",
 			Buckets:   prometheus.ExponentialBuckets(0.002 /* 2 ms */, 2, 18),
 		}, []string{"capture", "changefeed", "type"})
+
 	executionErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "execution_error",
-			Help:      "total count of execution errors",
+			Help:      "Total count of execution errors",
 		}, []string{"capture", "changefeed", "type"})
+
 	conflictDetectDurationHis = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "tikv_cdc",
@@ -49,13 +52,15 @@ var (
 			Help:      "Bucketed histogram of conflict detect time (s) for single DML statement",
 			Buckets:   prometheus.ExponentialBuckets(0.001 /* 1 ms */, 2, 20),
 		}, []string{"capture", "changefeed"})
+
 	bucketSizeCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "tikv_cdc",
 			Subsystem: "sink",
 			Name:      "bucket_size",
-			Help:      "size of the DML bucket",
+			Help:      "Size of the DML bucket",
 		}, []string{"capture", "changefeed", "bucket"})
+
 	totalRowsCountGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "tikv_cdc",
@@ -63,6 +68,7 @@ var (
 			Name:      "total_rows_count",
 			Help:      "The total count of rows that are processed by sink",
 		}, []string{"capture", "changefeed"})
+
 	totalFlushedRowsCountGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "tikv_cdc",
@@ -70,6 +76,7 @@ var (
 			Name:      "total_flushed_rows_count",
 			Help:      "The total count of rows that are flushed by sink",
 		}, []string{"capture", "changefeed"})
+
 	flushRowChangedDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "tikv_cdc",

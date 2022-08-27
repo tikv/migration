@@ -14,6 +14,7 @@
 package util
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -133,5 +134,40 @@ func TestEncodeKeySpan(t *testing.T) {
 		} else {
 			require.NotNil(t, err)
 		}
+	}
+}
+
+func TestDecodeKey(t *testing.T) {
+	testCases := []struct {
+		key       []byte
+		expectKey []byte
+		expectErr error
+	}{
+		{
+			key:       APIV2RawKeyPrefix,
+			expectKey: []byte{},
+			expectErr: nil,
+		},
+		{
+			key:       append(APIV2RawKeyPrefix, 'a'),
+			expectKey: []byte{'a'},
+			expectErr: nil,
+		},
+		{
+			key:       []byte{'a'},
+			expectKey: nil,
+			expectErr: fmt.Errorf("%s is not a valid API V2 key", []byte{'a'}),
+		},
+		{
+			key:       append(APIV2RawEndKey, 'a'),
+			expectKey: nil,
+			expectErr: fmt.Errorf("%s is not a valid API V2 key", append(APIV2RawEndKey, 'a')),
+		},
+	}
+
+	for _, testCase := range testCases {
+		key, err := DecodeV2Key(testCase.key)
+		require.Equal(t, testCase.expectKey, key)
+		require.Equal(t, testCase.expectErr, err)
 	}
 }
