@@ -165,7 +165,7 @@ check-merge-conflicts:
 	@./scripts/check-merge-conflicts.sh
 
 check-gosec: tools/bin/gosec
-	tools/bin/gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
+	tools/bin/gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude-dir tests/.unmodify -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
 check: check-copyright fmt check-static tidy errdoc check-leaktest-added check-merge-conflicts
 
