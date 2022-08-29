@@ -1,0 +1,69 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
+	"github.com/spf13/cobra"
+	"github.com/tikv/client-go/v2/rawkv"
+)
+
+func NewChecksumCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:          "checksum",
+		Short:        "Verify that the upstream and downstream data are consistent",
+		SilenceUsage: true,
+		Args:         cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runChecksum(cmd)
+		},
+	}
+}
+
+func runChecksum(cmd *cobra.Command) error {
+	cfg := &Config{}
+	err := cfg.ParseFromFlags(cmd.Flags())
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+
+	if cfg.DstPD == "" {
+		return fmt.Errorf("Downstream cluster PD is not set")
+	}
+	if cfg.DstPD == cfg.SrcPD {
+		return fmt.Errorf("Downstream cluster PD is same with upstream cluster PD")
+	}
+
+	srcCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	if err != nil {
+		return err
+	}
+	defer srcCli.Close()
+
+	dstCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.DstPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	if err != nil {
+		return err
+	}
+	defer dstCli.Close()
+
+	srcChecksum, err := srcCli.Checksum(ctx, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	dstChecksum, err := dstCli.Checksum(ctx, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	if srcChecksum != dstChecksum {
+		msg := fmt.Sprintf("Upstream checksum %v are not same with downstream %v", srcChecksum, dstChecksum)
+		log.Info(msg)
+		return fmt.Errorf(msg)
+	}
+	fmt.Printf("Upstream checksum %v are same with downstream %v\n", srcChecksum, dstChecksum)
+	return nil
+}

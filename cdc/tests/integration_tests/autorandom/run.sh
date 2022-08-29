@@ -5,34 +5,34 @@ set -eu
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=cdc.test
+CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
+UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
+DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 
-	start_tidb_cluster --workdir $WORK_DIR --tidb-config $CUR/conf/tidb_config.toml
+	start_tidb_cluster --workdir $WORK_DIR
 
 	cd $WORK_DIR
 
 	# record tso before we create tables to skip the system table DDLs
-	start_ts=$(cdc cli tso query --pd=http://$UP_PD_HOST_1:$UP_PD_PORT_1)
-
+    start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
-	TOPIC_NAME="ticdc-autorandom-test-$RANDOM"
 	case $SINK_TYPE in
-	kafka) SINK_URI="kafka://127.0.0.1:9092/$TOPIC_NAME?protocol=open-protocol&partition-num=4&kafka-version=${KAFKA_VERSION}&max-message-bytes=10485760" ;;
-	*) SINK_URI="mysql://normal:123456@127.0.0.1:3306/" ;;
+	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	*) SINK_URI="" ;;
 	esac
-	cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
-	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "kafka://127.0.0.1:9092/$TOPIC_NAME?protocol=open-protocol&partition-num=4&version=${KAFKA_VERSION}&max-message-bytes=10485760"
-	fi
-	run_sql_file $CUR/data/test.sql ${UP_TIDB_HOST} ${UP_TIDB_PORT}
-	# sync_diff can't check non-exist table, so we check expected tables are created in downstream first
-	check_table_exists autorandom_test.table_a ${DOWN_TIDB_HOST} ${DOWN_TIDB_PORT}
-	check_sync_diff $WORK_DIR $CUR/conf/diff_config.toml
+
+	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
+
+    rawkv_data $UP_PD put 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+    rawkv_data $UP_PD delete 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+
 	cleanup_process $CDC_BINARY
 }
 

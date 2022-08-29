@@ -182,6 +182,7 @@ clean:
 	rm -rf *.out
 	rm -rf bin
 	rm -rf tools/bin
+	rm -rf scripts/bin
 
 install_test_python_dep:
 	@echo "install python requirments for test"
@@ -242,3 +243,28 @@ failpoint-enable: check_failpoint_ctl
 
 failpoint-disable: check_failpoint_ctl
 	$(FAILPOINT_DISABLE)
+
+integration_test_build: check_failpoint_ctl
+	$(FAILPOINT_ENABLE)
+	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
+        -coverpkg=github.com/tikv/migration/... \
+        -o bin/tikv-cdc.test github.com/tikv/migration/cdc/cmd/cdc \
+    || { $(FAILPOINT_DISABLE); exit 1; }
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go \
+    || { $(FAILPOINT_DISABLE); exit 1; }
+	$(FAILPOINT_DISABLE)
+
+integration_test: prepare_test_binaries check_third_party_binary integration_test_build
+	tests/integration_tests/run.sh 
+
+prepare_test_binaries:
+	cd scripts && ./download-integration-test-binaries.sh master && cd ..
+
+check_third_party_binary:
+	@which scripts/bin/tidb-server
+	@which scripts/bin/tikv-server
+	@which scripts/bin/pd-server
+	@which scripts/bin/pd-ctl
+	@which scripts/bin/go-ycsb
+	@which scripts/bin/etcdctl
+

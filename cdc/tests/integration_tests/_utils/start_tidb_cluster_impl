@@ -162,6 +162,8 @@ cat - >"$OUT_DIR/tikv-config.toml" <<EOF
 [storage]
 # Disable creating a large temp file.
 reserve-space = "0MB"
+api-version = 2
+enable-ttl = true
 [rocksdb]
 max-open-files = 4096
 [raftdb]
@@ -219,15 +221,6 @@ tidb-server \
 	--status=${UP_TIDB_STATUS} \
 	--log-file "$OUT_DIR/tidb.log" &
 
-randomGenSocketsConf
-tidb-server \
-	-P ${UP_TIDB_OTHER_PORT} \
-	-config "$random_file_name" \
-	--store tikv \
-	--path ${UP_PD_HOST_1}:${UP_PD_PORT_1} \
-	--status=${UP_TIDB_OTHER_STATUS} \
-	--log-file "$OUT_DIR/tidb_other.log" &
-
 echo "Starting Downstream TiDB..."
 randomGenSocketsConf
 tidb-server \
@@ -249,125 +242,12 @@ while ! mysql -uroot -h${UP_TIDB_HOST} -P${UP_TIDB_PORT} --default-character-set
 	sleep 2
 done
 
-i=0
-while ! mysql -uroot -h${UP_TIDB_HOST} -P${UP_TIDB_OTHER_PORT} --default-character-set utf8mb4 -e 'select * from mysql.tidb;'; do
-	i=$((i + 1))
-	if [ "$i" -gt 60 ]; then
-		echo 'Failed to start upstream TiDB'
-		exit 2
-	fi
-	sleep 2
-done
-
 echo "Verifying Downstream TiDB is started..."
 i=0
 while ! mysql -uroot -h${DOWN_TIDB_HOST} -P${DOWN_TIDB_PORT} --default-character-set utf8mb4 -e 'select * from mysql.tidb;'; do
 	i=$((i + 1))
 	if [ "$i" -gt 60 ]; then
 		echo 'Failed to start downstream TiDB'
-		exit 1
-	fi
-	sleep 2
-done
-
-run_sql "update mysql.tidb set variable_value='60m' where variable_name='tikv_gc_life_time';" ${UP_TIDB_HOST} ${UP_TIDB_PORT}
-run_sql "update mysql.tidb set variable_value='60m' where variable_name='tikv_gc_life_time';" ${DOWN_TIDB_HOST} ${DOWN_TIDB_PORT}
-run_sql "CREATE user 'normal'@'%' identified by '123456';" ${DOWN_TIDB_HOST} ${DOWN_TIDB_PORT}
-run_sql "GRANT select,insert,update,delete,index,create,drop,alter,create view ON *.* TO 'normal'@'%';" ${DOWN_TIDB_HOST} ${DOWN_TIDB_PORT}
-run_sql "FLUSH privileges" ${DOWN_TIDB_HOST} ${DOWN_TIDB_PORT}
-
-cat - >"$OUT_DIR/tiflash-config.toml" <<EOF
-tmp_path = "${OUT_DIR}/tiflash/tmp"
-display_name = "TiFlash"
-default_profile = "default"
-users_config = "${OUT_DIR}/tiflash/users.toml"
-path = "${OUT_DIR}/tiflash/db"
-mark_cache_size = 5368709120
-listen_host = "127.0.0.1"
-tcp_port = 5000
-http_port = 4500
-interserver_http_port = 5500
-
-[flash]
-tidb_status_addr = "127.0.0.1:8500"
-service_addr = "127.0.0.1:9500"
-overlap_threshold = 0.6
-
-[flash.flash_cluster]
-master_ttl = 60
-refresh_interval = 20
-update_rule_interval = 5
-cluster_manager_path = "${CUR}/../../bin/flash_cluster_manager"
-
-[flash.proxy]
-addr = "127.0.0.1:9000"
-advertise-addr = "127.0.0.1:9000"
-data-dir = "${OUT_DIR}/tiflash/db/proxy"
-config = "${OUT_DIR}/tiflash-proxy.toml"
-log-file = "${OUT_DIR}/tiflash/log/proxy.log"
-
-[logger]
-level = "trace"
-log = "${OUT_DIR}/tiflash/log/server.log"
-errorlog = "${OUT_DIR}/tiflash/log/error.log"
-size = "4000M"
-count = 10
-
-[application]
-runAsDaemon = true
-
-[raft]
-kvstore_path = "${OUT_DIR}/tiflash/kvstore"
-pd_addr = "${UP_PD_HOST_1}:${UP_PD_PORT_1}"
-ignore_databases = "system,default"
-storage_engine = "dt"
-EOF
-
-cat - >"$OUT_DIR/tiflash-proxy.toml" <<EOF
-log-level = "info"
-
-[server]
-engine-addr = "127.0.0.1:9500"
-status-addr = "127.0.0.1:17000"
-
-[raftstore]
-sync-log = true
-capacity = "100GB"
-hibernate-regions = false
-
-[rocksdb]
-wal-dir = ""
-max-open-files = 1000
-
-[rocksdb.defaultcf]
-block-cache-size = "10GB"
-
-[rocksdb.lockcf]
-block-cache-size = "4GB"
-
-[rocksdb.writecf]
-block-cache-size = "4GB"
-
-[raftdb]
-max-open-files = 1000
-
-[raftdb.defaultcf]
-block-cache-size = "1GB"
-EOF
-
-echo "Starting Upstream TiFlash..."
-mkdir -p ${OUT_DIR}/tiflash/ && cp $CUR/tiflash-users.toml ${OUT_DIR}/tiflash/users.toml
-tiflash server --config-file "$OUT_DIR/tiflash-config.toml" &
-
-echo "Verifying Upstream TiFlash is started..."
-# Make sure TiFlash is started.
-while ! curl -o /dev/null -sf http://127.0.0.1:17000/metrics 1>/dev/null 2>&1; do
-	i=$((i + 1))
-	if [ "$i" -gt 10 ]; then
-		cat ${OUT_DIR}/tiflash/log/proxy.log
-		cat ${OUT_DIR}/tiflash/log/server.log
-		cat ${OUT_DIR}/tiflash/log/error.log
-		echo 'Failed to start TiFlash'
 		exit 1
 	fi
 	sleep 2
