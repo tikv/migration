@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # parameter 1: pd_addr
 # parameter 2: put/delete
 # parameter 3: key count
