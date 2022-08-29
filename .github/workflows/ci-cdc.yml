@@ -59,7 +59,7 @@ jobs:
         run: |
           cd cdc/
           make unit_test_in_verify_ci
-  cdc-unit-test:
+  cdc-integration-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
