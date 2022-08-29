@@ -57,6 +57,7 @@ test: tools/bin/gocov tools/bin/gocov-xml
 	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile=$(COVERAGE_DIR)/coverage.raw || ( make failpoint/disable && exit 1 )
 	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
 	make failpoint/disable
+	@bash <(curl -s https://codecov.io/bash) -F br -f $(COVERAGE_DIR)/coverage.raw -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 test/integration: build/br-test build/rawkv-integration-test
 	./bin/rawkv_test --pd=${PD_ADDR} \
