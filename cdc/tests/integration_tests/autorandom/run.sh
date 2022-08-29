@@ -18,7 +18,7 @@ function run() {
 	cd $WORK_DIR
 
 	# record tso before we create tables to skip the system table DDLs
-    start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
+	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
 	case $SINK_TYPE in
@@ -28,9 +28,9 @@ function run() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 
-    rawkv_data $UP_PD put 10000
+	rawkv_data $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_data $UP_PD delete 10000
+	rawkv_data $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

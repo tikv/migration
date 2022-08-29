@@ -8,9 +8,9 @@ CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 binary=$CUR/../../utils/rawkv_data/rawkv_data
 PWD=$(pwd)
 if [ ! -f $binary ]; then
-    cd $CUR/../../utils/rawkv_data/
+	cd $CUR/../../utils/rawkv_data/
 	GO111MODULE=on go build
-    cd $PWD
+	cd $PWD
 fi
 
 workdir=$1
@@ -26,7 +26,7 @@ cd $workdir
 i=0
 while [ $i -lt $check_time ]; do
 	rm -rf $workdir/rawkv_data/
-    $binary checksum --src-pd $UP_PD --dst-pd $DOWN_PD
+	$binary checksum --src-pd $UP_PD --dst-pd $DOWN_PD
 	ret=$?
 	if [ "$ret" == 0 ]; then
 		echo "check diff successfully"

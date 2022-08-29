@@ -14,7 +14,7 @@ if [ "${1-}" = '--debug' ]; then
 
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 
-    PATH=$CUR/_utils:$CUR/../../bin:$CUR/../../scripts/bin:$PATH \
+	PATH=$CUR/_utils:$CUR/../../bin:$CUR/../../scripts/bin:$PATH \
 		LD_LIBRARY_PATH="$CUR/../bin:$CUR/_utils:$PATH" \
 		OUT_DIR=$OUT_DIR \
 		TEST_NAME="debug" \
