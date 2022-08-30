@@ -13,6 +13,7 @@ DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 
+    exit 1
 	start_tidb_cluster --workdir $WORK_DIR
 
 	cd $WORK_DIR
