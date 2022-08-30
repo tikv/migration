@@ -59,15 +59,3 @@ jobs:
         run: |
           cd cdc/
           make unit_test_in_verify_ci
-  cdc-integration-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.18.3'
-      - name: make integration_test
-        shell: bash
-        run: |
-          cd cdc/
-          make integration_test
