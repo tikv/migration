@@ -1,6 +1,6 @@
 // Copyright 2020 PingCAP, Inc. Licensed under Apache-2.0.
 
-package restore_test
+package restore
 
 import (
 	"bytes"
@@ -16,7 +16,6 @@ import (
 	"github.com/pingcap/tidb/store/pdtypes"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/client-go/v2/util/codec"
-	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/rtree"
 	"github.com/tikv/migration/br/pkg/utils"
 	"go.uber.org/multierr"
@@ -27,10 +26,10 @@ import (
 type TestClient struct {
 	mu                  sync.RWMutex
 	stores              map[uint64]*metapb.Store
-	regions             map[uint64]*restore.RegionInfo
+	regions             map[uint64]*RegionInfo
 	regionsInfo         *pdtypes.RegionTree // For now it's only used in ScanRegions
 	nextRegionID        uint64
-	injectInScatter     func(*restore.RegionInfo) error
+	injectInScatter     func(*RegionInfo) error
 	supportBatchScatter bool
 
 	scattered map[uint64]bool
@@ -38,7 +37,7 @@ type TestClient struct {
 
 func NewTestClient(
 	stores map[uint64]*metapb.Store,
-	regions map[uint64]*restore.RegionInfo,
+	regions map[uint64]*RegionInfo,
 	nextRegionID uint64,
 ) *TestClient {
 	regionsInfo := &pdtypes.RegionTree{}
@@ -51,7 +50,7 @@ func NewTestClient(
 		regionsInfo:     regionsInfo,
 		nextRegionID:    nextRegionID,
 		scattered:       map[uint64]bool{},
-		injectInScatter: func(*restore.RegionInfo) error { return nil },
+		injectInScatter: func(*RegionInfo) error { return nil },
 	}
 }
 
@@ -60,11 +59,11 @@ func (c *TestClient) InstallBatchScatterSupport() {
 }
 
 // ScatterRegions scatters regions in a batch.
-func (c *TestClient) ScatterRegions(ctx context.Context, regionInfo []*restore.RegionInfo) error {
+func (c *TestClient) ScatterRegions(ctx context.Context, regionInfo []*RegionInfo) error {
 	if !c.supportBatchScatter {
 		return status.Error(codes.Unimplemented, "Ah, yep")
 	}
-	regions := map[uint64]*restore.RegionInfo{}
+	regions := map[uint64]*RegionInfo{}
 	for _, region := range regionInfo {
 		regions[region.Region.Id] = region
 	}
@@ -85,7 +84,7 @@ func (c *TestClient) ScatterRegions(ctx context.Context, regionInfo []*restore.R
 	return nil
 }
 
-func (c *TestClient) GetAllRegions() map[uint64]*restore.RegionInfo {
+func (c *TestClient) GetAllRegions() map[uint64]*RegionInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.regions
@@ -101,7 +100,7 @@ func (c *TestClient) GetStore(ctx context.Context, storeID uint64) (*metapb.Stor
 	return store, nil
 }
 
-func (c *TestClient) GetRegion(ctx context.Context, key []byte) (*restore.RegionInfo, error) {
+func (c *TestClient) GetRegion(ctx context.Context, key []byte) (*RegionInfo, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, region := range c.regions {
@@ -113,7 +112,7 @@ func (c *TestClient) GetRegion(ctx context.Context, key []byte) (*restore.Region
 	return nil, errors.Errorf("region not found: key=%s", string(key))
 }
 
-func (c *TestClient) GetRegionByID(ctx context.Context, regionID uint64) (*restore.RegionInfo, error) {
+func (c *TestClient) GetRegionByID(ctx context.Context, regionID uint64) (*RegionInfo, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	region, ok := c.regions[regionID]
@@ -125,12 +124,12 @@ func (c *TestClient) GetRegionByID(ctx context.Context, regionID uint64) (*resto
 
 func (c *TestClient) SplitRegion(
 	ctx context.Context,
-	regionInfo *restore.RegionInfo,
+	regionInfo *RegionInfo,
 	key []byte,
-) (*restore.RegionInfo, error) {
+) (*RegionInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var target *restore.RegionInfo
+	var target *RegionInfo
 	splitKey := codec.EncodeBytes([]byte{}, key)
 	for _, region := range c.regions {
 		if bytes.Compare(splitKey, region.Region.StartKey) >= 0 &&
@@ -141,7 +140,7 @@ func (c *TestClient) SplitRegion(
 	if target == nil {
 		return nil, errors.Errorf("region not found: key=%s", string(key))
 	}
-	newRegion := &restore.RegionInfo{
+	newRegion := &RegionInfo{
 		Region: &metapb.Region{
 			Peers:    target.Region.Peers,
 			Id:       c.nextRegionID,
@@ -157,14 +156,14 @@ func (c *TestClient) SplitRegion(
 }
 
 func (c *TestClient) BatchSplitRegionsWithOrigin(
-	ctx context.Context, regionInfo *restore.RegionInfo, keys [][]byte,
-) (*restore.RegionInfo, []*restore.RegionInfo, error) {
+	ctx context.Context, regionInfo *RegionInfo, keys [][]byte,
+) (*RegionInfo, []*RegionInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	newRegions := make([]*restore.RegionInfo, 0)
-	var region *restore.RegionInfo
+	newRegions := make([]*RegionInfo, 0)
+	var region *RegionInfo
 	for _, key := range keys {
-		var target *restore.RegionInfo
+		var target *RegionInfo
 		splitKey := codec.EncodeBytes([]byte{}, key)
 		for _, region := range c.regions {
 			if region.ContainsInterior(splitKey) {
@@ -174,7 +173,7 @@ func (c *TestClient) BatchSplitRegionsWithOrigin(
 		if target == nil {
 			continue
 		}
-		newRegion := &restore.RegionInfo{
+		newRegion := &RegionInfo{
 			Region: &metapb.Region{
 				Peers:    target.Region.Peers,
 				Id:       c.nextRegionID,
@@ -193,13 +192,13 @@ func (c *TestClient) BatchSplitRegionsWithOrigin(
 }
 
 func (c *TestClient) BatchSplitRegions(
-	ctx context.Context, regionInfo *restore.RegionInfo, keys [][]byte,
-) ([]*restore.RegionInfo, error) {
+	ctx context.Context, regionInfo *RegionInfo, keys [][]byte,
+) ([]*RegionInfo, error) {
 	_, newRegions, err := c.BatchSplitRegionsWithOrigin(ctx, regionInfo, keys)
 	return newRegions, err
 }
 
-func (c *TestClient) ScatterRegion(ctx context.Context, regionInfo *restore.RegionInfo) error {
+func (c *TestClient) ScatterRegion(ctx context.Context, regionInfo *RegionInfo) error {
 	return c.injectInScatter(regionInfo)
 }
 
@@ -209,11 +208,11 @@ func (c *TestClient) GetOperator(ctx context.Context, regionID uint64) (*pdpb.Ge
 	}, nil
 }
 
-func (c *TestClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*restore.RegionInfo, error) {
+func (c *TestClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*RegionInfo, error) {
 	infos := c.regionsInfo.ScanRange(key, endKey, limit)
-	regions := make([]*restore.RegionInfo, 0, len(infos))
+	regions := make([]*RegionInfo, 0, len(infos))
 	for _, info := range infos {
-		regions = append(regions, &restore.RegionInfo{
+		regions = append(regions, &RegionInfo{
 			Region: info.Meta,
 			Leader: info.Leader,
 		})
@@ -276,7 +275,7 @@ func ScatterFinishInTimeImpl(t *testing.T, needEncodeKey bool) {
 	client := initTestClient()
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
-	regionSplitter := restore.NewRegionSplitter(client)
+	regionSplitter := NewRegionSplitter(client)
 
 	ctx := context.Background()
 	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
@@ -290,12 +289,12 @@ func ScatterFinishInTimeImpl(t *testing.T, needEncodeKey bool) {
 		t.Fail()
 	}
 
-	regionInfos := make([]*restore.RegionInfo, 0, len(regions))
+	regionInfos := make([]*RegionInfo, 0, len(regions))
 	for _, info := range regions {
 		regionInfos = append(regionInfos, info)
 	}
 	failed := map[uint64]int{}
-	client.injectInScatter = func(r *restore.RegionInfo) error {
+	client.injectInScatter = func(r *RegionInfo) error {
 		failed[r.Region.Id]++
 		if failed[r.Region.Id] > 7 {
 			return nil
@@ -335,7 +334,7 @@ func TestSplitAndScatter(t *testing.T) {
 func runTestSplitAndScatterWith(t *testing.T, client *TestClient, needEncodeKey bool) {
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
-	regionSplitter := restore.NewRegionSplitter(client)
+	regionSplitter := NewRegionSplitter(client)
 
 	ctx := context.Background()
 	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
@@ -348,13 +347,13 @@ func runTestSplitAndScatterWith(t *testing.T, client *TestClient, needEncodeKey 
 		t.Log("get wrong result")
 		t.Fail()
 	}
-	regionInfos := make([]*restore.RegionInfo, 0, len(regions))
+	regionInfos := make([]*RegionInfo, 0, len(regions))
 	for _, info := range regions {
 		regionInfos = append(regionInfos, info)
 	}
 	scattered := map[uint64]bool{}
 	const alwaysFailedRegionID = 1
-	client.injectInScatter = func(regionInfo *restore.RegionInfo) error {
+	client.injectInScatter = func(regionInfo *RegionInfo) error {
 		if _, ok := scattered[regionInfo.Region.Id]; !ok || regionInfo.Region.Id == alwaysFailedRegionID {
 			scattered[regionInfo.Region.Id] = false
 			return status.Errorf(codes.Unknown, "region %d is not fully replicated", regionInfo.Region.Id)
@@ -380,7 +379,7 @@ func initTestClient() *TestClient {
 		StoreId: 1,
 	}
 	keys := [6]string{"", "aay", "bba", "bbh", "cca", ""}
-	regions := make(map[uint64]*restore.RegionInfo)
+	regions := make(map[uint64]*RegionInfo)
 	for i := uint64(1); i < 6; i++ {
 		startKey := []byte(keys[i-1])
 		if len(startKey) != 0 {
@@ -390,7 +389,7 @@ func initTestClient() *TestClient {
 		if len(endKey) != 0 {
 			endKey = codec.EncodeBytes([]byte{}, endKey)
 		}
-		regions[i] = &restore.RegionInfo{
+		regions[i] = &RegionInfo{
 			Region: &metapb.Region{
 				Id:       i,
 				Peers:    peers,
@@ -428,7 +427,7 @@ func initRanges() []rtree.Range {
 	return ranges[:]
 }
 
-func initRewriteRules() *restore.RewriteRules {
+func initRewriteRules() *RewriteRules {
 	var rules [2]*import_sstpb.RewriteRule
 	rules[0] = &import_sstpb.RewriteRule{
 		OldKeyPrefix: []byte("aa"),
@@ -438,7 +437,7 @@ func initRewriteRules() *restore.RewriteRules {
 		OldKeyPrefix: []byte("cc"),
 		NewKeyPrefix: []byte("bb"),
 	}
-	return &restore.RewriteRules{
+	return &RewriteRules{
 		Data: rules[:],
 	}
 }
@@ -446,7 +445,7 @@ func initRewriteRules() *restore.RewriteRules {
 // expected regions after split:
 //   [, aay), [aay, bba), [bba, bbf), [bbf, bbh), [bbh, bbj),
 //   [bbj, cca), [cca, xxe), [xxe, xxz), [xxz, )
-func validateRegions(regions map[uint64]*restore.RegionInfo) bool {
+func validateRegions(regions map[uint64]*RegionInfo) bool {
 	keys := [...]string{"", "aay", "bba", "bbf", "bbh", "bbj", "cca", "xxe", "xxz", ""}
 	if len(regions) != len(keys)-1 {
 		return false
@@ -481,7 +480,7 @@ func TestNeedSplit(t *testing.T) {
 			return codec.EncodeBytes([]byte{}, in)
 		}
 
-		regions := []*restore.RegionInfo{
+		regions := []*RegionInfo{
 			{
 				Region: &metapb.Region{
 					StartKey: encode([]byte("b")),
@@ -490,17 +489,17 @@ func TestNeedSplit(t *testing.T) {
 			},
 		}
 		// Out of region
-		require.Nil(t, restore.NeedSplit([]byte("a"), regions, needEncodeKey))
+		require.Nil(t, NeedSplit([]byte("a"), regions, needEncodeKey))
 		// Region start key
-		require.Nil(t, restore.NeedSplit([]byte("b"), regions, needEncodeKey))
+		require.Nil(t, NeedSplit([]byte("b"), regions, needEncodeKey))
 		// In region
-		region := restore.NeedSplit([]byte("c"), regions, needEncodeKey)
+		region := NeedSplit([]byte("c"), regions, needEncodeKey)
 		require.Equal(t, 0, bytes.Compare(region.Region.GetStartKey(), encode([]byte("b"))))
 		require.Equal(t, 0, bytes.Compare(region.Region.GetEndKey(), encode([]byte("d"))))
 		// Region end key
-		require.Nil(t, restore.NeedSplit([]byte("d"), regions, needEncodeKey))
+		require.Nil(t, NeedSplit([]byte("d"), regions, needEncodeKey))
 		// Out of region
-		require.Nil(t, restore.NeedSplit([]byte("e"), regions, needEncodeKey))
+		require.Nil(t, NeedSplit([]byte("e"), regions, needEncodeKey))
 	}
 }
 
@@ -509,19 +508,19 @@ func TestRegionConsistency(t *testing.T) {
 		startKey []byte
 		endKey   []byte
 		err      string
-		regions  []*restore.RegionInfo
+		regions  []*RegionInfo
 	}{
 		{
 			codec.EncodeBytes([]byte{}, []byte("a")),
 			codec.EncodeBytes([]byte{}, []byte("a")),
 			"scan region return empty result, startKey: (.*?), endKey: (.*?)",
-			[]*restore.RegionInfo{},
+			[]*RegionInfo{},
 		},
 		{
 			codec.EncodeBytes([]byte{}, []byte("a")),
 			codec.EncodeBytes([]byte{}, []byte("a")),
 			"first region's startKey > startKey, startKey: (.*?), regionStartKey: (.*?)",
-			[]*restore.RegionInfo{
+			[]*RegionInfo{
 				{
 					Region: &metapb.Region{
 						StartKey: codec.EncodeBytes([]byte{}, []byte("b")),
@@ -534,7 +533,7 @@ func TestRegionConsistency(t *testing.T) {
 			codec.EncodeBytes([]byte{}, []byte("b")),
 			codec.EncodeBytes([]byte{}, []byte("e")),
 			"last region's endKey < endKey, endKey: (.*?), regionEndKey: (.*?)",
-			[]*restore.RegionInfo{
+			[]*RegionInfo{
 				{
 					Region: &metapb.Region{
 						StartKey: codec.EncodeBytes([]byte{}, []byte("b")),
@@ -547,7 +546,7 @@ func TestRegionConsistency(t *testing.T) {
 			codec.EncodeBytes([]byte{}, []byte("c")),
 			codec.EncodeBytes([]byte{}, []byte("e")),
 			"region endKey not equal to next region startKey(.*?)",
-			[]*restore.RegionInfo{
+			[]*RegionInfo{
 				{
 					Region: &metapb.Region{
 						StartKey: codec.EncodeBytes([]byte{}, []byte("b")),
@@ -564,7 +563,7 @@ func TestRegionConsistency(t *testing.T) {
 		},
 	}
 	for _, ca := range cases {
-		err := restore.CheckRegionConsistency(ca.startKey, ca.endKey, ca.regions)
+		err := CheckRegionConsistency(ca.startKey, ca.endKey, ca.regions)
 		require.Error(t, err)
 		require.Regexp(t, ca.err, err.Error())
 	}

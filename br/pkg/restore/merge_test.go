@@ -1,6 +1,6 @@
 // Copyright 2020 PingCAP, Inc. Licensed under Apache-2.0.
 
-package restore_test
+package restore
 
 import (
 	"bytes"
@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/client-go/v2/util/codec"
 	berrors "github.com/tikv/migration/br/pkg/errors"
-	"github.com/tikv/migration/br/pkg/restore"
 )
 
 type fileBulder struct {
@@ -61,63 +60,63 @@ func TestMergeRanges(t *testing.T) {
 	type Case struct {
 		files  [][5]int // tableID, indexID num, bytes, kv
 		merged []int    // length of each merged range
-		stat   restore.MergeRangesStat
+		stat   MergeRangesStat
 	}
-	splitSizeBytes := int(restore.DefaultMergeRegionSizeBytes)
-	splitKeyCount := int(restore.DefaultMergeRegionKeyCount)
+	splitSizeBytes := int(DefaultMergeRegionSizeBytes)
+	splitKeyCount := int(DefaultMergeRegionKeyCount)
 	cases := []Case{
 		// Empty backup.
 		{
 			files:  [][5]int{},
 			merged: []int{},
-			stat:   restore.MergeRangesStat{TotalRegions: 0, MergedRegions: 0},
+			stat:   MergeRangesStat{TotalRegions: 0, MergedRegions: 0},
 		},
 
 		// Do not merge big range.
 		{
 			files:  [][5]int{{1, 0, 1, splitSizeBytes, 1}, {1, 0, 1, 1, 1}},
 			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
+			stat:   MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
 		},
 		{
 			files:  [][5]int{{1, 0, 1, 1, 1}, {1, 0, 1, splitSizeBytes, 1}},
 			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
+			stat:   MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
 		},
 		{
 			files:  [][5]int{{1, 0, 1, 1, splitKeyCount}, {1, 0, 1, 1, 1}},
 			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
+			stat:   MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
 		},
 		{
 			files:  [][5]int{{1, 0, 1, 1, 1}, {1, 0, 1, 1, splitKeyCount}},
 			merged: []int{1, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
+			stat:   MergeRangesStat{TotalRegions: 2, MergedRegions: 2},
 		},
 
 		// 3 -> 1
 		{
 			files:  [][5]int{{1, 0, 1, 1, 1}, {1, 0, 1, 1, 1}, {1, 0, 1, 1, 1}},
 			merged: []int{3},
-			stat:   restore.MergeRangesStat{TotalRegions: 3, MergedRegions: 1},
+			stat:   MergeRangesStat{TotalRegions: 3, MergedRegions: 1},
 		},
 		// 3 -> 2, size: [split*1/3, split*1/3, split*1/2] -> [split*2/3, split*1/2]
 		{
 			files:  [][5]int{{1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes / 2, 1}},
 			merged: []int{2, 1},
-			stat:   restore.MergeRangesStat{TotalRegions: 3, MergedRegions: 2},
+			stat:   MergeRangesStat{TotalRegions: 3, MergedRegions: 2},
 		},
 		// 4 -> 2, size: [split*1/3, split*1/3, split*1/2, 1] -> [split*2/3, split*1/2 +1]
 		{
 			files:  [][5]int{{1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes / 2, 1}, {1, 0, 1, 1, 1}},
 			merged: []int{2, 2},
-			stat:   restore.MergeRangesStat{TotalRegions: 4, MergedRegions: 2},
+			stat:   MergeRangesStat{TotalRegions: 4, MergedRegions: 2},
 		},
 		// 5 -> 3, size: [split*1/3, split*1/3, split, split*1/2, 1] -> [split*2/3, split, split*1/2 +1]
 		{
 			files:  [][5]int{{1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes / 3, 1}, {1, 0, 1, splitSizeBytes, 1}, {1, 0, 1, splitSizeBytes / 2, 1}, {1, 0, 1, 1, 1}},
 			merged: []int{2, 1, 2},
-			stat:   restore.MergeRangesStat{TotalRegions: 5, MergedRegions: 3},
+			stat:   MergeRangesStat{TotalRegions: 5, MergedRegions: 3},
 		},
 	}
 
@@ -127,7 +126,7 @@ func TestMergeRanges(t *testing.T) {
 		for _, f := range cs.files {
 			files = append(files, fb.build(f[2], f[3], f[4])...)
 		}
-		rngs, stat, err := restore.MergeFileRanges(files, restore.DefaultMergeRegionSizeBytes, restore.DefaultMergeRegionKeyCount)
+		rngs, stat, err := MergeFileRanges(files, DefaultMergeRegionSizeBytes, DefaultMergeRegionKeyCount)
 		require.NoErrorf(t, err, "%+v", cs)
 		require.Equalf(t, cs.stat.TotalRegions, stat.TotalRegions, "%+v", cs)
 		require.Equalf(t, cs.stat.MergedRegions, stat.MergedRegions, "%+v", cs)
@@ -149,8 +148,8 @@ func TestMergeRawKVRanges(t *testing.T) {
 	files = append(files, fb.build(2, 1, 1)...)
 	// RawKV does not have write cf
 	files = files[1:]
-	_, stat, err := restore.MergeFileRanges(
-		files, restore.DefaultMergeRegionSizeBytes, restore.DefaultMergeRegionKeyCount)
+	_, stat, err := MergeFileRanges(
+		files, DefaultMergeRegionSizeBytes, DefaultMergeRegionKeyCount)
 	require.NoError(t, err)
 	require.Equal(t, 1, stat.TotalRegions)
 	require.Equal(t, 1, stat.MergedRegions)
@@ -162,8 +161,8 @@ func TestInvalidRanges(t *testing.T) {
 	files = append(files, fb.build(1, 1, 1)...)
 	files[0].Name = "invalid.sst"
 	files[0].Cf = "invalid"
-	_, _, err := restore.MergeFileRanges(
-		files, restore.DefaultMergeRegionSizeBytes, restore.DefaultMergeRegionKeyCount)
+	_, _, err := MergeFileRanges(
+		files, DefaultMergeRegionSizeBytes, DefaultMergeRegionKeyCount)
 	require.Error(t, err)
 	require.Equal(t, berrors.ErrRestoreInvalidBackup, errors.Cause(err))
 }
@@ -184,7 +183,7 @@ func benchmarkMergeRanges(b *testing.B, filesCount int) {
 	}
 	var err error
 	for i := 0; i < b.N; i++ {
-		_, _, err = restore.MergeFileRanges(files, restore.DefaultMergeRegionSizeBytes, restore.DefaultMergeRegionKeyCount)
+		_, _, err = MergeFileRanges(files, DefaultMergeRegionSizeBytes, DefaultMergeRegionKeyCount)
 		if err != nil {
 			b.Error(err)
 		}

@@ -1,13 +1,12 @@
 // Copyright 2020 PingCAP, Inc. Licensed under Apache-2.0.
 
-package restore_test
+package restore
 
 import (
 	"testing"
 
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/stretchr/testify/require"
-	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/rtree"
 )
 
@@ -24,7 +23,7 @@ func TestSortRange(t *testing.T) {
 		{OldKeyPrefix: []byte{1}, NewKeyPrefix: []byte{4}},
 		{OldKeyPrefix: []byte{2}, NewKeyPrefix: []byte{5}},
 	}
-	rewriteRules := &restore.RewriteRules{
+	rewriteRules := &RewriteRules{
 		Data: dataRules,
 	}
 	ranges1 := []rtree.Range{
@@ -33,7 +32,7 @@ func TestSortRange(t *testing.T) {
 			EndKey:   append([]byte{1}, []byte("bbb")...), Files: nil,
 		},
 	}
-	rs1, err := restore.SortRanges(ranges1, rewriteRules)
+	rs1, err := SortRanges(ranges1, rewriteRules)
 	require.NoErrorf(t, err, "sort range1 failed: %v", err)
 	rangeEquals(t, rs1, []rtree.Range{
 		{
@@ -48,7 +47,7 @@ func TestSortRange(t *testing.T) {
 			EndKey:   append([]byte{2}, []byte("bbb")...), Files: nil,
 		},
 	}
-	rs2, err := restore.SortRanges(ranges2, nil)
+	rs2, err := SortRanges(ranges2, nil)
 	require.NoErrorf(t, err, "sort range1 failed: %v", err)
 	rangeEquals(t, rs2, []rtree.Range{
 		{
@@ -59,7 +58,7 @@ func TestSortRange(t *testing.T) {
 
 	ranges3 := initRanges()
 	rewriteRules1 := initRewriteRules()
-	rs3, err := restore.SortRanges(ranges3, rewriteRules1)
+	rs3, err := SortRanges(ranges3, rewriteRules1)
 	require.NoErrorf(t, err, "sort range1 failed: %v", err)
 	rangeEquals(t, rs3, []rtree.Range{
 		{StartKey: []byte("bbd"), EndKey: []byte("bbf"), Files: nil},
