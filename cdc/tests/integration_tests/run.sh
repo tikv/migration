@@ -22,7 +22,7 @@ if [ "${1-}" = '--debug' ]; then
 
 	tikv-cdc server --log-file $WORK_DIR/cdc.log --log-level debug --addr 127.0.0.1:8600 >$WORK_DIR/stdout.log 2>&1 &
 	sleep 1
-	cdc cli changefeed create --sink-uri="tikv://127127.0.0.1:2479"
+	cdc cli changefeed create --sink-uri="tikv://127.0.0.1:2479"
 
 	echo 'You may now debug from another terminal. Press [ENTER] to exit.'
 	read line

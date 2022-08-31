@@ -46,9 +46,6 @@ func runChecksum(cmd *cobra.Command) error {
 	if cfg.DstPD == "" {
 		return fmt.Errorf("Downstream cluster PD is not set")
 	}
-	if cfg.DstPD == cfg.SrcPD {
-		return fmt.Errorf("Downstream cluster PD is same with upstream cluster PD")
-	}
 
 	srcCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
 	if err != nil {
@@ -61,6 +58,10 @@ func runChecksum(cmd *cobra.Command) error {
 		return err
 	}
 	defer dstCli.Close()
+
+	if srcCli.ClusterID() == dstCli.ClusterID() {
+		return fmt.Errorf("Downstream cluster PD is same with upstream cluster PD")
+	}
 
 	srcChecksum, err := srcCli.Checksum(ctx, nil, nil)
 	if err != nil {

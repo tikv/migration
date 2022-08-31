@@ -42,7 +42,7 @@ type Config struct {
 func AddFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String(flagSrcPD, "127.0.0.1:2379", "Upstream PD address")
 	cmd.PersistentFlags().String(flagDstPD, "", "Downstream PD address")
-	cmd.PersistentFlags().Int(flagStartIndex, 0, "The number of key")
+	cmd.PersistentFlags().Int(flagStartIndex, 0, "The start index of generated keys")
 	cmd.PersistentFlags().Int(flagCount, 1000, "The number of key")
 }
 

@@ -89,10 +89,10 @@ func runPointDelete(cmd *cobra.Command) error {
 
 	eg := new(errgroup.Group)
 	for i := cfg.StartIndex; i < cfg.Count+cfg.StartIndex; i++ {
-		i1 := i
+		i := i
 		eg.Go(func() error {
-			key, _, _ := generateTestData(i1)
-			err = cli.Delete(ctx, key)
+			key, _, _ := generateTestData(i)
+			err := cli.Delete(ctx, key)
 			if err != nil {
 				return err
 			}
@@ -101,7 +101,7 @@ func runPointDelete(cmd *cobra.Command) error {
 	}
 	err = eg.Wait()
 	if err != nil {
-		log.Info("failed to delete data", zap.Error(err), zap.Int("delete count", cfg.Count))
+		log.Error("failed to delete data", zap.Error(err), zap.Int("delete count", cfg.Count))
 	} else {
 		log.Info("delete data successfully", zap.Error(err), zap.Int("delete count", cfg.Count))
 	}
@@ -121,6 +121,12 @@ func runPointPut(cmd *cobra.Command) error {
 		return err
 	}
 	defer cli.Close()
+	atomicCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	if err != nil {
+		return err
+	}
+	defer atomicCli.Close()
+	atomicCli.SetAtomicForCAS(true)
 
 	startIdx := cfg.StartIndex
 
@@ -134,7 +140,7 @@ func runPointPut(cmd *cobra.Command) error {
 		endIdx := startIdx + count1
 		for i := startIdx1; i < endIdx; i++ {
 			key, value0, value1 := generateTestData(i)
-			err = cli.Put(ctx, key, value0)
+			err := cli.Put(ctx, key, value0)
 			if err != nil {
 				return err
 			}
@@ -166,18 +172,17 @@ func runPointPut(cmd *cobra.Command) error {
 		return nil
 	})
 
-	cli.SetAtomicForCAS(true)
 	eg.Go(func() error {
 		startIdx1 := startIdx + count1 + count2
 		endIdx := startIdx + cfg.Count
 
 		for i := startIdx1; i < endIdx; i++ {
 			key, value0, value1 := generateTestData(i)
-			err := cli.Put(ctx, key, value0)
+			err := atomicCli.Put(ctx, key, value0)
 			if err != nil {
 				return err
 			}
-			preValue, ret, err := cli.CompareAndSwap(ctx, key, value0, value1)
+			preValue, ret, err := atomicCli.CompareAndSwap(ctx, key, value0, value1)
 			if err != nil {
 				return err
 			}
@@ -190,7 +195,7 @@ func runPointPut(cmd *cobra.Command) error {
 
 	err = eg.Wait()
 	if err != nil {
-		log.Info("failed to put data", zap.Error(err))
+		log.Error("failed to put data", zap.Error(err))
 	} else {
 		log.Info("put data successfully", zap.Int("point put count", count1),
 			zap.Int("batch put count", count2), zap.Int("cas put count", cfg.Count-count1-count2))
