@@ -35,6 +35,7 @@ var (
 	apiVersionInt = flag.Uint("api-version", 1, "Api version of tikv-server")
 	br            = flag.String("br", "br", "The br binary to be tested.")
 	brStorage     = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
+	coverageFile  = flag.String("coverage", "coverage.out", "The coverage profile of test.")
 )
 
 type RawKVBRTester struct {
@@ -201,7 +202,9 @@ func (t *RawKVBRTester) InjectFailpoint(failpoint string) error {
 
 func (t *RawKVBRTester) ExecBRCmd(ctx context.Context, cmdStr string) ([]byte, error) {
 	log.Info("exec br cmd", zap.String("br", t.br), zap.String("args", cmdStr))
-	cmd := exec.CommandContext(ctx, t.br, strings.Split(cmdStr, " ")...)
+	cmdParameter := []string{fmt.Sprintf("-test.coverprofile=%s", *coverageFile)}
+	cmdParameter = append(cmdParameter, strings.Split(cmdStr, " ")...)
+	cmd := exec.CommandContext(ctx, t.br, cmdParameter...)
 	return cmd.Output()
 }
 
