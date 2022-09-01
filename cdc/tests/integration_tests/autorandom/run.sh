@@ -28,9 +28,9 @@ function run() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 
-	rawkv_data $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_data $UP_PD delete 10000
+	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

@@ -254,11 +254,15 @@ while ! mysql -uroot -h${DOWN_TIDB_HOST} -P${DOWN_TIDB_PORT} --default-character
 done
 
 echo "Starting CDC state checker..."
-cd $CUR/../../utils/cdc_state_checker
-if [ ! -f ./cdc_state_checker ]; then
-	GO111MODULE=on go build
+if ! command -v cdc_state_checker &> /dev/null
+then
+    PWD=$(pwd)
+    cd $CUR/../../..
+    make cdc_state_checker
+    cd $PWD
 fi
+
 set -x
-./cdc_state_checker -pd ${UP_PD_HOST_1}:${UP_PD_PEER_PORT_1} >$OUT_DIR/cdc_etcd_check.log &
+cdc_state_checker -pd ${UP_PD_HOST_1}:${UP_PD_PEER_PORT_1} >$OUT_DIR/cdc_etcd_check.log &
 set +x
 cd $OUT_DIR

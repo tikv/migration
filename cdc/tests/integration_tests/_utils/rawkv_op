@@ -1,0 +1,20 @@
+#!/bin/bash
+# parameter 1: pd_addr
+# parameter 2: put/delete
+# parameter 3: key count
+
+set -e
+
+if ! command -v rawkv_data &> /dev/null
+then
+    echo "make rawkv_data"
+    CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    PWD=$(pwd)
+    cd $CUR/../../..
+    make rakv_data
+    cd $PWD
+fi
+
+echo "run put data"
+rawkv_data $2 --src-pd $1 --count $3
+

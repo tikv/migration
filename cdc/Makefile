@@ -244,7 +244,13 @@ failpoint-enable: check_failpoint_ctl
 failpoint-disable: check_failpoint_ctl
 	$(FAILPOINT_DISABLE)
 
-integration_test_build: check_failpoint_ctl
+rawkv_data:
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/rawkv_data ./tests/utils/rawkv_data/
+
+cdc_state_checker:
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc_state_checker ./tests/utils/cdc_state_checker/
+
+integration_test_build: check_failpoint_ctl rawkv_data cdc_state_checker
 	$(FAILPOINT_ENABLE)
 	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
         -coverpkg=github.com/tikv/migration/... \

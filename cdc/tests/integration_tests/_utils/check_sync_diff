@@ -4,15 +4,6 @@
 # parameter 3: dst pd
 # parameter 4: max check times
 
-CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-binary=$CUR/../../utils/rawkv_data/rawkv_data
-PWD=$(pwd)
-if [ ! -f $binary ]; then
-	cd $CUR/../../utils/rawkv_data/
-	GO111MODULE=on go build
-	cd $PWD
-fi
-
 workdir=$1
 UP_PD=$2
 DOWN_PD=$3
@@ -21,12 +12,22 @@ if [ $# -ge 4 ]; then
 else
 	check_time=30
 fi
+PWD=$(pwd)
+
+if ! command -v rawkv_data &> /dev/null
+then
+    CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    cd $CUR/../../..
+    make rawkv_data
+    cd $PWD
+fi
+set +e
 
 cd $workdir
 i=0
 while [ $i -lt $check_time ]; do
 	rm -rf $workdir/rawkv_data/
-	$binary checksum --src-pd $UP_PD --dst-pd $DOWN_PD
+	rawkv_data checksum --src-pd $UP_PD --dst-pd $DOWN_PD
 	ret=$?
 	if [ "$ret" == 0 ]; then
 		echo "check diff successfully"
