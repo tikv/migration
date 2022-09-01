@@ -8,12 +8,11 @@ if [ "$(uname)" == "Darwin" ]; then
 	PKILL="pkill -9 "
 fi
 
-${PKILL} cdc.test || true
-${PKILL} cdc || true
+${PKILL} tikv-cdc.test || true
+${PKILL} tikv-cdc || true
 ${PKILL} cdc_state_checker || true
 ${PKILL} tidb-server || true
 ${PKILL} tikv-server || true
-${PKILL} tiflash || true
 ${PKILL} flash_cluster_manager || true
 ${PKILL} pd-server || true
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -eu
-OUT_DIR=/tmp/tidb_cdc_test
+OUT_DIR=/tmp/tikv_cdc_test
 
 if ! grep -Eq "$1" "$OUT_DIR/sql_res.$TEST_NAME.txt"; then
 	echo "TEST FAILED: OUTPUT DOES NOT CONTAIN '$1'"

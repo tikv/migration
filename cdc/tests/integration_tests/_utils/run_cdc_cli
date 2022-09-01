@@ -15,6 +15,6 @@
 
 set -eux
 
-cdc.test -test.coverprofile="$OUT_DIR/cov.$TEST_NAME.cli.$$.out" cli "$@"
+tikv-cdc.test -test.coverprofile="$OUT_DIR/cov.$TEST_NAME.cli.$$.out" cli "$@"
 
 set +x
