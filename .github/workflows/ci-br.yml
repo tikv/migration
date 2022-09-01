@@ -54,11 +54,11 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.18.1'
-      - name: make test
+      - name: make test_coverage
         shell: bash
         run: |
           cd br
-          make test
+          make test_coverage
   br-integration-test:
     name: br-integration-test-${{ matrix.tikv_version }}-apiv${{ matrix.api_version }}
     runs-on: ubuntu-latest

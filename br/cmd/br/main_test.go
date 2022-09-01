@@ -43,3 +43,29 @@ func TestRunMain(*testing.T) {
 
 	<-waitCh
 }
+
+func TestRunBackupRawMain(*testing.T) {
+	args := []string{"test", "backup", "raw", "--help"}
+	waitCh := make(chan struct{}, 1)
+
+	os.Args = args
+	go func() {
+		main()
+		close(waitCh)
+	}()
+
+	<-waitCh
+}
+
+func TestRunRestoreRawMain(*testing.T) {
+	args := []string{"test", "restore", "raw", "--help"}
+	waitCh := make(chan struct{}, 1)
+
+	os.Args = args
+	go func() {
+		main()
+		close(waitCh)
+	}()
+
+	<-waitCh
+}

@@ -14,14 +14,12 @@ import (
 	"github.com/pingcap/kvproto/pkg/import_sstpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/store/pdtypes"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/metautil"
-	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/redact"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/summary"
@@ -223,32 +221,6 @@ func (rc *Client) GetTS(ctx context.Context) (uint64, error) {
 	}
 	restoreTS := oracle.ComposeTS(p, l)
 	return restoreTS, nil
-}
-
-// ResetTS resets the timestamp of PD to a bigger value.
-func (rc *Client) ResetTS(ctx context.Context, pdAddrs []string) error {
-	restoreTS := rc.backupMeta.GetEndVersion()
-	log.Info("reset pd timestamp", zap.Uint64("ts", restoreTS))
-	i := 0
-	return utils.WithRetry(ctx, func() error {
-		idx := i % len(pdAddrs)
-		i++
-		return pdutil.ResetTS(ctx, pdAddrs[idx], restoreTS, rc.tlsConf)
-	}, utils.NewPDReqBackoffer())
-}
-
-// GetPlacementRules return the current placement rules.
-func (rc *Client) GetPlacementRules(ctx context.Context, pdAddrs []string) ([]pdtypes.Rule, error) {
-	var placementRules []pdtypes.Rule
-	i := 0
-	errRetry := utils.WithRetry(ctx, func() error {
-		var err error
-		idx := i % len(pdAddrs)
-		i++
-		placementRules, err = pdutil.GetPlacementRules(ctx, pdAddrs[idx], rc.tlsConf)
-		return errors.Trace(err)
-	}, utils.NewPDReqBackoffer())
-	return placementRules, errors.Trace(errRetry)
 }
 
 // nolint:unused

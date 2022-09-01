@@ -12,14 +12,16 @@ import (
 )
 
 // checkDupFiles checks if there are any files are duplicated.
-func checkDupFiles(rangeTree *rtree.RangeTree) {
+func checkDupFiles(rangeTree *rtree.RangeTree) bool {
 	// Name -> SHA256
+	hasDupFile := false
 	files := make(map[string][]byte)
 	rangeTree.Ascend(func(i btree.Item) bool {
 		rg := i.(*rtree.Range)
 		for _, f := range rg.Files {
 			old, ok := files[f.Name]
 			if ok {
+				hasDupFile = true
 				log.Error("dup file",
 					zap.String("Name", f.Name),
 					zap.String("SHA256_1", hex.EncodeToString(old)),
@@ -31,4 +33,5 @@ func checkDupFiles(rangeTree *rtree.RangeTree) {
 		}
 		return true
 	})
+	return hasDupFile
 }

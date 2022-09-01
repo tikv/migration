@@ -7,9 +7,11 @@ import (
 	"crypto/sha256"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/stretchr/testify/require"
 	mockstorage "github.com/tikv/migration/br/pkg/mock/storage"
 )
@@ -214,4 +216,39 @@ func TestEncryptAndDecrypt(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestMetaWriter(t *testing.T) {
+	ctx := context.Background()
+	controller := gomock.NewController(t)
+	defer controller.Finish()
+	mockStorage := mockstorage.NewMockExternalStorage(controller)
+	metaWriter := NewMetaWriter(mockStorage, MetaFileSize, false, &backuppb.CipherInfo{
+		CipherType: encryptionpb.EncryptionMethod_PLAINTEXT,
+	})
+
+	metaWriter.StartWriteMetasAsync(ctx, AppendDataFile)
+	metaWriter.Update(func(m *backuppb.BackupMeta) {
+		m.IsRawKv = true
+		m.ApiVersion = kvrpcpb.APIVersion_V1
+	})
+	err := metaWriter.Send([]*backuppb.File{
+		{
+			Name: "test_file",
+		},
+	}, AppendMetaFile)
+	require.Nil(t, err)
+	err = metaWriter.FinishWriteMetas(ctx, AppendDataFile)
+	require.Nil(t, err)
+
+	// mock meta content
+	backupMetaData, err := proto.Marshal(metaWriter.backupMeta)
+	require.Nil(t, err)
+	encryptBuff, iv, err := Encrypt(backupMetaData, metaWriter.cipher)
+	require.Nil(t, err)
+	mockStorage.EXPECT().WriteFile(ctx, MetaFile, append(iv, encryptBuff...)).Return(nil)
+
+	err = metaWriter.FlushBackupMeta(ctx)
+	require.Nil(t, err)
+	require.GreaterOrEqual(t, metaWriter.ArchiveSize(), uint64(0))
 }
