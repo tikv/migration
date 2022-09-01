@@ -254,12 +254,11 @@ while ! mysql -uroot -h${DOWN_TIDB_HOST} -P${DOWN_TIDB_PORT} --default-character
 done
 
 echo "Starting CDC state checker..."
-if ! command -v cdc_state_checker &> /dev/null
-then
-    PWD=$(pwd)
-    cd $CUR/../../..
-    make cdc_state_checker
-    cd $PWD
+if ! command -v cdc_state_checker &>/dev/null; then
+	PWD=$(pwd)
+	cd $CUR/../../..
+	make cdc_state_checker
+	cd $PWD
 fi
 
 set -x

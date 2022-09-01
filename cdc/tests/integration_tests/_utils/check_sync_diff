@@ -14,12 +14,11 @@ else
 fi
 PWD=$(pwd)
 
-if ! command -v rawkv_data &> /dev/null
-then
-    CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-    cd $CUR/../../..
-    make rawkv_data
-    cd $PWD
+if ! command -v rawkv_data &>/dev/null; then
+	CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+	cd $CUR/../../..
+	make rawkv_data
+	cd $PWD
 fi
 set +e
 
