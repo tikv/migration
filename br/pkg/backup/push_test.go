@@ -94,7 +94,7 @@ func newMockBackupMgr() (*mockBackupMgr, error) {
 	}, nil
 }
 
-func TestBanckupRaw(t *testing.T) {
+func TestBackupRaw(t *testing.T) {
 	ctx := context.Background()
 	mgr, err := newMockBackupMgr()
 	require.Nil(t, err)

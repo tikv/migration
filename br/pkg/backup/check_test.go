@@ -40,7 +40,7 @@ func TestCheckDupFile(t *testing.T) {
 		rgTree.Put(item.start, item.end, item.file)
 	}
 	hasDup := checkDupFiles(&rgTree)
-	require.Equal(t, false, hasDup)
+	require.False(t, hasDup)
 	dedupFileItem := testRangeTreeItem{
 		start: []byte("c"),
 		end:   []byte("d"),
@@ -52,5 +52,5 @@ func TestCheckDupFile(t *testing.T) {
 	}
 	rgTree.Put(dedupFileItem.start, dedupFileItem.end, dedupFileItem.file)
 	hasDup = checkDupFiles(&rgTree)
-	require.Equal(t, true, hasDup)
+	require.True(t, hasDup)
 }
