@@ -115,9 +115,9 @@ function run() {
 
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
 
-    sleep 3
-    # TODO: use go-ycsb to generate data?
-    rawkv_op $UP_PD put 10000
+	sleep 3
+	# TODO: use go-ycsb to generate data?
+	rawkv_op $UP_PD put 10000
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/NewChangefeedNoRetryError=1*return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
@@ -134,9 +134,9 @@ function run() {
 	ensure $MAX_RETRIES check_changefeed_mark_failed_regex $UP_PD ${changefeedid} ".*CDC:ErrStartTsBeforeGC.*"
 	run_cdc_cli changefeed resume -c $changefeedid
 
-    check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
-    check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rawkv_op $UP_PD delete 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/NewChangefeedRetryError=return(true)'
 	kill $capture_pid

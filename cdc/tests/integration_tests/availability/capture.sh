@@ -37,9 +37,9 @@ function test_kill_capture() {
 	echo "owner pid:" $owner_pid
 	echo "owner id" $owner_id
 
-    rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	# start the second capture
@@ -50,9 +50,9 @@ function test_kill_capture() {
 	# kill the owner
 	kill -9 $owner_pid
 
-    rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
@@ -80,9 +80,9 @@ function test_hang_up_capture() {
 	capture_id=$($CDC_BINARY cli capture list --disable-version-check 2>&1 | awk -F '"' '/id/{print $4}' | grep -v "$owner_id")
 
 	kill -STOP $owner_pid
-    rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	kill -CONT $owner_pid
@@ -116,9 +116,9 @@ function test_expire_capture() {
 	kill -SIGCONT $owner_pid
 	echo "process status:" $(ps -h -p $owner_pid -o "s")
 
-    rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

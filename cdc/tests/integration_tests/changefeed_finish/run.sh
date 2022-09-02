@@ -46,11 +46,11 @@ function run() {
 	# 90s after now
 	target_ts=$(($now + 90 * 10 ** 3 * 2 ** 18))
 	changefeed_id=$(tikv-cdc cli changefeed create --sink-uri="$SINK_URI" --target-ts=$target_ts 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
-    sleep 3
+	sleep 3
 
-    rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	sleep 90

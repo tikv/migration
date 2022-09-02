@@ -37,13 +37,13 @@ function test_stop_processor() {
 	# use ensure to wait for the change feed loading into memory from etcd
 	ensure $MAX_RETRIES "curl -s -d \"cf-id=$changefeed&admin-job=1\" http://127.0.0.1:8600/capture/owner/admin | grep true"
 
-    rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 
 	# resume the change feed job
 	curl -d "cf-id=$changefeed&admin-job=2" http://127.0.0.1:8600/capture/owner/admin
-    check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
-    check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rawkv_op $UP_PD delete 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	echo "test_stop_processor pass"
 	cleanup_process $CDC_BINARY
