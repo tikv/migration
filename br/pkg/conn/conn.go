@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -26,6 +25,7 @@ import (
 	"github.com/tikv/client-go/v2/txnkv/txnlock"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
+	"github.com/tikv/migration/br/pkg/httputil"
 	"github.com/tikv/migration/br/pkg/logutil"
 	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/utils"
@@ -438,12 +438,9 @@ func GetTiKVApiVersion(ctx context.Context, pdClient pd.Client, tlsConf *tls.Con
 	} else if len(allStores) == 0 {
 		return kvrpcpb.APIVersion_V1, errors.New("store are empty")
 	}
+	httpClient := httputil.NewClient(tlsConf)
 	schema := "http"
-	httpClient := http.Client{}
 	if tlsConf != nil {
-		httpClient = http.Client{
-			Transport: &http.Transport{TLSClientConfig: tlsConf},
-		}
 		schema = "https"
 	}
 	url := fmt.Sprintf("%s://%s/config", schema, allStores[0].StatusAddress)

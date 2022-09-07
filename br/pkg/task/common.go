@@ -129,6 +129,8 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 		"aes-crypter key, used to encrypt/decrypt the data "+
 			"by the hexadecimal string, eg: \"0123456789abcdef0123456789abcdef\"")
 	flags.String(flagCipherKeyFile, "", "FilePath, its content is used as the cipher-key")
+	_ = flags.MarkHidden(flagCipherType)
+	_ = flags.MarkHidden(flagCipherKey)
 	_ = flags.MarkHidden(flagCipherKeyFile)
 	storage.DefineFlags(flags)
 }
