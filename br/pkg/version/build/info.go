@@ -26,8 +26,6 @@ type AppName string
 var (
 	// BR is the name of BR binary.
 	BR AppName = "Backup & Restore (BR)"
-	// Lightning is the name of Lightning binary.
-	Lightning AppName = "TiDB-Lightning"
 )
 
 // LogInfo logs version information.
