@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	units "github.com/docker/go-units"
@@ -116,7 +117,7 @@ func BatchGenerateData(keyIndex uint, keyCnt uint, prefix []byte) (keys, values 
 func (t *RawKVBRTester) PreloadData(ctx context.Context, keyCnt, thread uint, prefix []byte) error {
 	errGroup := new(errgroup.Group)
 	keyCntPerBatch := keyCnt / thread
-	totalCnt := uint(0)
+	totalCnt := uint32(0)
 	for i := uint(0); i < thread; i++ {
 		startIdx := i * keyCntPerBatch
 		endIdx := (i + 1) * keyCntPerBatch
@@ -130,14 +131,14 @@ func (t *RawKVBRTester) PreloadData(ctx context.Context, keyCnt, thread uint, pr
 				if err != nil {
 					return err
 				}
-				totalCnt += batchCnt
+				atomic.AddUint32(&totalCnt, uint32(batchCnt))
 				start += batchCnt
 			}
 			return nil
 		})
 	}
 	err := errGroup.Wait()
-	log.Info("Preload finish", zap.Uint("Total", totalCnt),
+	log.Info("Preload finish", zap.Uint32("Total", totalCnt),
 		zap.Uint("Thread", thread), zap.Uint("KeyCnt", keyCnt), zap.Error(err))
 	return err
 }
@@ -291,7 +292,7 @@ func runBackupAndRestore(ctx context.Context, tester *RawKVBRTester, prefix, sta
 	log.Info("Checksum pass")
 }
 
-func runTestWithFailPoint(failpoint string) {
+func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.KeyRange) {
 	apiVersion := kvrpcpb.APIVersion_V1TTL
 	if *apiVersionInt == 2 {
 		apiVersion = kvrpcpb.APIVersion_V2
@@ -311,38 +312,29 @@ func runTestWithFailPoint(failpoint string) {
 		log.Panic("Inject failpoint fail", zap.Error(err), zap.String("failpoint", failpoint))
 	}
 
-	prefix := []byte("index")
-	q1Key, _ := GenerateTestData(*keyCnt/4, prefix)
-	q3Key, _ := GenerateTestData(3**keyCnt/4, prefix)
-	backupRanges := []kvrpcpb.KeyRange{
-		{StartKey: []byte{}, EndKey: []byte{}},
-		{StartKey: q1Key, EndKey: q3Key},
+	if err := tester.ClearStorage(); err != nil {
+		log.Panic("ClearStorage fail", zap.Error(err))
 	}
-	for _, keyRange := range backupRanges {
+	err = tester.CleanData(ctx, prefix)
+	if err != nil {
+		log.Panic("Clean data fail", zap.Error(err))
+	}
+	err = tester.PreloadData(ctx, *keyCnt, *thread, prefix)
+	if err != nil {
+		log.Panic("Preload data fail", zap.Error(err))
+	}
+	runBackupAndRestore(ctx, tester, prefix, backupRange.StartKey, backupRange.EndKey)
+
+	if apiVersion == kvrpcpb.APIVersion_V1TTL {
 		if err := tester.ClearStorage(); err != nil {
 			log.Panic("ClearStorage fail", zap.Error(err))
 		}
-		err = tester.CleanData(ctx, prefix)
+		safeInterval := int64(120) // 2m
+		backupOutput, err := tester.Backup(ctx, kvrpcpb.APIVersion_V2, safeInterval, backupRange.StartKey, backupRange.EndKey)
 		if err != nil {
-			log.Panic("Clean data fail", zap.Error(err))
+			log.Panic("Backup fail", zap.Error(err), zap.ByteString("backup output", backupOutput))
 		}
-		err = tester.PreloadData(ctx, *keyCnt, *thread, prefix)
-		if err != nil {
-			log.Panic("Preload data fail", zap.Error(err))
-		}
-		runBackupAndRestore(ctx, tester, prefix, keyRange.StartKey, keyRange.EndKey)
-
-		if apiVersion == kvrpcpb.APIVersion_V1TTL {
-			if err := tester.ClearStorage(); err != nil {
-				log.Panic("ClearStorage fail", zap.Error(err))
-			}
-			safeInterval := int64(120) // 2m
-			backupOutput, err := tester.Backup(ctx, kvrpcpb.APIVersion_V2, safeInterval, keyRange.StartKey, keyRange.EndKey)
-			if err != nil {
-				log.Panic("Backup fail", zap.Error(err), zap.ByteString("backup output", backupOutput))
-			}
-			log.Info("backup conversion finish:", zap.ByteString("output", backupOutput))
-		}
+		log.Info("backup conversion finish:", zap.ByteString("output", backupOutput))
 	}
 
 }
@@ -352,7 +344,16 @@ func main() {
 	failpoints := []string{"",
 		"github.com/tikv/migration/br/pkg/backup/tikv-region-error=return(\"region error\")",
 	}
+	prefix := []byte("index")
+	q1Key, _ := GenerateTestData(*keyCnt/4, prefix)
+	q3Key, _ := GenerateTestData(3**keyCnt/4, prefix)
+	backupRanges := []kvrpcpb.KeyRange{
+		{StartKey: []byte{}, EndKey: []byte{}},
+		{StartKey: q1Key, EndKey: q3Key},
+	}
 	for _, failpoint := range failpoints {
-		runTestWithFailPoint(failpoint)
+		for _, backupRange := range backupRanges {
+			runTestWithFailPoint(failpoint, prefix, &backupRange)
+		}
 	}
 }
