@@ -2,13 +2,15 @@
 
 ## 部署
 
-### 使用 TiUP 部署包含 TiKV-CDC 组件的全新 TiKV 集群
-_（注意：支持 TiKV-CDC 的 TiUP 版本未正式发布）_
+### 使用 TiUP 部署
+
+_（注意：支持 TiKV-CDC 的最小 TiUP 版本为 `v1.11.0`。该版本预计于2022年9月底发布）_
+
+#### 使用 TiUP 部署包含 TiKV-CDC 组件的全新 TiKV 集群
 
 在使用 [TiUP](https://docs.pingcap.com/zh/tidb/stable/production-deployment-using-tiup) 部署全新 TiKV 集群时，支持同时部署 TiKV-CDC 组件。只需在 TiUP 启动 TiKV 集群时的配置文件中加入 TiKV-CDC 部分即可，配置文件参考[模板](https://github.com/tikv/migration/blob/main/cdc/deployments/tikv-cdc/config-templates/topology.example.yaml)。
 
-### 使用 TiUP 在原有 TiKV 集群上新增 TiKV-CDC 组件
-_（注意：支持 TiKV-CDC 的 TiUP 版本未正式发布）_
+#### 使用 TiUP 在原有 TiKV 集群上新增 TiKV-CDC 组件
 
 目前也支持在原有 TiKV 集群上使用 TiUP 新增 TiKV-CDC 组件，操作步骤如下：
 
