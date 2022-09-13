@@ -1,4 +1,4 @@
-tikv-cdc_servers:
+kvcdc_servers:
   - host: 10.0.1.20
     # # SSH port of the server.
     # ssh_port: 22

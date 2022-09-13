@@ -39,7 +39,7 @@ server_configs:
     storage.api-version: 2
     storage.enable-ttl: true
   # pd:
-  # tikv-cdc:
+  # kvcdc:
   #   gc-ttl: 86400 # The TTL (Time To Live) of the service level `GC safepoint` in PD set by TiKV-CDC
 
 # # Server configs are used to specify the configuration of PD Servers.
@@ -61,7 +61,7 @@ tikv_servers:
   - host: 10.0.1.17
 
 # # Server configs are used to specify the configuration of TiKV-CDC Servers.
-tikv-cdc_servers:
+kvcdc_servers:
   - host: 10.0.1.20
     # # SSH port of the server.
     # ssh_port: 22
