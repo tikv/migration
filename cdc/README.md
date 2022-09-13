@@ -27,7 +27,23 @@ $ make cdc
 ## Deployment
 
 ### Deploy by TiUP
-_(Will be supported soon)_
+
+_Note: TiUP >= `v1.11.0` is required. This version will be released before the end of Sep, 2022_
+
+#### Deploy a new TiDB/TiKV cluster including TiKV-CDC
+
+When you deploy a new TiDB/TiKV cluster using TiUP, you can also deploy TiKV-CDC at the same time. You only need to add the `kvcdc_servers` section in the initialization configuration file that TiUP uses to start the TiDB/TiKV cluster. Please refer to the configuration [template](https://github.com/tikv/migration/blob/main/cdc/deployments/tikv-cdc/config-templates/topology.example.yaml).
+
+#### Add TiKV-CDC to an existing TiDB/TiKV cluster
+
+You can also use TiUP to add the TiKV-CDC component to an existing TiDB/TiKV cluster. Take the following procedures:
+
+1. Make sure that the current TiDB/TiKV version >= `6.2.0`.
+2. Prepare a scale-out configuration file, refer to [template](https://github.com/tikv/migration/blob/main/cdc/deployments/tikv-cdc/config-templates/scale-out.example.yaml).
+3. Scale out by `tiup cluster scale-out`. Also Refer to [Scale a TiDB Cluster Using TiUP](https://docs.pingcap.com/tidb/stable/scale-tidb-using-tiup).
+```
+tiup cluster scale-out <cluster-name> scale-out.yaml
+```
 
 ### Deploy manually
 
