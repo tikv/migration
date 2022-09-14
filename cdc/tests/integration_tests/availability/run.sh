@@ -23,7 +23,7 @@ function prepare() {
 	run_cdc_cli changefeed create \
 		--sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
 		--disable-version-check
-    sleep 10
+	sleep 10
 }
 
 trap stop_tidb_cluster EXIT
