@@ -362,11 +362,24 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	batcher := newTiKVBatcher(k.statistics)
 
 	flushToTiKV := func() error {
+
+		failpoint.Inject("TiKVSinkExecError", func() {
+			// Add a delay to ensure the sink worker with `SinkHangLongTime`
+			// failpoint injected is executed first.
+			time.Sleep(time.Second * 2)
+			failpoint.Return(errors.Trace(fmt.Errorf("failed to execute put")))
+		})
+
 		return k.statistics.RecordBatchExecution(func() (int, error) {
 			thisBatchSize := batcher.Count()
 			if thisBatchSize == 0 {
 				return 0, nil
 			}
+
+			failpoint.Inject("SinkFlushEventPanic", func() {
+				time.Sleep(time.Second)
+				log.Fatal("SinkFlushEventPanic")
+			})
 
 			var err error
 			for _, batch := range batcher.Batches {
