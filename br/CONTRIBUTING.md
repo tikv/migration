@@ -10,11 +10,11 @@ your contribution accepted.
 - Read the README.md for build instructions.
 - Play with the project, submit bugs, submit patches!
 
-## Building BR
+## Building TiKV-BR
 
 Developing BR requires:
 
-* [Go 1.16+](http://golang.org/doc/code.html)
+* [Go 1.18+](http://golang.org/doc/code.html)
 * An internet connection to download the dependencies
 
 Simply run `make` to build the program.
@@ -30,14 +30,14 @@ See [tests/README.md](./tests/README.md) for how to execute and add tests.
 
 ### Updating dependencies
 
-BR uses [Go 1.11 module](https://github.com/golang/go/wiki/Modules) to manage dependencies.
+TiKV-BR uses [Go 1.11 module](https://github.com/golang/go/wiki/Modules) to manage dependencies.
 To add or update a dependency: use the `go mod edit` command to change the dependency.
 
 ## Contribution flow
 
 This is a rough outline of what a contributor's workflow looks like:
 
-- Create a topic branch from where you want to base your work. This is usually `master`.
+- Create a topic branch from where you want to base your work. This is usually `main`.
 - Make commits of logical units and add test case if the change fixes a bug or adds new functionality.
 - Run tests and make sure all the tests are passed.
 - Make sure your commit messages are in the proper format (see below).
