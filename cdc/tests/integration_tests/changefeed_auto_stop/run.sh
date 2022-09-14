@@ -32,8 +32,6 @@ function check_changefeed_state() {
 export -f check_changefeed_state
 
 function run() {
-	DB_COUNT=4
-
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR
 	cd $WORK_DIR
@@ -43,9 +41,9 @@ function run() {
 	rawkv_op $UP_PD put 10000
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSyncResolvedError=1*return(true);github.com/tikv/migration/cdc/cdc/processor/ProcessorUpdatePositionDelaying=sleep(1000)'
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8600" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
+ 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8600" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
 	export GO_FAILPOINTS=''
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8600" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8601" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
