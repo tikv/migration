@@ -180,8 +180,6 @@ func defineS3Flags(flags *pflag.FlagSet) {
 		"Leave empty to use S3 owned key.")
 	flags.String(s3ACLOption, "", "(experimental) Set the S3 canned ACLs, e.g. authenticated-read")
 	flags.String(s3ProviderOption, "", "(experimental) Set the S3 provider, e.g. aws, alibaba, ceph")
-	_ = flags.MarkHidden(s3EndpointOption)
-	_ = flags.MarkHidden(s3RegionOption)
 	_ = flags.MarkHidden(s3StorageClassOption)
 	_ = flags.MarkHidden(s3SseOption)
 	_ = flags.MarkHidden(s3SseKmsKeyIDOption)

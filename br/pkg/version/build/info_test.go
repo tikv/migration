@@ -21,5 +21,4 @@ func TestInfo(t *testing.T) {
 
 func TestLogInfo(t *testing.T) {
 	LogInfo(BR)
-	LogInfo(Lightning)
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/oracle"
+	"github.com/tikv/client-go/v2/util/codec"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/glue"
@@ -256,6 +257,14 @@ func (rc *Client) RestoreRaw(
 	errCh := make(chan error, len(files))
 	eg, ectx := errgroup.WithContext(ctx)
 	defer close(errCh)
+	if rc.dstAPIVersion == kvrpcpb.APIVersion_V2 {
+		startKey = codec.EncodeBytes(nil, startKey)
+		endKey = codec.EncodeBytes(nil, endKey)
+		for _, file := range files {
+			file.StartKey = codec.EncodeBytes(nil, file.StartKey)
+			file.EndKey = codec.EncodeBytes(nil, file.EndKey)
+		}
+	}
 
 	err := rc.fileImporter.SetRawRange(startKey, endKey)
 	if err != nil {

@@ -4,7 +4,6 @@ package utils
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"time"
 
@@ -113,7 +112,7 @@ func (bo *pdReqBackoffer) NextBackoff(err error) time.Duration {
 	// bo.attempt--
 	e := errors.Cause(err)
 	switch e { // nolint:errorlint
-	case nil, context.Canceled, context.DeadlineExceeded, io.EOF, sql.ErrNoRows:
+	case nil, context.Canceled, context.DeadlineExceeded, io.EOF:
 		// Excepted error, finish the operation
 		bo.delayTime = 0
 		bo.attempt = 0
