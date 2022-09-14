@@ -114,8 +114,7 @@ function run() {
 	cd $WORK_DIR
 
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-
-	sleep 3
+    sleep 10
 	# TODO: use go-ycsb to generate data?
 	rawkv_op $UP_PD put 10000
 
