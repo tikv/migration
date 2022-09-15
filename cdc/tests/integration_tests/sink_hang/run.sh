@@ -40,6 +40,7 @@ function run() {
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/sink/SinkExecError=2*return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $pd_addr
 	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
+    sleep 10
 
     rawkv_op $UP_PD put 10000
 
