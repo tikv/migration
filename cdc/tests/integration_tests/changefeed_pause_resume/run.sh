@@ -22,17 +22,17 @@ function run() {
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
 	changefeed_id=$(tikv-cdc cli changefeed create --pd=$UP_PD --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
-    sleep 10
+	sleep 10
 
-    tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
-    rawkv_op $UP_PD put 10000
-    tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
-    check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
+	rawkv_op $UP_PD put 10000
+	tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
-    tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
-    rawkv_op $UP_PD delete 10000
-    tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
-    check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
+	rawkv_op $UP_PD delete 10000
+	tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
 }

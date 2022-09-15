@@ -43,8 +43,8 @@ function run() {
 
 	# record tso before we create tables to skip the system table DDLs
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-    sleep 10
-    rawkv_op $UP_PD put 10000
+	sleep 10
+	rawkv_op $UP_PD put 10000
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
@@ -82,7 +82,7 @@ EOF
 	set -e
 	if [[ ! $update_result == *"can only update changefeed config when it is stopped"* ]]; then
 		echo "update changefeed config should fail when changefeed is running, got $update_result"
-        exit 1
+		exit 1
 	fi
 
 	# Pause changefeed
@@ -126,11 +126,11 @@ EOF
 
 	# Make sure bad sink url fails at creating changefeed.
 	set +e
-    create_result=$(tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="mysql://baksink" 2>&1)
+	create_result=$(tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="mysql://baksink" 2>&1)
 	set -e
-    if [[ ! $create_result == *"the sink scheme (mysql) is not supported"* ]]; then
+	if [[ ! $create_result == *"the sink scheme (mysql) is not supported"* ]]; then
 		echo "<<<<< unexpect output got ${create_result} >>>>>"
-        exit 1
+		exit 1
 	fi
 
 	# Smoke test unsafe commands

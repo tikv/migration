@@ -14,7 +14,7 @@ function check_changefeed_mark_normal() {
 	endpoints=$1
 	changefeedid=$2
 	error_msg=$3
-    echo $changefeedid
+	echo $changefeedid
 	info=$(tikv-cdc cli changefeed query --pd=$endpoints -c $changefeedid -s)
 	echo "$info"
 	state=$(echo $info | jq -r '.state')
@@ -50,12 +50,12 @@ function run() {
 	retry_time=10
 	ensure $retry_time check_changefeed_mark_normal $pd_addr $changefeed_id "null"
 
-    rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
-    export GO_FAILPOINTS=''
+	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
 }
 
