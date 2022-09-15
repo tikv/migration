@@ -4,7 +4,6 @@ package utils
 
 import (
 	"context"
-	"database/sql"
 	stderrors "errors"
 	"io"
 	"net"
@@ -105,7 +104,7 @@ func isSingleRetryableError(err error) bool {
 	err = errors.Cause(err)
 
 	switch err {
-	case nil, context.Canceled, context.DeadlineExceeded, io.EOF, sql.ErrNoRows:
+	case nil, context.Canceled, context.DeadlineExceeded, io.EOF:
 		return false
 	}
 

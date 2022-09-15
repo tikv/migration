@@ -89,13 +89,9 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 	flags.String(flagKey, "", "Private key path for TLS connection")
 	flags.Uint(flagChecksumConcurrency, defaultChecksumConcurrency, "The concurrency of table checksumming")
 	_ = flags.MarkHidden(flagSendCreds)
-	_ = flags.MarkHidden(flagCA)
-	_ = flags.MarkHidden(flagCert)
-	_ = flags.MarkHidden(flagKey)
 	_ = flags.MarkHidden(flagChecksumConcurrency)
 
 	flags.Uint64(flagRateLimit, unlimited, "The rate limit of the task, MB/s per node")
-	_ = flags.MarkHidden(flagRateLimit)
 	flags.Bool(flagChecksum, false, "Run checksum at end of task")
 	// Default concurrency is different for backup and restore.
 	// Leave it 0 and let them adjust the value.

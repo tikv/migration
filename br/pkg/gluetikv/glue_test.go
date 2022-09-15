@@ -15,12 +15,24 @@
 package gluetikv
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetVersion(t *testing.T) {
+func TestGlue(t *testing.T) {
 	g := Glue{}
 	require.Regexp(t, "^BR(.|\n)*Release Version(.|\n)*Git Commit Hash(.|\n)*$", g.GetVersion())
+
+	require.True(t, g.OwnsStorage())
+
+	ctx := context.Background()
+	steps := int64(10)
+	updatCh := g.StartProgress(ctx, "test", steps, false)
+	for i := int64(0); i < steps; i++ {
+		updatCh.Inc()
+		g.Record("backup", 10)
+	}
+	updatCh.Close()
 }
