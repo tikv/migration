@@ -362,7 +362,6 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	batcher := newTiKVBatcher(k.statistics)
 
 	flushToTiKV := func() error {
-
 		failpoint.Inject("TiKVSinkExecError", func() {
 			// Add a delay to ensure the sink worker with `SinkHangLongTime`
 			// failpoint injected is executed first.
