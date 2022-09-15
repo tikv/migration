@@ -259,6 +259,7 @@ integration_test_build: check_failpoint_ctl rawkv_data cdc_state_checker
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go \
     || { $(FAILPOINT_DISABLE); exit 1; }
 	$(FAILPOINT_DISABLE)
+	@bash <(curl -s https://codecov.io/bash) -F cdc -f /tmp/tikv_cdc_test/*.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 integration_test: prepare_test_binaries check_third_party_binary integration_test_build
 	tests/integration_tests/run.sh 
