@@ -122,7 +122,7 @@ unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum gocov gocov-xml
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	gocov convert "$(TEST_DIR)/cov.unit.out" | gocov-xml > cdc-coverage.xml
 	$(FAILPOINT_DISABLE)
-	@bash <(curl -s https://codecov.io/bash) -F cdc -f $(TEST_DIR)/cov.unit.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
+	#@bash <(curl -s https://codecov.io/bash) -F cdc -f $(TEST_DIR)/cov.unit.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 leak_test: check_failpoint_ctl
 	$(FAILPOINT_ENABLE)
