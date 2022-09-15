@@ -357,7 +357,7 @@ func (p *processor) handleKeySpanOperation(ctx cdcContext.Context) error {
 				})
 			case model.OperProcessed:
 				if keyspan.Status() != keyspanpipeline.KeySpanStatusStopped {
-					log.Info("the keyspan is still not stopped", zap.Uint64("checkpointTs", keyspan.CheckpointTs()), zap.Uint64("keyspanID", keyspanID))
+					log.Debug("the keyspan is still not stopped", zap.Uint64("checkpointTs", keyspan.CheckpointTs()), zap.Uint64("keyspanID", keyspanID))
 					continue
 				}
 				patchOperation(keyspanID, func(operation *model.KeySpanOperation) error {
