@@ -122,7 +122,7 @@ unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum gocov gocov-xml
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	gocov convert "$(TEST_DIR)/cov.unit.out" | gocov-xml > cdc-coverage.xml
 	$(FAILPOINT_DISABLE)
-	#@bash <(curl -s https://codecov.io/bash) -F cdc -f $(TEST_DIR)/cov.unit.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
+	@bash <(curl -s https://codecov.io/bash) -F cdc -f $(TEST_DIR)/cov.unit.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 leak_test: check_failpoint_ctl
 	$(FAILPOINT_ENABLE)
@@ -262,7 +262,7 @@ integration_test_build: check_failpoint_ctl rawkv_data cdc_state_checker
 
 integration_test: prepare_test_binaries check_third_party_binary integration_test_build
 	tests/integration_tests/run.sh 
-	@bash <(curl -s https://codecov.io/bash) -F cdc_it -s /tmp/tikv_cdc_test -f *.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
+	@bash <(curl -s https://codecov.io/bash) -F cdc -s /tmp/tikv_cdc_test -f *.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 prepare_test_binaries:
 	cd scripts && ./download-integration-test-binaries.sh master && cd ..
