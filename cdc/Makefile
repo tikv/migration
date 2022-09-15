@@ -262,7 +262,6 @@ integration_test_build: check_failpoint_ctl rawkv_data cdc_state_checker
 
 integration_test: prepare_test_binaries check_third_party_binary integration_test_build
 	tests/integration_tests/run.sh 
-	#@bash <(curl -s https://codecov.io/bash) -F cdc_it -s /tmp/tikv_cdc_test -f *.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 	@./scripts/codecov-integration-test.sh
 
 prepare_test_binaries:
