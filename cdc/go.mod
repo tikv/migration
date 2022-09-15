@@ -8,6 +8,7 @@ require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d
 	github.com/benbjohnson/clock v1.3.0
+	github.com/bradleyjkemp/grpc-tools v0.2.7
 	github.com/chzyer/readline v1.5.0
 	github.com/cockroachdb/pebble v0.0.0-20211124172904-3ca75111760c
 	github.com/coreos/go-semver v0.3.0
@@ -78,7 +79,6 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1581 // indirect
 	github.com/aws/aws-sdk-go v1.36.30 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bradleyjkemp/grpc-tools v0.2.7 // indirect
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cheggaaa/pb/v3 v3.0.8 // indirect
