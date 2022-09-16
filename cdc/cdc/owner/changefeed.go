@@ -332,6 +332,10 @@ func (c *changefeed) updateStatus(currentTs int64, checkpointTs, resolvedTs mode
 		}
 		return status, changed, nil
 	})
+
+	if checkpointTs >= c.state.Info.GetTargetTs() {
+		c.feedStateManager.MarkFinished()
+	}
 	phyCkpTs := oracle.ExtractPhysical(checkpointTs)
 	c.metricsChangefeedCheckpointTsGauge.Set(float64(phyCkpTs))
 	c.metricsChangefeedCheckpointTsLagGauge.Set(float64(currentTs-phyCkpTs) / 1e3)

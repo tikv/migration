@@ -5,7 +5,9 @@ set -eu
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=cdc.test
+CDC_BINARY=tikv-cdc.test
+UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
+DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 MAX_RETRIES=10
 
@@ -32,7 +34,7 @@ function test_kill_owner() {
 	echo "owner id" $owner_id
 
 	# run another server
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8301" --logsuffix test_kill_owner.server2
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8601" --logsuffix test_kill_owner.server2
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep -v \"$owner_id\" | grep id"
 	capture_id=$($CDC_BINARY cli capture list --disable-version-check 2>&1 | awk -F '"' '/id/{print $4}' | grep -v "$owner_id")
 	echo "capture_id:" $capture_id
@@ -63,7 +65,7 @@ function test_hang_up_owner() {
 	echo "owner id" $owner_id
 
 	# run another server
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8301" --logsuffix test_hang_up_owner.server2
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8601" --logsuffix test_hang_up_owner.server2
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep -v \"$owner_id\" | grep id"
 	capture_id=$($CDC_BINARY cli capture list --disable-version-check 2>&1 | awk -F '"' '/id/{print $4}' | grep -v "$owner_id")
 	echo "capture_id:" $capture_id
@@ -128,7 +130,7 @@ function test_owner_cleanup_stale_tasks() {
 	echo "owner id" $owner_id
 
 	# run another server
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8301" --logsuffix test_owner_cleanup_stale_tasks.server2
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8601" --logsuffix test_owner_cleanup_stale_tasks.server2
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep -v \"$owner_id\" | grep id"
 	capture_pid=$(ps -C $CDC_BINARY -o pid= | awk '{print $1}' | grep -v "$owner_pid")
 	capture_id=$($CDC_BINARY cli capture list --disable-version-check 2>&1 | awk -F '"' '/id/{print $4}' | grep -v "$owner_id")
@@ -140,16 +142,14 @@ function test_owner_cleanup_stale_tasks() {
 	sleep 3
 
 	# simulate task status is deleted but task position stales
-	ETCDCTL_API=3 etcdctl del /tidb/cdc/task/status --prefix
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8302" --logsuffix test_owner_cleanup_stale_tasks.server3
+	ETCDCTL_API=3 etcdctl del /tikv/cdc/task/status --prefix
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8602" --logsuffix test_owner_cleanup_stale_tasks.server3
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep '\"is-owner\": true'"
 
-	run_sql "INSERT INTO test.availability1(id, val) VALUES (1, 1);"
-	ensure $MAX_RETRIES nonempty 'select id, val from test.availability1 where id=1 and val=1'
-	run_sql "UPDATE test.availability1 set val = 22 where id = 1;"
-	ensure $MAX_RETRIES nonempty 'select id, val from test.availability1 where id=1 and val=22'
-	run_sql "DELETE from test.availability1 where id=1;"
-	ensure $MAX_RETRIES empty 'select id, val from test.availability1 where id=1'
+	rawkv_op $UP_PD put 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rawkv_op $UP_PD delete 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	echo "test_owner_cleanup_stale_tasks pass"
 	cleanup_process $CDC_BINARY
@@ -174,7 +174,7 @@ function test_owner_retryable_error() {
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/owner-run-with-error=1*return(true);github.com/tikv/migration/cdc/cdc/capture/capture-resign-failed=1*return(true)'
 
 	# run another server
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix test_owner_retryable_error.server2 --addr "127.0.0.1:8301"
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix test_owner_retryable_error.server2 --addr "127.0.0.1:8601"
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep -v \"$owner_id\" | grep id"
 	capture_pid=$(ps -C $CDC_BINARY -o pid= | awk '{print $1}' | grep -v "$owner_pid")
 	capture_id=$($CDC_BINARY cli capture list --disable-version-check 2>&1 | awk -F '"' '/id/{print $4}' | grep -v "$owner_id")
@@ -184,7 +184,7 @@ function test_owner_retryable_error() {
 	# However we have injected two failpoints, the second capture owner runs
 	# with error and before it exits resign owner also failed, so the second
 	# capture will exit and the first capture campaigns to be owner again.
-	curl -X POST http://127.0.0.1:8300/capture/owner/resign
+	curl -X POST http://127.0.0.1:8600/capture/owner/resign
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep $owner_id -A1 | grep '\"is-owner\": true'"
 	ensure $MAX_RETRIES "ps -C $CDC_BINARY -o pid= | awk '{print \$1}' | wc -l | grep 1"
 
@@ -208,7 +208,7 @@ function test_gap_between_watch_capture() {
 	echo "owner id" $owner_id
 
 	# run another server
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8301" --logsuffix test_gap_between_watch_capture.server2
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8601" --logsuffix test_gap_between_watch_capture.server2
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep -v \"$owner_id\" | grep id"
 	capture_pid=$(ps -C $CDC_BINARY -o pid= | awk '{print $1}' | grep -v "$owner_pid")
 	capture_id=$($CDC_BINARY cli capture list --disable-version-check 2>&1 | awk -F '"' '/id/{print $4}' | grep -v "$owner_id")
@@ -219,12 +219,10 @@ function test_gap_between_watch_capture() {
 	sleep 3
 
 	for i in $(seq 1 3); do
-		run_sql "INSERT INTO test.availability$i(id, val) VALUES (1, 1);"
-		ensure $MAX_RETRIES nonempty "select id, val from test.availability$i where id=1 and val=1"
-		run_sql "UPDATE test.availability$i set val = 22 where id = 1;"
-		ensure $MAX_RETRIES nonempty "select id, val from test.availability$i where id=1 and val=22"
-		run_sql "DELETE from test.availability$i where id=1;"
-		ensure $MAX_RETRIES empty "select id, val from test.availability$i where id=1"
+		rawkv_op $UP_PD put 10000
+		check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+		rawkv_op $UP_PD delete 10000
+		check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	done
 
 	export GO_FAILPOINTS=''
