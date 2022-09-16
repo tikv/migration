@@ -5,7 +5,9 @@ set -eu
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=cdc.test
+CDC_BINARY=tikv-cdc.test
+UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
+DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 MAX_RETRIES=20
 
@@ -33,13 +35,15 @@ function test_stop_processor() {
 
 	# stop the change feed job
 	# use ensure to wait for the change feed loading into memory from etcd
-	ensure $MAX_RETRIES "curl -s -d \"cf-id=$changefeed&admin-job=1\" http://127.0.0.1:8300/capture/owner/admin | grep true"
+	ensure $MAX_RETRIES "curl -s -d \"cf-id=$changefeed&admin-job=1\" http://127.0.0.1:8600/capture/owner/admin | grep true"
 
-	run_sql "INSERT INTO test.availability1(id, val) VALUES (4, 4);"
+	rawkv_op $UP_PD put 10000
 
 	# resume the change feed job
-	curl -d "cf-id=$changefeed&admin-job=2" http://127.0.0.1:8300/capture/owner/admin
-	ensure $MAX_RETRIES nonempty 'select id, val from test.availability1 where id=4 and val=4'
+	curl -d "cf-id=$changefeed&admin-job=2" http://127.0.0.1:8600/capture/owner/admin
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rawkv_op $UP_PD delete 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	echo "test_stop_processor pass"
 	cleanup_process $CDC_BINARY

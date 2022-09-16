@@ -259,6 +259,7 @@ func (n *sinkNode) HandleMessage(ctx context.Context, msg pipeline.Message) (boo
 				n.status.Store(KeySpanStatusRunning)
 			}
 			failpoint.Inject("ProcessorSyncResolvedError", func() {
+				log.Error("processor sync resolved inject error")
 				failpoint.Return(false, errors.New("processor sync resolved injected error"))
 			})
 			log.Debug("[TRACE] sinkNode.flushSink", zap.Uint64("msg.PolymorphicEvent.CRTs", msg.PolymorphicEvent.CRTs))

@@ -8,7 +8,7 @@ source $CUR/owner.sh
 source $CUR/capture.sh
 source $CUR/processor.sh
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=cdc.test
+CDC_BINARY=tikv-cdc
 
 export DOWN_TIDB_HOST
 export DOWN_TIDB_PORT
@@ -20,16 +20,10 @@ function prepare() {
 
 	cd $WORK_DIR
 
-	# record tso before we create tables to skip the system table DDLs
-	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-
-	run_sql "CREATE table test.availability1(id int primary key, val int);"
-	run_sql "CREATE table test.availability2(id int primary key, val int);"
-	run_sql "CREATE table test.availability3(id int primary key, val int);"
-
-	run_cdc_cli changefeed create --start-ts=$start_ts \
-		--sink-uri="mysql://normal:123456@127.0.0.1:3306/" \
+	run_cdc_cli changefeed create \
+		--sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
 		--disable-version-check
+	sleep 10
 }
 
 trap stop_tidb_cluster EXIT

@@ -5,15 +5,17 @@ set -eu
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=cdc.test
+CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
+UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
+DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 MAX_RETRIES=20
 
 function check_changefeed_mark_failed_regex() {
 	endpoints=$1
 	changefeedid=$2
 	error_msg=$3
-	info=$(cdc cli changefeed query --pd=$endpoints -c $changefeedid -s)
+	info=$(tikv-cdc cli changefeed query --pd=$endpoints -c $changefeedid -s)
 	echo "$info"
 	state=$(echo $info | jq -r '.state')
 	if [[ ! "$state" == "failed" ]]; then
@@ -30,12 +32,6 @@ function check_changefeed_mark_failed_regex() {
 export -f check_changefeed_mark_failed_regex
 
 function run() {
-	# it is no need to test kafka
-	# the logic are all the same
-	if [ "$SINK_TYPE" == "kafka" ]; then
-		return
-	fi
-
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 
 	start_tidb_cluster --workdir $WORK_DIR
@@ -43,11 +39,15 @@ function run() {
 	cd $WORK_DIR
 
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	run_sql "CREATE DATABASE changefeed_error;" ${UP_TIDB_HOST} ${UP_TIDB_PORT}
+	sleep 10
+	rawkv_op $UP_PD put 10000
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/InjectChangefeedFastFailError=return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
-	SINK_URI="mysql://normal:123456@127.0.0.1:3306/?max-txn-row=1"
+	case $SINK_TYPE in
+	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	*) SINK_URI="" ;;
+	esac
 
 	changefeedid="changefeed-fast-fail"
 	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" -c $changefeedid
@@ -55,8 +55,7 @@ function run() {
 	ensure $MAX_RETRIES check_changefeed_mark_failed_regex http://${UP_PD_HOST_1}:${UP_PD_PORT_1} ${changefeedid} "ErrGCTTLExceeded"
 	run_cdc_cli changefeed remove -c $changefeedid
 	sleep 2
-	#result=$(curl -X GET "http://127.0.0.1:8300/api/v1/changefeeds")
-	result=$(cdc cli changefeed list)
+	result=$(tikv-cdc cli changefeed list)
 	if [[ ! "$result" == "[]" ]]; then
 		echo "changefeed remove failed"
 		exit 1
