@@ -41,7 +41,6 @@ function check_safepoint_forward() {
 	safe_point2=$(get_safepoint $pd_addr $pd_cluster_id)
 	if [[ "$safe_point1" == "$safe_point2" ]]; then
 		echo "safepoint $safe_point1 is not forward"
-		sleep 20
 		exit 1
 	fi
 }
