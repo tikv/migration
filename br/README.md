@@ -38,7 +38,8 @@ tiup playground --db 0 --pd 1 --kv 3 --monitor
 # Using go-ycsb to generate test data.
 git clone git@github.com:pingcap/go-ycsb.git
 cd go-ycsb; make
-./bin/go-ycsb load tikv -P workloads/workloada -p tikv.pd="${PD_ADDR}:2379" -p tikv.type="raw" -p recordcount=100000 -p operationcount=100000 --threads 100
+./bin/go-ycsb load tikv -P workloads/workloada -p tikv.pd="${PD_ADDR}:2379" \
+    -p tikv.type="raw" -p recordcount=100000 -p operationcount=100000 --threads 100
 
 # Backup ycsb test data.
 bin/tikv-br backup raw \
@@ -141,7 +142,7 @@ Restore Raw <---------/...............................................> 17.12%.
 ```
 
 TiKV-BR can do checksum between TiKV cluster and backup files after restoration finish with the config  `--checksum=true`.  
-*Note: Please make sure no data is changed or `TTL` expired in `TiKV` cluster during backup.*
+*Note: Please make sure no data is changed or `TTL` expired in `TiKV` cluster during backup&restore.*
 
 ## Contributing
 
