@@ -24,17 +24,17 @@ function run() {
 	changefeed_id=$(tikv-cdc cli changefeed create --pd=$UP_PD --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 	sleep 10
 
-    for i in $(seq 1 10); do
-        tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
-        rawkv_op $UP_PD put 10000
-        tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
-        check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	for i in $(seq 1 10); do
+		tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
+		rawkv_op $UP_PD put 10000
+		tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
+		check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
-        tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
-        rawkv_op $UP_PD delete 10000
-        tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
-        check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    done
+		tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
+		rawkv_op $UP_PD delete 10000
+		tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
+		check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	done
 
 	cleanup_process $CDC_BINARY
 }
