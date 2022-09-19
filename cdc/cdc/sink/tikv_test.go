@@ -131,7 +131,6 @@ func TestTiKVSinkConfig(t *testing.T) {
 	}
 
 	for i, uri := range cases {
-
 		sinkURI, err := url.Parse(uri)
 		require.NoError(err)
 
