@@ -427,7 +427,7 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 	config := tikvconfig.DefaultConfig()
 	pdAddrPrefix := "http://"
 
-	if sinkURI.Query().Get("ssl-ca") != "" {
+	if sinkURI.Query().Get("ca-path") != "" {
 		config.Security = tikvconfig.NewSecurity(
 			sinkURI.Query().Get("ca-path"),
 			sinkURI.Query().Get("cert-path"),
