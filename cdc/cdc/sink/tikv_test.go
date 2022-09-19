@@ -114,19 +114,23 @@ func TestExtractRawKVEntry(t *testing.T) {
 
 func TestTiKVSinkConfig(t *testing.T) {
 	defer testleak.AfterTestT(t)()
-
 	require := require.New(t)
 
-	uri := "tikv://127.0.0.1:1001,127.0.0.2:1002/?concurrency=10"
+	uri := "tikv://127.0.0.1:1001,127.0.0.2:1002/?concurrency=10&ca-path=./ca-cert.pem&cert-path=./client-cert.pem&key-path=./client-key"
 	sinkURI, err := url.Parse(uri)
 	require.NoError(err)
 
 	opts := make(map[string]string)
-	_, pdAddr, err := parseTiKVUri(sinkURI, opts)
+	config, pdAddr, err := parseTiKVUri(sinkURI, opts)
 	require.NoError(err)
 	require.Len(pdAddr, 2)
-	require.Equal([]string{"http://127.0.0.1:1001", "http://127.0.0.2:1002"}, pdAddr)
+	require.Equal([]string{"https://127.0.0.1:1001", "https://127.0.0.2:1002"}, pdAddr)
 	require.Equal("10", opts["concurrency"])
+	require.Equal(
+		tikvconfig.NewSecurity("./ca-cert.pem", "./client-cert.pem", "./client-key", nil),
+		config.Security,
+	)
+	fmt.Println(config.Security)
 }
 
 func TestTiKVSinkBatcher(t *testing.T) {

@@ -3,11 +3,12 @@
 # parameter 2: put/delete
 # parameter 3: key count
 
+CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TLS_DIR=$(cd $CUR/../_certificates && pwd)
 set -e
 
 if ! command -v rawkv_data &>/dev/null; then
 	echo "make rawkv_data"
-	CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 	PWD=$(pwd)
 	cd $CUR/../../..
 	make rakv_data
@@ -15,4 +16,4 @@ if ! command -v rawkv_data &>/dev/null; then
 fi
 
 echo "run put data"
-rawkv_data $2 --src-pd $1 --count $3
+rawkv_data $2 --src-pd $1 --count $3 --ca-path=$TLS_DIR/ca.pem --cert-path=$TLS_DIR/client.pem --key-path=$TLD_DIR/client-key.pem
