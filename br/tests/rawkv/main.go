@@ -35,18 +35,16 @@ var (
 	apiVersionInt = flag.Uint("api-version", 1, "Api version of tikv-server")
 	br            = flag.String("br", "br", "The br binary to be tested.")
 	brStorage     = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
-	coverageFile  = flag.String("coverage", "coverage.out", "The coverage profile of test.")
+	coverageDir   = flag.String("coverage", "", "The coverage profile file dir of test.")
 )
 
 type RawKVBRTester struct {
-	name        string
 	pdAddr      string
 	apiVersion  kvrpcpb.APIVersion
 	br          string
 	brStorage   string
 	rawkvClient *rawkv.Client
 	pdClient    pd.Client
-	runCnt      int      // runCnt is used to distinguish `backup` and `restore` commands.
 }
 
 func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
@@ -63,7 +61,7 @@ func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
 	)
 }
 
-func NewRawKVBRTester(ctx context.Context, name, pd, br, storage string, version kvrpcpb.APIVersion) (*RawKVBRTester, error) {
+func NewRawKVBRTester(ctx context.Context, pd, br, storage string, version kvrpcpb.APIVersion) (*RawKVBRTester, error) {
 	cli, err := rawkv.NewClientWithOpts(context.TODO(), []string{pd},
 		rawkv.WithAPIVersion(version))
 	if err != nil {
@@ -76,14 +74,12 @@ func NewRawKVBRTester(ctx context.Context, name, pd, br, storage string, version
 		return nil, err
 	}
 	return &RawKVBRTester{
-		name:        name,
 		pdAddr:      pd,
 		br:          br,
 		apiVersion:  version,
 		brStorage:   storage,
 		rawkvClient: cli,
 		pdClient:    pdClient,
-		runCnt:      0,
 	}, nil
 }
 
@@ -206,11 +202,15 @@ func (t *RawKVBRTester) InjectFailpoint(failpoint string) error {
 
 func (t *RawKVBRTester) ExecBRCmd(ctx context.Context, cmdStr string) ([]byte, error) {
 	log.Info("exec br cmd", zap.String("br", t.br), zap.String("args", cmdStr))
-	cmdParameter := []string{fmt.Sprintf("-test.coverprofile=%s_%s_%d", *coverageFile, t.name, t.runCnt)}
+	covFile, err := os.CreateTemp(*coverageDir, "cov.integration.*.out")
+	if err != nil {
+		return nil, err
+	}
+	defer covFile.Close()
+	cmdParameter := []string{fmt.Sprintf("-test.coverprofile=%s", covFile.Name())}
 	//cmdParameter := []string{}
 	cmdParameter = append(cmdParameter, strings.Split(cmdStr, " ")...)
 	cmd := exec.CommandContext(ctx, t.br, cmdParameter...)
-	t.runCnt += 1 // runCnt is used to distinguish `backup` and `restore` commands.
 	return cmd.Output()
 }
 
@@ -301,7 +301,7 @@ func runBackupAndRestore(ctx context.Context, tester *RawKVBRTester, prefix, sta
 	log.Info("Checksum pass")
 }
 
-func runTestWithFailPoint(caseName, failpoint string, prefix []byte, backupRange *kvrpcpb.KeyRange) {
+func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.KeyRange) {
 	apiVersion := kvrpcpb.APIVersion_V1TTL
 	if *apiVersionInt == 2 {
 		apiVersion = kvrpcpb.APIVersion_V2
@@ -310,7 +310,7 @@ func runTestWithFailPoint(caseName, failpoint string, prefix []byte, backupRange
 
 	fmt.Println("test api version", apiVersion)
 
-	tester, err := NewRawKVBRTester(ctx, caseName, *pdAddr, *br, *brStorage, apiVersion)
+	tester, err := NewRawKVBRTester(ctx, *pdAddr, *br, *brStorage, apiVersion)
 	if err != nil {
 		log.Panic("New Tester Fail", zap.Error(err))
 	}
@@ -360,10 +360,9 @@ func main() {
 		{StartKey: []byte{}, EndKey: []byte{}},
 		{StartKey: q1Key, EndKey: q3Key},
 	}
-	for i, failpoint := range failpoints {
-		for j, backupRange := range backupRanges {
-			caseName := fmt.Sprintf("case_%d_%d", i, j)
-			runTestWithFailPoint(caseName, failpoint, prefix, &backupRange)
+	for _, failpoint := range failpoints {
+		for _, backupRange := range backupRanges {
+			runTestWithFailPoint(failpoint, prefix, &backupRange)
 		}
 	}
 }

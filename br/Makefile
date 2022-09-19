@@ -68,7 +68,7 @@ test/integration: build/br-test build/rawkv-integration-test
 		--br='${TEST_BIN_PATH}' \
 		--br-storage=${BR_LOCAL_STORE} \
 		--api-version=${API_VERSION} \
-		--coverage=$(COVERAGE_DIR)/cov.integration.out
+		--coverage=$(COVERAGE_DIR)
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
