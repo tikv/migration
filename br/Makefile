@@ -52,16 +52,15 @@ check/gosec:
 	$(GO) install github.com/securego/gosec/v2/cmd/gosec@v2.12.0
 	gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
-test: tools/bin/gocov tools/bin/gocov-xml
+test:
 	make failpoint/enable
 	export TZ='Asia/Shanghai'
 	mkdir -p $(COVERAGE_DIR)
-	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile=$(COVERAGE_DIR)/coverage.raw || ( make failpoint/disable && exit 1 )
-	tools/bin/gocov convert $(COVERAGE_DIR)/coverage.raw | tools/bin/gocov-xml > $(COVERAGE_DIR)/coverage.xml
+	$(GO) test -p $(TEST_PARALLEL) -race -ldflags '$(LDFLAGS)' -tags leak $$($(PACKAGES)) -coverprofile=$(COVERAGE_DIR)/cov.unit.out || ( make failpoint/disable && exit 1 )
 	make failpoint/disable
 
-test_coverage: test
-	@bash <(curl -s https://codecov.io/bash) -F br -f $(COVERAGE_DIR)/coverage.raw -t $(TIKV_MIGRATION_CODECOV_TOKEN)
+report_coverage:
+	@bash <(curl -s https://codecov.io/bash) -F br -f $(COVERAGE_DIR)/cov.* -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 test/integration: build/br-test build/rawkv-integration-test
 	mkdir -p $(COVERAGE_DIR)
@@ -69,7 +68,7 @@ test/integration: build/br-test build/rawkv-integration-test
 		--br='${TEST_BIN_PATH}' \
 		--br-storage=${BR_LOCAL_STORE} \
 		--api-version=${API_VERSION} \
-		--coverage=$(COVERAGE_DIR)/cover.intg.out
+		--coverage=$(COVERAGE_DIR)/cov.integration.out
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable
@@ -79,12 +78,6 @@ failpoint/disable: tools/bin/failpoint-ctl
 
 tools/bin/golangci-lint:
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.45.1
-
-tools/bin/gocov: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov github.com/axw/gocov/gocov
-
-tools/bin/gocov-xml: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocov-xml github.com/AlekSi/gocov-xml
 
 tools/bin/failpoint-ctl: tools/check/go.mod
 	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl

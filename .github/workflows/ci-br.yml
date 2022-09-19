@@ -58,7 +58,8 @@ jobs:
         shell: bash
         run: |
           cd br
-          make test_coverage
+          make test
+          make report_coverage
   br-integration-test:
     name: br-integration-test-${{ matrix.tikv_version }}-apiv${{ matrix.api_version }}
     runs-on: ubuntu-latest
@@ -90,6 +91,7 @@ jobs:
         run: |
           cd br
           make test/integration
+          make report_coverage
       - name: display backup log
         run: |
           cat /tmp/br.log*
