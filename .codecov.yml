@@ -34,6 +34,7 @@ comment:
   require_head: yes
   branches:
     - "master"
+  show_carryforward_flags: true
 
 ignore:
   - "LICENSES"
