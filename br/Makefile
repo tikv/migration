@@ -61,7 +61,7 @@ test:
 
 report_coverage:
 	ls $(COVERAGE_DIR)/cov.*
-	@bash <(curl -s https://codecov.io/bash) -F br -s $(COVERAGE_DIR) -f cov.* -t $(TIKV_MIGRATION_CODECOV_TOKEN)
+	@bash <(curl -s https://codecov.io/bash) -F br -s $(COVERAGE_DIR) -f '$(COVERAGE_DIR)/cov.*' -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 test/integration: build/br-test build/rawkv-integration-test
 	mkdir -p $(COVERAGE_DIR)
