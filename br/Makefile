@@ -60,7 +60,8 @@ test:
 	make failpoint/disable
 
 report_coverage:
-	@bash <(curl -s https://codecov.io/bash) -F br -f $(COVERAGE_DIR)/cov.* -t $(TIKV_MIGRATION_CODECOV_TOKEN)
+	ls $(COVERAGE_DIR)/cov.*
+	@bash <(curl -s https://codecov.io/bash) -F br -f '$(COVERAGE_DIR)/cov.*' -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
 test/integration: build/br-test build/rawkv-integration-test
 	mkdir -p $(COVERAGE_DIR)
