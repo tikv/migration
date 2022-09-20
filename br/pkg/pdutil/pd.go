@@ -234,7 +234,7 @@ func NewPdController(
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
 	}
 	pdClient, err := pd.NewClientWithContext(
-		ctx, addrs, securityOption,
+		ctx, processedAddrs, securityOption,
 		pd.WithGRPCDialOptions(maxCallMsgSize...),
 		pd.WithCustomTimeoutOption(10*time.Second),
 		pd.WithMaxErrorRetry(3),

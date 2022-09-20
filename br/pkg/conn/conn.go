@@ -260,9 +260,9 @@ func NewMgr(
 		return nil, errors.Trace(err)
 	}
 
-	security := config.NewSecurity(string(securityOption.SSLCABytes),
-		string(securityOption.SSLCertBytes),
-		string(securityOption.SSLKEYBytes),
+	security := config.NewSecurity(securityOption.CAPath,
+		securityOption.CertPath,
+		securityOption.KeyPath,
 		[]string{})
 	lockResolver, err := tikv.NewLockResolver(strings.Split(pdAddrs, ","), security)
 	if err != nil {
