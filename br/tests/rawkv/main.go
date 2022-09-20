@@ -228,7 +228,7 @@ func (t *RawKVBRTester) GetTso(ctx context.Context) (uint64, error) {
 }
 
 func ParseBackupTSFromOutput(output []byte) uint64 {
-	flysnowRegexp := regexp.MustCompile(`BackupTS=([0-9]*)]`)
+	flysnowRegexp := regexp.MustCompile(`backup-ts=([0-9]*)]`)
 	if flysnowRegexp == nil {
 		log.Panic("regex error")
 	}

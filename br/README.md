@@ -63,11 +63,11 @@ bin/tikv-br restore raw \
 
 - Allocate sufficient resources for backup and restoration.
 
+- TiKV-BR only support raw data backup/restoration in TiKV cluster with version >= `6.1.0`. May support TiKV cluster with 5.x versions in the future.
+
 TiKV-BR, TiKV nodes, and the backup storage system should provide network bandwidth that is greater than the backup speed. If the target cluster is particularly large, the threshold of backup and restoration speed is limited by the bandwidth of the backup network.  
 The backup storage system should also provide sufficient write/read performance (IOPS). Otherwise, the IOPS might become a performance bottleneck during backup or restoration.  
 TiKV nodes need to have at least two additional spared CPU cores and disk bandwidth (related to `ratelimit` parameter) for backups. Otherwise, the backup might have an impact on the services running on the cluster.
-
-*Note: please specify the [api-version](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610) config of TiKV cluster. TiKV-BR supports APIV1 & APIV2 backup/restore and conversion from APIV1 to APIV2. The detail usage is as following.*
 
 ### Best practice
 The following are some recommended operations for using `TiKV-BR` for backup and restoration:
@@ -103,7 +103,7 @@ Explanations for some options in the above command are as follows:
 - `raw`: Sub-command of `backup`.
 - `-s` or `--storage`: Storage of backup files.
 - `"s3://backup-data/2022-09-16/"`: Parameter of `-s`, save the backup files in `"s3://backup-data/2022-09-16/"`.
-- `--ratelimit`: Specifies the maximum speed at which a backup operation is performed on each `TiKV` node.
+- `--ratelimit`: The maximum speed at which a backup operation is performed on each `TiKV` node.
 - `128`: The value of `ratelimit`, unit is MiB/s.
 - `--pd`: Service address of `PD`.
 - `"${PDIP}:2379"`:  Parameter of `--pd`.
@@ -121,19 +121,19 @@ Backup Raw <---------/................................................> 17.12%.
 
 After backup finish, the result message is displayed as follows:
 ```
-[2022/09/20 18:01:10.125 +08:00] [INFO] [collector.go:67] ["Raw backup success summary"] [total-ranges=3] [ranges-succeed=3] [ranges-failed=0] [backup-total-regions=3] [total-take=5.050265883s] [BackupTS=436120585518448641] [total-kv=100000] [total-kv-size=108.7MB] [average-speed=21.11MB/s] [backup-data-size(after-compressed)=78.3MB]
+[2022/09/20 18:01:10.125 +08:00] [INFO] [collector.go:67] ["Raw backup success summary"] [total-ranges=3] [ranges-succeed=3] [ranges-failed=0] [backup-total-regions=3] [total-take=5.050265883s] [backup-ts=436120585518448641] [total-kv=100000] [total-kv-size=108.7MB] [average-speed=21.11MB/s] [backup-data-size(after-compressed)=78.3MB]
 ```
 Explanations for the above message are as follows: 
-- `total-ranges`: specifies the ranges' count that backup separate the task. Equals to `ranges-succeed` + `ranges-failed`.
-- `ranges-succeed`: specifies the succeeded task count.
-- `ranges-failed`: specifies the failed task count.
-- `backup-total-regions`: specifies the tikv regions that backup takes.
-- `total-take`: specifies the backup duration.
-- `BackupTS`: specifies the backup start timestamp, only take effect for APIV2 TiKV cluster, which can be used as TiKV-CDC [start-ts](https://github.com/tikv/migration/blob/main/cdc/README.md).
-- `total-kv`: specifies the total kv count in backup files.
-- `total-kv-size`: specifies the total kv size in backup files.
-- `average-speed`: specifies the backup speed, which approximately equals to `total-kv-size` / `total-take`.
-- `backup-data-size(after-compressed)`: specifies the backup file size.
+- `total-ranges`: Number of ranges that the whole backup task is split to. Equals to `ranges-succeed` + `ranges-failed`.
+- `ranges-succeed`: Number of succeeded ranges.
+- `ranges-failed`: Number of failed ranges.
+- `backup-total-regions`: The tikv regions that backup takes.
+- `total-take`: The backup duration.
+- `backup-ts`: The backup start timestamp, only take effect for APIV2 TiKV cluster, which can be used as `start-ts` of `TiKV-CDC` when creating replication tasks. Refer to [Create a replication task](https://github.com/tikv/migration/blob/main/cdc/README.md#create-a-replication-task).
+- `total-kv`: Total kv count in backup files.
+- `total-kv-size`: Total kv size in backup files. Note that this is the original size before compression.
+- `average-speed`: The backup speed, which approximately equals to `total-kv-size` / `total-take`.
+- `backup-data-size(after-compressed)`: The backup file size.
 
 #### Restore Raw Data
 
@@ -151,8 +151,8 @@ tikv-br restore raw \
 ```
 Explanations for some options in the above command are as follows:
 
-- `--ratelimit`: specifies the maximum speed at which a restoration operation is performed (MiB/s) on each `TiKV` node.
-- `--log-file`: specifies writing the TiKV-BR log to the `restorefull.log` file.
+- `--ratelimit`: The maximum speed at which a restoration operation is performed (MiB/s) on each `TiKV` node.
+- `--log-file`: Writing the TiKV-BR log to the `restorefull.log` file.
 
 A progress bar is displayed in the terminal during the restoration. When the progress bar advances to 100%, the restoration is complete. The progress bar is displayed as follows:
 ```
@@ -169,15 +169,15 @@ After restoration finish, the result message is displayed as follows:
 [2022/09/20 18:02:12.540 +08:00] [INFO] [collector.go:67] ["Raw restore success summary"] [total-ranges=3] [ranges-succeed=3] [ranges-failed=0] [restore-files=3] [total-take=950.460846ms] [restore-data-size(after-compressed)=78.3MB] [total-kv=100000] [total-kv-size=108.7MB] [average-speed=114.4MB/s]
 ```
 Explanations for the above message are as follows: 
-- `total-ranges`: specifies the ranges' count that restoration separate the task. Equals to `ranges-succeed` + `ranges-failed`.
-- `ranges-succeed`: specifies the succeeded task count.
-- `ranges-failed`: specifies the failed task count.
-- `restore-files`: specifies the files' count that restoration takes.
-- `total-take`: specifies the restoration duration.
-- `total-kv`: specifies the total restored kv count.
-- `total-kv-size`: specifies the total restored kv size.
-- `average-speed`: specifies the restoration speed, which approximately equals to `total-kv-size` / `total-take`.
-- `restore-data-size(after-compressed)`: specifies the restoration file size.
+- `total-ranges`: Number of ranges that the whole backup task is split to. Equals to `ranges-succeed` + `ranges-failed`.
+- `ranges-succeed`: Number of succeeded ranges.
+- `ranges-failed`: Number of failed ranges.
+- `restore-files`: The files' count that restoration takes.
+- `total-take`: The restoration duration.
+- `total-kv`: Total restored kv count.
+- `total-kv-size`: Total restored kv size. Note that this is the original size before compression.
+- `average-speed`: The restoration speed, which approximately equals to `total-kv-size` / `total-take`.
+- `restore-data-size(after-compressed)`: The restoration file size.
 
 
 ### Data Verification of Backup & Restore
