@@ -172,7 +172,7 @@ Explanations for the above message are as follows:
 - `total-ranges`: Number of ranges that the whole backup task is split to. Equals to `ranges-succeed` + `ranges-failed`.
 - `ranges-succeed`: Number of succeeded ranges.
 - `ranges-failed`: Number of failed ranges.
-- `restore-files`: The files' count that restoration takes.
+- `restore-files`: Number of restored files.
 - `total-take`: The restoration duration.
 - `total-kv`: Total restored kv count.
 - `total-kv-size`: Total restored kv size. Note that this is the original size before compression.
