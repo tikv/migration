@@ -67,6 +67,8 @@ TiKV-BR, TiKV nodes, and the backup storage system should provide network bandwi
 The backup storage system should also provide sufficient write/read performance (IOPS). Otherwise, the IOPS might become a performance bottleneck during backup or restoration.  
 TiKV nodes need to have at least two additional spared CPU cores and disk bandwidth (related to `ratelimit` parameter) for backups. Otherwise, the backup might have an impact on the services running on the cluster.
 
+*Note: please specify the [api-version](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610) config of TiKV cluster. TiKV-BR supports APIV1 & APIV2 backup/restore and conversion from APIV1 to APIV2. The detail usage is as following.*
+
 ### Best practice
 The following are some recommended operations for using `TiKV-BR` for backup and restoration:
 - It is recommended that you perform the backup operation during off-peak hours to minimize the impact on applications.
@@ -96,7 +98,7 @@ tikv-br backup raw \
     --dst-api-version v2 \
     --log-file="/tmp/br_backup.log
 ```
-Explanations for some options in the above command are as follows:: 
+Explanations for some options in the above command are as follows: 
 - `backup`: Sub-command of `tikv-br`.
 - `raw`: Sub-command of `backup`.
 - `-s` or `--storage`: Storage of backup files.
@@ -105,7 +107,7 @@ Explanations for some options in the above command are as follows::
 - `128`: The value of `ratelimit`, unit is MiB/s.
 - `--pd`: Service address of `PD`.
 - `"${PDIP}:2379"`:  Parameter of `--pd`.
-- `--dst-api-version`: The `api-version`, please see [tikv-server config](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610) of backup files.
+- `--dst-api-version`: The `api-version`, please see [tikv-server config](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610).
 - `v2`: Parameter of `--dst-api-version`, the optionals are `v1`, `v1ttl`, `v2`(Case insensitive). If no `dst-api-version` is specified, the `api-version` is the same with TiKV cluster of `--pd`.
 
 A progress bar is displayed in the terminal during the backup. When the progress bar advances to 100%, the backup is complete. The progress bar is displayed as follows:
@@ -116,6 +118,22 @@ br backup raw \
     --log-file backupfull.log
 Backup Raw <---------/................................................> 17.12%.
 ```
+
+After backup finish, the result message is displayed as follows:
+```
+[2022/09/20 18:01:10.125 +08:00] [INFO] [collector.go:67] ["Raw backup success summary"] [total-ranges=3] [ranges-succeed=3] [ranges-failed=0] [backup-total-regions=3] [total-take=5.050265883s] [BackupTS=436120585518448641] [total-kv=100000] [total-kv-size=108.7MB] [average-speed=21.11MB/s] [backup-data-size(after-compressed)=78.3MB]
+```
+Explanations for the above message are as follows: 
+- `total-ranges`: specifies the ranges' count that backup separate the task. Equals to `ranges-succeed` + `ranges-failed`.
+- `ranges-succeed`: specifies the succeeded task count.
+- `ranges-failed`: specifies the failed task count.
+- `backup-total-regions`: specifies the tikv regions that backup takes.
+- `total-take`: specifies the backup duration.
+- `BackupTS`: specifies the backup start timestamp, only take effect for APIV2 TiKV cluster, which can be used as TiKV-CDC [start-ts](https://github.com/tikv/migration/blob/main/cdc/README.md).
+- `total-kv`: specifies the total kv count in backup files.
+- `total-kv-size`: specifies the total kv size in backup files.
+- `average-speed`: specifies the backup speed, which approximately equals to `total-kv-size` / `total-take`.
+- `backup-data-size(after-compressed)`: specifies the backup file size.
 
 #### Restore Raw Data
 
@@ -146,11 +164,27 @@ tikv-br restore raw \
 Restore Raw <---------/...............................................> 17.12%.
 ```
 
-### Data Verification of Backup&Restore
+After restoration finish, the result message is displayed as follows:
+```
+[2022/09/20 18:02:12.540 +08:00] [INFO] [collector.go:67] ["Raw restore success summary"] [total-ranges=3] [ranges-succeed=3] [ranges-failed=0] [restore-files=3] [total-take=950.460846ms] [restore-data-size(after-compressed)=78.3MB] [total-kv=100000] [total-kv-size=108.7MB] [average-speed=114.4MB/s]
+```
+Explanations for the above message are as follows: 
+- `total-ranges`: specifies the ranges' count that restoration separate the task. Equals to `ranges-succeed` + `ranges-failed`.
+- `ranges-succeed`: specifies the succeeded task count.
+- `ranges-failed`: specifies the failed task count.
+- `restore-files`: specifies the files' count that restoration takes.
+- `total-take`: specifies the restoration duration.
+- `total-kv`: specifies the total restored kv count.
+- `total-kv-size`: specifies the total restored kv size.
+- `average-speed`: specifies the restoration speed, which approximately equals to `total-kv-size` / `total-take`.
+- `restore-data-size(after-compressed)`: specifies the restoration file size.
+
+
+### Data Verification of Backup & Restore
 
 TiKV-BR can do checksum between TiKV cluster and backup files after backup or restoration finish with the config `--checksum=true`. Checksum is using the [checksum](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L584) interface in TiKV [client-go](https://github.com/tikv/client-go), which send checksum request to all TiKV regions to calculate the checksum of all **VALID** data. Then compare to the checksum value of backup files which is calculated during backup process.
 
-In some scenario, data is stored in TiKV with [TTL](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#enable-ttl). If data is expired during backup&restore, the persisted checksum in backup files is different from the checksum of TiKV cluster. So checksum should not enabled in this scenario. User can perform a full comparison for all existing non-expired data between backup cluster and restore cluster with [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) interface in [client-go](https://github.com/tikv/client-go).
+In some scenario, data is stored in TiKV with [TTL](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#enable-ttl). If data is expired during backup & restore, the persisted checksum in backup files is different from the checksum of TiKV cluster. So checksum should not enabled in this scenario. User can perform a full comparison for all existing non-expired data between backup cluster and restore cluster with [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) interface in [client-go](https://github.com/tikv/client-go).
 
 ## Contributing
 
