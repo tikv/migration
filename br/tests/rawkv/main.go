@@ -208,7 +208,6 @@ func (t *RawKVBRTester) ExecBRCmd(ctx context.Context, cmdStr string) ([]byte, e
 	}
 	defer covFile.Close()
 	cmdParameter := []string{fmt.Sprintf("-test.coverprofile=%s", covFile.Name())}
-	//cmdParameter := []string{}
 	cmdParameter = append(cmdParameter, strings.Split(cmdStr, " ")...)
 	cmd := exec.CommandContext(ctx, t.br, cmdParameter...)
 	return cmd.Output()
