@@ -25,7 +25,7 @@ $ make release // build the release binary used for production
 $ make test    // run unit test
 ```
 
-*Notice TiKV-BR supports building with Go version `Go >= 1.18`*
+*Notice TiKV-BR requires building with Go version `Go >= 1.18`*
 
 When TiKV-BR is built successfully, you can find binary in the `bin` directory.
 
@@ -63,9 +63,9 @@ bin/tikv-br restore raw \
 
 - Allocate sufficient resources for backup and restoration.
 
-TiKV-BR, TiKV nodes, and the backup storage system should provide network bandwidth that is greater than the backup speed. If the target cluster is particularly large, the threshold of backup and restoration speed is limited by the bandwidth of the backup network.
-The backup storage system should also provide sufficient write/read performance (IOPS). Otherwise, the IOPS might become a performance bottleneck during backup or restoration.
-TiKV nodes need to have at least two additional CPU cores and high performance disks for backups. Otherwise, the backup might have an impact on the services running on the cluster.
+TiKV-BR, TiKV nodes, and the backup storage system should provide network bandwidth that is greater than the backup speed. If the target cluster is particularly large, the threshold of backup and restoration speed is limited by the bandwidth of the backup network.  
+The backup storage system should also provide sufficient write/read performance (IOPS). Otherwise, the IOPS might become a performance bottleneck during backup or restoration.  
+TiKV nodes need to have at least two additional spared CPU cores and disk bandwidth (related to `ratelimit` parameter) for backups. Otherwise, the backup might have an impact on the services running on the cluster.
 
 ### Best practice
 The following are some recommended operations for using `TiKV-BR` for backup and restoration:
@@ -74,19 +74,21 @@ The following are some recommended operations for using `TiKV-BR` for backup and
 - It is recommended that you execute multiple backup operations serially. Running different backup operations in parallel reduces backup performance and also affects the online application.
 - It is recommended that you execute multiple restore operations serially. Running different restore operations in parallel increases Region conflicts and also reduces restore performance.
 - `TiKV-BR` supports checksum between `TiKV` cluster and backup files after backup or restore with the config `--checksum=true`. Note that, if checksum is enabled, please make sure no data is changed or `TTL` expired in `TiKV` cluster during backup or restore.
-- TiKV-BR supports [`api-version`](https://docs.pingcap.com/zh/tidb/stable/tikv-configuration-file#api-version-%E4%BB%8E-v610-%E7%89%88%E6%9C%AC%E5%BC%80%E5%A7%8B%E5%BC%95%E5%85%A5) conversion from V1 to V2 with config `--dst-api-version V2`. Then restore the backup files to APIV2 `TiKV` cluster. This is mainly used to upgrade from APIV1 cluster to APIV2 cluster.
+- TiKV-BR supports [`api-version`](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610) conversion from V1 to V2 with config `--dst-api-version V2`. Then restore the backup files to APIV2 `TiKV` cluster. This is mainly used to upgrade from APIV1 cluster to APIV2 cluster.
 
 ### TiKV-BR Command Line Description
-A br command consists of sub-commands, options, and parameters.
+A tikv-br command consists of sub-commands, options, and parameters.
 
 - Sub-command: the characters without - or --, including `backup`, `restore`, `raw` and `help`.
 - Option: the characters that start with - or --.
 - Parameter: the characters that immediately follow behind and are passed to the sub-command or the option.
 #### Backup Raw Data
 To back up the cluster raw data, use the `tikv-br backup raw` command. To get help on this command, execute `tikv-br backup raw -h` or `tikv-br backup raw --help`.
-For example, backup raw data in TiKV cluster to `/tmp/backup` directory.
+For example, backup raw data in TiKV cluster to s3 `/backup-data/2022-09-16` directory.
 
 ```
+export AWS_ACCESS_KEY_ID=&{AWS_KEY_ID};
+export AWS_SECRET_ACCESS_KEY=&{AWS_KEY};
 tikv-br backup raw \
     --pd "&{PDIP}:2379" \
     -s "s3://backup-data/2022-09-16/" \
@@ -103,7 +105,7 @@ Explanations for some options in the above command are as follows::
 - `128`: The value of `ratelimit`, unit is MiB/s.
 - `--pd`: Service address of `PD`.
 - `"${PDIP}:2379"`:  Parameter of `--pd`.
-- `--dst-api-version`: The `api-version`, 请见 [tikv-server config](https://docs.pingcap.com/zh/tidb/stable/tikv-configuration-file#api-version-%E4%BB%8E-v610-%E7%89%88%E6%9C%AC%E5%BC%80%E5%A7%8B%E5%BC%95%E5%85%A5) of backup files.
+- `--dst-api-version`: The `api-version`, please see [tikv-server config](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610) of backup files.
 - `v2`: Parameter of `--dst-api-version`, the optionals are `v1`, `v1ttl`, `v2`(Case insensitive). If no `dst-api-version` is specified, the `api-version` is the same with TiKV cluster of `--pd`.
 
 A progress bar is displayed in the terminal during the backup. When the progress bar advances to 100%, the backup is complete. The progress bar is displayed as follows:
@@ -118,9 +120,11 @@ Backup Raw <---------/................................................> 17.12%.
 #### Restore Raw Data
 
 To restore raw data to the cluster, execute the `tikv-br restore raw` command. To get help on this command, execute `tikv-br restore raw -h` or `tikv-br restore raw --help`.
-For example, restore the raw backup files in `/tmp/backup` to `TiKV` cluster.
+For example, restore the raw backup files in s3 `/backup-data/2022-09-16` to `TiKV` cluster.
 
 ```
+export AWS_ACCESS_KEY_ID=&{AWS_KEY_ID};
+export AWS_SECRET_ACCESS_KEY=&{AWS_KEY};
 tikv-br restore raw \
     --pd "${PDIP}:2379" \
     --storage "s3://backup-data/2022-09-16/" \
@@ -130,7 +134,7 @@ tikv-br restore raw \
 Explanations for some options in the above command are as follows:
 
 - `--ratelimit`: specifies the maximum speed at which a restoration operation is performed (MiB/s) on each `TiKV` node.
-- --log-file: specifies writing the TiKV-BR log to the `restorefull.log` file.
+- `--log-file`: specifies writing the TiKV-BR log to the `restorefull.log` file.
 
 A progress bar is displayed in the terminal during the restoration. When the progress bar advances to 100%, the restoration is complete. The progress bar is displayed as follows:
 ```
@@ -144,9 +148,9 @@ Restore Raw <---------/...............................................> 17.12%.
 
 ### Data Verification of Backup&Restore
 
-TiKV-BR can do checksum between TiKV cluster and backup files after backup or restoration finish with the config `--checksum=true`. Checksum is using the [checksum](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L584) interface in tikv [client-go](https://github.com/tikv/client-go), which send checksum request to all TiKV regions to calculate the checksum of all **VALID** data. Then compare to the checksum value of backup files which is calculated during backup process.
+TiKV-BR can do checksum between TiKV cluster and backup files after backup or restoration finish with the config `--checksum=true`. Checksum is using the [checksum](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L584) interface in TiKV [client-go](https://github.com/tikv/client-go), which send checksum request to all TiKV regions to calculate the checksum of all **VALID** data. Then compare to the checksum value of backup files which is calculated during backup process.
 
-In some scenario, data is stored in TiKV with [TTL](https://docs.pingcap.com/zh/tidb/stable/tikv-configuration-file#enable-ttl). If data is expired during backup&restore, the persisted checksum in backup files is different from the checksum of TiKV cluster. So checksum should not enabled in this scenario. User can perform a full comparison for all existing non-expired data between backup cluster and restore cluster with [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) interface in [client-go](https://github.com/tikv/client-go).
+In some scenario, data is stored in TiKV with [TTL](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#enable-ttl). If data is expired during backup&restore, the persisted checksum in backup files is different from the checksum of TiKV cluster. So checksum should not enabled in this scenario. User can perform a full comparison for all existing non-expired data between backup cluster and restore cluster with [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) interface in [client-go](https://github.com/tikv/client-go).
 
 ## Contributing
 
