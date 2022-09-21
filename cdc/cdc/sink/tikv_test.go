@@ -116,21 +116,37 @@ func TestTiKVSinkConfig(t *testing.T) {
 	defer testleak.AfterTestT(t)()
 	require := require.New(t)
 
-	uri := "tikv://127.0.0.1:1001,127.0.0.2:1002/?concurrency=10&ca-path=./ca-cert.pem&cert-path=./client-cert.pem&key-path=./client-key"
-	sinkURI, err := url.Parse(uri)
-	require.NoError(err)
+	cases := []string{
+		"tikv://127.0.0.1:1001,127.0.0.2:1002,127.0.0.1:1003/?concurrency=12",
+		"tikv://127.0.0.1:1001,127.0.0.1:1002/?concurrency=10&ca-path=./ca-cert.pem&cert-path=./client-cert.pem&key-path=./client-key",
+	}
 
-	opts := make(map[string]string)
-	config, pdAddr, err := parseTiKVUri(sinkURI, opts)
-	require.NoError(err)
-	require.Len(pdAddr, 2)
-	require.Equal([]string{"https://127.0.0.1:1001", "https://127.0.0.2:1002"}, pdAddr)
-	require.Equal("10", opts["concurrency"])
-	require.Equal(
-		tikvconfig.NewSecurity("./ca-cert.pem", "./client-cert.pem", "./client-key", nil),
-		config.Security,
-	)
-	fmt.Println(config.Security)
+	expected := []struct {
+		pdAddrCount int
+		pdAddr      []string
+		concurrency string
+		security    tikvconfig.Security
+	}{
+		{3, []string{"http://127.0.0.1:1001", "http://127.0.0.2:1002", "http://127.0.0.1:1003"}, "12", tikvconfig.Security{}},
+		{2, []string{"https://127.0.0.1:1001", "https://127.0.0.1:1002"}, "10", tikvconfig.NewSecurity("./ca-cert.pem", "./client-cert.pem", "./client-key", nil)},
+	}
+
+	for i, uri := range cases {
+
+		sinkURI, err := url.Parse(uri)
+		require.NoError(err)
+
+		opts := make(map[string]string)
+		config, pdAddr, err := parseTiKVUri(sinkURI, opts)
+		require.NoError(err)
+		require.Len(pdAddr, expected[i].pdAddrCount)
+		require.Equal(expected[i].pdAddr, pdAddr)
+		require.Equal(expected[i].concurrency, opts["concurrency"])
+		require.Equal(
+			expected[i].security,
+			config.Security,
+		)
+	}
 }
 
 func TestTiKVSinkBatcher(t *testing.T) {
