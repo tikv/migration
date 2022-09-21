@@ -59,7 +59,7 @@ func AddFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String(flagKeyPath, "", "Path to client key")
 }
 
-func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, useDstPD bool) error {
+func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, requireDstPD bool) error {
 	var err error
 	if cfg.SrcPD, err = flags.GetString(flagSrcPD); err != nil {
 		return err
@@ -95,7 +95,7 @@ func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, useDstPD bool) error {
 		cfg.SrcSec.ClusterSSLKey = cfg.KeyPath
 	}
 
-	if useDstPD {
+	if requireDstPD {
 		if cfg.DstPD == "" {
 			return fmt.Errorf("Downstream cluster PD is not set")
 		}
