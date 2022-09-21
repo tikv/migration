@@ -35,6 +35,7 @@ var (
 	apiVersionInt = flag.Uint("api-version", 1, "Api version of tikv-server")
 	br            = flag.String("br", "br", "The br binary to be tested.")
 	brStorage     = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
+	coverageDir   = flag.String("coverage", "", "The coverage profile file dir of test.")
 )
 
 type RawKVBRTester struct {
@@ -201,7 +202,14 @@ func (t *RawKVBRTester) InjectFailpoint(failpoint string) error {
 
 func (t *RawKVBRTester) ExecBRCmd(ctx context.Context, cmdStr string) ([]byte, error) {
 	log.Info("exec br cmd", zap.String("br", t.br), zap.String("args", cmdStr))
-	cmd := exec.CommandContext(ctx, t.br, strings.Split(cmdStr, " ")...)
+	covFile, err := os.CreateTemp(*coverageDir, "cov.integration.*.out")
+	if err != nil {
+		return nil, err
+	}
+	defer covFile.Close()
+	cmdParameter := []string{fmt.Sprintf("-test.coverprofile=%s", covFile.Name())}
+	cmdParameter = append(cmdParameter, strings.Split(cmdStr, " ")...)
+	cmd := exec.CommandContext(ctx, t.br, cmdParameter...)
 	return cmd.Output()
 }
 
@@ -220,7 +228,7 @@ func (t *RawKVBRTester) GetTso(ctx context.Context) (uint64, error) {
 }
 
 func ParseBackupTSFromOutput(output []byte) uint64 {
-	flysnowRegexp := regexp.MustCompile(`BackupTS=([0-9]*)]`)
+	flysnowRegexp := regexp.MustCompile(`backup-ts=([0-9]*)]`)
 	if flysnowRegexp == nil {
 		log.Panic("regex error")
 	}

@@ -127,7 +127,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		if err != nil {
 			return errors.Trace(err)
 		}
-		g.Record("BackupTS", backupTs)
+		g.Record("backup-ts", backupTs)
 	}
 
 	backupRange := rtree.Range{StartKey: cfg.StartKey, EndKey: cfg.EndKey}
