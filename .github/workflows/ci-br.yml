@@ -83,6 +83,7 @@ jobs:
           # start tikv
           # Output the api version
           echo "API_VERSION=${{ matrix.api_version }}" >> $GITHUB_ENV
+          # TODO: different deploy method for tls enabled and disabled, may use same one. 
           if ${{ matrix.with_tls }}; then 
             echo "TLS_PD_PORT=2579" >> $GITHUB_ENV
             echo "PD_ADDR=127.0.0.1:2579" >> $GITHUB_ENV

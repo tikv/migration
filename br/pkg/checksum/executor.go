@@ -22,6 +22,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/gluetikv"
@@ -60,8 +61,13 @@ type Executor struct {
 
 // NewExecutorBuilder returns a new executor builder.
 func NewExecutor(ctx context.Context, keyRanges []*utils.KeyRange, pdAddrs []string, apiVersion kvrpcpb.APIVersion,
-	concurrency uint) (*Executor, error) {
-	rawkvClient, err := rawkv.NewClientWithOpts(ctx, pdAddrs, rawkv.WithAPIVersion(apiVersion))
+	concurrency uint, tls utils.TLSConfig) (*Executor, error) {
+	security := config.Security{}
+	if tls.IsEnabled() {
+		security = config.NewSecurity(tls.CA, tls.Cert, tls.Key, []string{})
+	}
+	rawkvClient, err := rawkv.NewClientWithOpts(ctx, pdAddrs, rawkv.WithAPIVersion(apiVersion),
+		rawkv.WithSecurity(security))
 	if err != nil {
 		return nil, err
 	}

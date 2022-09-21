@@ -24,20 +24,21 @@ import (
 	"github.com/spf13/pflag"
 	berrors "github.com/tikv/migration/br/pkg/errors"
 	"github.com/tikv/migration/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/utils"
 )
 
 // Config is the common configuration for all BRIE tasks.
 type Config struct {
 	storage.BackendOptions
 
-	Storage             string    `json:"storage" toml:"storage"`
-	PD                  []string  `json:"pd" toml:"pd"`
-	TLS                 TLSConfig `json:"tls" toml:"tls"`
-	RateLimit           uint64    `json:"rate-limit" toml:"rate-limit"`
-	ChecksumConcurrency uint      `json:"checksum-concurrency" toml:"checksum-concurrency"`
-	Concurrency         uint32    `json:"concurrency" toml:"concurrency"`
-	Checksum            bool      `json:"checksum" toml:"checksum"`
-	SendCreds           bool      `json:"send-credentials-to-tikv" toml:"send-credentials-to-tikv"`
+	Storage             string          `json:"storage" toml:"storage"`
+	PD                  []string        `json:"pd" toml:"pd"`
+	TLS                 utils.TLSConfig `json:"tls" toml:"tls"`
+	RateLimit           uint64          `json:"rate-limit" toml:"rate-limit"`
+	ChecksumConcurrency uint            `json:"checksum-concurrency" toml:"checksum-concurrency"`
+	Concurrency         uint32          `json:"concurrency" toml:"concurrency"`
+	Checksum            bool            `json:"checksum" toml:"checksum"`
+	SendCreds           bool            `json:"send-credentials-to-tikv" toml:"send-credentials-to-tikv"`
 	// LogProgress is true means the progress bar is printed to the log instead of stdout.
 	LogProgress bool `json:"log-progress" toml:"log-progress"`
 

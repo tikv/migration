@@ -17,6 +17,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/rawkv"
 	pd "github.com/tikv/pd/client"
@@ -57,7 +58,11 @@ func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
 	}
 	return pd.NewClientWithContext(
-		ctx, addrs, pd.SecurityOption{},
+		ctx, addrs, pd.SecurityOption{
+			CAPath:   *tlsCA,
+			CertPath: *tlsCert,
+			KeyPath:  *tlsKey,
+		},
 		pd.WithGRPCDialOptions(maxCallMsgSize...),
 		pd.WithCustomTimeoutOption(10*time.Second),
 		pd.WithMaxErrorRetry(3),
@@ -66,7 +71,8 @@ func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
 
 func NewRawKVBRTester(ctx context.Context, pd, br, storage string, version kvrpcpb.APIVersion) (*RawKVBRTester, error) {
 	cli, err := rawkv.NewClientWithOpts(context.TODO(), []string{pd},
-		rawkv.WithAPIVersion(version))
+		rawkv.WithAPIVersion(version),
+		rawkv.WithSecurity(config.NewSecurity(*tlsCA, *tlsCert, *tlsKey, []string{})))
 	if err != nil {
 		fmt.Println("fail to new rawkv client", err)
 		return nil, err
