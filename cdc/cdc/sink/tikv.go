@@ -370,7 +370,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 
 			failpoint.Inject("SinkFlushEventPanic", func() {
 				time.Sleep(time.Second)
-				log.Fatal("SinkFlushEventPanic")
+				log.Fatal("tikv sink injected error")
 			})
 
 			var err error

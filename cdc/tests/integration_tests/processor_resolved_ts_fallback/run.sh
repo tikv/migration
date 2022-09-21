@@ -16,7 +16,7 @@ function run() {
 	cd $WORK_DIR
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/sink/SinkFlushEventPanic=return(true)'
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8601" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8600" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
@@ -28,7 +28,7 @@ function run() {
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 
 	export GO_FAILPOINTS=''
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8302" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8601" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 	ensure 10 "tikv-cdc cli capture list|jq '.|length'|grep -E '^2$'"
 
@@ -45,5 +45,5 @@ function run() {
 
 trap stop_tidb_cluster EXIT
 run $*
-check_logs $WORK_DIR
+check_logs_contains $WORK_DIR "tikv sink injected error"
 echo "[$(date)] <<<<<< run test case $TEST_NAME success! >>>>>>"
