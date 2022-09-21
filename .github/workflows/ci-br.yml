@@ -96,7 +96,7 @@ jobs:
             echo "TLS_CA=/home/runner/work/migration/migration/cdc/tests/integration_tests/_certificates/ca.pem" >> $GITHUB_ENV
             echo "TLS_CERT=/home/runner/work/migration/migration/cdc/tests/integration_tests/_certificates/client.pem" >> $GITHUB_ENV
             echo "TLS_KEY=/home/runner/work/migration/migration/cdc/tests/integration_tests/_certificates/client-key.pem" >> $GITHUB_ENV
-            echo "start tikv for apiversion ${{ matrix.with_tls }} and tls enabled ${{ matrix.with_tls }}"
+            echo "start tikv for apiversion ${{ matrix.with_tls }} and tls enabled"
           else
             echo -e "\napi-version = ${{ matrix.api_version }}\n" >> /home/runner/work/migration/migration/.github/config/br_rawkv.toml
             /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &

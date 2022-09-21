@@ -53,8 +53,10 @@ while [ $i -le $retry_times ]; do
 	./start_tls_tikv_cluster_impl --workdir ${OUT_DIR} --tlsdir ${TLS_DIR} --api_version ${API_VERSION}
 
 	if [ $? -eq 0 ]; then
-		break
+		echo "start tls tikv cluster successfully"
+		exit 0
 	fi
 	let i++
 	echo "start tls tikv cluster failed"
+	exit 1
 done
