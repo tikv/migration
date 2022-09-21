@@ -36,6 +36,9 @@ var (
 	br            = flag.String("br", "br", "The br binary to be tested.")
 	brStorage     = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
 	coverageDir   = flag.String("coverage", "", "The coverage profile file dir of test.")
+	tlsCA         = flag.String("ca", "", "TLS CA for tikv cluster")
+	tlsCert       = flag.String("cert", "", "TLS CERT for tikv cluster")
+	tlsKey        = flag.String("key", "", "TLS KEY for tikv cluster")
 )
 
 type RawKVBRTester struct {
@@ -178,6 +181,9 @@ func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVer
 		StartKey(startKey).
 		EndKey(endKey).
 		Format("raw").
+		CA(*tlsCA).
+		Cert(*tlsCert).
+		Key(*tlsKey).
 		Checksum(true).
 		Build()
 	return t.ExecBRCmd(ctx, brCmdStr)
@@ -190,6 +196,9 @@ func (t *RawKVBRTester) Restore(ctx context.Context, startKey, endKey []byte) ([
 		StartKey(startKey).
 		EndKey(endKey).
 		Format("raw").
+		CA(*tlsCA).
+		Cert(*tlsCert).
+		Key(*tlsKey).
 		CheckReq(false).
 		Checksum(true).
 		Build()

@@ -61,12 +61,13 @@ jobs:
           make test
           make report_coverage
   br-integration-test:
-    name: br-integration-test-${{ matrix.tikv_version }}-apiv${{ matrix.api_version }}
+    name: br-integration-test-${{ matrix.tikv_version }}-apiv${{ matrix.api_version }}-tls_${{ matrix.with_tls }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         tikv_version: [nightly]
         api_version: [1, 2]
+        with_tls: [false, true]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
@@ -74,19 +75,37 @@ jobs:
           go-version: '1.18.1'
       - name: install tiup
         run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
+      - name: download tikv binary
+        run: |
+          /home/runner/.tiup/bin/tiup install tikv:${{ matrix.tikv_version }} pd:${{ matrix.tikv_version }}
       - name: start tikv cluster
         run: |
           # start tikv
-          echo -e "\napi-version = ${{ matrix.api_version }}\n" >> /home/runner/work/migration/migration/.github/config/br_rawkv.toml
-          /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &
-          # The first run of `tiup` has to download all components so it'll take longer.
-          sleep 1m 30s
-          # Parse PD address from `tiup` output
-          echo "PD_ADDR=$(cat raw.out | grep -oP '(?<=PD client endpoints: \[)[0-9\.:]+(?=\])')" >> $GITHUB_ENV
           # Output the api version
           echo "API_VERSION=${{ matrix.api_version }}" >> $GITHUB_ENV
-          # Log the output
-          echo "$(cat raw.out)" >&2
+          if ${{ matrix.with_tls }}; then 
+            echo "TLS_PD_PORT=2579" >> $GITHUB_ENV
+            echo "PD_ADDR=127.0.0.1:2579" >> $GITHUB_ENV
+            cd /home/runner/work/migration/migration/br/tests/utils
+            # copy binary
+            cp /home/runner/.tiup/components/tikv/*${{ matrix.tikv_version }}*/tikv-server .
+            cp /home/runner/.tiup/components/pd/*${{ matrix.tikv_version }}*/pd-server .
+            mkdir /tmp/tikv_cluster
+            ./start_tls_tikv_cluster --workdir /tmp/tikv_cluster --tlsdir /home/runner/work/migration/migration/cdc/tests/integration_tests/_certificates --api_version ${{ matrix.api_version }}
+            echo "TLS_CA=/home/runner/work/migration/migration/cdc/tests/integration_tests/_certificates/ca.pem" >> $GITHUB_ENV
+            echo "TLS_CERT=/home/runner/work/migration/migration/cdc/tests/integration_tests/_certificates/client.pem" >> $GITHUB_ENV
+            echo "TLS_KEY=/home/runner/work/migration/migration/cdc/tests/integration_tests/_certificates/client-key.pem" >> $GITHUB_ENV
+            echo "start tikv for apiversion ${{ matrix.with_tls }} and tls enabled ${{ matrix.with_tls }}"
+          else
+            echo -e "\napi-version = ${{ matrix.api_version }}\n" >> /home/runner/work/migration/migration/.github/config/br_rawkv.toml
+            /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &
+            # The first run of `tiup` has to download all components so it'll take longer.
+            sleep 1m 30s
+            # Parse PD address from `tiup` output
+            echo "PD_ADDR=$(cat raw.out | grep -oP '(?<=PD client endpoints: \[)[0-9\.:]+(?=\])')" >> $GITHUB_ENV
+            # Log the output
+            echo "$(cat raw.out)" >&2
+          fi
       - name: run integration test
         run: |
           cd br
