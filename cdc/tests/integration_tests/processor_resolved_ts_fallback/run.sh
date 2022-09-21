@@ -45,5 +45,5 @@ function run() {
 
 trap stop_tidb_cluster EXIT
 run $*
-check_logs_contains $WORK_DIR "tikv sink injected error"
+check_logs_contains $WORK_DIR "tikv sink injected error" 1
 echo "[$(date)] <<<<<< run test case $TEST_NAME success! >>>>>>"
