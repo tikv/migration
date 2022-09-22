@@ -75,13 +75,13 @@ func NewDeleteCommand() *cobra.Command {
 
 func runPointDelete(cmd *cobra.Command) error {
 	cfg := &Config{}
-	err := cfg.ParseFromFlags(cmd.Flags())
+	err := cfg.ParseFromFlags(cmd.Flags(), false)
 	if err != nil {
 		return err
 	}
 
 	ctx := context.Background()
-	cli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	cli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}
@@ -110,18 +110,18 @@ func runPointDelete(cmd *cobra.Command) error {
 
 func runPointPut(cmd *cobra.Command) error {
 	cfg := &Config{}
-	err := cfg.ParseFromFlags(cmd.Flags())
+	err := cfg.ParseFromFlags(cmd.Flags(), false)
 	if err != nil {
 		return err
 	}
 	ctx := context.Background()
 
-	cli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	cli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}
 	defer cli.Close()
-	atomicCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	atomicCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}

@@ -4,6 +4,9 @@
 # parameter 3: dst pd
 # parameter 4: max check times
 
+CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TLS_DIR=$(cd $CUR/../_certificates && pwd)
+
 workdir=$1
 UP_PD=$2
 DOWN_PD=$3
@@ -15,7 +18,6 @@ fi
 PWD=$(pwd)
 
 if ! command -v rawkv_data &>/dev/null; then
-	CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 	cd $CUR/../../..
 	make rawkv_data
 	cd $PWD
@@ -26,7 +28,7 @@ cd $workdir
 i=0
 while [ $i -lt $check_time ]; do
 	rm -rf $workdir/rawkv_data/
-	rawkv_data checksum --src-pd $UP_PD --dst-pd $DOWN_PD
+	rawkv_data checksum --src-pd $UP_PD --dst-pd $DOWN_PD --ca-path=$TLS_DIR/ca.pem --cert-path=$TLS_DIR/client.pem --key-path=$TLS_DIR/client-key.pem
 	ret=$?
 	if [ "$ret" == 0 ]; then
 		echo "check diff successfully"

@@ -97,6 +97,7 @@ func (m *feedStateManager) PushAdminJob(job *model.AdminJob) {
 
 func (m *feedStateManager) handleAdminJob() (jobsPending bool) {
 	job := m.popAdminJob()
+
 	if job == nil || job.CfID != m.state.ID {
 		return false
 	}

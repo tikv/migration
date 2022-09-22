@@ -430,6 +430,17 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 
 func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config, []string, error) {
 	config := tikvconfig.DefaultConfig()
+	pdAddrPrefix := "http://"
+
+	if sinkURI.Query().Get("ca-path") != "" {
+		config.Security = tikvconfig.NewSecurity(
+			sinkURI.Query().Get("ca-path"),
+			sinkURI.Query().Get("cert-path"),
+			sinkURI.Query().Get("key-path"),
+			nil,
+		)
+		pdAddrPrefix = "https://"
+	}
 
 	pdAddr := strings.Split(sinkURI.Host, ",")
 	if len(pdAddr) > 0 {
@@ -439,11 +450,10 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 				err = fmt.Errorf("Invalid pd addr: %v, err: %v", addr, err)
 				return nil, nil, cerror.WrapError(cerror.ErrTiKVInvalidConfig, err)
 			}
-			// TODO: support https
-			pdAddr[i] = "http://" + addr
+			pdAddr[i] = pdAddrPrefix + addr
 		}
 	} else {
-		pdAddr = append(pdAddr, "http://127.0.0.1:2379")
+		pdAddr = append(pdAddr, pdAddrPrefix+"127.0.0.1:2379")
 	}
 
 	s := sinkURI.Query().Get("concurrency")

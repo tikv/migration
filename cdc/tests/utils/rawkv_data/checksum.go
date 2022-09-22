@@ -37,23 +37,19 @@ func NewChecksumCommand() *cobra.Command {
 
 func runChecksum(cmd *cobra.Command) error {
 	cfg := &Config{}
-	err := cfg.ParseFromFlags(cmd.Flags())
+	err := cfg.ParseFromFlags(cmd.Flags(), true)
 	if err != nil {
 		return err
 	}
 	ctx := context.Background()
 
-	if cfg.DstPD == "" {
-		return fmt.Errorf("Downstream cluster PD is not set")
-	}
-
-	srcCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	srcCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}
 	defer srcCli.Close()
 
-	dstCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.DstPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2))
+	dstCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.DstPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.DstSec))
 	if err != nil {
 		return err
 	}

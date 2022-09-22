@@ -16,9 +16,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/tikv/client-go/v2/config"
 )
 
 const (
@@ -30,13 +32,21 @@ const (
 	flagDstPD      = "dst-pd"
 	flagCount      = "count"
 	flagStartIndex = "start-index"
+	flagCAPath     = "ca-path"
+	flagCertPath   = "cert-path"
+	flagKeyPath    = "key-path"
 )
 
 type Config struct {
-	SrcPD      string `json:"src-pd"`
-	DstPD      string `json:"dst_pd"`
-	StartIndex int    `json:"start_index"`
-	Count      int    `json:"count"`
+	SrcPD      string          `json:"src-pd"`
+	DstPD      string          `json:"dst-pd"`
+	StartIndex int             `json:"start-index"`
+	Count      int             `json:"count"`
+	CAPath     string          `json:"ca-path"`
+	CertPath   string          `json:"cert-path"`
+	KeyPath    string          `json:"key-path"`
+	SrcSec     config.Security `json:"src-sec"`
+	DstSec     config.Security `json:"dst-sec"`
 }
 
 func AddFlags(cmd *cobra.Command) {
@@ -44,9 +54,12 @@ func AddFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String(flagDstPD, "", "Downstream PD address")
 	cmd.PersistentFlags().Int(flagStartIndex, 0, "The start index of generated keys")
 	cmd.PersistentFlags().Int(flagCount, 1000, "The number of key")
+	cmd.PersistentFlags().String(flagCAPath, "", "Path to CA certificate")
+	cmd.PersistentFlags().String(flagCertPath, "", "Path to client certificate")
+	cmd.PersistentFlags().String(flagKeyPath, "", "Path to client key")
 }
 
-func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet) error {
+func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, requireDstPD bool) error {
 	var err error
 	if cfg.SrcPD, err = flags.GetString(flagSrcPD); err != nil {
 		return err
@@ -59,6 +72,41 @@ func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet) error {
 	}
 	if cfg.Count, err = flags.GetInt(flagCount); err != nil {
 		return err
+	}
+	if cfg.CAPath, err = flags.GetString(flagCAPath); err != nil {
+		return err
+	}
+	if cfg.CertPath, err = flags.GetString(flagCertPath); err != nil {
+		return err
+	}
+	if cfg.KeyPath, err = flags.GetString(flagKeyPath); err != nil {
+		return err
+	}
+
+	if cfg.SrcPD == "" {
+		return fmt.Errorf("Upstream cluster PD is not set")
+	}
+	if strings.HasPrefix(cfg.SrcPD, "https://") {
+		if cfg.CAPath == "" || cfg.CertPath == "" || cfg.KeyPath == "" {
+			return fmt.Errorf("CAPath/CertPath/KeyPath is not set")
+		}
+		cfg.SrcSec.ClusterSSLCA = cfg.CAPath
+		cfg.SrcSec.ClusterSSLCert = cfg.CertPath
+		cfg.SrcSec.ClusterSSLKey = cfg.KeyPath
+	}
+
+	if requireDstPD {
+		if cfg.DstPD == "" {
+			return fmt.Errorf("Downstream cluster PD is not set")
+		}
+		if strings.HasPrefix(cfg.DstPD, "https://") {
+			if cfg.CAPath == "" || cfg.CertPath == "" || cfg.KeyPath == "" {
+				return fmt.Errorf("CAPath/CertPath/KeyPath is not set")
+			}
+			cfg.DstSec.ClusterSSLCA = cfg.CAPath
+			cfg.DstSec.ClusterSSLCert = cfg.CertPath
+			cfg.DstSec.ClusterSSLKey = cfg.KeyPath
+		}
 	}
 	return nil
 }
