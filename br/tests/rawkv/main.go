@@ -17,6 +17,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
+	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/rawkv"
 	pd "github.com/tikv/pd/client"
@@ -36,6 +37,9 @@ var (
 	br            = flag.String("br", "br", "The br binary to be tested.")
 	brStorage     = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
 	coverageDir   = flag.String("coverage", "", "The coverage profile file dir of test.")
+	tlsCA         = flag.String("ca", "", "TLS CA for tikv cluster")
+	tlsCert       = flag.String("cert", "", "TLS CERT for tikv cluster")
+	tlsKey        = flag.String("key", "", "TLS KEY for tikv cluster")
 )
 
 type RawKVBRTester struct {
@@ -54,7 +58,11 @@ func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
 	}
 	return pd.NewClientWithContext(
-		ctx, addrs, pd.SecurityOption{},
+		ctx, addrs, pd.SecurityOption{
+			CAPath:   *tlsCA,
+			CertPath: *tlsCert,
+			KeyPath:  *tlsKey,
+		},
 		pd.WithGRPCDialOptions(maxCallMsgSize...),
 		pd.WithCustomTimeoutOption(10*time.Second),
 		pd.WithMaxErrorRetry(3),
@@ -63,7 +71,8 @@ func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
 
 func NewRawKVBRTester(ctx context.Context, pd, br, storage string, version kvrpcpb.APIVersion) (*RawKVBRTester, error) {
 	cli, err := rawkv.NewClientWithOpts(context.TODO(), []string{pd},
-		rawkv.WithAPIVersion(version))
+		rawkv.WithAPIVersion(version),
+		rawkv.WithSecurity(config.NewSecurity(*tlsCA, *tlsCert, *tlsKey, []string{})))
 	if err != nil {
 		fmt.Println("fail to new rawkv client", err)
 		return nil, err
@@ -178,6 +187,9 @@ func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVer
 		StartKey(startKey).
 		EndKey(endKey).
 		Format("raw").
+		CA(*tlsCA).
+		Cert(*tlsCert).
+		Key(*tlsKey).
 		Checksum(true).
 		Build()
 	return t.ExecBRCmd(ctx, brCmdStr)
@@ -190,6 +202,9 @@ func (t *RawKVBRTester) Restore(ctx context.Context, startKey, endKey []byte) ([
 		StartKey(startKey).
 		EndKey(endKey).
 		Format("raw").
+		CA(*tlsCA).
+		Cert(*tlsCert).
+		Key(*tlsKey).
 		CheckReq(false).
 		Checksum(true).
 		Build()

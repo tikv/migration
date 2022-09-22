@@ -31,6 +31,9 @@ TEST_PARALLEL  ?= 8
 PD_ADDR        ?= 127.0.0.1:2379
 BR_LOCAL_STORE ?= /tmp/backup_restore_test
 API_VERSION    ?= 1
+TLS_CA         ?= 
+TLS_CERT       ?= 
+TLS_KEY        ?= 
 
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
@@ -69,7 +72,10 @@ test/integration: build/br-test build/rawkv-integration-test
 		--br='${TEST_BIN_PATH}' \
 		--br-storage=${BR_LOCAL_STORE} \
 		--api-version=${API_VERSION} \
-		--coverage=$(COVERAGE_DIR)
+		--coverage=$(COVERAGE_DIR) \
+		--ca=$(TLS_CA) \
+		--cert=$(TLS_CERT) \
+		--key=$(TLS_KEY)
 
 failpoint/enable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl enable

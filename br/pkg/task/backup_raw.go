@@ -234,7 +234,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		}
 
 		executor, err := checksum.NewExecutor(ctx, keyRanges, cfg.PD, curAPIVersion,
-			cfg.ChecksumConcurrency)
+			cfg.ChecksumConcurrency, cfg.TLS)
 		if err != nil {
 			return errors.Trace(err)
 		}
