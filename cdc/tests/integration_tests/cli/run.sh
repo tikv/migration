@@ -5,14 +5,16 @@ set -eu
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=cdc.test
+CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
+UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
+DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 TLS_DIR=$(cd $CUR/../_certificates && pwd)
 
 function check_changefeed_state() {
 	changefeedid=$1
 	expected=$2
-	output=$(cdc cli changefeed query --simple --changefeed-id $changefeedid --pd=http://$UP_PD_HOST_1:$UP_PD_PORT_1 2>&1)
+	output=$(tikv-cdc cli changefeed query --simple --changefeed-id $changefeedid --pd=$UP_PD 2>&1)
 	state=$(echo $output | grep -oE "\"state\": \"[a-z]+\"" | tr -d '" ' | awk -F':' '{print $(NF)}')
 	if [ "$state" != "$expected" ]; then
 		echo "unexpected state $output, expected $expected"
@@ -23,7 +25,7 @@ function check_changefeed_state() {
 function check_changefeed_count() {
 	pd_addr=$1
 	expected=$2
-	feed_count=$(cdc cli changefeed list --pd=$pd_addr | jq '.|length')
+	feed_count=$(tikv-cdc cli changefeed list --pd=$pd_addr | jq '.|length')
 	if [[ "$feed_count" != "$expected" ]]; then
 		echo "[$(date)] <<<<< unexpect changefeed count! expect ${expected} got ${feed_count} >>>>>"
 		exit 1
@@ -41,32 +43,23 @@ function run() {
 
 	# record tso before we create tables to skip the system table DDLs
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	run_sql "CREATE table test.simple(id int primary key, val int);"
-	run_sql "CREATE table test.\`simple-dash\`(id int primary key, val int);"
+	sleep 10
+	rawkv_op $UP_PD put 10000
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
-	TOPIC_NAME="ticdc-cli-test-$RANDOM"
 	case $SINK_TYPE in
-	kafka) SINK_URI="kafka://127.0.0.1:9092/$TOPIC_NAME?protocol=open-protocol&partition-num=4&kafka-version=${KAFKA_VERSION}&max-message-bytes=10485760" ;;
-	*) SINK_URI="mysql://normal:123456@127.0.0.1:3306/" ;;
+	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	*) SINK_URI="" ;;
 	esac
 
 	uuid="custom-changefeed-name"
 	run_cdc_cli changefeed create --start-ts=$start_ts --sort-engine=memory --sink-uri="$SINK_URI" --tz="Asia/Shanghai" -c="$uuid"
-	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "kafka://127.0.0.1:9092/$TOPIC_NAME?protocol=open-protocol&partition-num=4&version=${KAFKA_VERSION}&max-message-bytes=10485760"
-	fi
-
-	run_cdc_cli changefeed cyclic create-marktables \
-		--cyclic-upstream-dsn="root@tcp(${UP_TIDB_HOST}:${UP_TIDB_PORT})/"
 
 	# Make sure changefeed is created.
-	check_table_exists tidb_cdc.repl_mark_test_simple ${DOWN_TIDB_HOST} ${DOWN_TIDB_PORT}
-	check_table_exists tidb_cdc."\`repl_mark_test_simple-dash\`" ${DOWN_TIDB_HOST} ${DOWN_TIDB_PORT}
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	check_changefeed_state $uuid "normal"
-
 	check_changefeed_count http://${UP_PD_HOST_1}:${UP_PD_PORT_1} 1
 	check_changefeed_count http://${UP_PD_HOST_2}:${UP_PD_PORT_2} 1
 	check_changefeed_count http://${UP_PD_HOST_3}:${UP_PD_PORT_3} 1
@@ -83,15 +76,13 @@ function run() {
 
 	# Update changefeed failed because changefeed is running
 	cat - >"$WORK_DIR/changefeed.toml" <<EOF
-case-sensitive = false
-[mounter]
-worker-num = 4
 EOF
 	set +e
-	update_result=$(cdc cli changefeed update --pd=$pd_addr --config="$WORK_DIR/changefeed.toml" --no-confirm --changefeed-id $uuid)
+	update_result=$(tikv-cdc cli changefeed update --pd=$pd_addr --config="$WORK_DIR/changefeed.toml" --no-confirm --changefeed-id $uuid 2>&1)
 	set -e
 	if [[ ! $update_result == *"can only update changefeed config when it is stopped"* ]]; then
 		echo "update changefeed config should fail when changefeed is running, got $update_result"
+		exit 1
 	fi
 
 	# Pause changefeed
@@ -106,14 +97,6 @@ EOF
 	# Update changefeed
 	run_cdc_cli changefeed update --pd=$pd_addr --config="$WORK_DIR/changefeed.toml" --no-confirm --changefeed-id $uuid
 	changefeed_info=$(run_cdc_cli changefeed query --changefeed-id $uuid 2>&1)
-	if [[ ! $changefeed_info == *"\"case-sensitive\": false"* ]]; then
-		echo "[$(date)] <<<<< changefeed info is not updated as expected ${changefeed_info} >>>>>"
-		exit 1
-	fi
-	if [[ ! $changefeed_info == *"\"worker-num\": 4"* ]]; then
-		echo "[$(date)] <<<<< changefeed info is not updated as expected ${changefeed_info} >>>>>"
-		exit 1
-	fi
 	if [[ ! $changefeed_info == *"\"sort-engine\": \"memory\""* ]]; then
 		echo "[$(date)] <<<<< changefeed info is not updated as expected ${changefeed_info} >>>>>"
 		exit 1
@@ -142,17 +125,12 @@ EOF
 	check_changefeed_state $uuid "normal"
 
 	# Make sure bad sink url fails at creating changefeed.
-	badsink=$(run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="mysql://badsink" 2>&1 | grep -oE 'fail')
-	if [[ -z $badsink ]]; then
-		echo "[$(date)] <<<<< unexpect output got ${badsink} >>>>>"
+	set +e
+	create_result=$(tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="mysql://baksink" 2>&1)
+	set -e
+	if [[ ! $create_result == *"the sink scheme (mysql) is not supported"* ]]; then
+		echo "<<<<< unexpect output got ${create_result} >>>>>"
 		exit 1
-	fi
-
-	# Test Kafka SSL connection.
-	if [ "$SINK_TYPE" == "kafka" ]; then
-		SSL_TOPIC_NAME="ticdc-cli-test-ssl-$RANDOM"
-		SINK_URI="kafka://127.0.0.1:9093/$SSL_TOPIC_NAME?protocol=open-protocol&ca=${TLS_DIR}/ca.pem&cert=${TLS_DIR}/client.pem&key=${TLS_DIR}/client-key.pem&kafka-version=${KAFKA_VERSION}&max-message-bytes=10485760"
-		run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --tz="Asia/Shanghai"
 	fi
 
 	# Smoke test unsafe commands
@@ -160,10 +138,10 @@ EOF
 	run_cdc_cli unsafe reset --no-confirm
 
 	# Smoke test change log level
-	curl -X POST -d '"warn"' http://127.0.0.1:8300/api/v1/log
+	curl -X POST -d '"warn"' http://127.0.0.1:8600/api/v1/log
 	sleep 3
-	# make sure TiCDC does not panic
-	curl http://127.0.0.1:8300/status
+	# make sure TiKV-CDC does not panic
+	curl http://127.0.0.1:8600/status
 
 	cleanup_process $CDC_BINARY
 }
