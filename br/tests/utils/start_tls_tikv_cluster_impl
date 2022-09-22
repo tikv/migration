@@ -59,32 +59,34 @@ pd-server \
 	--data-dir "$OUT_DIR/pd_tls" &
 
 # wait until PD is online...
-wait_timeout=10
-wait_cnt=0
+retry_max=10
+retry_cnt=0
 while ! curl --cacert $TLS_DIR/ca.pem \
 	--cert $TLS_DIR/client.pem \
 	--key $TLS_DIR/client-key.pem \
 	-o /dev/null -sf https://${TLS_PD_HOST}:${TLS_PD_PORT}/pd/api/v1/version; do
-	if [ $wait_cnt -ge $wait_timeout ]; then 
+	if [ $retry_cnt -ge $retry_max ]; then 
 		echo "wait pd online timeout"
 		exit 1
 	fi
-	let wait_cnt++
+	let retry_cnt++
 	sleep 1
 done
 
-wait_cnt=0
+retry_cnt=0
 while [ -z "$(curl --cacert $TLS_DIR/ca.pem \
 	--cert $TLS_DIR/client.pem \
 	--key $TLS_DIR/client-key.pem \
 	https://${TLS_PD_HOST}:${TLS_PD_PORT}/pd/api/v1/health 2>/dev/null | grep 'health' | grep 'true')" ]; do
-	if [ $wait_cnt -ge $wait_timeout ]; then 
+	if [ $retry_cnt -ge $retry_max ]; then 
 		echo "wait pd healthy timeout"
 		exit 1
 	fi
-	let wait_cnt++
+	let retry_cnt++
 	sleep 1
 done
+
+echo "PD is online and healthy"
 
 # Tries to limit the max number of open files under the system limit
 cat - >"$OUT_DIR/tikv-config-tls.toml" <<EOF
@@ -120,3 +122,7 @@ tikv-server \
 	-s "$OUT_DIR/tikv_tls" &>$OUT_DIR/tikv_tls.stdout &
 
 sleep 2
+
+echo "tikv is online"
+
+exit 0

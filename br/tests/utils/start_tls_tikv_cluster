@@ -57,6 +57,6 @@ while [ $i -le $retry_times ]; do
 		exit 0
 	fi
 	let i++
-	echo "start tls tikv cluster failed"
-	exit 1
 done
+echo "start tls tikv cluster failed"
+exit 1
