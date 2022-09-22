@@ -274,7 +274,7 @@ func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
 	}
 
 	executor, err := checksum.NewExecutor(ctx, keyRanges, cfg.PD, storageAPIVersion,
-		cfg.ChecksumConcurrency)
+		cfg.ChecksumConcurrency, cfg.TLS)
 	if err != nil {
 		return errors.Trace(err)
 	}

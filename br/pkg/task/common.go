@@ -28,6 +28,7 @@ import (
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/storage"
+	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/keepalive"
@@ -42,12 +43,6 @@ const (
 	flagStorage = "storage"
 	// flagPD is the name of PD url flag.
 	flagPD = "pd"
-	// flagCA is the name of TLS CA flag.
-	flagCA = "ca"
-	// flagCert is the name of TLS cert flag.
-	flagCert = "cert"
-	// flagKey is the name of TLS key flag.
-	flagKey = "key"
 
 	flagChecksumConcurrency = "checksum-concurrency"
 	flagRateLimit           = "ratelimit"
@@ -84,9 +79,7 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 	flags.BoolP(flagSendCreds, "c", true, "Whether send credentials to tikv")
 	flags.StringP(flagStorage, "s", "", `specify the path where backup storage, eg, "local:///home/backup_data"`)
 	flags.StringSliceP(flagPD, "u", []string{"127.0.0.1:2379"}, "PD address")
-	flags.String(flagCA, "", "CA certificate path for TLS connection")
-	flags.String(flagCert, "", "Certificate path for TLS connection")
-	flags.String(flagKey, "", "Private key path for TLS connection")
+	utils.DefineTLSFlags(flags)
 	flags.Uint(flagChecksumConcurrency, defaultChecksumConcurrency, "The concurrency of table checksumming")
 	_ = flags.MarkHidden(flagSendCreds)
 	_ = flags.MarkHidden(flagChecksumConcurrency)
@@ -199,7 +192,7 @@ func checkCipherKeyMatch(cipher *backuppb.CipherInfo) bool {
 // NewMgr creates a new mgr at the given PD address.
 func NewMgr(ctx context.Context,
 	g glue.Glue, pds []string,
-	tlsConfig TLSConfig,
+	tlsConfig utils.TLSConfig,
 	keepalive keepalive.ClientParameters,
 	checkRequirements bool,
 ) (*conn.Mgr, error) {
