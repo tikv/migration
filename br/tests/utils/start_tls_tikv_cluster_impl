@@ -59,7 +59,7 @@ pd-server \
 	--data-dir "$OUT_DIR/pd_tls" &
 
 # wait until PD is online...
-retry_max=10
+retry_max=30
 retry_cnt=0
 while ! curl --cacert $TLS_DIR/ca.pem \
 	--cert $TLS_DIR/client.pem \
@@ -69,7 +69,7 @@ while ! curl --cacert $TLS_DIR/ca.pem \
 		echo "wait pd online timeout"
 		exit 1
 	fi
-	let retry_cnt++
+	retry_cnt=$(($retry_cnt+1))
 	sleep 1
 done
 
@@ -82,7 +82,7 @@ while [ -z "$(curl --cacert $TLS_DIR/ca.pem \
 		echo "wait pd healthy timeout"
 		exit 1
 	fi
-	let retry_cnt++
+	retry_cnt=$(($retry_cnt+1))
 	sleep 1
 done
 
@@ -123,6 +123,4 @@ tikv-server \
 
 sleep 2
 
-echo "tikv is online"
-
-exit 0
+ps -aux|grep "tikv-server\|pd-server"
