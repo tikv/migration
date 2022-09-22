@@ -68,3 +68,4 @@ fi
 
 # with color
 echo "\033[0;36m<<< Run all test success >>>\033[0m"
+
