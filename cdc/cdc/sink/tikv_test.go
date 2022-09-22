@@ -122,13 +122,12 @@ func TestTiKVSinkConfig(t *testing.T) {
 	}
 
 	expected := []struct {
-		pdAddrCount int
 		pdAddr      []string
 		concurrency string
 		security    tikvconfig.Security
 	}{
-		{3, []string{"http://127.0.0.1:1001", "http://127.0.0.2:1002", "http://127.0.0.1:1003"}, "12", tikvconfig.Security{}},
-		{2, []string{"https://127.0.0.1:1001", "https://127.0.0.1:1002"}, "10", tikvconfig.NewSecurity("./ca-cert.pem", "./client-cert.pem", "./client-key", nil)},
+		{[]string{"http://127.0.0.1:1001", "http://127.0.0.2:1002", "http://127.0.0.1:1003"}, "12", tikvconfig.Security{}},
+		{[]string{"https://127.0.0.1:1001", "https://127.0.0.1:1002"}, "10", tikvconfig.NewSecurity("./ca-cert.pem", "./client-cert.pem", "./client-key", nil)},
 	}
 
 	for i, uri := range cases {
@@ -139,13 +138,9 @@ func TestTiKVSinkConfig(t *testing.T) {
 		opts := make(map[string]string)
 		config, pdAddr, err := parseTiKVUri(sinkURI, opts)
 		require.NoError(err)
-		require.Len(pdAddr, expected[i].pdAddrCount)
 		require.Equal(expected[i].pdAddr, pdAddr)
 		require.Equal(expected[i].concurrency, opts["concurrency"])
-		require.Equal(
-			expected[i].security,
-			config.Security,
-		)
+		require.Equal(expected[i].security, config.Security)
 	}
 }
 
