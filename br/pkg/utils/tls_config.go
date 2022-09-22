@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package task
+package utils
 
 import (
 	"crypto/tls"
@@ -20,6 +20,15 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/spf13/pflag"
 	"github.com/tikv/client-go/v2/config"
+)
+
+const (
+	// flagCA is the name of TLS CA flag.
+	flagCA = "ca"
+	// flagCert is the name of TLS cert flag.
+	flagCert = "cert"
+	// flagKey is the name of TLS key flag.
+	flagKey = "key"
 )
 
 // TLSConfig is the common configuration for TLS connection.
@@ -42,6 +51,13 @@ func (tls *TLSConfig) ToTLSConfig() (*tls.Config, error) {
 		return nil, errors.Trace(err)
 	}
 	return tlsConfig, nil
+}
+
+// DefineTLSFlags define flags for tls config
+func DefineTLSFlags(flags *pflag.FlagSet) {
+	flags.String(flagCA, "", "CA certificate path for TLS connection")
+	flags.String(flagCert, "", "Certificate path for TLS connection")
+	flags.String(flagKey, "", "Private key path for TLS connection")
 }
 
 // ParseFromFlags parses the TLS config from the flag set.

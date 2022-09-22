@@ -83,6 +83,21 @@ func (b *TiKVBrRunCmd) Format(format string) *TiKVBrRunCmd {
 	return b
 }
 
+func (b *TiKVBrRunCmd) CA(ca string) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--ca=%s", ca))
+	return b
+}
+
+func (b *TiKVBrRunCmd) Cert(cert string) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--cert=%s", cert))
+	return b
+}
+
+func (b *TiKVBrRunCmd) Key(key string) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--key=%s", key))
+	return b
+}
+
 func (t *TiKVBrRunCmd) Command(command string) *TiKVBrRunCmd {
 	t.command = command
 	return t
