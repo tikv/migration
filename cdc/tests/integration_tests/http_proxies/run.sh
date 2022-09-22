@@ -5,7 +5,7 @@ set -exu
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=cdc.test
+CDC_BINARY=tikv-cdc.test
 TEST_HOST_LIST=(UP_TIDB_HOST UP_PD_HOST_{1..3} UP_TIKV_HOST_{1..3})
 # FIXME: hostname in macOS doesn't support -I option.
 lan_addrs=($(hostname -I))
@@ -49,7 +49,7 @@ function prepare() {
 	start_tidb_cluster --workdir $WORK_DIR
 
 	start_proxy
-	# TODO: make sure the proxy is started.
+
 	sleep 5
 	export http_proxy=http://127.0.0.1:$proxy_port
 	export https_proxy=http://127.0.0.1:$proxy_port
