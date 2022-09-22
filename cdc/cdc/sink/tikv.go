@@ -368,6 +368,11 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 				return 0, nil
 			}
 
+			failpoint.Inject("SinkFlushEventPanic", func() {
+				time.Sleep(time.Second)
+				log.Fatal("tikv sink injected error")
+			})
+
 			var err error
 			for _, batch := range batcher.Batches {
 				if batch.OpType == model.OpTypePut {

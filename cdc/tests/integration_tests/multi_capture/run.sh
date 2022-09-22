@@ -10,6 +10,11 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
+Start_Key=indexInfo_:_pf01_:_APD0101_:_0000000000000000000
+SplitKey1=indexInfo_:_pf01_:_APD0101_:_0000000000000003000
+SplitKey2=indexInfo_:_pf01_:_APD0101_:_0000000000000006000
+End_Key=indexInfo_:_pf01_:_APD0101_:_0000000000000010000
+
 CDC_COUNT=3
 
 function run() {
@@ -35,7 +40,9 @@ function run() {
 	*) SINK_URI="" ;;
 	esac
 
-	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --format="raw" --start-key="$Start_Key" --end-key="$SplitKey1"
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --format="raw" --start-key="$SplitKey1" --end-key="$SplitKey2"
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --format="raw" --start-key="$SplitKey2" --end-key="$End_Key"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	rawkv_op $UP_PD delete 10000
