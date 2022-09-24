@@ -52,6 +52,9 @@ type sorterNode struct {
 	// The latest resolved ts that sorter has received.
 	resolvedTs model.Ts
 
+	// The latest barrier ts that sorter has received.
+	barrierTs model.Ts
+
 	replConfig *config.ReplicaConfig
 }
 
@@ -64,6 +67,7 @@ func newSorterNode(
 		keyspanID:      keyspanID,
 		flowController: flowController,
 		resolvedTs:     startTs,
+		barrierTs:      startTs,
 		replConfig:     replConfig,
 	}
 }
@@ -151,6 +155,30 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 						}
 					}
 
+					// We calculate memory consumption by PolymorphicEvent size.
+					size := uint64(msg.RawKV.ApproximateDataSize())
+					// NOTE we allow the quota to be exceeded if blocking means interrupting a transaction.
+					// Otherwise the pipeline would deadlock.
+					err := n.flowController.Consume(commitTs, size, func() error {
+						if lastCRTs > lastSentResolvedTs {
+							// If we are blocking, we send a Resolved Event here to elicit a sink-flush.
+							// Not sending a Resolved Event here will very likely deadlock the pipeline.
+							lastSentResolvedTs = lastCRTs
+							lastSendResolvedTsTime = time.Now()
+							ctx.SendToNextNode(pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, lastCRTs, n.keyspanID)))
+						}
+						return nil
+					})
+					if err != nil {
+						if cerror.ErrFlowControllerAborted.Equal(err) {
+							log.Info("flow control cancelled for keyspan",
+								zap.Uint64("keyspanID", n.keyspanID),
+								zap.String("keyspanName", n.keyspanName))
+						} else {
+							ctx.Throw(err)
+						}
+						return nil
+					}
 					lastCRTs = commitTs
 				} else {
 					// handle OpTypeResolved
@@ -188,9 +216,15 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 					zap.Uint64("resolvedTs", resolvedTs),
 					zap.Uint64("oldResolvedTs", oldResolvedTs))
 			}
+			atomic.StoreUint64(&n.resolvedTs, rawKV.CRTs)
 		}
 		n.sorter.AddEntry(ctx, msg.PolymorphicEvent)
 		return true, nil
+	case pipeline.MessageTypeBarrier:
+		if msg.BarrierTs > n.barrierTs {
+			n.barrierTs = msg.BarrierTs
+		}
+		fallthrough
 	default:
 		ctx.(pipeline.NodeContext).SendToNextNode(msg)
 		return true, nil
