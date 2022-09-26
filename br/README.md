@@ -194,6 +194,12 @@ TiKV-BR can do checksum between TiKV cluster and backup files after backup or re
 
 In some scenario, data is stored in TiKV with [TTL](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#enable-ttl). If data is expired during backup & restore, the persisted checksum in backup files is different from the checksum of TiKV cluster. So checksum should not enabled in this scenario. User can perform a full comparison for all existing non-expired data between backup cluster and restore cluster with [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) interface in [client-go](https://github.com/tikv/client-go).
 
+### Security During Backup & Restoration
+
+TiKV-BR support TLS if [TLS config](https://docs.pingcap.com/tidb/dev/enable-tls-between-components) in TiKV cluster is enabled.
+
+Please specify the client certification with config `--ca`, `--cert` and `--key`.
+
 ## Contributing
 
 Contributions are welcomed and greatly appreciated. See [CONTRIBUTING](./CONTRIBUTING.md)

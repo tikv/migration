@@ -77,7 +77,6 @@ tikv-br backup raw \
 备份期间会有进度条在终端中显示，当进度条前进到 100% 时，说明备份已完成。
 
 可以通过指定 `--checksum=true` 在 `backup` 结束时进行一轮数据校验，将文本数据同集群数据比较，来保证正确性。  
-*请注意: 如果需要进行数据校验，请确保在备份过程中，TiKV 集群没有数据变更和 `TTL` 过期。*
 
 #### 恢复 Raw 模式备份数据
 
@@ -93,7 +92,18 @@ tikv-br restore raw \
 恢复期间会有进度条在终端中显示，当进度条前进到 100% 时，说明恢复已完成。  
 
 可以通过指定 `--checksum=true` 在 `restore` 结束时进行一轮数据校验，将文本数据同集群数据比较，来保证正确性。  
-*请注意: 如果需要进行数据校验，请确保在备份和恢复的全过程，TiKV 集群没有数据变更和 `TTL` 过期。*
+
+### 备份文件的数据校验
+
+TiKV-BR 可以在 TiKV 集群备份和恢复操作完成后执行 `checksum` 来确保备份文件的完整性和正确性。 checksum 可以通过 `--checksum` 来开启。
+
+checksum 开启时，备份或恢复操作完成后，会使用 [client-go](https://github.com/tikv/client-go) 的 [checksum](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L584) 接口来计算 TiKV 集群中有效数据的 checksum 结果，并与备份文件保存的 checksum 结果进行对比。
+
+在某些场景中，TiKV 集群中的数据具有 [TTL](https://docs.pingcap.com/zh/tidb/stable/tikv-configuration-file#enable-ttl) 属性，如果在备份和恢复过程中，数据的 TTL 过期，此时 TiKV 集群的 checksum 结果跟备份文件的 checksum 会不相同，因此不建议在此场景中开启 `checksum`。客户可以选择使用 [client-go](https://github.com/tikv/client-go) 的 [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) 接口，在恢复操作完成后扫描出需要校验的数据，来确保备份文件的正确性。
+
+### 备份恢复操作的安全性
+
+TiKV-BR 支持在开启了 [TLS 配置](https://docs.pingcap.com/zh/tidb/dev/enable-tls-between-components)的 TiKV 集群中执行备份和恢复操作，用户可以通过设置 `--ca`， `--cert` 和 `--key` 参数来指定客户端证书。
 
 ## License
 
