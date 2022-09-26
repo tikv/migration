@@ -96,7 +96,11 @@ tikv-br backup raw \
     -s "s3://backup-data/2022-09-16/" \
     --ratelimit 128 \
     --dst-api-version v2 \
-    --log-file="/tmp/br_backup.log
+    --log-file="/tmp/br_backup.log \
+    --gcttl=5m \
+    --start=&{START_KEY} \
+    --end=&{END_KEY} \
+    --format="raw"
 ```
 Explanations for some options in the above command are as follows: 
 - `backup`: Sub-command of `tikv-br`.
@@ -109,6 +113,10 @@ Explanations for some options in the above command are as follows:
 - `"${PDIP}:2379"`:  Parameter of `--pd`.
 - `--dst-api-version`: The `api-version`, please see [tikv-server config](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610).
 - `v2`: Parameter of `--dst-api-version`, the optionals are `v1`, `v1ttl`, `v2`(Case insensitive). If no `dst-api-version` is specified, the `api-version` is the same with TiKV cluster of `--pd`.
+- `gcttl`: The stop duration of GC. This can be used to make sure that the incremental data from backup start to TiKV-CDC take effective will NOT be deleted by GC. 5 minutes by default.
+- `5m`: Paramater of `gcttl`. It's format is `number + unit`, e.g. `24h` means 24 hours, `60m` means 60 minutes.
+- `start`, `end`: The backup key range. It's closed left and open right `[start, end)`.
+- `format`：Format of `start` and `end`. Supported formats are `raw`、[`hex`](https://en.wikipedia.org/wiki/Hexadecimal) and [`escaped`](https://en.wikipedia.org/wiki/Escape_character).
 
 A progress bar is displayed in the terminal during the backup. When the progress bar advances to 100%, the backup is complete. The progress bar is displayed as follows:
 ```
