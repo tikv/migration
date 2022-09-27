@@ -116,7 +116,7 @@ Explanations for some options in the above command are as follows:
 - `gcttl`: The pause duration of GC. This can be used to make sure that the incremental data from backup start to TiKV-CDC [create changefeed](https://github.com/tikv/migration/blob/main/cdc/README.md#create-a-replication-task) will NOT be deleted by GC. 5 minutes by default.
 - `5m`: Paramater of `gcttl`. Its format is `number + unit`, e.g. `24h` means 24 hours, `60m` means 60 minutes.
 - `start`, `end`: The backup key range. It's closed left and open right `[start, end)`.
-- `format`：Format of `start` and `end`. Supported formats are `raw`、[`hex`](https://en.wikipedia.org/wiki/Hexadecimal) and [`escaped`](https://en.wikipedia.org/wiki/Escape_character).
+- `format`: Format of `start` and `end`. Supported formats are `raw`、[`hex`](https://en.wikipedia.org/wiki/Hexadecimal) and [`escaped`](https://en.wikipedia.org/wiki/Escape_character).
 
 A progress bar is displayed in the terminal during the backup. When the progress bar advances to 100%, the backup is complete. The progress bar is displayed as follows:
 ```
