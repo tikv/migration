@@ -96,7 +96,11 @@ tikv-br backup raw \
     -s "s3://backup-data/2022-09-16/" \
     --ratelimit 128 \
     --dst-api-version v2 \
-    --log-file="/tmp/br_backup.log
+    --log-file="/tmp/br_backup.log \
+    --gcttl=5m \
+    --start="a" \
+    --end="z" \
+    --format="raw"
 ```
 Explanations for some options in the above command are as follows: 
 - `backup`: Sub-command of `tikv-br`.
@@ -109,6 +113,10 @@ Explanations for some options in the above command are as follows:
 - `"${PDIP}:2379"`:  Parameter of `--pd`.
 - `--dst-api-version`: The `api-version`, please see [tikv-server config](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#api-version-new-in-v610).
 - `v2`: Parameter of `--dst-api-version`, the optionals are `v1`, `v1ttl`, `v2`(Case insensitive). If no `dst-api-version` is specified, the `api-version` is the same with TiKV cluster of `--pd`.
+- `gcttl`: The pause duration of GC. This can be used to make sure that the incremental data from backup start to TiKV-CDC [create changefeed](https://github.com/tikv/migration/blob/main/cdc/README.md#create-a-replication-task) will NOT be deleted by GC. 5 minutes by default.
+- `5m`: Paramater of `gcttl`. Its format is `number + unit`, e.g. `24h` means 24 hours, `60m` means 60 minutes.
+- `start`, `end`: The backup key range. It's closed left and open right `[start, end)`.
+- `format`: Format of `start` and `end`. Supported formats are `raw`、[`hex`](https://en.wikipedia.org/wiki/Hexadecimal) and [`escaped`](https://en.wikipedia.org/wiki/Escape_character).
 
 A progress bar is displayed in the terminal during the backup. When the progress bar advances to 100%, the backup is complete. The progress bar is displayed as follows:
 ```
@@ -185,6 +193,12 @@ Explanations for the above message are as follows:
 TiKV-BR can do checksum between TiKV cluster and backup files after backup or restoration finish with the config `--checksum=true`. Checksum is using the [checksum](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L584) interface in TiKV [client-go](https://github.com/tikv/client-go), which send checksum request to all TiKV regions to calculate the checksum of all **VALID** data. Then compare to the checksum value of backup files which is calculated during backup process.
 
 In some scenario, data is stored in TiKV with [TTL](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#enable-ttl). If data is expired during backup & restore, the persisted checksum in backup files is different from the checksum of TiKV cluster. So checksum should not enabled in this scenario. User can perform a full comparison for all existing non-expired data between backup cluster and restore cluster with [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) interface in [client-go](https://github.com/tikv/client-go).
+
+### Security During Backup & Restoration
+
+TiKV-BR support TLS if [TLS config](https://docs.pingcap.com/tidb/dev/enable-tls-between-components) in TiKV cluster is enabled.
+
+Please specify the client certification with config `--ca`, `--cert` and `--key`.
 
 ## Contributing
 

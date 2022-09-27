@@ -50,7 +50,15 @@ make test // 运行测试用例
 要备份 TiKV 集群中 Raw 模式数据，可使用 `tikv-br backup raw` 命令。该命令的使用帮助可以通过 `tikv-br backup raw --help` 来获取。
 用例：将 TiKV 集群中 Raw 模式数据备份到 `/tmp/backup` 目录中。
 ```
-tikv-br backup raw --pd "&{PDIP}:2379" -s "local:///tmp/backup" --dst-api-version v2 --log-file="/tmp/br_backup.log
+tikv-br backup raw \
+    --pd="&{PDIP}:2379" \
+    -s="local:///tmp/backup" \
+    --dst-api-version v2 \
+    --log-file="/tmp/br_backup.log \
+    --gcttl=5m \
+    --start="a" \
+    --end="z" \
+    --format="raw"
 ```
 命令行各部分的解释如下：
 - `backup`：`tikv-br` 的子命令
@@ -61,10 +69,14 @@ tikv-br backup raw --pd "&{PDIP}:2379" -s "local:///tmp/backup" --dst-api-versio
 - `"${PDIP}:2379"`：`--pd` 的参数
 - `--dst-api-version`: 指定备份文件的 `api-version`，请见 [tikv-server config](https://docs.pingcap.com/zh/tidb/stable/tikv-configuration-file#api-version-%E4%BB%8E-v610-%E7%89%88%E6%9C%AC%E5%BC%80%E5%A7%8B%E5%BC%95%E5%85%A5)  
 - `v2`: `--dst-api-version` 的参数，可选参数为 `v1`，`v1ttl`，`v2`(不区分大小写)，如果不指定 `dst-api-version` 参数，则备份文件的 `api-version` 与指定 `--pd` 所属的 TiKV 集群 `api-version` 相同。  
+- `gcttl`: GC 暂停时长。可用于确保从存量数据备份到 [启动 TiKV-CDC 同步任务](https://github.com/tikv/migration/blob/main/cdc/manual-cn.md#%E5%88%9B%E5%BB%BA%E5%90%8C%E6%AD%A5%E4%BB%BB%E5%8A%A1) 的这段时间内，增量数据不会被 GC 清除。默认为 5 分钟。
+- `5m`: `gcttl` 的参数，数据格式为`数字 + 时间单位`, 例如 `24h` 表示 24 小时，`60m` 表示 60 分钟。
+- `start`, `end`: 用于指定需要备份的数据区间，为左闭右开区间 `[start, end)`。默认为`["", "")`， 即全部数据。
+- `format`：`start` 和 `end` 的格式，支持 `raw`、[`hex`](https://zh.wikipedia.org/wiki/%E5%8D%81%E5%85%AD%E8%BF%9B%E5%88%B6) 和 [`escaped`](https://zh.wikipedia.org/wiki/%E8%BD%AC%E4%B9%89%E5%AD%97%E7%AC%A6) 三种格式。
+
 备份期间会有进度条在终端中显示，当进度条前进到 100% 时，说明备份已完成。
 
 可以通过指定 `--checksum=true` 在 `backup` 结束时进行一轮数据校验，将文本数据同集群数据比较，来保证正确性。  
-*请注意: 如果需要进行数据校验，请确保在备份过程中，TiKV 集群没有数据变更和 `TTL` 过期。*
 
 #### 恢复 Raw 模式备份数据
 
@@ -80,7 +92,18 @@ tikv-br restore raw \
 恢复期间会有进度条在终端中显示，当进度条前进到 100% 时，说明恢复已完成。  
 
 可以通过指定 `--checksum=true` 在 `restore` 结束时进行一轮数据校验，将文本数据同集群数据比较，来保证正确性。  
-*请注意: 如果需要进行数据校验，请确保在备份和恢复的全过程，TiKV 集群没有数据变更和 `TTL` 过期。*
+
+### 备份文件的数据校验
+
+TiKV-BR 可以在 TiKV 集群备份和恢复操作完成后执行 `checksum` 来确保备份文件的完整性和正确性。 checksum 可以通过 `--checksum` 来开启。
+
+checksum 开启时，备份或恢复操作完成后，会使用 [client-go](https://github.com/tikv/client-go) 的 [checksum](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L584) 接口来计算 TiKV 集群中有效数据的 checksum 结果，并与备份文件保存的 checksum 结果进行对比。
+
+在某些场景中，TiKV 集群中的数据具有 [TTL](https://docs.pingcap.com/zh/tidb/stable/tikv-configuration-file#enable-ttl) 属性，如果在备份和恢复过程中，数据的 TTL 过期，此时 TiKV 集群的 checksum 结果跟备份文件的 checksum 会不相同，因此不建议在此场景中开启 `checksum`。客户可以选择使用 [client-go](https://github.com/tikv/client-go) 的 [scan](https://github.com/tikv/client-go/blob/ffaaf7131a8df6ab4e858bf27e39cd7445cf7929/rawkv/rawkv.go#L492) 接口，在恢复操作完成后扫描出需要校验的数据，来确保备份文件的正确性。
+
+### 备份恢复操作的安全性
+
+TiKV-BR 支持在开启了 [TLS 配置](https://docs.pingcap.com/zh/tidb/dev/enable-tls-between-components) 的 TiKV 集群中执行备份和恢复操作，用户可以通过设置 `--ca`， `--cert` 和 `--key` 参数来指定客户端证书。
 
 ## License
 
