@@ -52,9 +52,6 @@ type sorterNode struct {
 	// The latest resolved ts that sorter has received.
 	resolvedTs model.Ts
 
-	// The latest barrier ts that sorter has received.
-	barrierTs model.Ts
-
 	replConfig *config.ReplicaConfig
 }
 
@@ -67,7 +64,6 @@ func newSorterNode(
 		keyspanID:      keyspanID,
 		flowController: flowController,
 		resolvedTs:     startTs,
-		barrierTs:      startTs,
 		replConfig:     replConfig,
 	}
 }
@@ -220,11 +216,6 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 		}
 		n.sorter.AddEntry(ctx, msg.PolymorphicEvent)
 		return true, nil
-	case pipeline.MessageTypeBarrier:
-		if msg.BarrierTs > n.barrierTs {
-			n.barrierTs = msg.BarrierTs
-		}
-		fallthrough
 	default:
 		ctx.(pipeline.NodeContext).SendToNextNode(msg)
 		return true, nil
