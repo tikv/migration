@@ -878,8 +878,8 @@ github.com/pingcap/tidb/parser v0.0.0-20220528045048-5495dc6c4360 h1:r4HI1dCcNMe
 github.com/pingcap/tidb/parser v0.0.0-20220528045048-5495dc6c4360/go.mod h1:ElJiub4lRy6UZDb+0JHDkGEdr6aOli+ykhyej7VCLoI=
 github.com/pingcap/tipb v0.0.0-20220314125451-bfb5c2c55188 h1:+46isFI9fR9R+nJVDMI55tCC/TCwp+bvVA4HLGEv1rY=
 github.com/pingcap/tipb v0.0.0-20220314125451-bfb5c2c55188/go.mod h1:A7mrd7WHBl1o63LE2bIBGEJMTNWXqhgmYiOvMLxozfs=
-github.com/pingyu/client-go/v2 v2.0.0-alpha.0.20220609033944-46f14fcc9ba7 h1:B9jHWNdNTQqqEbA2tN/9fcNakvWseee0jG5oYWxiXEg=
-github.com/pingyu/client-go/v2 v2.0.0-alpha.0.20220609033944-46f14fcc9ba7/go.mod h1:KzWkFRax8foxw13dSXAQZN+dLgixwahT10ZaAK9V/pg=
+github.com/pingyu/client-go/v2 v2.0.0-alpha.0.20220928120647-1c8762535c9b h1:Sz1ujKMgV7Q6XWy0n1RiOQDEzHhZm8/HNGHxaQoOXJ4=
+github.com/pingyu/client-go/v2 v2.0.0-alpha.0.20220928120647-1c8762535c9b/go.mod h1:KzWkFRax8foxw13dSXAQZN+dLgixwahT10ZaAK9V/pg=
 github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4 h1:49lOXmGaUpV9Fz3gd7TFZY106KVlPVa5jcYD1gaQf98=
 github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4/go.mod h1:4OwLy04Bl9Ef3GJJCoec+30X3LQs/0/m4HFRt/2LUSA=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
