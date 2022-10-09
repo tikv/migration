@@ -3385,7 +3385,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "${DS_TEST-CLUSTER}",
-      "description": "The number of events that puller inputs from kvclient \n per second",
+      "description": "The number of events that puller inputs from kvclient per second",
       "fieldConfig": {
         "defaults": {
           "links": []
@@ -3587,7 +3587,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "${DS_TEST-CLUSTER}",
-      "description": "The number of events that puller outputs to sorter \n per second",
+      "description": "The number of events that puller outputs to sorter per second",
       "fieldConfig": {
         "defaults": {
           "links": []
@@ -3789,7 +3789,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "${DS_TEST-CLUSTER}",
-      "description": "The number of events that sorter outputs to puller \n per second",
+      "description": "The number of events that sorter outputs to sink per second",
       "fieldConfig": {
         "defaults": {
           "links": []
@@ -3991,7 +3991,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "${DS_TEST-CLUSTER}",
-      "description": "The number of events that sorter outputs to keyspan sink per second",
+      "description": "The number of events that keyspan sink outputs to buffer sink per second",
       "fieldConfig": {
         "defaults": {
           "links": []
@@ -4395,7 +4395,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "${DS_TEST-CLUSTER}",
-      "description": "The number of rows(events) that are processed by sink per second",
+      "description": "The number of events that are processed by sink per second",
       "fieldConfig": {
         "defaults": {
           "links": []
@@ -4601,7 +4601,7 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "${DS_TEST-CLUSTER}",
-      "description": "The number of rows that sink flushes to downstream per second",
+      "description": "The number of events that sink flushes to downstream per second",
       "fieldConfig": {
         "defaults": {
           "links": []
@@ -6789,7 +6789,7 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "The number of events that puller outputs to sorter \n per second",
+          "description": "The number of events that puller outputs to sorter per second",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -9948,9 +9948,7 @@
               "interval": "",
               "refId": "D",
               "hide": false,
-              "interval": "",
               "intervalFactor": 2,
-              "legendFormat": "{{instance}}-raw-outlier-region-lag",
               "refId": "D"
             }
           ],
