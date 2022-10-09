@@ -55,9 +55,9 @@ public class SSTDecoder {
       throw new RocksDBException("File already opened!");
     }
 
-    sstFileReader = new SstFileReader(new Options());
+    sstFileReader = new SstFileReader(options);
     sstFileReader.open(filePath);
-    iterator = sstFileReader.newIterator(new ReadOptions());
+    iterator = sstFileReader.newIterator(readOptions);
     return new SSTIterator(iterator, kvDecoder);
   }
 
