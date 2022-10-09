@@ -1,10 +1,14 @@
 name: TiKV-CDC
 on:
   push:
-    branches: main
+    branches:
+      - main
+      - 'cdc-release-**'
     paths: cdc/**
   pull_request:
-    branches: main
+    branches:
+      - main
+      - 'cdc-release-**'
     paths: cdc/**
 
 permissions:
