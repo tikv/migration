@@ -194,7 +194,6 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 					return errors.Trace(err)
 				}
 			} else if e.Resolved != nil {
-				metricTxnCollectCounterResolved.Inc()
 				if !regionspan.IsSubSpan(e.Resolved.Span, p.spans...) {
 					log.Panic("the resolved span is not in the total span",
 						zap.Reflect("resolved", e.Resolved),
@@ -231,6 +230,7 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				if err != nil {
 					return errors.Trace(err)
 				}
+				metricTxnCollectCounterResolved.Inc()
 				atomic.StoreUint64(&p.resolvedTs, resolvedTs)
 			}
 		}
