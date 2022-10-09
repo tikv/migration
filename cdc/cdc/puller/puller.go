@@ -184,8 +184,6 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				return errors.Trace(ctx.Err())
 			}
 
-			log.Debug("[TRACE] revcive region feed event", zap.Stringer("event", e))
-
 			if e.Val != nil {
 				e.Val.Sequence = p.eventSeq
 				p.eventSeq += 1
@@ -204,7 +202,6 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				// Forward is called in a single thread
 				p.tsTracker.Forward(e.Resolved.Span, e.Resolved.ResolvedTs)
 				resolvedTs := p.tsTracker.Frontier()
-				log.Debug("[TRACE] puller.tsTracker.Forward", zap.Any("e.Span", e.Resolved.Span), zap.Uint64("e.ResolvedTs", e.Resolved.ResolvedTs), zap.Uint64("tsTracker.Frontier", resolvedTs))
 				if resolvedTs > 0 && !initialized {
 					// Advancing to a non-zero value means the puller level
 					// resolved ts is initialized.
