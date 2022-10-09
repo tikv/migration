@@ -168,7 +168,7 @@ func TestParseCfg(t *testing.T) {
 			KeyPath:       "cc",
 			CertAllowedCN: []string{"dd", "ee"},
 		},
-		PerChangefeedMemoryQuota: 10 * 1024 * 1024, // 10M
+		PerChangefeedMemoryQuota: 1 * 1024 * 1024 * 1024, // 1G
 		KVClient: &config.KVClientConfig{
 			WorkerConcurrent:       8,
 			WorkerPoolSize:         0,
@@ -298,7 +298,7 @@ server-worker-pool-size = 16
 			SortDir:                config.DefaultSortDir,
 		},
 		Security:                 &config.SecurityConfig{},
-		PerChangefeedMemoryQuota: 10 * 1024 * 1024, // 10M
+		PerChangefeedMemoryQuota: 1 * 1024 * 1024 * 1024, // 1G
 		KVClient: &config.KVClientConfig{
 			WorkerConcurrent:       8,
 			WorkerPoolSize:         0,
@@ -427,7 +427,7 @@ cert-allowed-cn = ["dd","ee"]
 			KeyPath:       "cc",
 			CertAllowedCN: []string{"dd", "ee"},
 		},
-		PerChangefeedMemoryQuota: 1 * 1024 * 1024 * 1024, // 10M
+		PerChangefeedMemoryQuota: 1 * 1024 * 1024 * 1024, // 1G
 		KVClient: &config.KVClientConfig{
 			WorkerConcurrent:       8,
 			WorkerPoolSize:         0,

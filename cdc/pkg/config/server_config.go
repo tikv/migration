@@ -91,7 +91,7 @@ var defaultServerConfig = &ServerConfig{
 		SortDir:                DefaultSortDir,
 	},
 	Security:                 &SecurityConfig{},
-	PerChangefeedMemoryQuota: 10 * 1024 * 1024, // 10MB
+	PerChangefeedMemoryQuota: 1 * 1024 * 1024 * 1024, // 1G
 	KVClient: &KVClientConfig{
 		WorkerConcurrent:       8,
 		WorkerPoolSize:         0, // 0 will use NumCPU() * 2
