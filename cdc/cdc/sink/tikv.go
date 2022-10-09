@@ -149,7 +149,6 @@ func (k *tikvSink) dispatch(entry *model.RawKVEntry) uint32 {
 }
 
 func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
-	log.Debug("[TRACE] tikvSink.EmitChangedEvents", zap.Any("rawKVEntries", rawKVEntries))
 	entriesCount := 0
 
 	for _, rawKVEntry := range rawKVEntries {
@@ -170,8 +169,6 @@ func (k *tikvSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model
 }
 
 func (k *tikvSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
-	log.Debug("[TRACE] tikvSink::FlushChangedEvents", zap.Uint64("resolvedTs", resolvedTs), zap.Uint64("checkpointTs", k.checkpointTs))
-
 	if resolvedTs <= k.checkpointTs {
 		return k.checkpointTs, nil
 	}
@@ -300,8 +297,6 @@ func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
 }
 
 func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
-	log.Debug("[TRACE] tikvBatch::Append", zap.Any("event", entry))
-
 	if len(b.Batches) == 0 {
 		b.now = b.getNow()
 	}
@@ -385,7 +380,6 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 				if err != nil {
 					return 0, err
 				}
-				log.Debug("[TRACE] tikvSink::flushToTiKV", zap.Int("thisBatchSize", thisBatchSize), zap.Any("batch", batch))
 			}
 			batcher.Reset()
 			return thisBatchSize, nil
@@ -408,7 +402,6 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 		}
 		if e.rawKVEntry == nil {
 			if e.resolvedTs != 0 {
-				log.Debug("[TRACE] tikvSink::runWorker push workerResolvedTs", zap.Uint32("workerIdx", workerIdx), zap.Uint64("event.resolvedTs", e.resolvedTs))
 				if err := flushToTiKV(); err != nil {
 					return errors.Trace(err)
 				}
@@ -417,7 +410,6 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 			}
 			continue
 		}
-		log.Debug("[TRACE] tikvSink::runWorker append event", zap.Uint32("workerIdx", workerIdx), zap.Any("event", e.rawKVEntry))
 		batcher.Append(e.rawKVEntry)
 
 		if batcher.ByteSize() >= defaultTiKVBatchBytesLimit {

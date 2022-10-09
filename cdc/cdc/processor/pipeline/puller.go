@@ -18,14 +18,12 @@ import (
 	"strconv"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/log"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/puller"
 	"github.com/tikv/migration/cdc/pkg/pipeline"
 	"github.com/tikv/migration/cdc/pkg/regionspan"
 	"github.com/tikv/migration/cdc/pkg/util"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -86,7 +84,6 @@ func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Gr
 					metricKeySpanResolvedTsGauge.Set(float64(oracle.ExtractPhysical(rawKV.CRTs)))
 				}
 				pEvent := model.NewPolymorphicEvent(rawKV)
-				log.Debug("[TRACE] pullerNode.SendToNextNode", zap.Any("event", pEvent))
 				ctx.SendToNextNode(pipeline.PolymorphicEventMessage(pEvent))
 			}
 		}
