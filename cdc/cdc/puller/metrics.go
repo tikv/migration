@@ -18,19 +18,19 @@ import (
 )
 
 var (
-	kvEventCounter = prometheus.NewCounterVec(
+	inputEventCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "tikv_cdc",
 			Subsystem: "puller",
-			Name:      "kv_event_count",
+			Name:      "input_event_count",
 			Help:      "The number of events received from kv client event channel",
 		}, []string{"capture", "changefeed", "type"})
-	txnCollectCounter = prometheus.NewCounterVec(
+	outputEventCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "tikv_cdc",
 			Subsystem: "puller",
-			Name:      "txn_collect_event_count",
-			Help:      "The number of events received from txn collector",
+			Name:      "output_event_count",
+			Help:      "The number of events sent to sorter",
 		}, []string{"capture", "changefeed", "type"})
 	pullerResolvedTsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -66,8 +66,8 @@ var (
 
 // InitMetrics registers all metrics in this file
 func InitMetrics(registry *prometheus.Registry) {
-	registry.MustRegister(kvEventCounter)
-	registry.MustRegister(txnCollectCounter)
+	registry.MustRegister(inputEventCounter)
+	registry.MustRegister(outputEventCounter)
 	registry.MustRegister(pullerResolvedTsGauge)
 	registry.MustRegister(memBufferSizeGauge)
 	registry.MustRegister(outputChanSizeHistogram)
