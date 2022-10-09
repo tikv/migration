@@ -233,4 +233,4 @@ replace (
 )
 
 // remove after client-go with "no-prefix" is merged.
-replace github.com/tikv/client-go/v2 => github.com/pingyu/client-go/v2 v2.0.0-alpha.0.20220609033944-46f14fcc9ba7
+replace github.com/tikv/client-go/v2 => github.com/pingyu/client-go/v2 v2.0.0-alpha.0.20220928120647-1c8762535c9b
