@@ -75,7 +75,7 @@ type keyspanPipelineImpl struct {
 
 // TODO find a better name or avoid using an interface
 // We use an interface here for ease in unit testing.
-type keyspanFlowController interface {
+type changefeedFlowController interface {
 	Consume(commitTs uint64, size uint64, blockCallBack func() error) error
 	Release(resolvedTs uint64)
 	Abort()
@@ -179,15 +179,15 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 		replConfig:  replConfig,
 	}
 
-	perKeySpanMemoryQuota := serverConfig.GetGlobalServerConfig().PerKeySpanMemoryQuota
+	perChangefeedMemoryQuota := serverConfig.GetGlobalServerConfig().PerChangefeedMemoryQuota
 
 	log.Debug("creating keyspan flow controller",
 		zap.String("changefeed-id", ctx.ChangefeedVars().ID),
 		zap.String("keyspan-name", keyspanName),
 		zap.Uint64("keyspan-id", keyspanID),
-		zap.Uint64("quota", perKeySpanMemoryQuota))
+		zap.Uint64("quota", perChangefeedMemoryQuota))
 
-	flowController := common.NewKeySpanFlowController(perKeySpanMemoryQuota)
+	flowController := common.NewKeySpanFlowController(perChangefeedMemoryQuota)
 	runnerSize := defaultRunnersSize
 
 	p := pipeline.NewPipeline(ctx, 500*time.Millisecond, runnerSize, defaultOutputChannelSize)

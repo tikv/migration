@@ -68,12 +68,12 @@ func TestServerConfigValidateAndAdjust(t *testing.T) {
 	conf.AdvertiseAddr = "advertise"
 	require.Regexp(t, ".*does not contain a port", conf.ValidateAndAdjust())
 	conf.AdvertiseAddr = "advertise:1234"
-	conf.PerKeySpanMemoryQuota = 1
+	conf.PerChangefeedMemoryQuota = 1
 	require.Nil(t, conf.ValidateAndAdjust())
-	require.EqualValues(t, 1, conf.PerKeySpanMemoryQuota)
-	conf.PerKeySpanMemoryQuota = 0
+	require.EqualValues(t, 1, conf.PerChangefeedMemoryQuota)
+	conf.PerChangefeedMemoryQuota = 0
 	require.Nil(t, conf.ValidateAndAdjust())
-	require.EqualValues(t, GetDefaultServerConfig().PerKeySpanMemoryQuota, conf.PerKeySpanMemoryQuota)
+	require.EqualValues(t, GetDefaultServerConfig().PerChangefeedMemoryQuota, conf.PerChangefeedMemoryQuota)
 }
 
 func TestDBConfigValidateAndAdjust(t *testing.T) {

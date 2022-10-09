@@ -44,7 +44,7 @@ type sorterNode struct {
 	keyspanName string // quoted keyspan, used in metircs only
 
 	// for per-keyspan flow control
-	flowController keyspanFlowController
+	flowController changefeedFlowController
 
 	eg     *errgroup.Group
 	cancel context.CancelFunc
@@ -57,7 +57,7 @@ type sorterNode struct {
 
 func newSorterNode(
 	keyspanName string, keyspanID model.KeySpanID, startTs model.Ts,
-	flowController keyspanFlowController, replConfig *config.ReplicaConfig,
+	flowController changefeedFlowController, replConfig *config.ReplicaConfig,
 ) *sorterNode {
 	return &sorterNode{
 		keyspanName:    keyspanName,
@@ -212,7 +212,6 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 					zap.Uint64("resolvedTs", resolvedTs),
 					zap.Uint64("oldResolvedTs", oldResolvedTs))
 			}
-			atomic.StoreUint64(&n.resolvedTs, rawKV.CRTs)
 		}
 		n.sorter.AddEntry(ctx, msg.PolymorphicEvent)
 		return true, nil

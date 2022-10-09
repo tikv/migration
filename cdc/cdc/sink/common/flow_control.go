@@ -138,8 +138,8 @@ func (c *KeySpanMemoryQuota) GetConsumption() uint64 {
 	return c.Consumed
 }
 
-// KeySpanFlowController provides a convenient interface to control the memory consumption of a per keyspan event stream
-type KeySpanFlowController struct {
+// ChangefeedFlowController provides a convenient interface to control the memory consumption of a per keyspan event stream
+type ChangefeedFlowController struct {
 	memoryQuota *KeySpanMemoryQuota
 
 	mu    sync.Mutex
@@ -154,8 +154,8 @@ type commitTsSizeEntry struct {
 }
 
 // NewKeySpanFlowController creates a new KeySpanFlowController
-func NewKeySpanFlowController(quota uint64) *KeySpanFlowController {
-	return &KeySpanFlowController{
+func NewKeySpanFlowController(quota uint64) *ChangefeedFlowController {
+	return &ChangefeedFlowController{
 		memoryQuota: NewKeySpanMemoryQuota(quota),
 		queue:       deque.NewDeque(),
 	}
@@ -163,7 +163,7 @@ func NewKeySpanFlowController(quota uint64) *KeySpanFlowController {
 
 // Consume is called when an event has arrived for being processed by the sink.
 // It will handle transaction boundaries automatically, and will not block intra-transaction.
-func (c *KeySpanFlowController) Consume(commitTs uint64, size uint64, blockCallBack func() error) error {
+func (c *ChangefeedFlowController) Consume(commitTs uint64, size uint64, blockCallBack func() error) error {
 	lastCommitTs := atomic.LoadUint64(&c.lastCommitTs)
 
 	if commitTs < lastCommitTs {
@@ -201,7 +201,7 @@ func (c *KeySpanFlowController) Consume(commitTs uint64, size uint64, blockCallB
 }
 
 // Release is called when all events committed before resolvedTs has been freed from memory.
-func (c *KeySpanFlowController) Release(resolvedTs uint64) {
+func (c *ChangefeedFlowController) Release(resolvedTs uint64) {
 	var nBytesToRelease uint64
 
 	c.mu.Lock()
@@ -219,11 +219,11 @@ func (c *KeySpanFlowController) Release(resolvedTs uint64) {
 }
 
 // Abort interrupts any ongoing Consume call
-func (c *KeySpanFlowController) Abort() {
+func (c *ChangefeedFlowController) Abort() {
 	c.memoryQuota.Abort()
 }
 
 // GetConsumption returns the current memory consumption
-func (c *KeySpanFlowController) GetConsumption() uint64 {
+func (c *ChangefeedFlowController) GetConsumption() uint64 {
 	return c.memoryQuota.GetConsumption()
 }
