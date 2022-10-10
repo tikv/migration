@@ -187,7 +187,7 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 		zap.Uint64("keyspan-id", keyspanID),
 		zap.Uint64("quota", perChangefeedMemoryQuota))
 
-	flowController := common.NewKeySpanFlowController(perChangefeedMemoryQuota)
+	flowController := common.NewChangefeedFlowController(perChangefeedMemoryQuota)
 	runnerSize := defaultRunnersSize
 
 	p := pipeline.NewPipeline(ctx, 500*time.Millisecond, runnerSize, defaultOutputChannelSize)
