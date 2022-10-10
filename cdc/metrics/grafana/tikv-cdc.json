@@ -2965,7 +2965,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(tikv_cdc_processor_table_memory_consumption_sum{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s]) / rate(tikv_cdc_processor_table_memory_consumption_count{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s])) by (capture)",
+              "expr": "sum(rate(tikv_cdc_processor_changefeed_memory_consumption_sum{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s]) / rate(tikv_cdc_processor_changefeed_memory_consumption_count{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s])) by (capture)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "{{ capture }}",
@@ -3160,7 +3160,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(tikv_cdc_processor_table_memory_consumption_sum{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s]) / rate(tikv_cdc_processor_table_memory_consumption_count{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s])) by (capture, changefeed)",
+              "expr": "sum(rate(tikv_cdc_processor_changefeed_memory_consumption_sum{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s]) / rate(tikv_cdc_processor_changefeed_memory_consumption_count{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[30s])) by (capture, changefeed)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "{{ capture }}-{{ changefeed }}",
