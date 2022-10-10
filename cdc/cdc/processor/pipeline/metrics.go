@@ -32,11 +32,11 @@ var (
 			Name:      "txn_count",
 			Help:      "txn count received/executed by this processor",
 		}, []string{"type", "changefeed", "capture"})
-	keyspanMemoryHistogram = prometheus.NewHistogramVec(
+	changefeedMemoryHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "tikv_cdc",
 			Subsystem: "processor",
-			Name:      "keyspan_memory_consumption",
+			Name:      "changefeed_memory_consumption",
 			Help:      "estimated memory consumption for a keyspan after the sorter",
 			Buckets:   prometheus.ExponentialBuckets(1*1024*1024 /* mb */, 2, 10),
 		}, []string{"changefeed", "capture"})
@@ -46,5 +46,5 @@ var (
 func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(keyspanResolvedTsGauge)
 	registry.MustRegister(txnCounter)
-	registry.MustRegister(keyspanMemoryHistogram)
+	registry.MustRegister(changefeedMemoryHistogram)
 }

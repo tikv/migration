@@ -117,7 +117,7 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 		lastSendResolvedTsTime := time.Now() // the time at which we last sent a resolved-ts.
 		lastCRTs := uint64(0)                // the commit-ts of the last row changed we sent.
 
-		metricsKeySpanMemoryHistogram := keyspanMemoryHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+		metricsChangefeedMemoryHistogram := changefeedMemoryHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 		metricsTicker := time.NewTicker(flushMemoryMetricsDuration)
 		defer metricsTicker.Stop()
 
@@ -126,7 +126,7 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 			case <-stdCtx.Done():
 				return nil
 			case <-metricsTicker.C:
-				metricsKeySpanMemoryHistogram.Observe(float64(n.flowController.GetConsumption()))
+				metricsChangefeedMemoryHistogram.Observe(float64(n.flowController.GetConsumption()))
 			case msg, ok := <-eventSorter.Output():
 				if !ok {
 					// sorter output channel closed
@@ -222,7 +222,7 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 }
 
 func (n *sorterNode) Destroy(ctx pipeline.NodeContext) error {
-	defer keyspanMemoryHistogram.DeleteLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+	defer changefeedMemoryHistogram.DeleteLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 	n.cancel()
 	return n.eg.Wait()
 }
