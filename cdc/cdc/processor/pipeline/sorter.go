@@ -43,7 +43,7 @@ type sorterNode struct {
 	keyspanID   model.KeySpanID
 	keyspanName string // quoted keyspan, used in metircs only
 
-	// for per-keyspan flow control
+	// for per-changefeed flow control
 	flowController changefeedFlowController
 
 	eg     *errgroup.Group
