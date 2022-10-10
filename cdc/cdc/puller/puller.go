@@ -123,17 +123,19 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 	metricOutputChanSize := outputChanSizeHistogram.WithLabelValues(captureAddr, changefeedID)
 	metricEventChanSize := eventChanSizeHistogram.WithLabelValues(captureAddr, changefeedID)
 	metricPullerResolvedTs := pullerResolvedTsGauge.WithLabelValues(captureAddr, changefeedID)
-	metricTxnCollectCounterKv := txnCollectCounter.WithLabelValues(captureAddr, changefeedID, "kv")
-	metricTxnCollectCounterResolved := txnCollectCounter.WithLabelValues(captureAddr, changefeedID, "resolved")
+	metricPullerInputCounterKv := inputEventCounter.WithLabelValues(captureAddr, changefeedID, "kv")
+	metricPullerInputCounterResolved := inputEventCounter.WithLabelValues(captureAddr, changefeedID, "resolved")
+	metricPullerOutputCounterKv := outputEventCounter.WithLabelValues(captureAddr, changefeedID, "kv")
+	metricPullerOutputCounterResolved := outputEventCounter.WithLabelValues(captureAddr, changefeedID, "resolved")
 	defer func() {
 		outputChanSizeHistogram.DeleteLabelValues(captureAddr, changefeedID)
 		eventChanSizeHistogram.DeleteLabelValues(captureAddr, changefeedID)
 		memBufferSizeGauge.DeleteLabelValues(captureAddr, changefeedID)
 		pullerResolvedTsGauge.DeleteLabelValues(captureAddr, changefeedID)
-		kvEventCounter.DeleteLabelValues(captureAddr, changefeedID, "kv")
-		kvEventCounter.DeleteLabelValues(captureAddr, changefeedID, "resolved")
-		txnCollectCounter.DeleteLabelValues(captureAddr, changefeedID, "kv")
-		txnCollectCounter.DeleteLabelValues(captureAddr, changefeedID, "resolved")
+		inputEventCounter.DeleteLabelValues(captureAddr, changefeedID, "kv")
+		inputEventCounter.DeleteLabelValues(captureAddr, changefeedID, "resolved")
+		outputEventCounter.DeleteLabelValues(captureAddr, changefeedID, "kv")
+		outputEventCounter.DeleteLabelValues(captureAddr, changefeedID, "resolved")
 	}()
 	g.Go(func() error {
 		for {
@@ -170,6 +172,11 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return errors.Trace(ctx.Err())
 			case p.outputCh <- raw:
+				if raw.OpType == model.OpTypeResolved {
+					metricPullerOutputCounterResolved.Inc()
+				} else {
+					metricPullerOutputCounterKv.Inc()
+				}
 			}
 			return nil
 		}
@@ -184,17 +191,15 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 				return errors.Trace(ctx.Err())
 			}
 
-			log.Debug("[TRACE] revcive region feed event", zap.Stringer("event", e))
-
 			if e.Val != nil {
+				metricPullerInputCounterKv.Inc()
+
 				e.Val.Sequence = p.eventSeq
 				p.eventSeq += 1
-				metricTxnCollectCounterKv.Inc()
 				if err := output(e.Val); err != nil {
 					return errors.Trace(err)
 				}
 			} else if e.Resolved != nil {
-				metricTxnCollectCounterResolved.Inc()
 				if !regionspan.IsSubSpan(e.Resolved.Span, p.spans...) {
 					log.Panic("the resolved span is not in the total span",
 						zap.Reflect("resolved", e.Resolved),
@@ -202,10 +207,10 @@ func (p *pullerImpl) Run(ctx context.Context) error {
 						zap.Reflect("spans", p.spans),
 					)
 				}
+				metricPullerInputCounterResolved.Inc()
 				// Forward is called in a single thread
 				p.tsTracker.Forward(e.Resolved.Span, e.Resolved.ResolvedTs)
 				resolvedTs := p.tsTracker.Frontier()
-				log.Debug("[TRACE] puller.tsTracker.Forward", zap.Any("e.Span", e.Resolved.Span), zap.Uint64("e.ResolvedTs", e.Resolved.ResolvedTs), zap.Uint64("tsTracker.Frontier", resolvedTs))
 				if resolvedTs > 0 && !initialized {
 					// Advancing to a non-zero value means the puller level
 					// resolved ts is initialized.
