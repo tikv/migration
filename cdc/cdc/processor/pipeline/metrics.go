@@ -40,6 +40,14 @@ var (
 			Help:      "estimated memory consumption for a keyspan after the sorter",
 			Buckets:   prometheus.ExponentialBuckets(1*1024*1024 /* mb */, 2, 10),
 		}, []string{"changefeed", "capture"})
+	flowControllerConsumeHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "tikv_cdc",
+			Subsystem: "processor",
+			Name:      "flow_controller_consume_duration",
+			Help:      "bucketed histogram of processing time (s) of flowController consume",
+			Buckets:   prometheus.ExponentialBuckets(0.002 /* 2 ms */, 2, 18),
+		}, []string{"changefeed", "capture"})
 )
 
 // InitMetrics registers all metrics used in processor
@@ -47,4 +55,5 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(keyspanResolvedTsGauge)
 	registry.MustRegister(txnCounter)
 	registry.MustRegister(changefeedMemoryHistogram)
+	registry.MustRegister(flowControllerConsumeHistogram)
 }

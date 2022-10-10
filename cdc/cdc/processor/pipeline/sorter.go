@@ -118,6 +118,7 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 		lastCRTs := uint64(0)                // the commit-ts of the last row changed we sent.
 
 		metricsChangefeedMemoryHistogram := changefeedMemoryHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+		metricsMemoryConsumeHistogram := flowControllerConsumeHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 		metricsTicker := time.NewTicker(flushMemoryMetricsDuration)
 		defer metricsTicker.Stop()
 
@@ -155,6 +156,7 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 					size := uint64(msg.RawKV.ApproximateDataSize())
 					// NOTE we allow the quota to be exceeded if blocking means interrupting a transaction.
 					// Otherwise the pipeline would deadlock.
+					startTime := time.Now()
 					err := n.flowController.Consume(commitTs, size, func() error {
 						if lastCRTs > lastSentResolvedTs {
 							// If we are blocking, we send a Resolved Event here to elicit a sink-flush.
@@ -175,6 +177,8 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 						}
 						return nil
 					}
+					metricsMemoryConsumeHistogram.Observe(time.Since(startTime).Seconds())
+
 					lastCRTs = commitTs
 				} else {
 					// handle OpTypeResolved

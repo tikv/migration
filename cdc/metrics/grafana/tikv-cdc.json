@@ -2756,7 +2756,7 @@
           },
           "dataFormat": "tsbuckets",
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "The duration of executing DDL in MySQL sink",
+          "description": "The duration of flow controller consume",
           "gridPos": {
             "h": 7,
             "w": 12,
@@ -2785,7 +2785,7 @@
           "reverseYBuckets": false,
           "targets": [
             {
-              "expr": "max(rate(tikv_cdc_sink_ddl_exec_duration_bucket{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[1m])) by (le)",
+              "expr": "max(rate(tikv_cdc_processor_flow_controller_consume_duration_bucket{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[1m])) by (le)",
               "format": "heatmap",
               "instant": false,
               "intervalFactor": 2,
@@ -2793,7 +2793,7 @@
               "refId": "A"
             }
           ],
-          "title": "MySQL sink ddl execution duration",
+          "title": "Flow controller consume duration",
           "tooltip": {
             "show": true,
             "showHistogram": true
