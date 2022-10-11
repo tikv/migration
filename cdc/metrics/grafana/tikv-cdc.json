@@ -2785,7 +2785,7 @@
           "reverseYBuckets": false,
           "targets": [
             {
-              "expr": "max(rate(tikv_cdc_processor_flow_controller_duration_bucket{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[1m])) by (le)",
+              "expr": "max(rate(tikv_cdc_processor_flow_controller_duration_bucket{tidb_cluster=\"$tidb_cluster\", capture=~\"$capture\"}[1m])) by (le,type)",
               "format": "heatmap",
               "instant": false,
               "intervalFactor": 2,
