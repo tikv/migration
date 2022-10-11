@@ -113,21 +113,30 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 		return nil
 	})
 	n.eg.Go(func() error {
-		lastSentResolvedTs := uint64(0)
-		lastSendResolvedTsTime := time.Now() // the time at which we last sent a resolved-ts.
-		lastCRTs := uint64(0)                // the commit-ts of the last row changed we sent.
-
 		metricsChangefeedMemoryHistogram := changefeedMemoryHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
-		metricsMemoryConsumeHistogram := flowControllerDurationHistogram.WithLabelValues("consume", ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 		metricsTicker := time.NewTicker(flushMemoryMetricsDuration)
 		defer metricsTicker.Stop()
-
 		for {
 			select {
 			case <-stdCtx.Done():
 				return nil
 			case <-metricsTicker.C:
 				metricsChangefeedMemoryHistogram.Observe(float64(n.flowController.GetConsumption()))
+			}
+		}
+	})
+
+	n.eg.Go(func() error {
+		lastSentResolvedTs := uint64(0)
+		lastSendResolvedTsTime := time.Now() // the time at which we last sent a resolved-ts.
+		lastCRTs := uint64(0)                // the commit-ts of the last row changed we sent.
+
+		metricsMemoryConsumeHistogram := flowControllerDurationHistogram.WithLabelValues("consume", ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+
+		for {
+			select {
+			case <-stdCtx.Done():
+				return nil
 			case msg, ok := <-eventSorter.Output():
 				if !ok {
 					// sorter output channel closed
