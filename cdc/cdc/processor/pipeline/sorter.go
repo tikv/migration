@@ -43,8 +43,8 @@ type sorterNode struct {
 	keyspanID   model.KeySpanID
 	keyspanName string // quoted keyspan, used in metircs only
 
-	// for per-keyspan flow control
-	flowController keyspanFlowController
+	// for per-changefeed flow control
+	flowController changefeedFlowController
 
 	eg     *errgroup.Group
 	cancel context.CancelFunc
@@ -57,7 +57,7 @@ type sorterNode struct {
 
 func newSorterNode(
 	keyspanName string, keyspanID model.KeySpanID, startTs model.Ts,
-	flowController keyspanFlowController, replConfig *config.ReplicaConfig,
+	flowController changefeedFlowController, replConfig *config.ReplicaConfig,
 ) *sorterNode {
 	return &sorterNode{
 		keyspanName:    keyspanName,
@@ -117,7 +117,8 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 		lastSendResolvedTsTime := time.Now() // the time at which we last sent a resolved-ts.
 		lastCRTs := uint64(0)                // the commit-ts of the last row changed we sent.
 
-		metricsKeySpanMemoryHistogram := keyspanMemoryHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+		metricsChangefeedMemoryHistogram := changefeedMemoryHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+		metricsMemoryConsumeHistogram := flowControllerDurationHistogram.WithLabelValues("consume", ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 		metricsTicker := time.NewTicker(flushMemoryMetricsDuration)
 		defer metricsTicker.Stop()
 
@@ -126,7 +127,7 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 			case <-stdCtx.Done():
 				return nil
 			case <-metricsTicker.C:
-				metricsKeySpanMemoryHistogram.Observe(float64(n.flowController.GetConsumption()))
+				metricsChangefeedMemoryHistogram.Observe(float64(n.flowController.GetConsumption()))
 			case msg, ok := <-eventSorter.Output():
 				if !ok {
 					// sorter output channel closed
@@ -150,6 +151,33 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 							ctx.SendToNextNode(pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, lastCRTs, n.keyspanID)))
 						}
 					}
+
+					// We calculate memory consumption by PolymorphicEvent size.
+					size := uint64(msg.RawKV.ApproximateDataSize())
+					// NOTE we allow the quota to be exceeded if blocking means interrupting a transaction.
+					// Otherwise the pipeline would deadlock.
+					startTime := time.Now()
+					err := n.flowController.Consume(commitTs, size, func() error {
+						if lastCRTs > lastSentResolvedTs {
+							// If we are blocking, we send a Resolved Event here to elicit a sink-flush.
+							// Not sending a Resolved Event here will very likely deadlock the pipeline.
+							lastSentResolvedTs = lastCRTs
+							lastSendResolvedTsTime = time.Now()
+							ctx.SendToNextNode(pipeline.PolymorphicEventMessage(model.NewResolvedPolymorphicEvent(0, lastCRTs, n.keyspanID)))
+						}
+						return nil
+					})
+					if err != nil {
+						if cerror.ErrFlowControllerAborted.Equal(err) {
+							log.Info("flow control cancelled for keyspan",
+								zap.Uint64("keyspanID", n.keyspanID),
+								zap.String("keyspanName", n.keyspanName))
+						} else {
+							ctx.Throw(err)
+						}
+						return nil
+					}
+					metricsMemoryConsumeHistogram.Observe(time.Since(startTime).Seconds())
 
 					lastCRTs = commitTs
 				} else {
@@ -198,7 +226,7 @@ func (n *sorterNode) TryHandleDataMessage(ctx context.Context, msg pipeline.Mess
 }
 
 func (n *sorterNode) Destroy(ctx pipeline.NodeContext) error {
-	defer keyspanMemoryHistogram.DeleteLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+	defer changefeedMemoryHistogram.DeleteLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 	n.cancel()
 	return n.eg.Wait()
 }

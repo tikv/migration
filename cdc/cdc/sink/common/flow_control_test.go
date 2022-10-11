@@ -47,7 +47,7 @@ func (c *mockCallBacker) cb() error {
 func (s *flowControlSuite) TestMemoryQuotaBasic(c *check.C) {
 	defer testleak.AfterTest(c)()
 
-	controller := NewKeySpanMemoryQuota(1024)
+	controller := NewChangefeedMemoryQuota(1024)
 	sizeCh := make(chan uint64, 1024)
 	var (
 		wg       sync.WaitGroup
@@ -89,7 +89,7 @@ func (s *flowControlSuite) TestMemoryQuotaBasic(c *check.C) {
 func (s *flowControlSuite) TestMemoryQuotaForceConsume(c *check.C) {
 	defer testleak.AfterTest(c)()
 
-	controller := NewKeySpanMemoryQuota(1024)
+	controller := NewChangefeedMemoryQuota(1024)
 	sizeCh := make(chan uint64, 1024)
 	var (
 		wg       sync.WaitGroup
@@ -137,7 +137,7 @@ func (s *flowControlSuite) TestMemoryQuotaForceConsume(c *check.C) {
 func (s *flowControlSuite) TestMemoryQuotaAbort(c *check.C) {
 	defer testleak.AfterTest(c)()
 
-	controller := NewKeySpanMemoryQuota(1024)
+	controller := NewChangefeedMemoryQuota(1024)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -162,7 +162,7 @@ func (s *flowControlSuite) TestMemoryQuotaAbort(c *check.C) {
 func (s *flowControlSuite) TestMemoryQuotaReleaseZero(c *check.C) {
 	defer testleak.AfterTest(c)()
 
-	controller := NewKeySpanMemoryQuota(1024)
+	controller := NewChangefeedMemoryQuota(1024)
 	controller.Release(0)
 }
 
@@ -178,7 +178,7 @@ func (s *flowControlSuite) TestFlowControlBasic(c *check.C) {
 	defer cancel()
 	errg, ctx := errgroup.WithContext(ctx)
 	mockedRowsCh := make(chan *commitTsSizeEntry, 1024)
-	flowController := NewKeySpanFlowController(2048)
+	flowController := NewChangefeedFlowController(2048)
 
 	errg.Go(func() error {
 		lastCommitTs := uint64(1)
@@ -288,7 +288,7 @@ func (s *flowControlSuite) TestFlowControlAbort(c *check.C) {
 	defer testleak.AfterTest(c)()
 
 	callBacker := &mockCallBacker{}
-	controller := NewKeySpanFlowController(1024)
+	controller := NewChangefeedFlowController(1024)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -318,7 +318,7 @@ func (s *flowControlSuite) TestFlowControlCallBack(c *check.C) {
 	defer cancel()
 	errg, ctx := errgroup.WithContext(ctx)
 	mockedRowsCh := make(chan *commitTsSizeEntry, 1024)
-	flowController := NewKeySpanFlowController(512)
+	flowController := NewChangefeedFlowController(512)
 
 	errg.Go(func() error {
 		lastCommitTs := uint64(1)
@@ -421,7 +421,7 @@ func (s *flowControlSuite) TestFlowControlCallBackNotBlockingRelease(c *check.C)
 	defer testleak.AfterTest(c)()
 
 	var wg sync.WaitGroup
-	controller := NewKeySpanFlowController(512)
+	controller := NewChangefeedFlowController(512)
 	wg.Add(1)
 
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -463,7 +463,7 @@ func (s *flowControlSuite) TestFlowControlCallBackError(c *check.C) {
 	defer testleak.AfterTest(c)()
 
 	var wg sync.WaitGroup
-	controller := NewKeySpanFlowController(512)
+	controller := NewChangefeedFlowController(512)
 	wg.Add(1)
 
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -492,7 +492,7 @@ func (s *flowControlSuite) TestFlowControlCallBackError(c *check.C) {
 func (s *flowControlSuite) TestFlowControlConsumeLargerThanQuota(c *check.C) {
 	defer testleak.AfterTest(c)()
 
-	controller := NewKeySpanFlowController(1024)
+	controller := NewChangefeedFlowController(1024)
 	err := controller.Consume(1, 2048, func() error {
 		c.Fatalf("unreachable")
 		return nil
@@ -505,7 +505,7 @@ func BenchmarkKeySpanFlowController(B *testing.B) {
 	defer cancel()
 	errg, ctx := errgroup.WithContext(ctx)
 	mockedRowsCh := make(chan *commitTsSizeEntry, 102400)
-	flowController := NewKeySpanFlowController(20 * 1024 * 1024) // 20M
+	flowController := NewChangefeedFlowController(20 * 1024 * 1024) // 20M
 
 	errg.Go(func() error {
 		lastCommitTs := uint64(1)

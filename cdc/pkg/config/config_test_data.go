@@ -76,7 +76,7 @@ const (
     "key-path": "",
     "cert-allowed-cn": null
   },
-  "per-keyspan-memory-quota": 10485760,
+  "per-changefeed-memory-quota": 1073741824,
   "kv-client": {
     "worker-concurrent": 8,
     "worker-pool-size": 0,

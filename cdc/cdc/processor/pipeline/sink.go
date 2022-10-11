@@ -78,13 +78,13 @@ type sinkNode struct {
 	eventBuffer []*model.PolymorphicEvent
 	rawKVBuffer []*model.RawKVEntry
 
-	flowController keyspanFlowController
+	flowController changefeedFlowController
 
 	replicaConfig      *config.ReplicaConfig
 	isKeySpanActorMode bool
 }
 
-func newSinkNode(keyspanID model.KeySpanID, sink sink.Sink, startTs model.Ts, targetTs model.Ts, flowController keyspanFlowController) *sinkNode {
+func newSinkNode(keyspanID model.KeySpanID, sink sink.Sink, startTs model.Ts, targetTs model.Ts, flowController changefeedFlowController) *sinkNode {
 	return &sinkNode{
 		keyspanID:    keyspanID,
 		sink:         sink,

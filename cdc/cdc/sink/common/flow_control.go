@@ -24,10 +24,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// KeySpanMemoryQuota is designed to curb the total memory consumption of processing
-// the event streams in a keyspan.
-// A higher-level controller more suikeyspan for direct use by the processor is KeySpanFlowController.
-type KeySpanMemoryQuota struct {
+// ChangefeedMemoryQuota is designed to curb the total memory consumption of processing
+// the event streams in a chagnefeed.
+// A higher-level controller more suitable for direct use by the processor is ChangefeedFlowController.
+type ChangefeedMemoryQuota struct {
 	Quota uint64 // should not be changed once intialized
 
 	IsAborted uint32
@@ -38,10 +38,10 @@ type KeySpanMemoryQuota struct {
 	cond *sync.Cond
 }
 
-// NewKeySpanMemoryQuota creates a new KeySpanMemoryQuota
+// NewChangefeedMemoryQuota creates a new ChangefeedMemoryQuota
 // quota: max advised memory consumption in bytes.
-func NewKeySpanMemoryQuota(quota uint64) *KeySpanMemoryQuota {
-	ret := &KeySpanMemoryQuota{
+func NewChangefeedMemoryQuota(quota uint64) *ChangefeedMemoryQuota {
+	ret := &ChangefeedMemoryQuota{
 		Quota:    quota,
 		mu:       sync.Mutex{},
 		Consumed: 0,
@@ -55,7 +55,7 @@ func NewKeySpanMemoryQuota(quota uint64) *KeySpanMemoryQuota {
 // block until enough memory has been freed up by Release.
 // blockCallBack will be called if the function will block.
 // Should be used with care to prevent deadlock.
-func (c *KeySpanMemoryQuota) ConsumeWithBlocking(nBytes uint64, blockCallBack func() error) error {
+func (c *ChangefeedMemoryQuota) ConsumeWithBlocking(nBytes uint64, blockCallBack func() error) error {
 	if nBytes >= c.Quota {
 		return cerrors.ErrFlowControllerEventLargerThanQuota.GenWithStackByArgs(nBytes, c.Quota)
 	}
@@ -91,7 +91,7 @@ func (c *KeySpanMemoryQuota) ConsumeWithBlocking(nBytes uint64, blockCallBack fu
 
 // ForceConsume is called when blocking is not acceptable and the limit can be violated
 // for the sake of avoid deadlock. It merely records the increased memory consumption.
-func (c *KeySpanMemoryQuota) ForceConsume(nBytes uint64) error {
+func (c *ChangefeedMemoryQuota) ForceConsume(nBytes uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -104,12 +104,12 @@ func (c *KeySpanMemoryQuota) ForceConsume(nBytes uint64) error {
 }
 
 // Release is called when a chuck of memory is done being used.
-func (c *KeySpanMemoryQuota) Release(nBytes uint64) {
+func (c *ChangefeedMemoryQuota) Release(nBytes uint64) {
 	c.mu.Lock()
 
 	if c.Consumed < nBytes {
 		c.mu.Unlock()
-		log.Panic("KeySpanMemoryQuota: releasing more than consumed, report a bug",
+		log.Panic("ChangefeedMemoryQuota: releasing more than consumed, report a bug",
 			zap.Uint64("consumed", c.Consumed),
 			zap.Uint64("released", nBytes))
 	}
@@ -125,22 +125,22 @@ func (c *KeySpanMemoryQuota) Release(nBytes uint64) {
 }
 
 // Abort interrupts any ongoing ConsumeWithBlocking call
-func (c *KeySpanMemoryQuota) Abort() {
+func (c *ChangefeedMemoryQuota) Abort() {
 	atomic.StoreUint32(&c.IsAborted, 1)
 	c.cond.Signal()
 }
 
 // GetConsumption returns the current memory consumption
-func (c *KeySpanMemoryQuota) GetConsumption() uint64 {
+func (c *ChangefeedMemoryQuota) GetConsumption() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	return c.Consumed
 }
 
-// KeySpanFlowController provides a convenient interface to control the memory consumption of a per keyspan event stream
-type KeySpanFlowController struct {
-	memoryQuota *KeySpanMemoryQuota
+// ChangefeedFlowController provides a convenient interface to control the memory consumption of a per changefeed event stream
+type ChangefeedFlowController struct {
+	memoryQuota *ChangefeedMemoryQuota
 
 	mu    sync.Mutex
 	queue deque.Deque
@@ -153,17 +153,17 @@ type commitTsSizeEntry struct {
 	Size     uint64
 }
 
-// NewKeySpanFlowController creates a new KeySpanFlowController
-func NewKeySpanFlowController(quota uint64) *KeySpanFlowController {
-	return &KeySpanFlowController{
-		memoryQuota: NewKeySpanMemoryQuota(quota),
+// NewChangefeedFlowController creates a new ChangefeedFlowController
+func NewChangefeedFlowController(quota uint64) *ChangefeedFlowController {
+	return &ChangefeedFlowController{
+		memoryQuota: NewChangefeedMemoryQuota(quota),
 		queue:       deque.NewDeque(),
 	}
 }
 
 // Consume is called when an event has arrived for being processed by the sink.
 // It will handle transaction boundaries automatically, and will not block intra-transaction.
-func (c *KeySpanFlowController) Consume(commitTs uint64, size uint64, blockCallBack func() error) error {
+func (c *ChangefeedFlowController) Consume(commitTs uint64, size uint64, blockCallBack func() error) error {
 	lastCommitTs := atomic.LoadUint64(&c.lastCommitTs)
 
 	if commitTs < lastCommitTs {
@@ -201,7 +201,7 @@ func (c *KeySpanFlowController) Consume(commitTs uint64, size uint64, blockCallB
 }
 
 // Release is called when all events committed before resolvedTs has been freed from memory.
-func (c *KeySpanFlowController) Release(resolvedTs uint64) {
+func (c *ChangefeedFlowController) Release(resolvedTs uint64) {
 	var nBytesToRelease uint64
 
 	c.mu.Lock()
@@ -219,11 +219,11 @@ func (c *KeySpanFlowController) Release(resolvedTs uint64) {
 }
 
 // Abort interrupts any ongoing Consume call
-func (c *KeySpanFlowController) Abort() {
+func (c *ChangefeedFlowController) Abort() {
 	c.memoryQuota.Abort()
 }
 
 // GetConsumption returns the current memory consumption
-func (c *KeySpanFlowController) GetConsumption() uint64 {
+func (c *ChangefeedFlowController) GetConsumption() uint64 {
 	return c.memoryQuota.GetConsumption()
 }
