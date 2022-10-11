@@ -118,7 +118,7 @@ func (n *sorterNode) StartActorNode(ctx pipeline.NodeContext, eg *errgroup.Group
 		lastCRTs := uint64(0)                // the commit-ts of the last row changed we sent.
 
 		metricsChangefeedMemoryHistogram := changefeedMemoryHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
-		metricsMemoryConsumeHistogram := flowControllerConsumeHistogram.WithLabelValues(ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
+		metricsMemoryConsumeHistogram := flowControllerDurationHistogram.WithLabelValues("consume", ctx.ChangefeedVars().ID, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 		metricsTicker := time.NewTicker(flushMemoryMetricsDuration)
 		defer metricsTicker.Stop()
 
