@@ -33,7 +33,7 @@ function run() {
 	rawkv_op $UP_PD put 100000 #10w
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-    rawkv_op $UP_PD delete 100000
+	rawkv_op $UP_PD delete 100000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
