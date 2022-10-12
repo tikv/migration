@@ -131,6 +131,7 @@ function run() {
 	tikv-cdc cli changefeed remove --changefeed-id=$changefeed_id2 --pd=$pd_addr
 	ensure $MAX_RETRIES check_safepoint_cleared $pd_addr $pd_cluster_id
 
+	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
 }
 

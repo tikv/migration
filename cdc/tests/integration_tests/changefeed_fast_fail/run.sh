@@ -61,6 +61,7 @@ function run() {
 		exit 1
 	fi
 
+	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
 }
 
