@@ -20,7 +20,7 @@ function run() {
 	# record tso before we create tables to skip the system table DDLs
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	sleep 10
-	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=1000*return(true)'
+	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=5000*return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
 	case $SINK_TYPE in
@@ -30,8 +30,8 @@ function run() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 
+    # May cause ci to take too long to run
 	rawkv_op $UP_PD put 500000 #50w
-
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	rawkv_op $UP_PD delete 500000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
