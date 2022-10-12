@@ -1225,7 +1225,7 @@
           ],
           "timeFrom": null,
           "timeShift": null,
-          "title": "KeySpan count maintained by owner",
+          "title": "Keyspan count maintained by owner",
           "transform": "timeseries_aggregations",
           "type": "table"
         },
