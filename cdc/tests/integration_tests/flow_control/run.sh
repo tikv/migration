@@ -30,7 +30,7 @@ function run() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 
-    # May cause ci to take too long to run
+	# May cause ci to take too long to run
 	rawkv_op $UP_PD put 500000 #50w
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	rawkv_op $UP_PD delete 500000
