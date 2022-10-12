@@ -977,7 +977,7 @@
           ],
           "targets": [
             {
-              "expr": "sum(tikv_cdc_processor_num_of_tables{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\",capture=~\"$capture\"}) by (capture)",
+              "expr": "sum(tikv_cdc_processor_num_of_keyspans{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\",capture=~\"$capture\"}) by (capture)",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 1,
@@ -987,7 +987,7 @@
           ],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Changefeed table count",
+          "title": "Changefeed keyspan count",
           "transform": "timeseries_aggregations",
           "type": "table"
         },
@@ -1018,7 +1018,7 @@
           },
           "styles": [
             {
-              "alias": "table",
+              "alias": "keyspan",
               "colorMode": null,
               "colors": [
                 "rgba(245, 54, 54, 0.9)",
@@ -1100,7 +1100,7 @@
           },
           "styles": [
             {
-              "alias": "table",
+              "alias": "keyspan",
               "colorMode": null,
               "colors": [
                 "rgba(245, 54, 54, 0.9)",
@@ -1152,7 +1152,7 @@
           ],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Table resolved ts",
+          "title": "Keyspan resolved ts",
           "transform": "timeseries_aggregations",
           "type": "table"
         },
@@ -1164,7 +1164,7 @@
             }
           ],
           "datasource": "${DS_TEST-CLUSTER}",
-          "description": "The number of replicated tables maintained in owner",
+          "description": "The number of replicated keyspans maintained in owner",
           "fontSize": "100%",
           "gridPos": {
             "h": 5,
@@ -1207,7 +1207,7 @@
           ],
           "targets": [
             {
-              "expr": "sum(tikv_cdc_owner_maintain_table_num{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\",capture=~\"$capture\",type=\"total\"}) by (capture)",
+              "expr": "sum(tikv_cdc_owner_maintain_keyspan_num{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\",capture=~\"$capture\",type=\"total\"}) by (capture)",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 1,
@@ -1215,7 +1215,7 @@
               "refId": "A"
             },
             {
-              "expr": "sum(tikv_cdc_owner_maintain_table_num{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\",capture=~\"$capture\",type=\"wip\"}) by (capture)",
+              "expr": "sum(tikv_cdc_owner_maintain_keyspan_num{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\",capture=~\"$capture\",type=\"wip\"}) by (capture)",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 1,
@@ -1225,7 +1225,7 @@
           ],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Table count maintained by owner",
+          "title": "Keyspan count maintained by owner",
           "transform": "timeseries_aggregations",
           "type": "table"
         },
