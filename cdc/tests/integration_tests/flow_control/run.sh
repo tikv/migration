@@ -21,7 +21,7 @@ function run() {
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	sleep 10
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=1000*return(true)'
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --restart "true"
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
