@@ -17,11 +17,18 @@ function run() {
 
 	cd $WORK_DIR
 
-	# record tso before we create tables to skip the system table DDLs
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	sleep 10
-	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=5000*return(true)'
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
+
+	cat - >"$WORK_DIR/tikv-cdc-config.toml" <<EOF
+per-changefeed-memory-quota=102400 #100K
+[sorter]
+max-memory-consumption=0
+EOF
+
+	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=1000*return(true)'
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --config $WORK_DIR/tikv-cdc-config.toml
+	rss0=$(ps -u | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
@@ -29,11 +36,19 @@ function run() {
 	esac
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
+	rawkv_op $UP_PD put 100000 # About 30M
 
-	# May cause ci to take too long to run
-	rawkv_op $UP_PD put 500000 #50w
+	rss1=$(ps -u | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
+	expected=1048576 # 1M
+	used=$(echo $rss1-$rss0 | bc)
+	echo "cdc server used memory: $used"
+	if [ $used -gt $expected ]; then
+		echo "Maybe flow-contorl is not working"
+		exit 1
+	fi
+
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 500000
+	rawkv_op $UP_PD delete 100000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
