@@ -23,7 +23,7 @@ function run() {
 	esac
 
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-    sleep 10
+	sleep 10
 	rawkv_op $UP_PD put 10000
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/processorManagerHandleNewChangefeedDelay=sleep(2000)'
@@ -34,7 +34,7 @@ function run() {
 	sleep 1
 
 	capture_key=$(ETCDCTL_API=3 etcdctl get /tikv/cdc/capture --prefix | head -n 1)
-    echo $capture_key
+	echo $capture_key
 	lease=$(ETCDCTL_API=3 etcdctl get $capture_key -w json | grep -o 'lease":[0-9]*' | awk -F: '{print $2}')
 	lease_hex=$(printf '%x\n' $lease)
 	# revoke lease of etcd capture key to simulate etcd session done
