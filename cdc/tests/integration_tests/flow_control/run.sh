@@ -51,6 +51,7 @@ EOF
 	rawkv_op $UP_PD delete 100000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
+	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
 }
 
