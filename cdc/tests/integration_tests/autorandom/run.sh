@@ -12,6 +12,7 @@ DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 function run() {
     echo $SHELL
+    echo $(/bin/bash --version)
     exit 1
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 
