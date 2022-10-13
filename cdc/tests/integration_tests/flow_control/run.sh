@@ -40,7 +40,8 @@ EOF
 
 	rss1=$(ps -u | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	expected=1048576 # 1M
-	used=$(echo $rss1-$rss0 | bc)
+    used=$(($rss1 - $rss0))
+
 	echo "cdc server used memory: $used"
 	if [ $used -gt $expected ]; then
 		echo "Maybe flow-contorl is not working"
