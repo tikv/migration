@@ -16,8 +16,12 @@ function run() {
 	cd $WORK_DIR
 
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	sleep 10
+	# sleep 10
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
+    echo $(ps -u)
+    echo $(ps -aux)
+    echo $(ps -ef)
+    exit 1
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
