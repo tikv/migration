@@ -21,6 +21,7 @@ function run() {
     echo $(ps -u)
     echo $(ps -aux)
     echo $(ps -ef)
+	rss1=$(ps -aux | grep 'tikv-cdc')
     exit 1
 
 	case $SINK_TYPE in
