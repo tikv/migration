@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -euo pipefail
 
 OUT_DIR=/tmp/tikv_cdc_test
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -52,7 +52,7 @@ test_case=$1
 if [ -z "$test_case" ]; then
 	test_case="*"
 fi
-set -eu
+set -euo pipefail
 
 if [ "$test_case" == "*" ]; then
 	for script in $CUR/*/run.sh; do

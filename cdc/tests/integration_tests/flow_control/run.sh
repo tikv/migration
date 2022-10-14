@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -euo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -29,6 +29,9 @@ EOF
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=1000*return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --config $WORK_DIR/tikv-cdc-config.toml
 	rss0=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
+	if [[ $rss0 == "" ]]; then
+		exit 1
+	fi
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
@@ -39,6 +42,9 @@ EOF
 	rawkv_op $UP_PD put 100000 # About 30M
 
 	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
+	if [[ $rss1 == "" ]]; then
+		exit 1
+	fi
 	expected=1048576 # 1M
 	used=$(expr $rss1 - $rss0)
 
