@@ -28,7 +28,7 @@ EOF
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=1000*return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --config $WORK_DIR/tikv-cdc-config.toml
-	rss0=$(ps -u | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
+	rss0=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
@@ -38,7 +38,7 @@ EOF
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 	rawkv_op $UP_PD put 100000 # About 30M
 
-	rss1=$(ps -u | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
+	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	expected=1048576 # 1M
 	used=$(expr $rss1 - $rss0)
 
