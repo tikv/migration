@@ -30,6 +30,7 @@ EOF
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --config $WORK_DIR/tikv-cdc-config.toml
 	rss0=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	if [[ $rss0 == "" ]]; then
+        echo "Failed to get rrs by ps"
 		exit 1
 	fi
 
@@ -43,6 +44,7 @@ EOF
 
 	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	if [[ $rss1 == "" ]]; then
+        echo "Failed to get rrs by ps"
 		exit 1
 	fi
 	expected=1048576 # 1M
