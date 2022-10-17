@@ -5,7 +5,8 @@ set -euo pipefail
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
-CDC_BINARY=tikv-cdc.test
+# Here we don't use tikv-cdc.test, because the memory it uses is hard to calculate
+CDC_BINARY=tikv-cdc
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
@@ -19,9 +20,10 @@ function run() {
 
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	sleep 10
+    go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 -p recordcount=1000000 -p operationcount=1000000 --threads 100 # About 1G
 
 	cat - >"$WORK_DIR/tikv-cdc-config.toml" <<EOF
-per-changefeed-memory-quota=102400 #100K
+per-changefeed-memory-quota=10485760 #10M
 [sorter]
 max-memory-consumption=0
 EOF
@@ -33,6 +35,7 @@ EOF
 		echo "Failed to get rrs by ps"
 		exit 1
 	fi
+    echo $rss0
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
@@ -40,14 +43,16 @@ EOF
 	esac
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
-	rawkv_op $UP_PD put 100000 # About 30M
+    # Wait until cdc pulls the data from tikva nd store it in soter
+    sleep 90
 
 	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	if [[ $rss1 == "" ]]; then
 		echo "Failed to get rrs by ps"
 		exit 1
 	fi
-	expected=1048576 # 1M
+    echo $rss1
+	expected=524288 # 1G
 	used=$(expr $rss1 - $rss0)
 
 	echo "cdc server used memory: $used"
@@ -56,8 +61,6 @@ EOF
 		exit 1
 	fi
 
-	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 100000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	export GO_FAILPOINTS=''
