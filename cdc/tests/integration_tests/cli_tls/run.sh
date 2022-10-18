@@ -24,7 +24,7 @@ function check_changefeed_state() {
 }
 
 function check_count() {
-    cmd=$1
+	cmd=$1
 	expected=$2
 	count=$(tikv-cdc cli $cmd $SUFFIX | jq '.|length')
 	if [[ "$count" != "$expected" ]]; then
@@ -65,43 +65,43 @@ function run() {
 	*) SINK_URI="" ;;
 	esac
 
-    ID="feed01"
+	ID="feed01"
 	run_cdc_cli changefeed create --sink-uri="$SINK_URI" -c=$ID $SUFFIX
-    sleep 10
+	sleep 10
 
 	rawkv_op $UP_PD put 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
-    # changefeed 
+	# changefeed
 	check_changefeed_state $ID "normal"
-    run_cdc_cli changefeed pause -c=$ID $SUFFIX
-    sleep 2
+	run_cdc_cli changefeed pause -c=$ID $SUFFIX
+	sleep 2
 	check_changefeed_state $ID "stopped"
-    run_cdc_cli changefeed update -c=$ID --sort-engine="memory" --no-confirm $SUFFIX
-    run_cdc_cli changefeed resume -c=$ID $SUFFIX
-    sleep 2
+	run_cdc_cli changefeed update -c=$ID --sort-engine="memory" --no-confirm $SUFFIX
+	run_cdc_cli changefeed resume -c=$ID $SUFFIX
+	sleep 2
 	check_changefeed_state $ID "normal"
 	run_cdc_cli changefeed create --sink-uri="$SINK_URI" -c="feed02" $SUFFIX
-    sleep 2
+	sleep 2
 	check_changefeed_state $ID "normal"
 	check_count "changefeed list" 2
 	run_cdc_cli changefeed remove -c="feed02" $SUFFIX
-    sleep 2
+	sleep 2
 	check_changefeed_state $ID "normal"
 	check_count "changefeed list" 1
 
-    # capture
+	# capture
 	check_count "capture list" 1
-    # processor
+	# processor
 	check_count "processor list" 1
-    capture=$(run_cdc_cli processor list $SUFFIX | jq '.[0].capture_id' | tr -d '"')
-    # We can get processor information by processor query as follow: 
-    # {
-    #   "status": {...},
-    #   "operation": {...},
-    # }
-    # There are two elements at the top level, so we should `check_cout 2`
-    check_count "processor query -c=$ID -p=$capture" 2
+	capture=$(run_cdc_cli processor list $SUFFIX | jq '.[0].capture_id' | tr -d '"')
+	# We can get processor information by processor query as follow:
+	# {
+	#   "status": {...},
+	#   "operation": {...},
+	# }
+	# There are two elements at the top level, so we should `check_cout 2`
+	check_count "processor query -c=$ID -p=$capture" 2
 
 	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
