@@ -26,12 +26,12 @@ function check_changefeed_state() {
 function check_count() {
     cmd=$1
 	expected=$2
-	count=$(tikv-cdc cli $cmd list $SUFFIX | jq '.|length')
+	count=$(tikv-cdc cli $cmd $SUFFIX | jq '.|length')
 	if [[ "$count" != "$expected" ]]; then
-		echo "[$(date)] <<<<< unexpect $cmd count! expect ${expected} got ${feed_count} >>>>>"
+		echo "[$(date)] <<<<< unexpect 'cli $cmd' count! expect ${expected} got ${count} >>>>>"
 		exit 1
 	fi
-	echo "$cmd count ${count} check pass"
+	echo "'cli $cmd' count ${count} check pass"
 }
 
 function run() {
@@ -84,16 +84,24 @@ function run() {
 	run_cdc_cli changefeed create --sink-uri="$SINK_URI" -c="feed02" $SUFFIX
     sleep 2
 	check_changefeed_state $ID "normal"
-	check_count "changefeed" 2
+	check_count "changefeed list" 2
 	run_cdc_cli changefeed remove -c="feed02" $SUFFIX
     sleep 2
 	check_changefeed_state $ID "normal"
-	check_count "changefeed" 1
+	check_count "changefeed list" 1
 
     # capture
-	check_count "capture" 1
+	check_count "capture list" 1
     # processor
-	check_count "processor" 1
+	check_count "processor list" 1
+    capture=$(run_cdc_cli processor list $SUFFIX | jq '.[0].capture_id' | tr -d '"')
+    # We can get processor information by processor query as follow: 
+    # {
+    #   "status": {...},
+    #   "operation": {...},
+    # }
+    # There are two elements at the top level, so we should `check_cout 2`
+    check_count "processor query -c=$ID -p=$capture" 2
 
 	rawkv_op $UP_PD delete 10000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
