@@ -34,7 +34,6 @@ function run() {
 	sleep 1
 
 	capture_key=$(ETCDCTL_API=3 etcdctl get /tikv/cdc/capture --prefix | head -n 1)
-	echo $capture_key
 	lease=$(ETCDCTL_API=3 etcdctl get $capture_key -w json | grep -o 'lease":[0-9]*' | awk -F: '{print $2}')
 	lease_hex=$(printf '%x\n' $lease)
 	# revoke lease of etcd capture key to simulate etcd session done
