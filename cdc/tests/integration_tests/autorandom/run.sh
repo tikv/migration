@@ -12,12 +12,9 @@ DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
-
 	start_tidb_cluster --workdir $WORK_DIR
-
 	cd $WORK_DIR
 
-	# record tso before we create tables to skip the system table DDLs
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	sleep 10
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
