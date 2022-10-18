@@ -20,7 +20,7 @@ function run() {
 
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	sleep 10
-	go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 -p recordcount=1000000 -p operationcount=1000000 --threads 100 # About 1G
+	# go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 100 # About 1G
 
 	cat - >"$WORK_DIR/tikv-cdc-config.toml" <<EOF
 per-changefeed-memory-quota=10485760 #10M
@@ -28,11 +28,11 @@ per-changefeed-memory-quota=10485760 #10M
 max-memory-consumption=0
 EOF
 
-	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=1000*return(true)'
+	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSinkFlushNothing=1200*return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --config $WORK_DIR/tikv-cdc-config.toml
 	rss0=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	if [[ $rss0 == "" ]]; then
-		echo "Failed to get rrs by ps"
+		echo "Failed to get rrs0 by ps"
 		exit 1
 	fi
 
@@ -42,24 +42,27 @@ EOF
 	esac
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
-	# Wait until cdc pulls the data from tikva nd store it in soter
-	sleep 90
+	# Wait until cdc pulls the data from tikv and store it in soter
+	# sleep 90
 
 	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	if [[ $rss1 == "" ]]; then
-		echo "Failed to get rrs by ps"
+		echo "Failed to get rrs1 by ps"
 		exit 1
 	fi
-	expected=524288 # 1G
+    # We set `per-changefeed-memory-quota=10M` and forbid sorter to use memory cache data,
+    # so maybe there is 10M of memory for data. B still needs some memory to hold related data structures.
+	expected=204800 #200M
 	used=$(expr $rss1 - $rss0)
-
 	echo "cdc server used memory: $used"
 	if [ $used -gt $expected ]; then
 		echo "Maybe flow-contorl is not working"
 		exit 1
 	fi
+    exit 1
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 
 	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
