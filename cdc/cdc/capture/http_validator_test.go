@@ -43,8 +43,20 @@ func TestVerifyUpdateChangefeedConfig(t *testing.T) {
 	require.Regexp(t, ".*changefeed config is the same with the old one.*", err)
 	require.Nil(t, newInfo)
 
+	changefeedConfig = model.ChangefeedConfig{SortEngine: "db"}
+	newInfo, err = verifyUpdateChangefeedConfig(ctx, changefeedConfig, oldInfo)
+	require.NotNil(t, err)
+	require.Regexp(t, ".*can not update sort engin.*", err)
+	require.Nil(t, newInfo)
+
+	changefeedConfig = model.ChangefeedConfig{StartKey: "r", EndKey: "s", Format: "hex"}
+	newInfo, err = verifyUpdateChangefeedConfig(ctx, changefeedConfig, oldInfo)
+	require.NotNil(t, err)
+	require.Regexp(t, ".*can not update start-key.*", err)
+	require.Nil(t, newInfo)
+
 	// test verify success
-	changefeedConfig = model.ChangefeedConfig{SinkConfig: &config.SinkConfig{Protocol: "test"}}
+	changefeedConfig = model.ChangefeedConfig{StartKey: "r", EndKey: "s", Format: "raw", SinkConfig: &config.SinkConfig{Protocol: "test"}}
 	newInfo, err = verifyUpdateChangefeedConfig(ctx, changefeedConfig, oldInfo)
 	require.Nil(t, err)
 	require.NotNil(t, newInfo)

@@ -125,10 +125,14 @@ func (c ChangefeedDetail) MarshalJSON() ([]byte, error) {
 
 // ChangefeedConfig use to create a changefeed
 type ChangefeedConfig struct {
-	ID       string `json:"changefeed_id"`
-	StartTS  uint64 `json:"start_ts"`
-	TargetTS uint64 `json:"target_ts"`
-	SinkURI  string `json:"sink_uri"`
+	ID         string `json:"changefeed_id"`
+	StartTS    uint64 `json:"start_ts"`
+	TargetTS   uint64 `json:"target_ts"`
+	SinkURI    string `json:"sink_uri"`
+	Format     string `json:"format"`
+	StartKey   string `json:"start_key"`
+	EndKey     string `json:"end_key"`
+	SortEngine string `json:"sort-engine"`
 	// timezone used when checking sink uri
 	TimeZone   string             `json:"timezone" default:"system"`
 	SinkConfig *config.SinkConfig `json:"sink_config"`

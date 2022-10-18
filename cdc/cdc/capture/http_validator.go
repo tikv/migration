@@ -80,6 +80,24 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		replicaConfig.Sink = changefeedConfig.SinkConfig
 	}
 
+	if changefeedConfig.Format == "" {
+		changefeedConfig.Format = "hex"
+	}
+	if err := util.ValidKeyFormat(changefeedConfig.Format,
+		changefeedConfig.StartKey, changefeedConfig.EndKey); err != nil {
+		return nil, err
+	}
+
+	if changefeedConfig.SortEngine == "" {
+		changefeedConfig.SortEngine = model.SortUnified
+	} else {
+		switch changefeedConfig.SortEngine {
+		case model.SortUnified, model.SortInMemory:
+		default:
+			return nil, cerror.ErrIllegalSorterParameter.FastGen("not support sort engine: %s", changefeedConfig.SortEngine)
+		}
+	}
+
 	// init ChangefeedInfo
 	info := &model.ChangeFeedInfo{
 		SinkURI:        changefeedConfig.SinkURI,
@@ -87,8 +105,11 @@ func verifyCreateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		CreateTime:     time.Now(),
 		StartTs:        changefeedConfig.StartTS,
 		TargetTs:       changefeedConfig.TargetTS,
+		Format:         changefeedConfig.Format,
+		StartKey:       changefeedConfig.StartKey,
+		EndKey:         changefeedConfig.EndKey,
 		Config:         replicaConfig,
-		Engine:         model.SortUnified,
+		Engine:         changefeedConfig.SortEngine,
 		State:          model.StateNormal,
 		CreatorVersion: version.ReleaseVersion,
 	}
@@ -130,6 +151,26 @@ func verifyUpdateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		if err := sink.Validate(ctx, changefeedConfig.SinkURI, newInfo.Config, newInfo.Opts); err != nil {
 			return nil, cerror.ErrChangefeedUpdateRefused.GenWithStackByCause(err)
 		}
+	}
+
+	if changefeedConfig.SortEngine != "" {
+		switch changefeedConfig.SortEngine {
+		case model.SortUnified, model.SortInMemory:
+		default:
+			return nil, cerror.ErrChangefeedUpdateRefused.GenWithStack("can not update sort engine: %s", changefeedConfig.SortEngine)
+		}
+		newInfo.Engine = changefeedConfig.SortEngine
+	}
+
+	if changefeedConfig.Format != "" || changefeedConfig.StartKey != "" || changefeedConfig.EndKey != "" {
+		if err := util.ValidKeyFormat(changefeedConfig.Format,
+			changefeedConfig.StartKey, changefeedConfig.EndKey); err != nil {
+			return nil, cerror.ErrChangefeedUpdateRefused.GenWithStack("can not update start-key: %s and end-key: %s with format %s, error: %v",
+				changefeedConfig.StartKey, changefeedConfig.EndKey, changefeedConfig.Format, err)
+		}
+		newInfo.Format = changefeedConfig.Format
+		newInfo.StartKey = changefeedConfig.StartKey
+		newInfo.EndKey = changefeedConfig.EndKey
 	}
 
 	if !diff.Changed(oldInfo, newInfo) {
