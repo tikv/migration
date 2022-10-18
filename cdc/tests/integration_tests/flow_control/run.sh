@@ -20,7 +20,7 @@ function run() {
 
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	sleep 10
-	# go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 100 # About 1G
+	go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 100 # About 1G
 
 	cat - >"$WORK_DIR/tikv-cdc-config.toml" <<EOF
 per-changefeed-memory-quota=10485760 #10M
@@ -43,15 +43,15 @@ EOF
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 	# Wait until cdc pulls the data from tikv and store it in soter
-	# sleep 90
+	sleep 90
 
 	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 	if [[ $rss1 == "" ]]; then
 		echo "Failed to get rrs1 by ps"
 		exit 1
 	fi
-    # We set `per-changefeed-memory-quota=10M` and forbid sorter to use memory cache data,
-    # so maybe there is 10M of memory for data. B still needs some memory to hold related data structures.
+	# We set `per-changefeed-memory-quota=10M` and forbid sorter to use memory cache data,
+	# so maybe there is 10M of memory for data. B still needs some memory to hold related data structures.
 	expected=204800 #200M
 	used=$(expr $rss1 - $rss0)
 	echo "cdc server used memory: $used"
@@ -59,7 +59,6 @@ EOF
 		echo "Maybe flow-contorl is not working"
 		exit 1
 	fi
-    exit 1
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
