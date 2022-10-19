@@ -147,6 +147,11 @@ func (n *sinkNode) flushSink(ctx context.Context, resolvedTs model.Ts) (err erro
 	if resolvedTs > n.targetTs {
 		resolvedTs = n.targetTs
 	}
+
+	failpoint.Inject("ProcessorSinkFlushNothing", func() {
+		failpoint.Return(nil)
+	})
+
 	if resolvedTs <= n.CheckpointTs() {
 		return nil
 	}

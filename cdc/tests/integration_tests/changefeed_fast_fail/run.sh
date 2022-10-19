@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -euo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -61,6 +61,7 @@ function run() {
 		exit 1
 	fi
 
+	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
 }
 
