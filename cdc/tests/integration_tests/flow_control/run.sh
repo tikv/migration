@@ -51,7 +51,7 @@ EOF
 		exit 1
 	fi
 	# We set `per-changefeed-memory-quota=10M` and forbid sorter to use memory cache data,
-	# so maybe there is 10M of memory for data. B still needs some memory to hold related data structures.
+	# so maybe there is 10M of memory for data. But still needs some memory to hold related data structures.
 	expected=204800 #200M
 	used=$(expr $rss1 - $rss0)
 	echo "cdc server used memory: $used"
@@ -61,7 +61,6 @@ EOF
 	fi
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
 
 	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
