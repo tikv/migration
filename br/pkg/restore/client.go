@@ -240,7 +240,7 @@ func (rc *Client) setSpeedLimit(ctx context.Context, rateLimit uint64) error {
 	return nil
 }
 
-func (rc *Client) resetSpeedLimit(ctx context.Context) error {
+func (rc *Client) resetSpeedLimit(ctx context.Context) {
 	if rc.hasSpeedLimited {
 		var resetErr error
 		for retry := 0; retry < resetSpeedLimitRetryTimes; retry++ {
@@ -258,7 +258,6 @@ func (rc *Client) resetSpeedLimit(ctx context.Context) error {
 		}
 	}
 	rc.hasSpeedLimited = false
-	return nil
 }
 
 // RestoreRaw tries to restore raw keys in the specified range.

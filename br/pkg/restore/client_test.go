@@ -73,16 +73,14 @@ func (r *RecordStores) toString() string {
 
 var recordStores RecordStores
 
-const (
-	WORKING_TIME = 10
-)
+const workingTime = 10
 
 func (fakeImportCli FakeImporterClient) SetDownloadSpeedLimit(
 	ctx context.Context,
 	storeID uint64,
 	req *import_sstpb.SetDownloadSpeedLimitRequest,
 ) (*import_sstpb.SetDownloadSpeedLimitResponse, error) {
-	time.Sleep(WORKING_TIME * time.Millisecond) // simulate doing 100 ms work
+	time.Sleep(workingTime * time.Millisecond) // simulate doing 100 ms work
 	recordStores.put(storeID, req.SpeedLimit)
 	return nil, nil
 }
@@ -123,7 +121,7 @@ func TestSetSpeedLimit(t *testing.T) {
 	t.Logf("Total Cost: %v\n", cost)
 	t.Logf("Has Communicated: %v\n", recordStores.toString())
 
-	serialCost := time.Duration(len(mockStores)*WORKING_TIME) * time.Millisecond
+	serialCost := time.Duration(len(mockStores)*workingTime) * time.Millisecond
 	require.LessOrEqual(t, serialCost, cost)
 	require.Equal(t, len(mockStores), recordStores.len())
 	for i := 0; i < len(mockStores); i++ {
@@ -132,9 +130,8 @@ func TestSetSpeedLimit(t *testing.T) {
 
 	recordStores = NewRecordStores()
 	start = time.Now()
-	err = client.resetSpeedLimit(ctx)
+	client.resetSpeedLimit(ctx)
 	cost = time.Since(start)
-	require.NoError(t, err)
 	require.LessOrEqual(t, serialCost, cost)
 	require.Equal(t, len(mockStores), recordStores.len())
 	for i := 0; i < len(mockStores); i++ {
