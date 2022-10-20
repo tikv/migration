@@ -34,6 +34,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+const resetSpeedLimitRetryTimes = 3
+
 // Client sends requests to restore files.
 type Client struct {
 	pdClient      pd.Client
@@ -59,7 +61,6 @@ type Client struct {
 
 // NewRestoreClient returns a new RestoreClient.
 func NewRestoreClient(
-	g glue.Glue,
 	pdClient pd.Client,
 	tlsConf *tls.Config,
 	keepaliveConf keepalive.ClientParameters,
@@ -134,7 +135,7 @@ func (rc *Client) InitBackupMeta(
 	metaClient := NewSplitClient(rc.pdClient, rc.tlsConf, rc.backupMeta.IsRawKv)
 	importCli := NewImportClient(metaClient, rc.tlsConf, rc.keepaliveConf)
 	rc.fileImporter = NewFileImporter(metaClient, importCli, backend, rc.backupMeta.IsRawKv,
-		rc.backupMeta.ApiVersion, rc.rateLimit)
+		rc.backupMeta.ApiVersion)
 	return rc.fileImporter.CheckMultiIngestSupport(c, rc.pdClient)
 }
 
@@ -224,21 +225,39 @@ func (rc *Client) GetTS(ctx context.Context) (uint64, error) {
 	return restoreTS, nil
 }
 
-// nolint:unused
-func (rc *Client) setSpeedLimit(ctx context.Context) error {
-	if !rc.hasSpeedLimited && rc.rateLimit != 0 {
-		stores, err := conn.GetAllTiKVStores(ctx, rc.pdClient, conn.SkipTiFlash)
+func (rc *Client) setSpeedLimit(ctx context.Context, rateLimit uint64) error {
+	stores, err := conn.GetAllTiKVStores(ctx, rc.pdClient, conn.SkipTiFlash)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	for _, store := range stores {
+		err = rc.fileImporter.setDownloadSpeedLimit(ctx, store.GetId(), rateLimit)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		for _, store := range stores {
-			err = rc.fileImporter.setDownloadSpeedLimit(ctx, store.GetId())
-			if err != nil {
-				return errors.Trace(err)
-			}
-		}
-		rc.hasSpeedLimited = true
 	}
+	rc.hasSpeedLimited = true
+	return nil
+}
+
+func (rc *Client) resetSpeedLimit(ctx context.Context) error {
+	if rc.hasSpeedLimited {
+		var resetErr error
+		for retry := 0; retry < resetSpeedLimitRetryTimes; retry++ {
+			resetErr = rc.setSpeedLimit(ctx, 0)
+			if resetErr != nil {
+				log.Warn("failed to reset speed limit, retry it",
+					zap.Int("retry time", retry), logutil.ShortError(resetErr))
+				time.Sleep(time.Duration(retry+3) * time.Second)
+				continue
+			}
+			break
+		}
+		if resetErr != nil {
+			log.Error("failed to reset speed limit", zap.Error(resetErr))
+		}
+	}
+	rc.hasSpeedLimited = false
 	return nil
 }
 
@@ -270,6 +289,12 @@ func (rc *Client) RestoreRaw(
 	if err != nil {
 		return errors.Trace(err)
 	}
+	err = rc.setSpeedLimit(ctx, rc.rateLimit)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	// TODO: Need a mechanism to set speed limit in ttl.
+	defer rc.resetSpeedLimit(ctx)
 
 	for _, file := range files {
 		fileReplica := file
