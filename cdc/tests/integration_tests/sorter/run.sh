@@ -16,11 +16,11 @@ function run() {
 	start_tidb_cluster --workdir $WORK_DIR
 
 	cd $WORK_DIR
-    CF_NAME="feed01"
+	CF_NAME="feed01"
 
 	echo "test unified sorter"
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-    sleep 10
+	sleep 10
 	rawkv_op $UP_PD put 10000
 
 	# Run cdc server with unified sorter.
@@ -41,7 +41,7 @@ function run() {
 
 	echo "test memory sorter"
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-    sleep 10
+	sleep 10
 	rawkv_op $UP_PD put 10000
 
 	# Run cdc server with memory sorter.

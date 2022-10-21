@@ -51,8 +51,8 @@ function run() {
 	esac
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
-    tikv-cdc cli changefeed create --pd=$UP_PD --sink-uri="$SINK_URI"
-    sleep 10
+	tikv-cdc cli changefeed create --pd=$UP_PD --sink-uri="$SINK_URI"
+	sleep 10
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/capture/ownerFlushIntervalInject=return(10)'
 	kill_cdc_and_restart $UP_PD $WORK_DIR $CDC_BINARY
