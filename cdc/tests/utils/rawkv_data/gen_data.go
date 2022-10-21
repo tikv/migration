@@ -56,7 +56,7 @@ func NewPutCommand() *cobra.Command {
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runPointPut(cmd)
+			return runPutCmd(cmd)
 		},
 	}
 }
@@ -68,12 +68,12 @@ func NewDeleteCommand() *cobra.Command {
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runPointDelete(cmd)
+			return runDeleteCmd(cmd)
 		},
 	}
 }
 
-func runPointDelete(cmd *cobra.Command) error {
+func runDeleteCmd(cmd *cobra.Command) error {
 	cfg := &Config{}
 	err := cfg.ParseFromFlags(cmd.Flags(), false)
 	if err != nil {
@@ -108,7 +108,7 @@ func runPointDelete(cmd *cobra.Command) error {
 	return err
 }
 
-func runPointPut(cmd *cobra.Command) error {
+func runPutCmd(cmd *cobra.Command) error {
 	cfg := &Config{}
 	err := cfg.ParseFromFlags(cmd.Flags(), false)
 	if err != nil {
