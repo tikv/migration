@@ -198,12 +198,42 @@ def rebalance_keyspan():
 
 
 def move_keyspan():
+    # get keyspan_id
+    base_url = BASE_URL0 + "/processors"
+    resp = rq.get(base_url, cert=CERT, verify=VERIFY)
+    assert resp.status_code == rq.codes.ok
+    data = resp.json()[0]
+    old_capture_id = data["capture_id"]
+    url = base_url + "/" + data["changefeed_id"] + "/" + old_capture_id
+    resp = rq.get(url, cert=CERT, verify=VERIFY)
+    assert resp.status_code == rq.codes.ok
+    data = resp.json()
+    keyspan_id = list(data["keyspans"].keys())[0]
+
+    # get new capture_id
+    url = BASE_URL0 + "/captures"
+    resp = rq.get(url, cert=CERT, verify=VERIFY)
+    assert resp.status_code == rq.codes.ok
+    data = resp.json()
+    assert len(data) == 2
+    new_capture_id = data[0]["id"]
+    if new_capture_id == old_capture_id:
+        new_capture_id = data[1]["id"]
+
     # move keyspan
     url = BASE_URL0 + "/changefeeds/changefeed-test1/keyspans/move_keyspan"
-    data = json.dumps({"capture_id": "test-aaa-aa", "table_id": 11})
+    data = json.dumps({"capture_id": new_capture_id, "keyspan_id": int(keyspan_id)})
     headers = {"Content-Type": "application/json"}
     resp = rq.post(url, data=data, headers=headers, cert=CERT, verify=VERIFY)
     assert resp.status_code == rq.codes.accepted
+
+    # verfiy
+    time.sleep(5)
+    base_url = BASE_URL0 + "/processors"
+    resp = rq.get(base_url, cert=CERT, verify=VERIFY)
+    assert resp.status_code == rq.codes.ok
+    data = resp.json()[0]
+    assert data["capture_id"] == new_capture_id
 
     # move keyspan fail
     # not allow empty capture_id

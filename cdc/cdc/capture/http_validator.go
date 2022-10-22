@@ -162,7 +162,10 @@ func verifyUpdateChangefeedConfig(ctx context.Context, changefeedConfig model.Ch
 		newInfo.Engine = changefeedConfig.SortEngine
 	}
 
-	if changefeedConfig.Format != "" || changefeedConfig.StartKey != "" || changefeedConfig.EndKey != "" {
+	if changefeedConfig.StartKey != "" || changefeedConfig.EndKey != "" {
+		if changefeedConfig.Format == "" {
+			changefeedConfig.Format = "hex"
+		}
 		if err := util.ValidKeyFormat(changefeedConfig.Format,
 			changefeedConfig.StartKey, changefeedConfig.EndKey); err != nil {
 			return nil, cerror.ErrChangefeedUpdateRefused.GenWithStack("can not update start-key: %s and end-key: %s with format %s, error: %v",
