@@ -112,14 +112,14 @@ def update_changefeed():
     # update fail
     # can only update a stopped changefeed
     url = BASE_URL0+"/changefeeds/changefeed-test1"
-    data = json.dumps({"format": "raw", "start-key": "xr", "end-key":"xs"})
+    data = json.dumps({"format": "raw", "start_key": "xr", "end_key":"xs"})
     headers = {"Content-Type": "application/json"}
     resp = rq.put(url, data=data, headers=headers, cert=CERT, verify=VERIFY)
     assert resp.status_code == rq.codes.bad_request
 
     # update success
     url = BASE_URL0+"/changefeeds/changefeed-test2"
-    data = json.dumps({"format": "raw", "start-key": "xr", "end-key":"xs"})
+    data = json.dumps({"format": "raw", "start_key": "xr", "end_key":"xs"})
     headers = {"Content-Type": "application/json"}
     resp = rq.put(url, data=data, headers=headers, cert=CERT, verify=VERIFY)
     assert resp.status_code == rq.codes.accepted

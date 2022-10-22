@@ -132,7 +132,7 @@ type ChangefeedConfig struct {
 	Format     string `json:"format"`
 	StartKey   string `json:"start_key"`
 	EndKey     string `json:"end_key"`
-	SortEngine string `json:"sort-engine"`
+	SortEngine string `json:"sort_engine"`
 	// timezone used when checking sink uri
 	TimeZone   string             `json:"timezone" default:"system"`
 	SinkConfig *config.SinkConfig `json:"sink_config"`
