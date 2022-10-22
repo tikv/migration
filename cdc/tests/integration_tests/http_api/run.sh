@@ -69,10 +69,10 @@ function run() {
 	# test processor query with no attached keyspans
 	python3 $CUR/util/test_case.py get_processor $TLS_DIR
 
-#	rawkv_op $UP_PD put 10000
-# check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-#rawkv_op $UP_PD delete 10000
-#	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rawkv_op $UP_PD put 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rawkv_op $UP_PD delete 10000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	sequential_cases=(
 		"list_changefeed"

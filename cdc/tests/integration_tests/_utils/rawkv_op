@@ -11,7 +11,7 @@ if ! command -v rawkv_data &>/dev/null; then
 	echo "make rawkv_data"
 	PWD=$(pwd)
 	cd $CUR/../../..
-	make rakv_data
+	make rawkv_data
 	cd $PWD
 fi
 
