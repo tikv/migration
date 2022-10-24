@@ -45,26 +45,49 @@ cert-path = "$TLS_DIR/server.pem"
 key-path = "$TLS_DIR/server-key.pem"
 EOF
 
-echo "Starting TLS PD..."
+echo "Starting Upstream TLS PD..."
 pd-server \
-	--client-urls https://${TLS_PD_HOST}:${TLS_PD_PORT} \
-	--peer-urls https://${TLS_PD_HOST}:${TLS_PD_PEER_PORT} \
+	--client-urls https://${UP_TLS_PD_HOST}:${UP_TLS_PD_PORT} \
+	--peer-urls https://${UP_TLS_PD_HOST}:${UP_TLS_PD_PEER_PORT} \
 	--config "$OUT_DIR/pd-config-tls.toml" \
-	--log-file "$OUT_DIR/pd_tls.log" \
-	--data-dir "$OUT_DIR/pd_tls" &
+	--log-file "$OUT_DIR/up_pd_tls.log" \
+	--data-dir "$OUT_DIR/up_pd_tls" &
 
 # wait until PD is online...
 while ! curl --cacert $TLS_DIR/ca.pem \
 	--cert $TLS_DIR/client.pem \
 	--key $TLS_DIR/client-key.pem \
-	-o /dev/null -sf https://${TLS_PD_HOST}:${TLS_PD_PORT}/pd/api/v1/version; do
+	-o /dev/null -sf https://${UP_TLS_PD_HOST}:${UP_TLS_PD_PORT}/pd/api/v1/version; do
 	sleep 1
 done
 
 while [ -z "$(curl --cacert $TLS_DIR/ca.pem \
 	--cert $TLS_DIR/client.pem \
 	--key $TLS_DIR/client-key.pem \
-	https://${TLS_PD_HOST}:${TLS_PD_PORT}/pd/api/v1/health 2>/dev/null | grep 'health' | grep 'true')" ]; do
+	https://${UP_TLS_PD_HOST}:${UP_TLS_PD_PORT}/pd/api/v1/health 2>/dev/null | grep 'health' | grep 'true')" ]; do
+	sleep 1
+done
+
+echo "Starting Downstream TLS PD..."
+pd-server \
+	--client-urls https://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT} \
+	--peer-urls https://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PEER_PORT} \
+	--config "$OUT_DIR/pd-config-tls.toml" \
+	--log-file "$OUT_DIR/down_pd_tls.log" \
+	--data-dir "$OUT_DIR/down_pd_tls" &
+
+# wait until Downstream PD is online...
+while ! curl --cacert $TLS_DIR/ca.pem \
+	--cert $TLS_DIR/client.pem \
+	--key $TLS_DIR/client-key.pem \
+	-o /dev/null -sf https://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT}/pd/api/v1/version; do
+	sleep 1
+done
+
+while [ -z "$(curl --cacert $TLS_DIR/ca.pem \
+	--cert $TLS_DIR/client.pem \
+	--key $TLS_DIR/client-key.pem \
+	https://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT}/pd/api/v1/health 2>/dev/null | grep 'health' | grep 'true')" ]; do
 	sleep 1
 done
 
@@ -103,33 +126,49 @@ cluster-ssl-cert = "$TLS_DIR/server.pem"
 cluster-ssl-key = "$TLS_DIR/server-key.pem"
 EOF
 
-echo "Starting TLS TiKV..."
+echo "Starting Upstream TLS TiKV..."
 
 # Uncomment to turn on grpc versbose log.
 # GRPC_VERBOSITY=debug \
 # GRPC_TRACE=server_channel,call_error,handshaker,tsi \
 tikv-server \
-	--pd ${TLS_PD_HOST}:${TLS_PD_PORT} \
-	-A ${TLS_TIKV_HOST}:${TLS_TIKV_PORT} \
-	--status-addr ${TLS_TIKV_HOST}:${TLS_TIKV_STATUS_PORT} \
-	--log-file "$OUT_DIR/tikv_tls.log" \
+	--pd ${UP_TLS_PD_HOST}:${UP_TLS_PD_PORT} \
+	-A ${UP_TLS_TIKV_HOST}:${UP_TLS_TIKV_PORT} \
+	--status-addr ${UP_TLS_TIKV_HOST}:${UP_TLS_TIKV_STATUS_PORT} \
+	--log-file "$OUT_DIR/up_tikv_tls.log" \
 	-C "$OUT_DIR/tikv-config-tls.toml" \
-	-s "$OUT_DIR/tikv_tls" &>$OUT_DIR/tikv_tls.stdout &
+	-s "$OUT_DIR/up_tikv_tls" &>$OUT_DIR/up_tikv_tls.stdout &
 
 sleep 2
 
-echo "Starting TLS TiDB..."
+echo "Starting Downstream TLS TiKV..."
+
+# Uncomment to turn on grpc versbose log.
+# GRPC_VERBOSITY=debug \
+# GRPC_TRACE=server_channel,call_error,handshaker,tsi \
+tikv-server \
+	--pd ${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT} \
+	-A ${DOWN_TLS_TIKV_HOST}:${DOWN_TLS_TIKV_PORT} \
+	--status-addr ${DOWN_TLS_TIKV_HOST}:${DOWN_TLS_TIKV_STATUS_PORT} \
+	--log-file "$OUT_DIR/down_tikv_tls.log" \
+	-C "$OUT_DIR/tikv-config-tls.toml" \
+	-s "$OUT_DIR/down_tikv_tls" &>$OUT_DIR/down_tikv_tls.stdout &
+
+sleep 2
+
+# Start upstream TiDB only
+echo "Starting Upstream TLS TiDB..."
 tidb-server \
-	-P ${TLS_TIDB_PORT} \
+	-P ${UP_TLS_TIDB_PORT} \
 	-config "$OUT_DIR/tidb-config-tls.toml" \
 	--store tikv \
-	--path ${TLS_PD_HOST}:${TLS_PD_PORT} \
-	--status=${TLS_TIDB_STATUS} \
-	--log-file "$OUT_DIR/tidb_tls.log" &
+	--path ${UP_TLS_PD_HOST}:${UP_TLS_PD_PORT} \
+	--status=${UP_TLS_TIDB_STATUS} \
+	--log-file "$OUT_DIR/up_tidb_tls.log" &
 
-echo "Verifying TLS TiDB is started..."
+echo "Verifying Upstream TLS TiDB is started..."
 i=0
-while ! mysql -uroot -h${TLS_TIDB_HOST} -P${TLS_TIDB_PORT} --default-character-set utf8mb4 -e 'select * from mysql.tidb;'; do
+while ! mysql -uroot -h${UP_TLS_TIDB_HOST} -P${UP_TLS_TIDB_PORT} --default-character-set utf8mb4 -e 'select * from mysql.tidb;'; do
 	i=$((i + 1))
 	if [ "$i" -gt 60 ]; then
 		echo 'Failed to start upstream TiDB'
@@ -143,7 +182,7 @@ cd $CUR/../../utils/cdc_state_checker
 if [ ! -f ./cdc_state_checker ]; then
 	GO111MODULE=on go build
 fi
-./cdc_state_checker -pd https://${TLS_PD_HOST}:${TLS_PD_PORT} \
+./cdc_state_checker -pd https://${UP_TLS_PD_HOST}:${UP_TLS_PD_PORT} \
 	-ca $TLS_DIR/ca.pem \
 	-cert $TLS_DIR/server.pem \
 	-key $TLS_DIR/server-key.pem >$OUT_DIR/cdc_etcd_check.log &
