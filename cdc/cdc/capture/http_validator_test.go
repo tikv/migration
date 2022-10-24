@@ -52,11 +52,11 @@ func TestVerifyUpdateChangefeedConfig(t *testing.T) {
 	changefeedConfig = model.ChangefeedConfig{StartKey: "r", EndKey: "s", Format: "hex"}
 	newInfo, err = verifyUpdateChangefeedConfig(ctx, changefeedConfig, oldInfo)
 	require.NotNil(t, err)
-	require.Regexp(t, ".*can not update start-key.*", err)
+	require.Regexp(t, ".*update start-key and end-key is not supported.*", err)
 	require.Nil(t, newInfo)
 
 	// test verify success
-	changefeedConfig = model.ChangefeedConfig{StartKey: "r", EndKey: "s", Format: "raw", SinkConfig: &config.SinkConfig{Protocol: "test"}}
+	changefeedConfig = model.ChangefeedConfig{SortEngine: "memory", SinkConfig: &config.SinkConfig{Protocol: "test"}}
 	newInfo, err = verifyUpdateChangefeedConfig(ctx, changefeedConfig, oldInfo)
 	require.Nil(t, err)
 	require.NotNil(t, newInfo)

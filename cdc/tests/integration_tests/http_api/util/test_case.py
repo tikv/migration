@@ -119,7 +119,7 @@ def update_changefeed():
 
     # update success
     url = BASE_URL0+"/changefeeds/changefeed-test2"
-    data = json.dumps({"format": "raw", "start_key": "xr", "end_key":"xs"})
+    data = json.dumps({"sort_engine": "memory"})
     headers = {"Content-Type": "application/json"}
     resp = rq.put(url, data=data, headers=headers, cert=CERT, verify=VERIFY)
     assert resp.status_code == rq.codes.accepted
@@ -128,6 +128,13 @@ def update_changefeed():
     # can't update start_ts
     url = BASE_URL0+"/changefeeds/changefeed-test2"
     data = json.dumps({"start_ts": 0})
+    headers = {"Content-Type": "application/json"}
+    resp = rq.put(url, data=data, headers=headers, cert=CERT, verify=VERIFY)
+    assert resp.status_code == rq.codes.bad_request
+
+    # can't update start_key & end_key
+    url = BASE_URL0+"/changefeeds/changefeed-test2"
+    data = json.dumps({"format": "raw", "start_key": "xr", "end_key":"xs"})
     headers = {"Content-Type": "application/json"}
     resp = rq.put(url, data=data, headers=headers, cert=CERT, verify=VERIFY)
     assert resp.status_code == rq.codes.bad_request

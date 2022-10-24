@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -euo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -8,8 +8,8 @@ WORK_DIR=$OUT_DIR/$TEST_NAME
 CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 TLS_DIR=$(cd $CUR/../_certificates && pwd)
-UP_PD=https://$TLS_PD_HOST:$TLS_PD_PORT
-DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
+UP_PD=https://$UP_TLS_PD_HOST:$UP_TLS_PD_PORT
+DOWN_PD=https://$DOWN_TLS_PD_HOST:$DOWN_TLS_PD_PORT
 SUFFIX=" --pd=$UP_PD --ca=$TLS_DIR/ca.pem --cert=$TLS_DIR/client.pem --key=$TLS_DIR/client-key.pem"
 
 function check_changefeed_state() {
@@ -37,7 +37,6 @@ function check_count() {
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 
-	start_tidb_cluster --workdir $WORK_DIR
 	start_tls_tidb_cluster --workdir $WORK_DIR --tlsdir $TLS_DIR
 
 	cd $WORK_DIR
@@ -54,14 +53,14 @@ function run() {
 		--workdir $WORK_DIR \
 		--binary $CDC_BINARY \
 		--logsuffix "_${TEST_NAME}_tls1" \
-		--pd "https://${TLS_PD_HOST}:${TLS_PD_PORT}" \
+		--pd $UP_PD \
 		--addr "127.0.0.1:8600" \
 		--config "$WORK_DIR/server.toml" \
 		--tlsdir "$TLS_DIR" \
 		--cert-allowed-cn "client" # The common name of client.pem
 
 	case $SINK_TYPE in
-	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	tikv) SINK_URI="tikv://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT}/?ca-path=$TLS_DIR/ca.pem&cert-path=$TLS_DIR/client.pem&key-path=$TLS_DIR/client-key.pem" ;;
 	*) SINK_URI="" ;;
 	esac
 
@@ -94,7 +93,7 @@ function run() {
 	check_count "capture list" 1
 	# processor
 	check_count "processor list" 1
-	capture=$(run_cdc_cli processor list $SUFFIX | jq '.[0].capture_id' | tr -d '"')
+	capture=$(run_cdc_cli processor list $SUFFIX | grep 'capture_id' | awk '{print $2}'| tr -d '"')
 	# We can get processor information by processor query as follow:
 	# {
 	#   "status": {...},
