@@ -93,7 +93,7 @@ function run() {
 	check_count "capture list" 1
 	# processor
 	check_count "processor list" 1
-	capture=$(run_cdc_cli processor list $SUFFIX | grep 'capture_id' | awk '{print $2}'| tr -d '"')
+	capture=$(run_cdc_cli processor list $SUFFIX | grep 'capture_id' | awk '{print $2}' | tr -d '"')
 	# We can get processor information by processor query as follow:
 	# {
 	#   "status": {...},
