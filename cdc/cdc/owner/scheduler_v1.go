@@ -171,7 +171,6 @@ func (s *oldScheduler) handleMoveKeySpanJob() (shouldUpdateState bool, err error
 		// for all move keyspan job, here just remove the keyspan from the source capture.
 		// and the keyspan removed by this function will be added to target capture by syncKeySpansWithCurrentKeySpans in the next tick.
 		s.state.PatchTaskStatus(source, func(status *model.TaskStatus) (*model.TaskStatus, bool, error) {
-			log.Info("[ZZM] statue", zap.Any("status", status))
 			if status == nil {
 				// the capture may be down, just skip remove this keyspan
 				return status, false, nil
