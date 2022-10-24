@@ -201,7 +201,6 @@ type FileImporter struct {
 	metaClient   SplitClient
 	importClient ImporterClient
 	backend      *backuppb.StorageBackend
-	rateLimit    uint64
 
 	isRawKvMode        bool
 	sstAPIVersion      kvrpcpb.APIVersion
@@ -217,7 +216,6 @@ func NewFileImporter(
 	backend *backuppb.StorageBackend,
 	isRawKvMode bool,
 	apiVersion kvrpcpb.APIVersion,
-	rateLimit uint64,
 ) FileImporter {
 	return FileImporter{
 		metaClient:    metaClient,
@@ -225,7 +223,6 @@ func NewFileImporter(
 		importClient:  importClient,
 		isRawKvMode:   isRawKvMode,
 		sstAPIVersion: apiVersion,
-		rateLimit:     rateLimit,
 	}
 }
 
@@ -451,10 +448,9 @@ func (importer *FileImporter) Import(
 	return errors.Trace(err)
 }
 
-// nolint:unused
-func (importer *FileImporter) setDownloadSpeedLimit(ctx context.Context, storeID uint64) error {
+func (importer *FileImporter) setDownloadSpeedLimit(ctx context.Context, storeID uint64, rateLimit uint64) error {
 	req := &import_sstpb.SetDownloadSpeedLimitRequest{
-		SpeedLimit: importer.rateLimit,
+		SpeedLimit: rateLimit,
 	}
 	_, err := importer.importClient.SetDownloadSpeedLimit(ctx, storeID, req)
 	return errors.Trace(err)
