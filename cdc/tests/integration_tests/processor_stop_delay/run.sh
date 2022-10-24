@@ -9,6 +9,8 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
+# fallback 10s
+FALL_BACK=2621440000
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -24,10 +26,11 @@ function run() {
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/processorStopDelay=1*sleep(10000)'
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $pd_addr
-	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
-	sleep 10
+	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
+	start_ts=$(expr $start_ts - $FALL_BACK)
+	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --start_ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	# pause changefeed first, and then resume the changefeed. The processor stop
@@ -35,7 +38,7 @@ function run() {
 	# The changefeed should be resumed and no data loss.
 	tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$pd_addr
 	sleep 1
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$pd_addr
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 

@@ -10,6 +10,8 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 MAX_RETRIES=20
+# fallback 10s
+FALL_BACK=2621440000
 
 function check_changefeed_mark_failed_regex() {
 	endpoints=$1
@@ -39,8 +41,8 @@ function run() {
 	cd $WORK_DIR
 
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
-	rawkv_op $UP_PD put 10000
+	start_ts=$(expr $start_ts - $FALL_BACK)
+	rawkv_op $UP_PD put 5000
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/InjectChangefeedFastFailError=return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 

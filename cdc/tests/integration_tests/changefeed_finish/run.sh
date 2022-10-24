@@ -10,6 +10,8 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 MAX_RETRIES=20
+# fallback 10s
+FALL_BACK=2621440000
 
 function check_changefeed_is_finished() {
 	pd=$1
@@ -43,14 +45,14 @@ function run() {
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
 	now=$(tikv-cdc cli tso query --pd=http://$UP_PD_HOST_1:$UP_PD_PORT_1)
+	start_ts=$(expr $now - $FALL_BACK)
 	# 90s after now
 	target_ts=$(($now + 90 * 10 ** 3 * 2 ** 18))
-	changefeed_id=$(tikv-cdc cli changefeed create --sink-uri="$SINK_URI" --target-ts=$target_ts 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
-	sleep 10
+	changefeed_id=$(tikv-cdc cli changefeed create --sink-uri="$SINK_URI" --start-ts=$start_ts --target-ts=$target_ts 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	sleep 90

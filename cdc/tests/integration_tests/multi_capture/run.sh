@@ -9,6 +9,8 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
+# fallback 10s
+FALL_BACK=2621440000
 
 Start_Key=indexInfo_:_pf01_:_APD0101_:_0000000000000000000
 SplitKey1=indexInfo_:_pf01_:_APD0101_:_0000000000000003000
@@ -26,9 +28,9 @@ function run() {
 
 	# record tso before we create tables to skip the system table DDLs
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
+	start_ts=$(expr $start_ts - $FALL_BACK)
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 
 	# start $CDC_COUNT cdc servers, and create a changefeed
 	for i in $(seq $CDC_COUNT); do
@@ -45,7 +47,7 @@ function run() {
 	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --format="raw" --start-key="$SplitKey2" --end-key="$End_Key"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

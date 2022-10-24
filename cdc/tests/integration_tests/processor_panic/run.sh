@@ -9,6 +9,8 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
+# fallback 10s
+FALL_BACK=2621440000
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -24,15 +26,16 @@ function run() {
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
 	*) SINK_URI="" ;;
 	esac
+	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
+	start_ts=$(expr $start_ts - $FALL_BACK)
 	# Make sure the task is assigned to the first cdc
-	run_cdc_cli changefeed create --sink-uri="$SINK_URI"
-	sleep 10
+	run_cdc_cli changefeed create --start_ts=$start_ts --sink-uri="$SINK_URI"
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix 2 --addr 127.0.0.1:8601
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

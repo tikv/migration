@@ -10,6 +10,8 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=https://$TLS_PD_HOST:$TLS_PD_PORT
+# fallback 10s
+FALL_BACK=2621440000
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -21,7 +23,7 @@ function run() {
 
 	# record tso before we create tables to skip the system table DDLs
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	sleep 10
+	start_ts=$(expr $start_ts - $FALL_BACK)
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
 	case $SINK_TYPE in
@@ -31,9 +33,9 @@ function run() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri=$SINK_URI
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

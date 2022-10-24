@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -euo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -9,6 +9,8 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
+# fallback 10s
+FALL_BACK=2621440000
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -20,8 +22,8 @@ function run() {
 
 	echo "test unified sorter"
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
-	rawkv_op $UP_PD put 10000
+	start_ts=$(expr $start_ts - $FALL_BACK)
+	rawkv_op $UP_PD put 5000
 
 	# Run cdc server with unified sorter.
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
@@ -33,7 +35,7 @@ function run() {
 	run_cdc_cli changefeed create -c $CF_NAME --start-ts=$start_ts --sink-uri="$SINK_URI" --sort-engine="unified"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
@@ -41,8 +43,8 @@ function run() {
 
 	echo "test memory sorter"
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
-	rawkv_op $UP_PD put 10000
+	start_ts=$(expr $start_ts - $FALL_BACK)
+	rawkv_op $UP_PD put 5000
 
 	# Run cdc server with memory sorter.
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
@@ -55,7 +57,7 @@ function run() {
 	run_cdc_cli changefeed create -c $CF_NAME --start-ts=$start_ts --sink-uri="$SINK_URI" --sort-engine="memory"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	cleanup_process $CDC_BINARY
 }

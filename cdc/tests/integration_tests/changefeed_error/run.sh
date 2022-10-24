@@ -10,6 +10,8 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 MAX_RETRIES=20
+# fallback 10s
+FALL_BACK=2621440000
 
 function check_changefeed_mark_error() {
 	endpoints=$1
@@ -114,9 +116,9 @@ function run() {
 	cd $WORK_DIR
 
 	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
+	start_ts=$(expr $start_ts - $FALL_BACK)
 	# TODO: use go-ycsb to generate data?
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/NewChangefeedNoRetryError=1*return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
@@ -134,7 +136,7 @@ function run() {
 	run_cdc_cli changefeed resume -c $changefeedid
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/NewChangefeedRetryError=return(true)'

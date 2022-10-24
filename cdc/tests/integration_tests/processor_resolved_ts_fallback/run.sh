@@ -9,6 +9,8 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
+# fallback 10s
+FALL_BACK=2621440000
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -23,8 +25,9 @@ function run() {
 	*) SINK_URI="" ;;
 	esac
 
-	run_cdc_cli changefeed create --sink-uri="$SINK_URI"
-	sleep 10
+	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
+	start_ts=$(expr $start_ts - $FALL_BACK)
+	run_cdc_cli changefeed create --start_ts=$start_ts --sink-uri="$SINK_URI"
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 
 	export GO_FAILPOINTS=''
@@ -32,12 +35,12 @@ function run() {
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 	ensure 10 "tikv-cdc cli capture list|jq '.|length'|grep -E '^2$'"
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	# wait cdc server 1 is panic
 	ensure 10 "tikv-cdc cli capture list|jq '.|length'|grep -E '^1$'"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

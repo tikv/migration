@@ -146,9 +146,9 @@ function test_owner_cleanup_stale_tasks() {
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8602" --logsuffix test_owner_cleanup_stale_tasks.server3
 	ensure $MAX_RETRIES "$CDC_BINARY cli capture list --disable-version-check 2>&1 | grep '\"is-owner\": true'"
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	echo "test_owner_cleanup_stale_tasks pass"
@@ -219,9 +219,9 @@ function test_gap_between_watch_capture() {
 	sleep 3
 
 	for i in $(seq 1 3); do
-		rawkv_op $UP_PD put 10000
+		rawkv_op $UP_PD put 5000
 		check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-		rawkv_op $UP_PD delete 10000
+		rawkv_op $UP_PD delete 5000
 		check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	done
 
