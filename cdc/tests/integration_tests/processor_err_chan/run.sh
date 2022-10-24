@@ -49,7 +49,7 @@ function run() {
 
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	start_ts=$(expr $start_ts - $FALL_BACK)
-	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --start_ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
+	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --start-ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
 	retry_time=10
 	ensure $retry_time check_changefeed_mark_normal $pd_addr $changefeed_id "null"

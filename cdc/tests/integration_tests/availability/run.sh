@@ -25,7 +25,7 @@ function prepare() {
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	start_ts=$(expr $start_ts - $FALL_BACK)
 	run_cdc_cli changefeed create \
-		--start_ts=$start_ts --sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
+		--start-ts=$start_ts --sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
 		--disable-version-check
 }
 

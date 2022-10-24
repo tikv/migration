@@ -27,7 +27,7 @@ function run() {
 
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	start_ts=$(expr $start_ts - $FALL_BACK)
-	run_cdc_cli changefeed create --start_ts=$start_ts --sink-uri="$SINK_URI"
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 
 	export GO_FAILPOINTS=''

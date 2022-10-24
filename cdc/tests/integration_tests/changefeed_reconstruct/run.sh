@@ -37,7 +37,7 @@ function run() {
 	owner_pid=$(ps -C $CDC_BINARY -o pid= | awk '{print $1}')
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	start_ts=$(expr $start_ts - $FALL_BACK)
-	changefeed_id=$(tikv-cdc cli changefeed create --pd=$UP_PD --start_ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
+	changefeed_id=$(tikv-cdc cli changefeed create --pd=$UP_PD --start-ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
 	rawkv_op $UP_PD put 5000
 

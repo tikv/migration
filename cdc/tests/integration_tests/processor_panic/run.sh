@@ -29,7 +29,7 @@ function run() {
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	start_ts=$(expr $start_ts - $FALL_BACK)
 	# Make sure the task is assigned to the first cdc
-	run_cdc_cli changefeed create --start_ts=$start_ts --sink-uri="$SINK_URI"
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix 2 --addr 127.0.0.1:8601
 

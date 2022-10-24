@@ -55,7 +55,7 @@ function run() {
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
 	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
 	start_ts=$(expr $start_ts - $FALL_BACK)
-	tikv-cdc cli changefeed create --pd=$UP_PD --start_ts=$start_ts --sink-uri="$SINK_URI"
+	tikv-cdc cli changefeed create --pd=$UP_PD --start-ts=$start_ts --sink-uri="$SINK_URI"
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/capture/ownerFlushIntervalInject=return(10)'
 	kill_cdc_and_restart $UP_PD $WORK_DIR $CDC_BINARY
