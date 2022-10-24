@@ -61,7 +61,7 @@ func (s *changefeedUpdateSuite) TestApplyChanges(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(newInfo.StartKey, check.Equals, "")
 	c.Assert(newInfo.EndKey, check.Equals, "")
-	c.Assert(newInfo.Format, check.Equals, "")
+	c.Assert(newInfo.Format, check.Equals, "hex")
 
 	dir := c.MkDir()
 	filename := filepath.Join(dir, "log.txt")
