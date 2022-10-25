@@ -9,9 +9,9 @@ TLS_DIR=$(cd $CUR/../_certificates && pwd)
 CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
-DOWN_PD=https://$TLS_PD_HOST:$TLS_PD_PORT
 # fallback 10s
 FALL_BACK=2621440000
+DOWN_PD=https://$DOWN_TLS_PD_HOST:$DOWN_TLS_PD_PORT
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -27,7 +27,7 @@ function run() {
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
 	case $SINK_TYPE in
-	tikv) SINK_URI="tikv://${TLS_PD_HOST}:${TLS_PD_PORT}/?ca-path=$TLS_DIR/ca.pem&cert-path=$TLS_DIR/client.pem&key-path=$TLS_DIR/client-key.pem" ;;
+	tikv) SINK_URI="tikv://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT}/?ca-path=$TLS_DIR/ca.pem&cert-path=$TLS_DIR/client.pem&key-path=$TLS_DIR/client-key.pem" ;;
 	*) SINK_URI="" ;;
 	esac
 

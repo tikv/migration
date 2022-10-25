@@ -192,12 +192,8 @@ func (o *updateChangefeedOptions) applyChanges(oldInfo *model.ChangeFeedInfo, cm
 		case "pd", "log-level", "key", "cert", "ca":
 			// Do nothing, this is a flags from the cli command
 			// we don't use it to update, but we do use these flags.
-		case flagStartKey:
-			newInfo.StartKey = o.commonChangefeedOptions.startKey
-		case flagEndKey:
-			newInfo.EndKey = o.commonChangefeedOptions.endKey
-		case flagKeyFormat:
-			newInfo.Format = o.commonChangefeedOptions.format
+		case flagStartKey, flagEndKey, flagKeyFormat:
+			log.Warn("this flag cannot be updated and will be ignored", zap.String("flagName", flag.Name))
 		default:
 			// use this default branch to prevent new added parameter is not added
 			log.Warn("unsupported flag, please report a bug", zap.String("flagName", flag.Name))
