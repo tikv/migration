@@ -11,8 +11,6 @@ SINK_TYPE=$1
 MAX_RETRIES=10
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
-# fallback 10s
-FALL_BACK=2621440000
 
 function check_capture_count() {
 	pd=$1
@@ -53,8 +51,7 @@ function run() {
 	esac
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
-	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	tikv-cdc cli changefeed create --pd=$UP_PD --start-ts=$start_ts --sink-uri="$SINK_URI"
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/capture/ownerFlushIntervalInject=return(10)'

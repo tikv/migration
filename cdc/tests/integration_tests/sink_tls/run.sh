@@ -9,8 +9,6 @@ TLS_DIR=$(cd $CUR/../_certificates && pwd)
 CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
-# fallback 10s
-FALL_BACK=2621440000
 DOWN_PD=https://$DOWN_TLS_PD_HOST:$DOWN_TLS_PD_PORT
 
 function run() {
@@ -22,8 +20,7 @@ function run() {
 	cd $WORK_DIR
 
 	# record tso before we create tables to skip the system table DDLs
-	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
 	case $SINK_TYPE in

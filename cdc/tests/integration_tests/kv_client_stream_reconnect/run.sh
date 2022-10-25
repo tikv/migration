@@ -9,8 +9,6 @@ CDC_BINARY=tikv-cdc.test
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 SINK_TYPE=$1
-# fallback 10s
-FALL_BACK=2621440000
 
 # This test mainly verifies kv client force reconnect can work
 # Trigger force reconnect by failpoint injection
@@ -28,8 +26,7 @@ function run() {
 	# this will be triggered every 5s in kv client
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/kv/kvClientForceReconnect=return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $pd_addr
-	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --start-ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
 	rawkv_op $UP_PD put 5000

@@ -10,8 +10,6 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 TLS_DIR=$(cd $CUR/../_certificates && pwd)
-# fallback 10s
-FALL_BACK=2621440000
 
 function check_changefeed_state() {
 	changefeedid=$1
@@ -43,9 +41,7 @@ function run() {
 	cd $WORK_DIR
 	pd_addr="http://$UP_PD_HOST_1:$UP_PD_PORT_1"
 
-	# record tso before we create tables to skip the system table DDLs
-	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	rawkv_op $UP_PD put 5000
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY

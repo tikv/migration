@@ -65,10 +65,10 @@ function run() {
 	esac
 
 	ID="feed01"
-	run_cdc_cli changefeed create --sink-uri="$SINK_URI" -c=$ID $SUFFIX
-	sleep 10
+    start_ts=$(get_start_ts $UP)
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" -c=$ID $SUFFIX
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 500
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	# changefeed
@@ -102,7 +102,7 @@ function run() {
 	# There are two elements at the top level, so we should `check_cout 2`
 	check_count "processor query -c=$ID -p=$capture" 2
 
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 500
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

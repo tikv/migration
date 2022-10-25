@@ -9,8 +9,6 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
-# fallback 10s
-FALL_BACK=2621440000
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -24,8 +22,7 @@ function run() {
 	*) SINK_URI="" ;;
 	esac
 
-	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	rawkv_op $UP_PD put 5000
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/processorManagerHandleNewChangefeedDelay=sleep(2000)'

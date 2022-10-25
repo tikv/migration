@@ -10,8 +10,6 @@ UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 SINK_TYPE=$1
 MAX_RETRIES=10
-# fallback 10s
-FALL_BACK=2621440000
 
 function check_no_capture() {
 	pd=$1
@@ -35,8 +33,7 @@ function run() {
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --logsuffix server1 --pd $UP_PD
 	owner_pid=$(ps -C $CDC_BINARY -o pid= | awk '{print $1}')
-	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	changefeed_id=$(tikv-cdc cli changefeed create --pd=$UP_PD --start-ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
 	rawkv_op $UP_PD put 5000

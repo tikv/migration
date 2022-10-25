@@ -10,8 +10,6 @@ CDC_BINARY=tikv-cdc
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
-# fallback 10s
-FALL_BACK=2621440000
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -20,8 +18,7 @@ function run() {
 
 	cd $WORK_DIR
 
-	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 100 # About 1G
 
 	cat - >"$WORK_DIR/tikv-cdc-config.toml" <<EOF

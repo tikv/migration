@@ -9,8 +9,6 @@ CDC_BINARY=tikv-cdc.test
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 SINK_TYPE=$1
-# fallback 10s
-FALL_BACK=2621440000
 
 function check_changefeed_state() {
 	endpoints=$1
@@ -37,8 +35,7 @@ function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR
 	cd $WORK_DIR
-	start_ts=$(tikv-cdc cli tso query --pd=http://$UP_PD_HOST_1:$UP_PD_PORT_1)
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	# TODO: use go-ycsb to generate data?
 	rawkv_op $UP_PD put 5000
 

@@ -9,8 +9,6 @@ source $CUR/capture.sh
 source $CUR/processor.sh
 WORK_DIR=$OUT_DIR/$TEST_NAME
 CDC_BINARY=tikv-cdc
-# fallback 10s
-FALL_BACK=2621440000
 
 export DOWN_TIDB_HOST
 export DOWN_TIDB_PORT
@@ -22,8 +20,7 @@ function prepare() {
 
 	cd $WORK_DIR
 
-	start_ts=$(tikv-cdc cli tso query --pd=$UP_PD)
-	start_ts=$(expr $start_ts - $FALL_BACK)
+	start_ts=$(get_start_ts $UP_PD)
 	run_cdc_cli changefeed create \
 		--start-ts=$start_ts --sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
 		--disable-version-check
