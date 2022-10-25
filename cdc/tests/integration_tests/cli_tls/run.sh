@@ -65,8 +65,9 @@ function run() {
 	esac
 
 	ID="feed01"
-	start_ts=$(get_start_ts $UP_PD)
-	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" -c=$ID $SUFFIX
+	run_cdc_cli changefeed create --sink-uri="$SINK_URI" -c=$ID $SUFFIX
+    # TODO: optimize here
+    sleep 10
 
 	rawkv_op $UP_PD put 500
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
