@@ -8,7 +8,7 @@ WORK_DIR=$OUT_DIR/$TEST_NAME
 CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 TLS_DIR=$(cd $CUR/../_certificates && pwd)
-UP_PD=https://$TLS_PD_HOST:$TLS_PD_PORT
+UP_PD=https://$UP_TLS_PD_HOST:$UP_TLS_PD_PORT
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 function run() {
@@ -33,7 +33,7 @@ function run() {
 		--workdir $WORK_DIR \
 		--binary $CDC_BINARY \
 		--logsuffix "_${TEST_NAME}_tls1" \
-		--pd "https://${TLS_PD_HOST}:${TLS_PD_PORT}" \
+		--pd $UP_PD \
 		--addr "127.0.0.1:8600" \
 		--config "$WORK_DIR/server.toml" \
 		--tlsdir "$TLS_DIR" \
@@ -45,7 +45,7 @@ function run() {
 		--workdir $WORK_DIR \
 		--binary $CDC_BINARY \
 		--logsuffix "_${TEST_NAME}_tls2" \
-		--pd "https://${TLS_PD_HOST}:${TLS_PD_PORT}" \
+		--pd $UP_PD \
 		--addr "127.0.0.1:8601" \
 		--config "$WORK_DIR/server.toml" \
 		--tlsdir "$TLS_DIR" \
