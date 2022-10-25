@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # In TiKV with ApiV2 will cache a lot of tso to append to key.
-# If we query a tso from pd, and use it as start-ts, the start-ts will be greater than 
+# If we query a tso from pd, and use it as start-ts, the start-ts will be greater than
 # the tso than TiKV cached. So we need to fallback ts 10s.
 
 # parameter 1: pd_addr
@@ -12,4 +12,3 @@ set -euo pipefail
 
 tso=$(tikv-cdc cli tso query --pd=$1)
 expr $tso - $FALLBACK
-
