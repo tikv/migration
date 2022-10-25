@@ -66,8 +66,8 @@ function run() {
 
 	ID="feed01"
 	run_cdc_cli changefeed create --sink-uri="$SINK_URI" -c=$ID $SUFFIX
-    # TODO: optimize here
-    sleep 10
+	# TODO: optimize here
+	sleep 10
 
 	rawkv_op $UP_PD put 500
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
