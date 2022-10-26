@@ -23,8 +23,8 @@ function run() {
 	*) SINK_URI="" ;;
 	esac
 
-	run_cdc_cli changefeed create --sink-uri="$SINK_URI"
-	sleep 10
+	start_ts=$(get_start_ts $UP_PD)
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 
 	export GO_FAILPOINTS=''
@@ -32,12 +32,12 @@ function run() {
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 	ensure 10 "tikv-cdc cli capture list|jq '.|length'|grep -E '^2$'"
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	# wait cdc server 1 is panic
 	ensure 10 "tikv-cdc cli capture list|jq '.|length'|grep -E '^1$'"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

@@ -66,9 +66,10 @@ function run() {
 
 	ID="feed01"
 	run_cdc_cli changefeed create --sink-uri="$SINK_URI" -c=$ID $SUFFIX
+	# TODO: optimize here
 	sleep 10
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 500
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	# changefeed
@@ -102,7 +103,7 @@ function run() {
 	# There are two elements at the top level, so we should `check_cout 2`
 	check_count "processor query -c=$ID -p=$capture" 2
 
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 500
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

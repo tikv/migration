@@ -5,7 +5,7 @@
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TLS_DIR=$(cd $CUR/../_certificates && pwd)
-set -e
+set -euo pipefail
 
 if ! command -v rawkv_data &>/dev/null; then
 	echo "make rawkv_data"

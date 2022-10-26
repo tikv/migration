@@ -38,9 +38,8 @@ function run() {
 
 	cd $WORK_DIR
 
-	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
-	rawkv_op $UP_PD put 10000
+	start_ts=$(get_start_ts $UP_PD)
+	rawkv_op $UP_PD put 5000
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/InjectChangefeedFastFailError=return(true)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 

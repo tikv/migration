@@ -42,15 +42,14 @@ function run() {
 	esac
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
-	now=$(tikv-cdc cli tso query --pd=http://$UP_PD_HOST_1:$UP_PD_PORT_1)
-	# 90s after now
-	target_ts=$(($now + 90 * 10 ** 3 * 2 ** 18))
-	changefeed_id=$(tikv-cdc cli changefeed create --sink-uri="$SINK_URI" --target-ts=$target_ts 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
-	sleep 10
+	start_ts=$(get_start_ts $UP_PD)
+	# 90s after start_ts
+	target_ts=$(($start_ts + 90 * 10 ** 3 * 2 ** 18))
+	changefeed_id=$(tikv-cdc cli changefeed create --sink-uri="$SINK_URI" --start-ts=$start_ts --target-ts=$target_ts 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	sleep 90

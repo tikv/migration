@@ -22,9 +22,8 @@ function run() {
 	*) SINK_URI="" ;;
 	esac
 
-	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
-	rawkv_op $UP_PD put 10000
+	start_ts=$(get_start_ts $UP_PD)
+	rawkv_op $UP_PD put 5000
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/processorManagerHandleNewChangefeedDelay=sleep(2000)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
@@ -41,7 +40,7 @@ function run() {
 
 	sleep 1
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	export GO_FAILPOINTS=''

@@ -35,10 +35,9 @@ function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR
 	cd $WORK_DIR
-	start_ts=$(tikv-cdc cli tso query --pd=http://$UP_PD_HOST_1:$UP_PD_PORT_1)
-	sleep 10
+	start_ts=$(get_start_ts $UP_PD)
 	# TODO: use go-ycsb to generate data?
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/processor/pipeline/ProcessorSyncResolvedError=1*return(true);github.com/tikv/migration/cdc/cdc/processor/ProcessorUpdatePositionDelaying=sleep(1000)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8600" --pd "http://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
@@ -57,7 +56,7 @@ function run() {
 	ensure 10 check_changefeed_state $UP_PD ${changefeedid} "normal" "null"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

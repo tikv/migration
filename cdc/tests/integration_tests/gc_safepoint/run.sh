@@ -91,13 +91,13 @@ function run() {
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/pkg/txnutil/gc/InjectGcSafepointUpdateInterval=return(500)'
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $pd_addr
-	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
-	sleep 10
+	start_ts=$(get_start_ts $UP_PD)
+	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --start-ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
 
 	pd_cluster_id=$(curl -s $pd_addr/pd/api/v1/cluster | grep -oE "id\":\s[0-9]+" | grep -oE "[0-9]+")
 	clear_gc_worker_safepoint $pd_addr $pd_cluster_id
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	start_safepoint=$(get_safepoint $pd_addr $pd_cluster_id)

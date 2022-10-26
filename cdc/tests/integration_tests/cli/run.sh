@@ -41,10 +41,8 @@ function run() {
 	cd $WORK_DIR
 	pd_addr="http://$UP_PD_HOST_1:$UP_PD_PORT_1"
 
-	# record tso before we create tables to skip the system table DDLs
-	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
-	rawkv_op $UP_PD put 10000
+	start_ts=$(get_start_ts $UP_PD)
+	rawkv_op $UP_PD put 5000
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 

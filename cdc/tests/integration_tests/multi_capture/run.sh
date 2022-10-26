@@ -24,11 +24,9 @@ function run() {
 
 	cd $WORK_DIR
 
-	# record tso before we create tables to skip the system table DDLs
-	start_ts=$(run_cdc_cli_tso_query ${UP_PD_HOST_1} ${UP_PD_PORT_1})
-	sleep 10
+	start_ts=$(get_start_ts $UP_PD)
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 
 	# start $CDC_COUNT cdc servers, and create a changefeed
 	for i in $(seq $CDC_COUNT); do
@@ -45,7 +43,7 @@ function run() {
 	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --format="raw" --start-key="$SplitKey2" --end-key="$End_Key"
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

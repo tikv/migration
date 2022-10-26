@@ -12,10 +12,37 @@ DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
-	start_tidb_cluster --workdir $WORK_DIR
-	cd $WORK_DIR
 
+	start_tidb_cluster --workdir $WORK_DIR
+
+	cd $WORK_DIR
+	CF_NAME="feed01"
+
+	echo "test unified sorter"
 	start_ts=$(get_start_ts $UP_PD)
+	rawkv_op $UP_PD put 5000
+
+	# Run cdc server with unified sorter.
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
+
+	case $SINK_TYPE in
+	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	*) SINK_URI="" ;;
+	esac
+	run_cdc_cli changefeed create -c $CF_NAME --start-ts=$start_ts --sink-uri="$SINK_URI" --sort-engine="unified"
+
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	rawkv_op $UP_PD delete 5000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+
+	cleanup_process $CDC_BINARY
+	run_cdc_cli unsafe reset --no-confirm
+
+	echo "test memory sorter"
+	start_ts=$(get_start_ts $UP_PD)
+	rawkv_op $UP_PD put 5000
+
+	# Run cdc server with memory sorter.
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 
 	case $SINK_TYPE in
@@ -23,13 +50,11 @@ function run() {
 	*) SINK_URI="" ;;
 	esac
 
-	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
+	run_cdc_cli changefeed create -c $CF_NAME --start-ts=$start_ts --sink-uri="$SINK_URI" --sort-engine="memory"
 
-	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-
 	cleanup_process $CDC_BINARY
 }
 

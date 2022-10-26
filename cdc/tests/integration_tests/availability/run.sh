@@ -20,10 +20,10 @@ function prepare() {
 
 	cd $WORK_DIR
 
+	start_ts=$(get_start_ts $UP_PD)
 	run_cdc_cli changefeed create \
-		--sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
+		--start-ts=$start_ts --sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
 		--disable-version-check
-	sleep 10
 }
 
 trap stop_tidb_cluster EXIT

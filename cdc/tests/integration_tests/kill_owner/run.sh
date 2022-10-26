@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -euo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -51,13 +51,13 @@ function run() {
 	esac
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
-	tikv-cdc cli changefeed create --pd=$UP_PD --sink-uri="$SINK_URI"
-	sleep 10
+	start_ts=$(get_start_ts $UP_PD)
+	tikv-cdc cli changefeed create --pd=$UP_PD --start-ts=$start_ts --sink-uri="$SINK_URI"
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/capture/ownerFlushIntervalInject=return(10)'
 	kill_cdc_and_restart $UP_PD $WORK_DIR $CDC_BINARY
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 
 	for i in $(seq 1 3); do
 		kill_cdc_and_restart $UP_PD $WORK_DIR $CDC_BINARY
@@ -68,7 +68,7 @@ function run() {
 	kill_cdc_and_restart $UP_PD $WORK_DIR $CDC_BINARY
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY

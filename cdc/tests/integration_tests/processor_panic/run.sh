@@ -24,15 +24,15 @@ function run() {
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
 	*) SINK_URI="" ;;
 	esac
+	start_ts=$(get_start_ts $UP_PD)
 	# Make sure the task is assigned to the first cdc
-	run_cdc_cli changefeed create --sink-uri="$SINK_URI"
-	sleep 10
+	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix 2 --addr 127.0.0.1:8601
 
-	rawkv_op $UP_PD put 10000
+	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
-	rawkv_op $UP_PD delete 10000
+	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
