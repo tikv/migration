@@ -106,6 +106,8 @@ func (c *Capture) reset(ctx context.Context) error {
 		_ = c.session.Close()
 	}
 
+	// NewSession without lease will block, when send SIGSTOP to pd leader.
+	// So we should grant lease first.
 	leaseID, err := c.etcdClient.Client.Grant(ctx, int64(conf.CaptureSessionTTL))
 	if err != nil {
 		return errors.Annotate(
@@ -387,6 +389,8 @@ func (c *Capture) campaign(ctx cdcContext.Context) error {
 	failpoint.Inject("capture-campaign-compacted-error", func() {
 		failpoint.Return(errors.Trace(mvcc.ErrCompacted))
 	})
+	// When send SIGSTOP to pd leader, campain will block here, even if `cancel` is called.
+	// For detail, see https://github.com/etcd-io/etcd/issues/8980
 	nctx := clientv3.WithRequireLeader(ctx)
 	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(nctx, c.info.ID))
 }

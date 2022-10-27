@@ -109,6 +109,7 @@ func CheckPDVersion(ctx context.Context, pdAddr string, credential *security.Cre
 		return err
 	}
 
+	// When PD's status is STOP(maybe cause by `kill -19`), httpClient.Do will block without Timeout
 	ctx, cancel := context.WithTimeout(ctx, PDRequestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(
