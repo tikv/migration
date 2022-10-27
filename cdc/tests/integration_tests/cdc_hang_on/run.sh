@@ -13,11 +13,19 @@ RETRY_TIME=10
 
 function check_capture_count() {
 	expected=$1
-	count=$(tikv-cdc cli capture list --pd=$UP_PD | jq '.|length')
-	if [[ "$count" != "$expected" ]]; then
-		echo "[$(date)] <<<<< unexpect capture count! expect ${expected} got ${count} >>>>>"
-		exit 1
-	fi
+
+    for ((i = 0; i <= 10; i++)); do
+	    count=$(tikv-cdc cli capture list --pd=$UP_PD | jq '.|length')
+	    if [[ "$count" == "$expected" ]]; then
+            echo 'check capture count successfully'
+            break
+	    fi
+	    if [ "$i" -eq 50 ]; then
+		    echo 'failed to check capture count, expected: $expected, got: $count'
+		    exit 1
+	    fi
+	    sleep 3
+    done
 }
 
 export -f check_capture_count
@@ -29,9 +37,6 @@ function run() {
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8600" --pd "$UP_PD" --restart "true"
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8601" --pd "$UP_PD" --restart "true"
-
-	echo "sleep 10"
-	sleep 10
 
 	for i in {1..10}; do
 		echo "cdc_hang_on test $i"
