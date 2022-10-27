@@ -389,7 +389,7 @@ func (c *Capture) campaign(ctx cdcContext.Context) error {
 	failpoint.Inject("capture-campaign-compacted-error", func() {
 		failpoint.Return(errors.Trace(mvcc.ErrCompacted))
 	})
-	// When send SIGSTOP to pd leader, campain will block here, even if `cancel` is called.
+	// When send SIGSTOP to pd leader, campaign will block here, even if `cancel` is called.
 	// For detail, see https://github.com/etcd-io/etcd/issues/8980
 	nctx := clientv3.WithRequireLeader(ctx)
 	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(nctx, c.info.ID))
