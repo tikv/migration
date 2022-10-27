@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/pingcap/kvproto/pkg/metapb"
@@ -55,6 +56,10 @@ var (
 
 	// we use the minimal release version as default.
 	defaultTiKVCDCVersion *semver.Version = semver.New("1.0.0-alpha")
+)
+
+const (
+	PDRequestTimeout = 5 * time.Second
 )
 
 var versionHash = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}(-dev)?")
@@ -104,6 +109,8 @@ func CheckPDVersion(ctx context.Context, pdAddr string, credential *security.Cre
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, PDRequestTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, fmt.Sprintf("%s/pd/api/v1/version", pdAddr), nil)
 	if err != nil {
