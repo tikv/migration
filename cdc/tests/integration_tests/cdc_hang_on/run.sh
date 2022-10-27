@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -eu
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -20,7 +20,7 @@ function check_capture_count() {
 			echo 'check capture count successfully'
 			break
 		fi
-		if [ "$i" -eq 50 ]; then
+		if [ "$i" -eq 10 ]; then
 			echo 'failed to check capture count, expected: $expected, got: $count'
 			exit 1
 		fi
