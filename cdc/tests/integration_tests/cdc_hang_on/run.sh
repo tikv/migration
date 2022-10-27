@@ -14,18 +14,18 @@ RETRY_TIME=10
 function check_capture_count() {
 	expected=$1
 
-    for ((i = 0; i <= 10; i++)); do
-	    count=$(tikv-cdc cli capture list --pd=$UP_PD | jq '.|length')
-	    if [[ "$count" == "$expected" ]]; then
-            echo 'check capture count successfully'
-            break
-	    fi
-	    if [ "$i" -eq 50 ]; then
-		    echo 'failed to check capture count, expected: $expected, got: $count'
-		    exit 1
-	    fi
-	    sleep 3
-    done
+	for ((i = 0; i <= 10; i++)); do
+		count=$(tikv-cdc cli capture list --pd=$UP_PD | jq '.|length')
+		if [[ "$count" == "$expected" ]]; then
+			echo 'check capture count successfully'
+			break
+		fi
+		if [ "$i" -eq 50 ]; then
+			echo 'failed to check capture count, expected: $expected, got: $count'
+			exit 1
+		fi
+		sleep 3
+	done
 }
 
 export -f check_capture_count
