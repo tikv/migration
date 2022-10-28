@@ -225,6 +225,6 @@ replace (
 	github.com/benbjohnson/clock v1.3.0 => github.com/benbjohnson/clock v1.1.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang-jwt/jwt v3.2.1+incompatible => github.com/golang-jwt/jwt v3.2.0+incompatible
-	github.com/tikv/client-go/v2 v2.0.1-0.20220818084834-0d0ae0dcfb1f => github.com/pingyu/client-go/v2 v2.0.1-0.20221028021235-c7cc3f25ac91
+	github.com/tikv/client-go/v2 v2.0.1-0.20220818084834-0d0ae0dcfb1f => github.com/pingyu/client-go/v2 v2.0.1-0.20221028075800-6ec40fff4e31
 	github.com/uber-go/atomic => go.uber.org/atomic v1.4.0
 )
