@@ -235,7 +235,7 @@ def move_keyspan():
     assert resp.status_code == rq.codes.accepted
 
     # verfiy
-    time.sleep(5)
+    time.sleep(10)  # TODO: lower sleep duration & retry
     base_url = BASE_URL0 + "/processors"
     resp = rq.get(base_url, cert=CERT, verify=VERIFY)
     assert resp.status_code == rq.codes.ok

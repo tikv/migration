@@ -31,8 +31,14 @@ import (
 
 func generateTestData(keyIndex int) (key, value0, value1 []byte) {
 	key = []byte(fmt.Sprintf("indexInfo_:_pf01_:_APD0101_:_%019d", keyIndex))
-	value0 = []byte(fmt.Sprintf("v0_%020d", keyIndex))
-	value1 = []byte(fmt.Sprintf("v1_%020d%020d", keyIndex, keyIndex))
+	value0 = []byte{}       // Don't assign nil, which means "NotFound" in CompareAndSwap
+	if keyIndex%100 != 42 { // To generate test data with empty value. See https://github.com/tikv/migration/issues/250
+		value0 = []byte(fmt.Sprintf("v0_%020d", keyIndex))
+	}
+	value1 = []byte{}
+	if keyIndex%100 != 43 {
+		value1 = []byte(fmt.Sprintf("v1_%020d%020d", keyIndex, keyIndex))
+	}
 	return key, value0, value1
 }
 
