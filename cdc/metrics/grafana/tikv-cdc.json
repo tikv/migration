@@ -2336,7 +2336,7 @@
               "hide": false,
               "interval": "",
               "intervalFactor": 1,
-              "legendFormat": "{{changefeed}}",
+              "legendFormat": "{{changefeed}}", 
               "refId": "B"
             }
           ],
