@@ -27,6 +27,7 @@ import (
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.etcd.io/etcd/server/v3/mvcc"
 	"go.uber.org/zap"
@@ -104,8 +105,19 @@ func (c *Capture) reset(ctx context.Context) error {
 		// It can't be handled even after it fails, so we ignore it.
 		_ = c.session.Close()
 	}
+
+	// NewSession without lease will block, when send SIGSTOP to pd leader.
+	// So we should grant lease first.
+	leaseID, err := c.etcdClient.Client.Grant(ctx, int64(conf.CaptureSessionTTL))
+	if err != nil {
+		return errors.Annotate(
+			cerror.WrapError(cerror.ErrNewCaptureFailed, err),
+			"grant lease")
+	}
+
 	sess, err := concurrency.NewSession(c.etcdClient.Client.Unwrap(),
-		concurrency.WithTTL(conf.CaptureSessionTTL))
+		concurrency.WithTTL(conf.CaptureSessionTTL),
+		concurrency.WithLease(leaseID.ID))
 	if err != nil {
 		return errors.Annotate(
 			cerror.WrapError(cerror.ErrNewCaptureFailed, err),
@@ -377,7 +389,10 @@ func (c *Capture) campaign(ctx cdcContext.Context) error {
 	failpoint.Inject("capture-campaign-compacted-error", func() {
 		failpoint.Return(errors.Trace(mvcc.ErrCompacted))
 	})
-	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(ctx, c.info.ID))
+	// When send SIGSTOP to pd leader, campaign will block here, even if `cancel` is called.
+	// For detail, see https://github.com/etcd-io/etcd/issues/8980
+	nctx := clientv3.WithRequireLeader(ctx)
+	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(nctx, c.info.ID))
 }
 
 // resign lets an owner start a new election.
