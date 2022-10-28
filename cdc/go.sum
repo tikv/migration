@@ -868,6 +868,8 @@ github.com/pingcap/tidb/parser v0.0.0-20220824050620-75c70ecd0aeb h1:2s7VMDM/pet
 github.com/pingcap/tidb/parser v0.0.0-20220824050620-75c70ecd0aeb/go.mod h1:wjvp+T3/T9XYt0nKqGX3Kc1AKuyUcfno6LTc6b2A6ew=
 github.com/pingcap/tipb v0.0.0-20220718022156-3e2483c20a9e h1:FBaTXU8C3xgt/drM58VHxojHo/QoG1oPsgWTGvaSpO4=
 github.com/pingcap/tipb v0.0.0-20220718022156-3e2483c20a9e/go.mod h1:A7mrd7WHBl1o63LE2bIBGEJMTNWXqhgmYiOvMLxozfs=
+github.com/pingyu/client-go/v2 v2.0.1-0.20221028021235-c7cc3f25ac91 h1:JMQQewk/5wvYFAeCfOT2CLCCpRe8v3B6jQVlPt0a1ZI=
+github.com/pingyu/client-go/v2 v2.0.1-0.20221028021235-c7cc3f25ac91/go.mod h1:v3DEt8LS9olI6D6El17pYBWq7B28hw3NnDFTxQHDLpY=
 github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4 h1:49lOXmGaUpV9Fz3gd7TFZY106KVlPVa5jcYD1gaQf98=
 github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4/go.mod h1:4OwLy04Bl9Ef3GJJCoec+30X3LQs/0/m4HFRt/2LUSA=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
@@ -1035,8 +1037,6 @@ github.com/tidwall/match v1.0.1/go.mod h1:LujAq0jyVjBy028G1WhWfIzbpQfMO8bBZ6Tyb0
 github.com/tidwall/match v1.1.1/go.mod h1:eRSPERbgtNPcGhD8UCthc6PmLEQXEWd3PRB5JTxsfmM=
 github.com/tidwall/pretty v1.0.0/go.mod h1:XNkn88O1ChpSDQmQeStsy+sBenx6DDtFZJxhVysOjyk=
 github.com/tidwall/pretty v1.2.0/go.mod h1:ITEVvHYasfjBbM0u2Pg8T2nJnzm8xPwvNhhsoaGGjNU=
-github.com/tikv/client-go/v2 v2.0.1-0.20220818084834-0d0ae0dcfb1f h1:/nr7P8uzJQ7u3wPEBHCokrsVmuDvi/1x/zI/ydk5n8U=
-github.com/tikv/client-go/v2 v2.0.1-0.20220818084834-0d0ae0dcfb1f/go.mod h1:v3DEt8LS9olI6D6El17pYBWq7B28hw3NnDFTxQHDLpY=
 github.com/tikv/pd v1.1.0-beta.0.20220725055910-7187a7ab72db h1:0IGLATF84S3eB3iitzBEWfDmxp/v3YbYATQDUP2DNbw=
 github.com/tikv/pd v1.1.0-beta.0.20220725055910-7187a7ab72db/go.mod h1:oiKon0mls7OkA2Zuy8lg1CCvU0gdgUWCcZYkMq8IeDw=
 github.com/tikv/pd/client v0.0.0-20220725055910-7187a7ab72db h1:r1eMh9Rny3hfWuBuxOnbsCRrR4FhthiNxLQ5rAUtaww=
