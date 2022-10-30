@@ -27,7 +27,6 @@ import (
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.etcd.io/etcd/server/v3/mvcc"
 	"go.uber.org/zap"
@@ -389,10 +388,7 @@ func (c *Capture) campaign(ctx cdcContext.Context) error {
 	failpoint.Inject("capture-campaign-compacted-error", func() {
 		failpoint.Return(errors.Trace(mvcc.ErrCompacted))
 	})
-	// When send SIGSTOP to pd leader, campaign will block here, even if `cancel` is called.
-	// For detail, see https://github.com/etcd-io/etcd/issues/8980
-	nctx := clientv3.WithRequireLeader(ctx)
-	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(nctx, c.info.ID))
+	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(ctx, c.info.ID))
 }
 
 // resign lets an owner start a new election.
