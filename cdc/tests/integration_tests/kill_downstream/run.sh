@@ -28,23 +28,23 @@ function run() {
 
 	rawkv_op $UP_PD put 5000
 
-    down_pd_pid=$(ps -aux | grep "pd-server" | grep "down_pd" | awk '{print $2}' | head -n1)
-    down_tikv_pid=$(ps -aux | grep "tikv-server" | grep "tikv_down" | awk '{print $2}' | head -n1)
+	down_pd_pid=$(ps -aux | grep "pd-server" | grep "down_pd" | awk '{print $2}' | head -n1)
+	down_tikv_pid=$(ps -aux | grep "tikv-server" | grep "tikv_down" | awk '{print $2}' | head -n1)
 
-    # stop downstream
-    kill -19 $down_pd_pid
-    kill -19 $down_tikv_pid
+	# stop downstream
+	kill -19 $down_pd_pid
+	kill -19 $down_tikv_pid
 
-    # Wait for cdc to retry to create tikv sink
-    sleep 180
-    # resume downstream
-    kill -18 $down_pd_pid
-    kill -18 $down_tikv_pid
+	# Wait for cdc to retry to create tikv sink
+	sleep 180
+	# resume downstream
+	kill -18 $down_pd_pid
+	kill -18 $down_tikv_pid
 
-    state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
-    if [[ "$state" == "error" ]]; then
-        tikv-cdc cli changefeed resume --pd=$UP_PD --changefeed-id=$CF_ID
-    fi
+	state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
+	if [[ "$state" == "error" ]]; then
+		tikv-cdc cli changefeed resume --pd=$UP_PD --changefeed-id=$CF_ID
+	fi
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	rawkv_op $UP_PD delete 5000
