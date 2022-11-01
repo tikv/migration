@@ -224,8 +224,7 @@ func (k *tikvSink) EmitCheckpointTs(ctx context.Context, ts uint64) error {
 
 func (k *tikvSink) Close(ctx context.Context) error {
 	k.resolvedReceiver.Stop()
-	k.client.Close()
-	return nil
+	return k.client.Close()
 }
 
 func (k *tikvSink) Barrier(cxt context.Context, keyspanID model.KeySpanID) error {
