@@ -17,6 +17,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
@@ -31,23 +32,36 @@ func TestValidateSink(t *testing.T) {
 	replicateConfig := config.GetDefaultReplicaConfig()
 	opts := make(map[string]string)
 
+	expectedErrs := []string{
+		"[pd] failed to get cluster id",
+		"Invalid pd addr: http:, err: <nil>",
+		"parse \"tikv://127.0.0.1:3306a/\": invalid port \":3306a\" after host",
+		"parse \"tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/\": invalid character \" \" in host name",
+		"parse \"tikv://hostname:3306x\": invalid port \":3306x\" after host",
+	}
+
 	testCases := []struct {
-		sinkURI  string
-		expected bool
+		sinkURI     string
+		hasError    bool
+		expectedErr string
 	}{
-		{"tikv://127.0.0.1:3306/", true},
-		{"tikv://127.0.0.1:3306/?concurrency=4", true},
-		{"blackhole://", true},
-		{"tikv://127.0.0.1:3306,127.0.0.1:3307/", true},
-		{"tikv://hostname:3306", true},
-		{"tikv://http://127.0.0.1:3306/", false},
-		{"tikv://127.0.0.1:3306a/", false},
-		{"tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/", false},
-		{"tikv://hostname:3306x", false},
+		{"tikv://127.0.0.1:3306/", true, expectedErrs[0]},
+		{"tikv://127.0.0.1:3306/?concurrency=4", true, expectedErrs[0]},
+		{"blackhole://", false, ""},
+		{"tikv://127.0.0.1:3306,127.0.0.1:3307/", true, expectedErrs[0]},
+		{"tikv://hostname:3306", true, expectedErrs[0]},
+		{"tikv://http://127.0.0.1:3306/", true, expectedErrs[1]},
+		{"tikv://127.0.0.1:3306a/", true, expectedErrs[2]},
+		{"tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/", true, expectedErrs[3]},
+		{"tikv://hostname:3306x", true, expectedErrs[4]},
 	}
 
 	for _, tc := range testCases {
 		err := Validate(ctx, tc.sinkURI, replicateConfig, opts)
-		require.Equal(t, tc.expected, err == nil)
+		if tc.hasError {
+			require.Equal(t, tc.expectedErr, errors.Cause(err).Error())
+		} else {
+			require.Equal(t, nil, err)
+		}
 	}
 }
