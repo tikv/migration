@@ -61,7 +61,7 @@ func TestValidateSink(t *testing.T) {
 		if tc.hasError {
 			require.Equal(t, tc.expectedErr, errors.Cause(err).Error())
 		} else {
-			require.Equal(t, nil, err)
+			require.NoError(t, err)
 		}
 	}
 }
