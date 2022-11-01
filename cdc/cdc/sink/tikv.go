@@ -58,6 +58,16 @@ type rawkvClient interface {
 
 var _ rawkvClient = &rawkv.Client{}
 
+type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error)
+
+func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
+	return rawkv.NewClientWithOpts(ctx, pdAddrs,
+		rawkv.WithSecurity(security),
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithPDOptions(pd.WithMaxErrorRetry(defaultPDErrorRetry)),
+	)
+}
+
 type tikvSink struct {
 	workerNum   uint32
 	workerInput []chan struct {
@@ -79,6 +89,7 @@ type tikvSink struct {
 
 func createTiKVSink(
 	ctx context.Context,
+	fnCreateCli fnCreateClient,
 	config *tikvconfig.Config,
 	pdAddr []string,
 	opts map[string]string,
@@ -110,11 +121,7 @@ func createTiKVSink(
 		c.TiKVClient.MaxBatchSize = 0
 	})
 
-	client, err := rawkv.NewClientWithOpts(ctx, pdAddr,
-		rawkv.WithSecurity(config.Security),
-		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
-		rawkv.WithPDOptions(pd.WithMaxErrorRetry(defaultPDErrorRetry)),
-	)
+	client, err := fnCreateCli(ctx, pdAddr, config.Security)
 	if err != nil {
 		log.Error("Failed to crate tikv client", zap.Error(err))
 		return nil, err
@@ -471,7 +478,7 @@ func newTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaConfig,
 		return nil, errors.Trace(err)
 	}
 
-	sink, err := createTiKVSink(ctx, config, pdAddr, opts, errCh)
+	sink, err := createTiKVSink(ctx, createRawKVClient, config, pdAddr, opts, errCh)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
