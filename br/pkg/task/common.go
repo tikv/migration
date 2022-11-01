@@ -359,7 +359,7 @@ func gcsObjectNotFound(err error) bool {
 }
 
 // CheckBackupAPIVersion return false if backup api version is not supported.
-func CheckBackupAPIVersion(gate *feature.FeatureGate, storageAPIVersion, dstAPIVersion kvrpcpb.APIVersion) bool {
+func CheckBackupAPIVersion(gate *feature.Gate, storageAPIVersion, dstAPIVersion kvrpcpb.APIVersion) bool {
 	// only support apiv1/v1ttl->apiv2 if apiversions are not the same.
 	return storageAPIVersion == dstAPIVersion ||
 		(gate.IsEnabled(feature.APIVersionConversion) && dstAPIVersion == kvrpcpb.APIVersion_V2)

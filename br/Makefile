@@ -16,7 +16,7 @@
 default: release
 all: check test build clean
 
-SHELL := /usr/bin/env bash
+SHELL := $(shell /usr/bin/which bash)
 
 # golang
 GO          := GO111MODULE=on go

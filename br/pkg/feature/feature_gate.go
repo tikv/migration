@@ -16,13 +16,13 @@ var (
 	minBackupTsVersion             = semver.New("6.1.0")
 )
 
-type FeatureGate struct {
+type Gate struct {
 	features  map[Feature]*semver.Version
 	pdVersion *semver.Version
 }
 
-func NewFeatureGate(pdVersion *semver.Version) *FeatureGate {
-	featureGate := new(FeatureGate)
+func NewFeatureGate(pdVersion *semver.Version) *Gate {
+	featureGate := new(Gate)
 	featureGate.features = make(map[Feature]*semver.Version)
 	featureGate.features[APIVersionConversion] = minAPIVersionConversionVersion
 	featureGate.features[Checksum] = minChecksumVersion
@@ -31,6 +31,6 @@ func NewFeatureGate(pdVersion *semver.Version) *FeatureGate {
 	return featureGate
 }
 
-func (f *FeatureGate) IsEnabled(feature Feature) bool {
+func (f *Gate) IsEnabled(feature Feature) bool {
 	return f.pdVersion.Compare(*f.features[feature]) >= 0
 }

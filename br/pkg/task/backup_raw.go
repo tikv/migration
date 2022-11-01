@@ -119,7 +119,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
 	featureGate := feature.NewFeatureGate(semver.New(clusterVersion))
 	if !CheckBackupAPIVersion(featureGate, curAPIVersion, dstAPIVersion) {
-		return errors.Errorf("Unsupported backup api version in current cluster, cur:%s, dst:%s, cluster version:%s.",
+		return errors.Errorf("Unsupported backup api version in current cluster, cur:%s, dst:%s, cluster version:%s",
 			curAPIVersion.String(), cfg.DstAPIVersion, clusterVersion)
 	}
 	opts := storage.ExternalStorageOptions{

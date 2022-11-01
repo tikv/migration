@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tikv_version: [nightly]
+        tikv_version: [v5.0.0, nightly]
         api_version: [1, 2]
         with_tls: [false, true]
     steps:
