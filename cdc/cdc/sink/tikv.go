@@ -223,8 +223,7 @@ func (k *tikvSink) EmitCheckpointTs(ctx context.Context, ts uint64) error {
 }
 
 func (k *tikvSink) Close(ctx context.Context) error {
-	k.resolvedReceiver.Stop()
-	return k.client.Close()
+	return nil
 }
 
 func (k *tikvSink) Barrier(cxt context.Context, keyspanID model.KeySpanID) error {
@@ -234,7 +233,11 @@ func (k *tikvSink) Barrier(cxt context.Context, keyspanID model.KeySpanID) error
 }
 
 func (k *tikvSink) run(ctx context.Context) error {
-	defer k.Close(ctx)
+	defer func() {
+		k.resolvedReceiver.Stop()
+		k.client.Close()
+	}()
+
 	wg, ctx := errgroup.WithContext(ctx)
 	for i := uint32(0); i < k.workerNum; i++ {
 		workerIdx := i
