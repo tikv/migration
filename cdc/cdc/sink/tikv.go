@@ -124,6 +124,7 @@ func createTiKVSink(
 	client, err := fnCreateCli(ctx, pdAddr, config.Security)
 	if err != nil {
 		log.Error("Failed to crate tikv client", zap.Error(err))
+		resolvedReceiver.Stop()
 		return nil, err
 	}
 
@@ -152,6 +153,7 @@ func createTiKVSink(
 				log.Error("error channel is full", zap.Error(err))
 			}
 		}
+		log.Info("TiKV sink exit")
 	}()
 	return k, nil
 }
