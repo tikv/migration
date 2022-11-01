@@ -300,6 +300,10 @@ func (p *PdController) GetClusterVersion(ctx context.Context) (string, error) {
 	return p.getClusterVersionWith(ctx, pdRequest)
 }
 
+func FormatVersionString(v []byte) string {
+	return strings.ReplaceAll(strings.ReplaceAll(string(v), "\"", ""), "\n", "")
+}
+
 func (p *PdController) getClusterVersionWith(ctx context.Context, get pdHTTPRequest) (string, error) {
 	var err error
 	for _, addr := range p.addrs {
@@ -308,7 +312,7 @@ func (p *PdController) getClusterVersionWith(ctx context.Context, get pdHTTPRequ
 			err = e
 			continue
 		}
-		return string(v), nil
+		return FormatVersionString(v), nil
 	}
 
 	return "", errors.Trace(err)

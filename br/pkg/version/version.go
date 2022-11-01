@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	minTiKVVersion = semver.New("6.1.0-alpha")
+	minTiKVVersion = semver.New("5.0.0")
 	versionHash    = regexp.MustCompile("-[0-9]+-g[0-9a-f]{7,}")
 )
 

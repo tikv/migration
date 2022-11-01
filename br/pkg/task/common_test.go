@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	backup "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/encryptionpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/br/pkg/feature"
 )
 
 type fakeValue string
@@ -151,13 +153,14 @@ func TestCheckCipherKey(t *testing.T) {
 }
 
 func TestCheckBackupAPIVersion(t *testing.T) {
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V1), true)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V1TTL), true)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V2), true)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V2), true)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V2), true)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V1TTL), false)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V1), false)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1), false)
-	require.Equal(t, CheckBackupAPIVersion(kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1TTL), false)
+	featureGate := feature.NewFeatureGate(semver.New("6.1.0"))
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V1), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V1TTL), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V2), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V2), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V2), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V1TTL), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V1), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1TTL), false)
 }

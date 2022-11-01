@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/tikv/migration/br/pkg/conn"
 	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/feature"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/storage"
@@ -358,7 +359,8 @@ func gcsObjectNotFound(err error) bool {
 }
 
 // CheckBackupAPIVersion return false if backup api version is not supported.
-func CheckBackupAPIVersion(storageAPIVersion, dstAPIVersion kvrpcpb.APIVersion) bool {
+func CheckBackupAPIVersion(gate *feature.FeatureGate, storageAPIVersion, dstAPIVersion kvrpcpb.APIVersion) bool {
 	// only support apiv1/v1ttl->apiv2 if apiversions are not the same.
-	return storageAPIVersion == dstAPIVersion || dstAPIVersion == kvrpcpb.APIVersion_V2
+	return storageAPIVersion == dstAPIVersion ||
+		(gate.IsEnabled(feature.APIVersionConversion) && dstAPIVersion == kvrpcpb.APIVersion_V2)
 }

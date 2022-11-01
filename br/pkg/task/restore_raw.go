@@ -5,6 +5,7 @@ package task
 import (
 	"context"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
@@ -12,11 +13,13 @@ import (
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/checksum"
 	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/feature"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
+	"go.uber.org/zap"
 )
 
 // DefineRawRestoreFlags defines common flags for the backup command.
@@ -40,6 +43,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		return errors.Trace(err)
 	}
 	defer mgr.Close()
+
+	clusterVersion, err := mgr.GetClusterVersion(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	featureGate := feature.NewFeatureGate(semver.New(clusterVersion))
 
 	keepaliveCfg := GetKeepalive(&cfg.Config)
 	// sometimes we have pooled the connections.
@@ -137,6 +146,11 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	updateCh.Close()
 
 	if cfg.Checksum {
+		if !featureGate.IsEnabled(feature.Checksum) {
+			log.Warn("TiKV cluster does not support checksum, skip checksum", zap.String("version", clusterVersion))
+			summary.SetSuccessStatus(true)
+			return nil
+		}
 		finalChecksum := rawkv.RawChecksum{}
 		for _, file := range files {
 			checksum.UpdateChecksum(&finalChecksum, file.Crc64Xor, file.TotalKvs, file.TotalBytes)

@@ -5,6 +5,7 @@ package task
 import (
 	"context"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
@@ -14,6 +15,7 @@ import (
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/backup"
 	"github.com/tikv/migration/br/pkg/checksum"
+	"github.com/tikv/migration/br/pkg/feature"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/rtree"
@@ -103,15 +105,22 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	if err != nil {
 		return errors.Trace(err)
 	}
+	clusterVersion, err := mgr.GetClusterVersion(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	brVersion := g.GetVersion()
+
 	curAPIVersion := client.GetCurAPIVersion()
 	cfg.adjustBackupRange(curAPIVersion)
 	if len(cfg.DstAPIVersion) == 0 { // if no DstAPIVersion is specified, backup to same api-version.
 		cfg.DstAPIVersion = curAPIVersion.String()
 	}
 	dstAPIVersion := kvrpcpb.APIVersion(kvrpcpb.APIVersion_value[cfg.DstAPIVersion])
-	if !CheckBackupAPIVersion(curAPIVersion, dstAPIVersion) {
-		return errors.Errorf("Unsupported backup api version, cur:%s, dst:%s",
-			curAPIVersion.String(), cfg.DstAPIVersion)
+	featureGate := feature.NewFeatureGate(semver.New(clusterVersion))
+	if !CheckBackupAPIVersion(featureGate, curAPIVersion, dstAPIVersion) {
+		return errors.Errorf("Unsupported backup api version in current cluster, cur:%s, dst:%s, cluster version:%s.",
+			curAPIVersion.String(), cfg.DstAPIVersion, clusterVersion)
 	}
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
@@ -121,7 +130,7 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		return errors.Trace(err)
 	}
 	client.SetGCTTL(cfg.GCTTL)
-	if curAPIVersion == kvrpcpb.APIVersion_V2 {
+	if featureGate.IsEnabled(feature.BackupTs) && curAPIVersion == kvrpcpb.APIVersion_V2 {
 		// set safepoint to avoid the logical deletion data to gc.
 		backupTs, err := client.UpdateBRGCSafePoint(ctx, cfg.SafeInterval)
 		if err != nil {
@@ -146,12 +155,6 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		if e != nil {
 			return errors.Trace(err)
 		}
-	}
-
-	brVersion := g.GetVersion()
-	clusterVersion, err := mgr.GetClusterVersion(ctx)
-	if err != nil {
-		return errors.Trace(err)
 	}
 
 	// The number of regions need to backup
@@ -222,6 +225,11 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
 
 	if cfg.Checksum {
+		if !featureGate.IsEnabled(feature.Checksum) {
+			log.Warn("TiKV cluster does not support checksum, skip checksum", zap.String("version", clusterVersion))
+			summary.SetSuccessStatus(true)
+			return nil
+		}
 		_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, &cfg.Config)
 		if err != nil {
 			log.Error("fail to read backup meta", zap.Error(err))
