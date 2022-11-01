@@ -40,12 +40,14 @@ import (
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/notify"
 	"github.com/tikv/migration/cdc/pkg/util"
+	pd "github.com/tikv/pd/client"
 )
 
 const (
 	defaultConcurrency         uint32 = 4
 	defaultTiKVBatchBytesLimit uint64 = 40 * 1024 * 1024 // 40MB
 	defaultTiKVBatchSizeLimit  int    = 4096
+	defaultPDErrorRetry        int    = 10
 )
 
 type rawkvClient interface {
@@ -55,15 +57,6 @@ type rawkvClient interface {
 }
 
 var _ rawkvClient = &rawkv.Client{}
-
-type fnCreateClient func(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error)
-
-func createRawKVClient(ctx context.Context, pdAddrs []string, security tikvconfig.Security, opts ...rawkv.ClientOpt) (rawkvClient, error) {
-	return rawkv.NewClientWithOpts(ctx, pdAddrs,
-		rawkv.WithSecurity(security),
-		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
-	)
-}
 
 type tikvSink struct {
 	workerNum   uint32
@@ -76,17 +69,16 @@ type tikvSink struct {
 	resolvedNotifier *notify.Notifier
 	resolvedReceiver *notify.Receiver
 
-	fnCreateCli fnCreateClient
-	config      *tikvconfig.Config
-	pdAddr      []string
-	opts        map[string]string
+	client rawkvClient
+	config *tikvconfig.Config
+	pdAddr []string
+	opts   map[string]string
 
 	statistics *Statistics
 }
 
 func createTiKVSink(
 	ctx context.Context,
-	fnCreateCli fnCreateClient,
 	config *tikvconfig.Config,
 	pdAddr []string,
 	opts map[string]string,
@@ -113,6 +105,21 @@ func createTiKVSink(
 	if err != nil {
 		return nil, err
 	}
+
+	tikvconfig.UpdateGlobal(func(c *tikvconfig.Config) {
+		c.TiKVClient.MaxBatchSize = 0
+	})
+
+	client, err := rawkv.NewClientWithOpts(ctx, pdAddr,
+		rawkv.WithSecurity(config.Security),
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithPDOptions(pd.WithMaxErrorRetry(defaultPDErrorRetry)),
+	)
+	if err != nil {
+		log.Error("Failed to crate tikv client", zap.Error(err))
+		return nil, err
+	}
+
 	k := &tikvSink{
 		workerNum:        workerNum,
 		workerInput:      workerInput,
@@ -120,10 +127,10 @@ func createTiKVSink(
 		resolvedNotifier: notifier,
 		resolvedReceiver: resolvedReceiver,
 
-		fnCreateCli: fnCreateCli,
-		config:      config,
-		pdAddr:      pdAddr,
-		opts:        opts,
+		client: client,
+		config: config,
+		pdAddr: pdAddr,
+		opts:   opts,
 
 		statistics: NewStatistics(ctx, "TiKV", opts),
 	}
@@ -209,6 +216,8 @@ func (k *tikvSink) EmitCheckpointTs(ctx context.Context, ts uint64) error {
 }
 
 func (k *tikvSink) Close(ctx context.Context) error {
+	k.resolvedReceiver.Stop()
+	k.client.Close()
 	return nil
 }
 
@@ -219,7 +228,7 @@ func (k *tikvSink) Barrier(cxt context.Context, keyspanID model.KeySpanID) error
 }
 
 func (k *tikvSink) run(ctx context.Context) error {
-	defer k.resolvedReceiver.Stop()
+	defer k.Close(ctx)
 	wg, ctx := errgroup.WithContext(ctx)
 	for i := uint32(0); i < k.workerNum; i++ {
 		workerIdx := i
@@ -343,14 +352,10 @@ func (b *tikvBatcher) Reset() {
 
 func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	log.Info("tikvSink worker start", zap.Uint32("workerIdx", workerIdx))
+
+	cli := k.client
+
 	input := k.workerInput[workerIdx]
-
-	cli, err := k.fnCreateCli(ctx, k.pdAddr, k.config.Security)
-	if err != nil {
-		return err
-	}
-	defer cli.Close()
-
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
 
@@ -466,7 +471,7 @@ func newTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaConfig,
 		return nil, errors.Trace(err)
 	}
 
-	sink, err := createTiKVSink(ctx, createRawKVClient, config, pdAddr, opts, errCh)
+	sink, err := createTiKVSink(ctx, config, pdAddr, opts, errCh)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
