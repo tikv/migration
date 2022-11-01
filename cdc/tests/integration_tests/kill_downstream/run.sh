@@ -36,6 +36,7 @@ function run() {
 	kill -19 $down_tikv_pid
 
 	# Wait for cdc to retry to create tikv sink
+    # TODO: find better way to speed up the retry, now integration test takes too long.
 	sleep 180
 	# resume downstream
 	kill -18 $down_pd_pid
