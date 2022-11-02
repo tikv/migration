@@ -31,6 +31,7 @@ TEST_PARALLEL  ?= 8
 PD_ADDR        ?= 127.0.0.1:2379
 BR_LOCAL_STORE ?= /tmp/backup_restore_test
 API_VERSION    ?= 1
+CLUSTER_VERSION?= nightly
 TLS_CA         ?= 
 TLS_CERT       ?= 
 TLS_KEY        ?= 
@@ -72,6 +73,7 @@ test/integration: build/br-test build/rawkv-integration-test
 		--br='${TEST_BIN_PATH}' \
 		--br-storage=${BR_LOCAL_STORE} \
 		--api-version=${API_VERSION} \
+		--cluster-version=${CLUSTER_VERSION} \
 		--coverage=$(COVERAGE_DIR) \
 		--ca=$(TLS_CA) \
 		--cert=$(TLS_CERT) \

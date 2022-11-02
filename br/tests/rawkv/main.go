@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	units "github.com/docker/go-units"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
@@ -30,25 +31,27 @@ var (
 	maxMsgSize   = int(128 * units.MiB) // pd.ScanRegion may return a large response
 	maxBatchSize = uint(1024)           // max batch size with BatchPut
 
-	keyCnt        = flag.Uint("keycnt", 3000000, "KeyCnt of testing")
-	thread        = flag.Uint("thread", 500, "Thread of preloading data")
-	pdAddr        = flag.String("pd", "127.0.0.1:2379", "Address of PD")
-	apiVersionInt = flag.Uint("api-version", 1, "Api version of tikv-server")
-	br            = flag.String("br", "br", "The br binary to be tested.")
-	brStorage     = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
-	coverageDir   = flag.String("coverage", "", "The coverage profile file dir of test.")
-	tlsCA         = flag.String("ca", "", "TLS CA for tikv cluster")
-	tlsCert       = flag.String("cert", "", "TLS CERT for tikv cluster")
-	tlsKey        = flag.String("key", "", "TLS KEY for tikv cluster")
+	keyCnt         = flag.Uint("keycnt", 3000000, "KeyCnt of testing")
+	thread         = flag.Uint("thread", 500, "Thread of preloading data")
+	pdAddr         = flag.String("pd", "127.0.0.1:2379", "Address of PD")
+	apiVersionInt  = flag.Uint("api-version", 1, "Api version of tikv-server")
+	clusterVersion = flag.String("cluster-version", "v6.1.0", "Version of tikv cluster")
+	br             = flag.String("br", "br", "The br binary to be tested.")
+	brStorage      = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
+	coverageDir    = flag.String("coverage", "", "The coverage profile file dir of test.")
+	tlsCA          = flag.String("ca", "", "TLS CA for tikv cluster")
+	tlsCert        = flag.String("cert", "", "TLS CERT for tikv cluster")
+	tlsKey         = flag.String("key", "", "TLS KEY for tikv cluster")
 )
 
 type RawKVBRTester struct {
-	pdAddr      string
-	apiVersion  kvrpcpb.APIVersion
-	br          string
-	brStorage   string
-	rawkvClient *rawkv.Client
-	pdClient    pd.Client
+	pdAddr         string
+	apiVersion     kvrpcpb.APIVersion
+	clusterVersion string
+	br             string
+	brStorage      string
+	rawkvClient    *rawkv.Client
+	pdClient       pd.Client
 }
 
 func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
@@ -69,7 +72,7 @@ func NewPDClient(ctx context.Context, pdAddrs string) (pd.Client, error) {
 	)
 }
 
-func NewRawKVBRTester(ctx context.Context, pd, br, storage string, version kvrpcpb.APIVersion) (*RawKVBRTester, error) {
+func NewRawKVBRTester(ctx context.Context, pd, br, storage, clusterVersion string, version kvrpcpb.APIVersion) (*RawKVBRTester, error) {
 	cli, err := rawkv.NewClientWithOpts(context.TODO(), []string{pd},
 		rawkv.WithAPIVersion(version),
 		rawkv.WithSecurity(config.NewSecurity(*tlsCA, *tlsCert, *tlsKey, []string{})))
@@ -83,12 +86,13 @@ func NewRawKVBRTester(ctx context.Context, pd, br, storage string, version kvrpc
 		return nil, err
 	}
 	return &RawKVBRTester{
-		pdAddr:      pd,
-		br:          br,
-		apiVersion:  version,
-		brStorage:   storage,
-		rawkvClient: cli,
-		pdClient:    pdClient,
+		pdAddr:         pd,
+		br:             br,
+		apiVersion:     version,
+		clusterVersion: clusterVersion,
+		brStorage:      storage,
+		rawkvClient:    cli,
+		pdClient:       pdClient,
 	}, nil
 }
 
@@ -179,10 +183,14 @@ func (t *RawKVBRTester) Checksum(ctx context.Context, start, end []byte) (rawkv.
 func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVersion, safeInterval int64,
 	startKey, endKey []byte) ([]byte, error) {
 	brCmd := NewTiKVBrCmd("backup raw")
+	dstAPIVersionStr := "" // let tikv-br judge the dst-api-version for non-apiv2 cluster
+	if dstAPIVersion == kvrpcpb.APIVersion_V2 {
+		dstAPIVersionStr = dstAPIVersion.String()
+	}
 	brCmdStr := brCmd.Pd(t.pdAddr).
 		Storage(t.brStorage, true).
 		CheckReq(false).
-		DstApiVersion(dstAPIVersion.String()).
+		DstApiVersion(dstAPIVersionStr).
 		SafeInterval(safeInterval).
 		StartKey(startKey).
 		EndKey(endKey).
@@ -315,6 +323,15 @@ func runBackupAndRestore(ctx context.Context, tester *RawKVBRTester, prefix, sta
 	log.Info("Checksum pass")
 }
 
+func SupportAPIVersion(clusterVersion string) bool {
+	if clusterVersion == "nightly" {
+		return true
+	}
+	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
+	version := semver.New(clusterVersion)
+	return version.Compare(*semver.New("6.1.0")) >= 0
+}
+
 func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.KeyRange) {
 	apiVersion := kvrpcpb.APIVersion_V1TTL
 	if *apiVersionInt == 2 {
@@ -324,7 +341,7 @@ func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.
 
 	fmt.Println("test api version", apiVersion)
 
-	tester, err := NewRawKVBRTester(ctx, *pdAddr, *br, *brStorage, apiVersion)
+	tester, err := NewRawKVBRTester(ctx, *pdAddr, *br, *brStorage, *clusterVersion, apiVersion)
 	if err != nil {
 		log.Panic("New Tester Fail", zap.Error(err))
 	}
@@ -348,7 +365,7 @@ func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.
 	}
 	runBackupAndRestore(ctx, tester, prefix, backupRange.StartKey, backupRange.EndKey)
 
-	if apiVersion == kvrpcpb.APIVersion_V1TTL {
+	if apiVersion == kvrpcpb.APIVersion_V1TTL && SupportAPIVersion(*clusterVersion) {
 		if err := tester.ClearStorage(); err != nil {
 			log.Panic("ClearStorage fail", zap.Error(err))
 		}
