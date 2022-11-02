@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"hash/crc64"
 	"math"
 	"os"
 	"os/exec"
@@ -177,7 +178,34 @@ func (t *RawKVBRTester) CleanData(ctx context.Context, prefix []byte) error {
 }
 
 func (t *RawKVBRTester) Checksum(ctx context.Context, start, end []byte) (rawkv.RawChecksum, error) {
-	return t.rawkvClient.Checksum(ctx, start, end)
+	if SupportAPIVersionConvert(t.clusterVersion) {
+		return t.rawkvClient.Checksum(ctx, start, end)
+	} else {
+		curStart := start
+		checksum := rawkv.RawChecksum{}
+		digest := crc64.New(crc64.MakeTable(crc64.ECMA))
+		for {
+			keys, values, err := t.rawkvClient.Scan(ctx, curStart, end, 1024)
+			if err != nil {
+				return rawkv.RawChecksum{}, err
+			}
+			for i, key := range keys {
+				// keep the same with tikv-server: https://docs.rs/crc64fast/latest/crc64fast/
+				digest.Reset()
+				digest.Write(key)
+				digest.Write(values[i])
+				checksum.Crc64Xor ^= digest.Sum64()
+				checksum.TotalKvs += 1
+				checksum.TotalBytes += (uint64)(len(key) + len(values[i]))
+			}
+			if len(keys) < 1024 {
+				break // reach the end
+			}
+			// append '0' to avoid getting the duplicated kv
+			curStart = append(keys[len(keys)-1], '0')
+		}
+		return checksum, nil
+	}
 }
 
 func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVersion, safeInterval int64,
@@ -323,7 +351,7 @@ func runBackupAndRestore(ctx context.Context, tester *RawKVBRTester, prefix, sta
 	log.Info("Checksum pass")
 }
 
-func SupportAPIVersion(clusterVersion string) bool {
+func SupportAPIVersionConvert(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
@@ -365,7 +393,7 @@ func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.
 	}
 	runBackupAndRestore(ctx, tester, prefix, backupRange.StartKey, backupRange.EndKey)
 
-	if apiVersion == kvrpcpb.APIVersion_V1TTL && SupportAPIVersion(*clusterVersion) {
+	if apiVersion == kvrpcpb.APIVersion_V1TTL && SupportAPIVersionConvert(*clusterVersion) {
 		if err := tester.ClearStorage(); err != nil {
 			log.Panic("ClearStorage fail", zap.Error(err))
 		}
