@@ -30,7 +30,7 @@ import (
 
 var (
 	maxMsgSize   = int(128 * units.MiB) // pd.ScanRegion may return a large response
-	maxBatchSize = uint(1024)           // max batch size with BatchPut
+	maxBatchSize = int(1024)            // max batch size with BatchPut
 
 	keyCnt         = flag.Uint("keycnt", 10000000, "KeyCnt of testing")
 	thread         = flag.Uint("thread", 500, "Thread of preloading data")
@@ -140,7 +140,7 @@ func (t *RawKVBRTester) PreloadData(ctx context.Context, keyCnt, thread uint, pr
 			start := startIdx
 			end := endIdx
 			for start < end {
-				batchCnt := min(maxBatchSize, end-start)
+				batchCnt := min(uint(maxBatchSize), end-start)
 				keys, values := BatchGenerateData(start, batchCnt, prefix)
 				err := t.rawkvClient.BatchPut(ctx, keys, values)
 				if err != nil {
