@@ -27,7 +27,6 @@ import (
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.etcd.io/etcd/server/v3/mvcc"
 	"go.uber.org/zap"
@@ -46,6 +45,8 @@ import (
 	"github.com/tikv/migration/cdc/pkg/version"
 )
 
+type createEtcdClientFunc func(ctx context.Context) (*etcd.CDCEtcdClient, error)
+
 // Capture represents a Capture server, it monitors the changefeed information in etcd and schedules Task on it.
 type Capture struct {
 	captureMu sync.Mutex
@@ -59,12 +60,13 @@ type Capture struct {
 	session  *concurrency.Session
 	election *concurrency.Election
 
-	pdClient     pd.Client
-	kvStorage    tidbkv.Storage
-	etcdClient   *etcd.CDCEtcdClient
-	grpcPool     kv.GrpcPool
-	regionCache  *tikv.RegionCache
-	TimeAcquirer pdtime.TimeAcquirer
+	pdClient         pd.Client
+	kvStorage        tidbkv.Storage
+	createEtcdClient createEtcdClientFunc
+	etcdClient       *etcd.CDCEtcdClient
+	grpcPool         kv.GrpcPool
+	regionCache      *tikv.RegionCache
+	TimeAcquirer     pdtime.TimeAcquirer
 
 	cancel context.CancelFunc
 
@@ -73,12 +75,13 @@ type Capture struct {
 }
 
 // NewCapture returns a new Capture instance
-func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, etcdClient *etcd.CDCEtcdClient) *Capture {
+func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, createEtcdClient createEtcdClientFunc) *Capture {
+	// etcdClient *etcd.CDCEtcdClient) *Capture {
 	return &Capture{
-		pdClient:   pdClient,
-		kvStorage:  kvStorage,
-		etcdClient: etcdClient,
-		cancel:     func() {},
+		pdClient:         pdClient,
+		kvStorage:        kvStorage,
+		createEtcdClient: createEtcdClient,
+		cancel:           func() {},
 
 		newProcessorManager: processor.NewManager,
 		newOwner:            owner.NewOwner,
@@ -94,6 +97,15 @@ func NewCapture4Test() *Capture {
 func (c *Capture) reset(ctx context.Context) error {
 	c.captureMu.Lock()
 	defer c.captureMu.Unlock()
+
+	etcdClient, err := c.createEtcdClient(ctx)
+	if err != nil {
+		return errors.Annotate(
+			cerror.WrapError(cerror.ErrNewCaptureFailed, err),
+			"create etcd client")
+	}
+	c.etcdClient = etcdClient
+
 	conf := config.GetGlobalServerConfig()
 	c.info = &model.CaptureInfo{
 		ID:            uuid.New().String(),
@@ -389,10 +401,7 @@ func (c *Capture) campaign(ctx cdcContext.Context) error {
 	failpoint.Inject("capture-campaign-compacted-error", func() {
 		failpoint.Return(errors.Trace(mvcc.ErrCompacted))
 	})
-	// When send SIGSTOP to pd leader, campaign will block here, even if `cancel` is called.
-	// For detail, see https://github.com/etcd-io/etcd/issues/8980
-	nctx := clientv3.WithRequireLeader(ctx)
-	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(nctx, c.info.ID))
+	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(ctx, c.info.ID))
 }
 
 // resign lets an owner start a new election.
@@ -434,6 +443,10 @@ func (c *Capture) AsyncClose() {
 		c.regionCache.Close()
 		c.regionCache = nil
 	}
+	if c.etcdClient != nil {
+		c.etcdClient.Close()
+		c.etcdClient = nil
+	}
 }
 
 // WriteDebugInfo writes the debug info into writer.
@@ -462,6 +475,12 @@ func (c *Capture) IsOwner() bool {
 
 // GetOwner return the owner of current TiCDC cluster
 func (c *Capture) GetOwner(ctx context.Context) (*model.CaptureInfo, error) {
+	c.captureMu.Lock()
+	defer c.captureMu.Unlock()
+	if c.etcdClient == nil {
+		return nil, errors.Errorf("Capture is not ready")
+	}
+
 	_, captureInfos, err := c.etcdClient.GetCaptures(ctx)
 	if err != nil {
 		return nil, err
@@ -478,4 +497,25 @@ func (c *Capture) GetOwner(ctx context.Context) (*model.CaptureInfo, error) {
 		}
 	}
 	return nil, cerror.ErrOwnerNotFound.FastGenByArgs()
+}
+
+// CreateChangefeddInfo put new changefeed info in etcd
+func (c *Capture) CreateChangefeedInfo(ctx context.Context, info *model.ChangeFeedInfo, cfID string) error {
+	c.captureMu.Lock()
+	defer c.captureMu.Unlock()
+	if c.etcdClient == nil {
+		return errors.Errorf("Capture is not ready")
+	}
+
+	return c.etcdClient.CreateChangefeedInfo(ctx, info, cfID)
+}
+
+// SaveChangFeedInfo update changefeed info in etcd
+func (c *Capture) SaveChangeFeedInfo(ctx context.Context, info *model.ChangeFeedInfo, cfID string) error {
+	c.captureMu.Lock()
+	defer c.captureMu.Unlock()
+	if c.etcdClient == nil {
+		return errors.Errorf("Capture is not ready")
+	}
+	return c.etcdClient.SaveChangeFeedInfo(ctx, info, cfID)
 }
