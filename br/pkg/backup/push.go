@@ -87,8 +87,52 @@ func (push *pushDown) pushBackup(
 			return res, nil
 		}
 		wg.Add(1)
+		regionErrorIngestedOnce := false
 		go func() {
 			defer wg.Done()
+			failpoint.Inject("backup-storage-error", func(val failpoint.Value) {
+				msg := val.(string)
+				logutil.CL(ctx).Debug("failpoint backup-storage-error injected.", zap.String("msg", msg))
+				resp := new(backuppb.BackupResponse)
+				resp.Error = &backuppb.Error{
+					Msg: msg,
+				}
+				push.respCh <- responseAndStore{
+					Resp:  resp,
+					Store: store,
+				}
+			})
+			failpoint.Inject("tikv-rw-error", func(val failpoint.Value) {
+				msg := val.(string)
+				logutil.CL(ctx).Debug("failpoint tikv-rw-error injected.", zap.String("msg", msg))
+				resp := new(backuppb.BackupResponse)
+				resp.Error = &backuppb.Error{
+					Msg: msg,
+				}
+				push.respCh <- responseAndStore{
+					Resp:  resp,
+					Store: store,
+				}
+			})
+			failpoint.Inject("tikv-region-error", func(val failpoint.Value) {
+				if !regionErrorIngestedOnce {
+					msg := val.(string)
+					resp := new(backuppb.BackupResponse)
+					logutil.CL(ctx).Debug("failpoint tikv-regionh-error injected.", zap.String("msg", msg))
+					resp.Error = &backuppb.Error{
+						Detail: &backuppb.Error_RegionError{
+							RegionError: &errorpb.Error{
+								Message: msg,
+							},
+						},
+					}
+					push.respCh <- responseAndStore{
+						Resp:  resp,
+						Store: store,
+					}
+					regionErrorIngestedOnce = true
+				}
+			})
 			err := SendBackup(
 				lctx, storeID, client, req,
 				func(resp *backuppb.BackupResponse) error {
@@ -117,7 +161,6 @@ func (push *pushDown) pushBackup(
 		close(push.respCh)
 	}()
 
-	regionErrorIngestedOnce := false
 	for {
 		select {
 		case respAndStore, ok := <-push.respCh:
@@ -127,35 +170,6 @@ func (push *pushDown) pushBackup(
 				// Finished.
 				return res, nil
 			}
-			failpoint.Inject("backup-storage-error", func(val failpoint.Value) {
-				msg := val.(string)
-				logutil.CL(ctx).Debug("failpoint backup-storage-error injected.", zap.String("msg", msg))
-				resp.Error = &backuppb.Error{
-					Msg: msg,
-				}
-			})
-			failpoint.Inject("tikv-rw-error", func(val failpoint.Value) {
-				msg := val.(string)
-				logutil.CL(ctx).Debug("failpoint tikv-rw-error injected.", zap.String("msg", msg))
-				resp.Error = &backuppb.Error{
-					Msg: msg,
-				}
-			})
-			failpoint.Inject("tikv-region-error", func(val failpoint.Value) {
-				if !regionErrorIngestedOnce {
-					msg := val.(string)
-					logutil.CL(ctx).Debug("failpoint tikv-regionh-error injected.", zap.String("msg", msg))
-					resp.Error = &backuppb.Error{
-						// Msg: msg,
-						Detail: &backuppb.Error_RegionError{
-							RegionError: &errorpb.Error{
-								Message: msg,
-							},
-						},
-					}
-				}
-				regionErrorIngestedOnce = true
-			})
 			if resp.GetError() == nil {
 				// None error means range has been backuped successfully.
 				res.Put(resp.GetStartKey(), resp.GetEndKey(), resp.GetFiles())

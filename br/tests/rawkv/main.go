@@ -32,7 +32,7 @@ var (
 	maxMsgSize   = int(128 * units.MiB) // pd.ScanRegion may return a large response
 	maxBatchSize = uint(1024)           // max batch size with BatchPut
 
-	keyCnt         = flag.Uint("keycnt", 3000000, "KeyCnt of testing")
+	keyCnt         = flag.Uint("keycnt", 10000000, "KeyCnt of testing")
 	thread         = flag.Uint("thread", 500, "Thread of preloading data")
 	pdAddr         = flag.String("pd", "127.0.0.1:2379", "Address of PD")
 	apiVersionInt  = flag.Uint("api-version", 1, "Api version of tikv-server")
