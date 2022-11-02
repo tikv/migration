@@ -209,13 +209,6 @@ func (c *Capture) run(stdCtx context.Context) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	defer func() {
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := ctx.GlobalVars().EtcdClient.DeleteCaptureInfo(timeoutCtx, c.info.ID); err != nil {
-			log.Warn("failed to delete capture info when capture exited", zap.Error(err))
-		}
-		cancel()
-	}()
 	wg := new(sync.WaitGroup)
 	var ownerErr, processorErr, messageServerErr error
 	wg.Add(1)
@@ -423,7 +416,6 @@ func (c *Capture) register(ctx cdcContext.Context) error {
 // AsyncClose closes the capture by unregistering it from etcd
 // Note: this function should be reentrant
 func (c *Capture) AsyncClose() {
-	defer c.cancel()
 	// Safety: Here we mainly want to stop the owner
 	// and ignore it if the owner does not exist or is not set.
 	_ = c.OperateOwnerUnderLock(func(o *owner.Owner) error {
@@ -442,8 +434,25 @@ func (c *Capture) AsyncClose() {
 		c.regionCache.Close()
 		c.regionCache = nil
 	}
+
+	c.cancel()
+
 	if c.etcdClient != nil {
-		c.etcdClient.Close()
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := c.election.Resign(timeoutCtx); err != nil {
+			log.Warn("failed to resign", zap.Error(err))
+		}
+		cancel()
+
+		timeoutCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		if err := c.etcdClient.DeleteCaptureInfo(timeoutCtx, c.info.ID); err != nil {
+			log.Warn("failed to delete capture info when capture exited", zap.Error(err))
+		}
+		cancel()
+
+		if err := c.etcdClient.Close(); err != nil {
+			log.Warn("failed to close etcd client", zap.Error(err))
+		}
 		c.etcdClient = nil
 	}
 }
