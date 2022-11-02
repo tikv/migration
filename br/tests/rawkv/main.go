@@ -178,7 +178,7 @@ func (t *RawKVBRTester) CleanData(ctx context.Context, prefix []byte) error {
 }
 
 func (t *RawKVBRTester) Checksum(ctx context.Context, start, end []byte) (rawkv.RawChecksum, error) {
-	if SupportAPIVersionConvert(t.clusterVersion) {
+	if SupportChecksum(t.clusterVersion) {
 		return t.rawkvClient.Checksum(ctx, start, end)
 	} else {
 		curStart := start
@@ -352,6 +352,15 @@ func runBackupAndRestore(ctx context.Context, tester *RawKVBRTester, prefix, sta
 }
 
 func SupportAPIVersionConvert(clusterVersion string) bool {
+	if clusterVersion == "nightly" {
+		return true
+	}
+	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
+	version := semver.New(clusterVersion)
+	return version.Compare(*semver.New("6.1.0")) >= 0
+}
+
+func SupportChecksum(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
