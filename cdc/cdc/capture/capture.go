@@ -76,7 +76,6 @@ type Capture struct {
 
 // NewCapture returns a new Capture instance
 func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, createEtcdClient createEtcdClientFunc) *Capture {
-	// etcdClient *etcd.CDCEtcdClient) *Capture {
 	return &Capture{
 		pdClient:         pdClient,
 		kvStorage:        kvStorage,
