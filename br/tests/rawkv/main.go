@@ -166,7 +166,7 @@ func (t *RawKVBRTester) CleanData(ctx context.Context, prefix []byte) error {
 		return errors.Annotate(err, "Delete range fails.")
 	}
 	// scan to verify delete range result.
-	keys, _, err := t.rawkvClient.Scan(ctx, start, end, 1024)
+	keys, _, err := t.rawkvClient.Scan(ctx, start, end, maxBatchSize)
 	if err != nil {
 		return errors.Annotate(err, "Scan data fails.")
 	}
@@ -185,7 +185,7 @@ func (t *RawKVBRTester) Checksum(ctx context.Context, start, end []byte) (rawkv.
 		checksum := rawkv.RawChecksum{}
 		digest := crc64.New(crc64.MakeTable(crc64.ECMA))
 		for {
-			keys, values, err := t.rawkvClient.Scan(ctx, curStart, end, 1024)
+			keys, values, err := t.rawkvClient.Scan(ctx, curStart, end, maxBatchSize)
 			if err != nil {
 				return rawkv.RawChecksum{}, err
 			}
@@ -198,7 +198,7 @@ func (t *RawKVBRTester) Checksum(ctx context.Context, start, end []byte) (rawkv.
 				checksum.TotalKvs += 1
 				checksum.TotalBytes += (uint64)(len(key) + len(values[i]))
 			}
-			if len(keys) < 1024 {
+			if len(keys) < maxBatchSize {
 				break // reach the end
 			}
 			// append '0' to avoid getting the duplicated kv
