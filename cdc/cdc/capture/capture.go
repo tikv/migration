@@ -330,16 +330,18 @@ func (c *Capture) campaignOwner(ctx cdcContext.Context) error {
 		err = c.runEtcdWorker(ownerCtx, owner, orchestrator.NewGlobalState(), ownerFlushInterval)
 		c.setOwner(nil)
 		log.Info("run owner exited", zap.Error(err))
-		// if owner exits, resign the owner key
-		if resignErr := c.resign(ctx); resignErr != nil {
-			// if resigning owner failed, return error to let capture exits
-			return errors.Annotatef(resignErr, "resign owner failed, capture: %s", c.info.ID)
-		}
 		if err != nil {
 			// for errors, return error and let capture exits or restart
 			return errors.Trace(err)
 		}
+
 		// if owner exits normally, continue the campaign loop and try to election owner again
+		//
+		// before a new cycle starts, we need resign and just need ignore error
+		if resignErr := c.resign(ctx); resignErr != nil {
+			log.Info("owner resign failed", zap.String("captureID", c.info.ID),
+				zap.Error(err), zap.Int64("ownerRev", ownerRev))
+		}
 	}
 }
 
