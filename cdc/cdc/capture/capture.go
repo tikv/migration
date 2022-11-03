@@ -69,7 +69,6 @@ type Capture struct {
 	TimeAcquirer     pdtime.TimeAcquirer
 
 	cancel context.CancelFunc
-	wg     *sync.WaitGroup
 
 	newProcessorManager func() *processor.Manager
 	newOwner            func(pd.Client) *owner.Owner
@@ -216,8 +215,7 @@ func (c *Capture) run(stdCtx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// `cancel` other routine
-		defer c.cancel()
+		defer c.AsyncClose()
 		// when the campaignOwner returns an error, it means that the owner throws an unrecoverable serious errors
 		// (recoverable errors are intercepted in the owner tick)
 		// so we should also stop the owner and let capture restart or exit
@@ -227,8 +225,7 @@ func (c *Capture) run(stdCtx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// `cancel` other routine
-		defer c.cancel()
+		defer c.AsyncClose()
 
 		conf := config.GetGlobalServerConfig()
 		processorFlushInterval := time.Duration(conf.ProcessorFlushInterval)
@@ -327,22 +324,29 @@ func (c *Capture) campaignOwner(ctx cdcContext.Context) error {
 
 		owner := c.newOwner(c.pdClient)
 		c.setOwner(owner)
-
 		err = c.runEtcdWorker(ownerCtx, owner, orchestrator.NewGlobalState(), ownerFlushInterval)
 		c.setOwner(nil)
 		log.Info("run owner exited", zap.Error(err))
+
+		// TODO: fix invalid resign
+		// When exiting normally, cancel will be called to make `owner routine`
+		// & `processor routine` exit normally.
+		//
+		// For `owner routine`, when cancel is called, `owner routine` will return
+		// from `runEtcdWorker` and call `resign`.
+		//
+		// But now ctx is cancel, so resign will not work.
+		//
+		// More detail, https://github.com/pingcap/tiflow/pull/6284
+		if resignErr := c.resign(ctx); resignErr != nil {
+			// if resigning owner failed, return error to let capture exits
+			return errors.Annotatef(resignErr, "resign owner failed, capture: %s", c.info.ID)
+		}
 		if err != nil {
 			// for errors, return error and let capture exits or restart
 			return errors.Trace(err)
 		}
-
 		// if owner exits normally, continue the campaign loop and try to election owner again
-		//
-		// before a new cycle starts, we need resign and just need ignore error
-		if resignErr := c.resign(ctx); resignErr != nil {
-			log.Info("owner resign failed", zap.String("captureID", c.info.ID),
-				zap.Error(err), zap.Int64("ownerRev", ownerRev))
-		}
 	}
 }
 
@@ -421,9 +425,9 @@ func (c *Capture) register(ctx cdcContext.Context) error {
 // AsyncClose closes the capture by unregistering it from etcd
 // Note: this function should be reentrant
 func (c *Capture) AsyncClose() {
+	defer c.cancel()
 	// Safety: Here we mainly want to stop the owner
 	// and ignore it if the owner does not exist or is not set.
-	defer c.cancel()
 
 	_ = c.OperateOwnerUnderLock(func(o *owner.Owner) error {
 		o.AsyncStop()
@@ -444,12 +448,6 @@ func (c *Capture) AsyncClose() {
 
 	if c.etcdClient != nil {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := c.election.Resign(timeoutCtx); err != nil {
-			log.Warn("failed to resign", zap.Error(err))
-		}
-		cancel()
-
-		timeoutCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		if err := c.etcdClient.DeleteCaptureInfo(timeoutCtx, c.info.ID); err != nil {
 			log.Warn("failed to delete capture info when capture exited", zap.Error(err))
 		}
