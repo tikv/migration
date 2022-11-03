@@ -69,6 +69,7 @@ type Capture struct {
 	TimeAcquirer     pdtime.TimeAcquirer
 
 	cancel context.CancelFunc
+	wg     *sync.WaitGroup
 
 	newProcessorManager func() *processor.Manager
 	newOwner            func(pd.Client) *owner.Owner
@@ -422,6 +423,8 @@ func (c *Capture) register(ctx cdcContext.Context) error {
 func (c *Capture) AsyncClose() {
 	// Safety: Here we mainly want to stop the owner
 	// and ignore it if the owner does not exist or is not set.
+	defer c.cancel()
+
 	_ = c.OperateOwnerUnderLock(func(o *owner.Owner) error {
 		o.AsyncStop()
 		return nil
