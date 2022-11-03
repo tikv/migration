@@ -196,6 +196,7 @@ func (c *Capture) Run(ctx context.Context) error {
 }
 
 func (c *Capture) run(stdCtx context.Context) error {
+	defer c.AsyncClose()
 	ctx := cdcContext.NewContext(stdCtx, &cdcContext.GlobalVars{
 		PDClient:     c.pdClient,
 		KVStorage:    c.kvStorage,
@@ -210,11 +211,12 @@ func (c *Capture) run(stdCtx context.Context) error {
 		return errors.Trace(err)
 	}
 	wg := new(sync.WaitGroup)
-	var ownerErr, processorErr, messageServerErr error
+	var ownerErr, processorErr error
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer c.AsyncClose()
+		// `cancel` other routine
+		defer c.cancel()
 		// when the campaignOwner returns an error, it means that the owner throws an unrecoverable serious errors
 		// (recoverable errors are intercepted in the owner tick)
 		// so we should also stop the owner and let capture restart or exit
@@ -224,10 +226,11 @@ func (c *Capture) run(stdCtx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer c.AsyncClose()
+		// `cancel` other routine
+		defer c.cancel()
+
 		conf := config.GetGlobalServerConfig()
 		processorFlushInterval := time.Duration(conf.ProcessorFlushInterval)
-
 		globalState := orchestrator.NewGlobalState()
 
 		// when the etcd worker of processor returns an error, it means that the processor throws an unrecoverable serious errors
@@ -240,11 +243,13 @@ func (c *Capture) run(stdCtx context.Context) error {
 	go func() {
 		defer wg.Done()
 		c.TimeAcquirer.Run(ctx)
+		log.Info("the time acquirer routine has exited")
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		c.grpcPool.RecycleConn(ctx)
+		log.Info("the grpcPoll routine has exited")
 	}()
 	wg.Wait()
 	if ownerErr != nil {
@@ -252,9 +257,6 @@ func (c *Capture) run(stdCtx context.Context) error {
 	}
 	if processorErr != nil {
 		return errors.Annotate(processorErr, "processor exited with error")
-	}
-	if messageServerErr != nil {
-		return errors.Annotate(messageServerErr, "message server exited with error")
 	}
 	return nil
 }
@@ -434,8 +436,6 @@ func (c *Capture) AsyncClose() {
 		c.regionCache.Close()
 		c.regionCache = nil
 	}
-
-	c.cancel()
 
 	if c.etcdClient != nil {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
