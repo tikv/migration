@@ -65,14 +65,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tikv_version: [v5.0.0, v5.4.0, v6.1.0, nightly]
+        tikv_version: [v6.1.2, nightly]
         api_version: [1, 2]
         with_tls: [false, true]
-        exclude:
-          - tikv_version: v5.0.0
-            api_version: 2
-          - tikv_version: v5.4.0
-            api_version: 2
+        include:
+          - tikv_version: v5.0.6
+            api_version: 1
+            with_tls: true
+          - tikv_version: v5.4.3
+            api_version: 1
+            with_tls: true
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2

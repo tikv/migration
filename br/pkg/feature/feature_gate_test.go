@@ -9,7 +9,6 @@ import (
 
 func TestFeatureGate(t *testing.T) {
 	gate := NewFeatureGate(semver.New("6.0.0"))
-
 	require.False(t, gate.IsEnabled(APIVersionConversion))
 	require.False(t, gate.IsEnabled(Checksum))
 	require.False(t, gate.IsEnabled(BackupTs))
