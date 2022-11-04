@@ -24,17 +24,17 @@ PACKAGES    := go list ./...
 DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
 # build & test
-BR_BIN_PATH    ?= bin/tikv-br
-TEST_BIN_PATH  ?= bin/tikv-br.test
-COVERAGE_DIR   ?= build
-TEST_PARALLEL  ?= 8
-PD_ADDR        ?= 127.0.0.1:2379
-BR_LOCAL_STORE ?= /tmp/backup_restore_test
-API_VERSION    ?= 1
-CLUSTER_VERSION?= nightly
-TLS_CA         ?= 
-TLS_CERT       ?= 
-TLS_KEY        ?= 
+BR_BIN_PATH     ?= bin/tikv-br
+TEST_BIN_PATH   ?= bin/tikv-br.test
+COVERAGE_DIR    ?= build
+TEST_PARALLEL   ?= 8
+PD_ADDR         ?= 127.0.0.1:2379
+BR_LOCAL_STORE  ?= /tmp/backup_restore_test
+API_VERSION     ?= 1
+CLUSTER_VERSION ?= nightly
+TLS_CA          ?= 
+TLS_CERT        ?= 
+TLS_KEY         ?= 
 
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"

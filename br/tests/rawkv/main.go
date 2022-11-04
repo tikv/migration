@@ -22,6 +22,7 @@ import (
 	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/rawkv"
+	"github.com/tikv/migration/br/pkg/feature"
 	pd "github.com/tikv/pd/client"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -357,27 +358,24 @@ func SupportAPIVersionConvert(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
-	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
-	version := semver.New(clusterVersion)
-	return version.Compare(*semver.New("6.1.0")) >= 0
+	gate := feature.NewFeatureGate(semver.New(clusterVersion))
+	return gate.IsEnabled(feature.APIVersionConversion)
 }
 
 func SupportChecksum(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
-	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
-	version := semver.New(clusterVersion)
-	return version.Compare(*semver.New("6.1.1")) >= 0
+	gate := feature.NewFeatureGate(semver.New(clusterVersion))
+	return gate.IsEnabled(feature.Checksum)
 }
 
 func SupportBackupTs(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
-	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
-	version := semver.New(clusterVersion)
-	return version.Compare(*semver.New("6.2.0")) >= 0
+	gate := feature.NewFeatureGate(semver.New(clusterVersion))
+	return gate.IsEnabled(feature.BackupTs)
 }
 
 func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.KeyRange) {
