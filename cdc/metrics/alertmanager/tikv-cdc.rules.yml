@@ -1,0 +1,145 @@
+groups:
+- name: alert.rules
+  rules:
+  - alert: tikv_cdc_multiple_owners
+    expr: sum(rate(tikv_cdc_owner_ownership_counter[30s])) >= 2
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: sum(rate(tikv_cdc_owner_ownership_counter[30s])) >= 2
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC cluster has multiple owners
+
+  - alert: tikv_cdc_no_owner
+    expr: sum(rate(tikv_cdc_owner_ownership_counter[30s])) < 0.5
+    for: 10m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: sum(rate(tikv_cdc_owner_ownership_counter[30s])) < 0.5
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC cluster has no owner for more than 10 minutes
+
+  - alert: tikv_cdc_checkpoint_high_delay
+    expr: tikv_cdc_processor_checkpoint_ts_lag > 600
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: critical
+      expr: tikv_cdc_processor_checkpoint_ts_lag > 600
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC processor checkpoint delay more than 10 minutes
+
+  - alert: tikv_cdc_resolvedts_high_delay
+    expr: tikv_cdc_processor_resolved_ts_lag > 300
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: critical
+      expr: tikv_cdc_processor_resolved_ts_lag > 300
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC processor resolved ts delay more than 5 minutes
+
+  - alert: tikv_cdc_sink_execute_duration_time_more_than_10s
+    expr: histogram_quantile(0.9, rate(tikv_cdc_sink_txn_exec_duration_bucket[1m])) > 10
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: histogram_quantile(0.9, rate(tikv_cdc_sink_txn_exec_duration_bucket[1m])) > 10
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC sink execute_duration_time_more_than_10s
+
+  - alert: tikv_cdc_processor_checkpoint_tso_no_change_for_1m
+    expr: changes(tikv_cdc_processor_checkpoint_ts[1m]) < 1
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: changes(tikv_cdc_processor_checkpoint_ts[1m]) < 1
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC processor checkpoint tso no change for 1m
+
+  - alert: tikv_cdc_puller_entry_sorter_sort_bucket
+    expr: histogram_quantile(0.9, rate(tikv_cdc_puller_entry_sorter_sort_bucket{}[1m])) > 1
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: histogram_quantile(0.9, rate(tikv_cdc_puller_entry_sorter_sort_bucket{}[1m]))
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary:  TiKV-CDC puller entry sorter sort latency is too high
+
+  - alert: tikv_cdc_puller_entry_sorter_merge_bucket
+    expr: histogram_quantile(0.9, rate(tikv_cdc_puller_entry_sorter_merge_bucket{}[1m])) > 1
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: histogram_quantile(0.9, rate(tikv_cdc_puller_entry_sorter_merge_bucket{}[1m]))
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary:  TiKV-CDC puller entry sorter merge latency is too high
+
+  - alert: tikv_cdc_component_min_resolved_ts_no_change_for_1m
+    expr: changes(tikv_cdc_min_resolved_ts[1m]) < 1 and ON (instance) tikv_cdc_region_resolve_status{status="resolved"} > 0
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: changes(tikv_cdc_min_resolved_ts[1m]) < 1 and ON (instance) tikv_cdc_region_resolve_status{status="resolved"} > 0
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $labels.instance }}'
+      summary: TiKV-CDC component min resolved ts no change for 1m
+
+  - alert: tikv_cdc_component_scan_duration_seconds_more_than_10min
+    expr: histogram_quantile(0.9, rate(tikv_cdc_scan_duration_seconds_bucket{}[1m])) > 600
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: histogram_quantile(0.9, rate(tikv_cdc_scan_duration_seconds_bucket{}[1m])) > 600
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC component scan duration seconds more than 10 min
+
+  - alert: tikv_cdc_processor_exit_with_error_count
+    expr: changes(tikv_cdc_processor_exit_with_error_count[1m]) > 0
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: critical
+      expr: changes(tikv_cdc_processor_exit_with_error_count[1m]) > 0
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values: {{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC processor exits with error
+
+  - alert: tikv_cdc_memory_abnormal
+    expr: go_memstats_heap_alloc_bytes{job="tikv-cdc"} > 1e+10
+    for: 1m
+    labels:
+      env: ENV_LABELS_ENV
+      level: warning
+      expr: go_memstats_heap_alloc_bytes{job="tikv-cdc"} > 1e+10
+    annotations:
+      description: 'cluster: ENV_LABELS_ENV, instance: {{ $labels.instance }}, values:{{ $value }}'
+      value: '{{ $value }}'
+      summary: TiKV-CDC heap memory usage is over 10 GB
