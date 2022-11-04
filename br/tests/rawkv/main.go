@@ -428,7 +428,7 @@ func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.
 func main() {
 	flag.Parse()
 	failpoints := []string{"",
-		"github.com/tikv/migration/br/pkg/backup/tikv-region-error=return(\"region error\")",
+		"github.com/tikv/migration/br/pkg/backup/tikv-region-error=1*return(\"region error\")",
 	}
 	prefix := []byte("index")
 	q1Key, _ := GenerateTestData(*keyCnt/4, prefix)
