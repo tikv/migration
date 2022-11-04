@@ -161,7 +161,7 @@ for ((i = 0; i <= 50; i++)); do
 		echo 'Failed to start TiKV-CDC'
 		exit 1
 	fi
-	sleep 3
+	sleep 1
 done
 
 set +x
