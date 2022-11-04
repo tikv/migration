@@ -330,7 +330,9 @@ func runBackupAndRestore(ctx context.Context, tester *RawKVBRTester, prefix, sta
 		log.Panic("Backup fail", zap.Error(err), zap.ByteString("output", backupOutput))
 	}
 	log.Info("backup finish:", zap.ByteString("output", backupOutput))
-	CheckBackupTS(tester.apiVersion, tso, backupOutput, safeInterval)
+	if SupportBackupTs(*clusterVersion) {
+		CheckBackupTS(tester.apiVersion, tso, backupOutput, safeInterval)
+	}
 
 	err = tester.CleanData(ctx, prefix)
 	if err != nil {
@@ -366,7 +368,16 @@ func SupportChecksum(clusterVersion string) bool {
 	}
 	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
 	version := semver.New(clusterVersion)
-	return version.Compare(*semver.New("6.1.0")) >= 0
+	return version.Compare(*semver.New("6.1.1")) >= 0
+}
+
+func SupportBackupTs(clusterVersion string) bool {
+	if clusterVersion == "nightly" {
+		return true
+	}
+	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
+	version := semver.New(clusterVersion)
+	return version.Compare(*semver.New("6.2.0")) >= 0
 }
 
 func runTestWithFailPoint(failpoint string, prefix []byte, backupRange *kvrpcpb.KeyRange) {

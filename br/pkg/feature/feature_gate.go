@@ -13,8 +13,8 @@ const (
 
 var (
 	minAPIVersionConversionVersion = semver.New("6.1.0")
-	minChecksumVersion             = semver.New("6.1.0")
-	minBackupTsVersion             = semver.New("6.1.0")
+	minChecksumVersion             = semver.New("6.1.1")
+	minBackupTsVersion             = semver.New("6.2.0")
 	minSplitRegionVersion          = semver.New("5.2.0")
 )
 
