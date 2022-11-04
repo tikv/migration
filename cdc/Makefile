@@ -264,6 +264,7 @@ integration_test: prepare_test_binaries check_third_party_binary integration_tes
 	tests/integration_tests/run.sh 
 	@bash <(curl -s https://codecov.io/bash) -F cdc -s /tmp/tikv_cdc_test -f *.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
+
 prepare_test_binaries:
 	cd scripts && ./download-integration-test-binaries.sh master && cd ..
 

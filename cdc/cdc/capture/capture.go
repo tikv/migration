@@ -27,7 +27,6 @@ import (
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.etcd.io/etcd/server/v3/mvcc"
 	"go.uber.org/zap"
@@ -46,6 +45,8 @@ import (
 	"github.com/tikv/migration/cdc/pkg/version"
 )
 
+type createEtcdClientFunc func(ctx context.Context) (*etcd.CDCEtcdClient, error)
+
 // Capture represents a Capture server, it monitors the changefeed information in etcd and schedules Task on it.
 type Capture struct {
 	captureMu sync.Mutex
@@ -59,12 +60,13 @@ type Capture struct {
 	session  *concurrency.Session
 	election *concurrency.Election
 
-	pdClient     pd.Client
-	kvStorage    tidbkv.Storage
-	etcdClient   *etcd.CDCEtcdClient
-	grpcPool     kv.GrpcPool
-	regionCache  *tikv.RegionCache
-	TimeAcquirer pdtime.TimeAcquirer
+	pdClient         pd.Client
+	kvStorage        tidbkv.Storage
+	createEtcdClient createEtcdClientFunc
+	etcdClient       *etcd.CDCEtcdClient
+	grpcPool         kv.GrpcPool
+	regionCache      *tikv.RegionCache
+	TimeAcquirer     pdtime.TimeAcquirer
 
 	cancel context.CancelFunc
 
@@ -73,12 +75,12 @@ type Capture struct {
 }
 
 // NewCapture returns a new Capture instance
-func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, etcdClient *etcd.CDCEtcdClient) *Capture {
+func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, createEtcdClient createEtcdClientFunc) *Capture {
 	return &Capture{
-		pdClient:   pdClient,
-		kvStorage:  kvStorage,
-		etcdClient: etcdClient,
-		cancel:     func() {},
+		pdClient:         pdClient,
+		kvStorage:        kvStorage,
+		createEtcdClient: createEtcdClient,
+		cancel:           func() {},
 
 		newProcessorManager: processor.NewManager,
 		newOwner:            owner.NewOwner,
@@ -94,6 +96,15 @@ func NewCapture4Test() *Capture {
 func (c *Capture) reset(ctx context.Context) error {
 	c.captureMu.Lock()
 	defer c.captureMu.Unlock()
+
+	etcdClient, err := c.createEtcdClient(ctx)
+	if err != nil {
+		return errors.Annotate(
+			cerror.WrapError(cerror.ErrNewCaptureFailed, err),
+			"create etcd client")
+	}
+	c.etcdClient = etcdClient
+
 	conf := config.GetGlobalServerConfig()
 	c.info = &model.CaptureInfo{
 		ID:            uuid.New().String(),
@@ -198,15 +209,8 @@ func (c *Capture) run(stdCtx context.Context) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	defer func() {
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := ctx.GlobalVars().EtcdClient.DeleteCaptureInfo(timeoutCtx, c.info.ID); err != nil {
-			log.Warn("failed to delete capture info when capture exited", zap.Error(err))
-		}
-		cancel()
-	}()
 	wg := new(sync.WaitGroup)
-	var ownerErr, processorErr, messageServerErr error
+	var ownerErr, processorErr error
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -221,9 +225,9 @@ func (c *Capture) run(stdCtx context.Context) error {
 	go func() {
 		defer wg.Done()
 		defer c.AsyncClose()
+
 		conf := config.GetGlobalServerConfig()
 		processorFlushInterval := time.Duration(conf.ProcessorFlushInterval)
-
 		globalState := orchestrator.NewGlobalState()
 
 		// when the etcd worker of processor returns an error, it means that the processor throws an unrecoverable serious errors
@@ -236,11 +240,13 @@ func (c *Capture) run(stdCtx context.Context) error {
 	go func() {
 		defer wg.Done()
 		c.TimeAcquirer.Run(ctx)
+		log.Info("the time acquirer routine has exited")
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		c.grpcPool.RecycleConn(ctx)
+		log.Info("the grpcPoll routine has exited")
 	}()
 	wg.Wait()
 	if ownerErr != nil {
@@ -248,9 +254,6 @@ func (c *Capture) run(stdCtx context.Context) error {
 	}
 	if processorErr != nil {
 		return errors.Annotate(processorErr, "processor exited with error")
-	}
-	if messageServerErr != nil {
-		return errors.Annotate(messageServerErr, "message server exited with error")
 	}
 	return nil
 }
@@ -320,11 +323,20 @@ func (c *Capture) campaignOwner(ctx cdcContext.Context) error {
 
 		owner := c.newOwner(c.pdClient)
 		c.setOwner(owner)
-
 		err = c.runEtcdWorker(ownerCtx, owner, orchestrator.NewGlobalState(), ownerFlushInterval)
 		c.setOwner(nil)
 		log.Info("run owner exited", zap.Error(err))
-		// if owner exits, resign the owner key
+
+		// TODO: fix invalid resign
+		// When exiting normally, cancel will be called to make `owner routine`
+		// & `processor routine` exit normally.
+		//
+		// For `owner routine`, when cancel is called, `owner routine` will return
+		// from `runEtcdWorker` and call `resign`.
+		//
+		// But now ctx is cancel, so resign will not work.
+		//
+		// More detail, https://github.com/pingcap/tiflow/pull/6284
 		if resignErr := c.resign(ctx); resignErr != nil {
 			// if resigning owner failed, return error to let capture exits
 			return errors.Annotatef(resignErr, "resign owner failed, capture: %s", c.info.ID)
@@ -389,10 +401,7 @@ func (c *Capture) campaign(ctx cdcContext.Context) error {
 	failpoint.Inject("capture-campaign-compacted-error", func() {
 		failpoint.Return(errors.Trace(mvcc.ErrCompacted))
 	})
-	// When send SIGSTOP to pd leader, campaign will block here, even if `cancel` is called.
-	// For detail, see https://github.com/etcd-io/etcd/issues/8980
-	nctx := clientv3.WithRequireLeader(ctx)
-	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(nctx, c.info.ID))
+	return cerror.WrapError(cerror.ErrCaptureCampaignOwner, c.election.Campaign(ctx, c.info.ID))
 }
 
 // resign lets an owner start a new election.
@@ -418,6 +427,7 @@ func (c *Capture) AsyncClose() {
 	defer c.cancel()
 	// Safety: Here we mainly want to stop the owner
 	// and ignore it if the owner does not exist or is not set.
+
 	_ = c.OperateOwnerUnderLock(func(o *owner.Owner) error {
 		o.AsyncStop()
 		return nil
@@ -433,6 +443,19 @@ func (c *Capture) AsyncClose() {
 	if c.regionCache != nil {
 		c.regionCache.Close()
 		c.regionCache = nil
+	}
+
+	if c.etcdClient != nil {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := c.etcdClient.DeleteCaptureInfo(timeoutCtx, c.info.ID); err != nil {
+			log.Warn("failed to delete capture info when capture exited", zap.Error(err))
+		}
+		cancel()
+
+		if err := c.etcdClient.Close(); err != nil {
+			log.Warn("failed to close etcd client", zap.Error(err))
+		}
+		c.etcdClient = nil
 	}
 }
 
@@ -462,6 +485,12 @@ func (c *Capture) IsOwner() bool {
 
 // GetOwner return the owner of current TiCDC cluster
 func (c *Capture) GetOwner(ctx context.Context) (*model.CaptureInfo, error) {
+	c.captureMu.Lock()
+	defer c.captureMu.Unlock()
+	if c.etcdClient == nil {
+		return nil, errors.Errorf("Capture is not ready")
+	}
+
 	_, captureInfos, err := c.etcdClient.GetCaptures(ctx)
 	if err != nil {
 		return nil, err
@@ -478,4 +507,25 @@ func (c *Capture) GetOwner(ctx context.Context) (*model.CaptureInfo, error) {
 		}
 	}
 	return nil, cerror.ErrOwnerNotFound.FastGenByArgs()
+}
+
+// CreateChangefeddInfo put new changefeed info in etcd
+func (c *Capture) CreateChangefeedInfo(ctx context.Context, info *model.ChangeFeedInfo, cfID string) error {
+	c.captureMu.Lock()
+	defer c.captureMu.Unlock()
+	if c.etcdClient == nil {
+		return errors.Errorf("Capture is not ready")
+	}
+
+	return c.etcdClient.CreateChangefeedInfo(ctx, info, cfID)
+}
+
+// SaveChangFeedInfo update changefeed info in etcd
+func (c *Capture) SaveChangeFeedInfo(ctx context.Context, info *model.ChangeFeedInfo, cfID string) error {
+	c.captureMu.Lock()
+	defer c.captureMu.Unlock()
+	if c.etcdClient == nil {
+		return errors.Errorf("Capture is not ready")
+	}
+	return c.etcdClient.SaveChangeFeedInfo(ctx, info, cfID)
 }

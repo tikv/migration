@@ -225,7 +225,7 @@ func (h *HTTPHandler) CreateChangefeed(c *gin.Context) {
 		return
 	}
 
-	err = h.capture.etcdClient.CreateChangefeedInfo(ctx, info, changefeedConfig.ID)
+	err = h.capture.CreateChangefeedInfo(ctx, info, changefeedConfig.ID)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -373,7 +373,7 @@ func (h *HTTPHandler) UpdateChangefeed(c *gin.Context) {
 		return
 	}
 
-	err = h.capture.etcdClient.SaveChangeFeedInfo(ctx, newInfo, changefeedID)
+	err = h.capture.SaveChangeFeedInfo(ctx, newInfo, changefeedID)
 	if err != nil {
 		_ = c.Error(err)
 		return
