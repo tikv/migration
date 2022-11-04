@@ -139,32 +139,41 @@ func (s *Server) Run(ctx context.Context) error {
 	logConfig := logutil.DefaultZapLoggerConfig
 	logConfig.Level = zap.NewAtomicLevelAt(zapcore.ErrorLevel)
 
-	etcdCli, err := clientv3.New(clientv3.Config{
-		Endpoints:   s.pdEndpoints,
-		TLS:         tlsConfig,
-		Context:     ctx,
-		LogConfig:   &logConfig,
-		DialTimeout: 5 * time.Second,
-		DialOptions: []grpc.DialOption{
-			grpcTLSOption,
-			grpc.WithBlock(),
-			grpc.WithConnectParams(grpc.ConnectParams{
-				Backoff: backoff.Config{
-					BaseDelay:  time.Second,
-					Multiplier: 1.1,
-					Jitter:     0.1,
-					MaxDelay:   3 * time.Second,
-				},
-				MinConnectTimeout: 3 * time.Second,
-			}),
-		},
-	})
-	if err != nil {
-		return errors.Annotate(cerror.WrapError(cerror.ErrNewCaptureFailed, err), "new etcd client")
+	createEtcdClient := func(ctx context.Context) (*etcd.CDCEtcdClient, error) {
+		etcdCli, err := clientv3.New(clientv3.Config{
+			Endpoints:   s.pdEndpoints,
+			TLS:         tlsConfig,
+			Context:     ctx,
+			LogConfig:   &logConfig,
+			DialTimeout: 5 * time.Second,
+			DialOptions: []grpc.DialOption{
+				grpcTLSOption,
+				grpc.WithBlock(),
+				grpc.WithConnectParams(grpc.ConnectParams{
+					Backoff: backoff.Config{
+						BaseDelay:  time.Second,
+						Multiplier: 1.1,
+						Jitter:     0.1,
+						MaxDelay:   3 * time.Second,
+					},
+					MinConnectTimeout: 3 * time.Second,
+				}),
+			},
+		})
+		if err != nil {
+			return nil, errors.Annotate(cerror.WrapError(cerror.ErrNewCaptureFailed, err), "new etcd client")
+		}
+
+		cdcEtcdClient := etcd.NewCDCEtcdClient(ctx, etcdCli)
+		return &cdcEtcdClient, nil
 	}
 
-	cdcEtcdClient := etcd.NewCDCEtcdClient(ctx, etcdCli)
-	s.etcdClient = &cdcEtcdClient
+	cdcEtcdClient, err := createEtcdClient(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	s.etcdClient = cdcEtcdClient
 
 	err = s.initDir(ctx)
 	if err != nil {
@@ -193,7 +202,7 @@ func (s *Server) Run(ctx context.Context) error {
 	s.kvStorage = kvStore
 	ctx = util.PutKVStorageInCtx(ctx, kvStore)
 
-	s.capture = capture.NewCapture(s.pdClient, s.kvStorage, s.etcdClient)
+	s.capture = capture.NewCapture(s.pdClient, s.kvStorage, createEtcdClient)
 
 	err = s.startStatusHTTP(s.tcpServer.HTTP1Listener())
 	if err != nil {
