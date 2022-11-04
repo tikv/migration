@@ -12,13 +12,13 @@ DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 RETRY_TIME=10
 
 function restart_cdc() {
-    id=$1
-    count=$(ps -aux | grep "tikv-cdc.test" | grep "cdc$id.log" | wc | awk '{print $1}')
-    echo "get cdc count $count"
-    if [ "$count" == 0 ]; then
-        echo "restart cdc$id"
-	    run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "$id" --addr "127.0.0.1:860$id" --pd "$UP_PD"
-    fi
+	id=$1
+	count=$(ps -aux | grep "tikv-cdc.test" | grep "cdc$id.log" | wc | awk '{print $1}')
+	echo "get cdc count $count"
+	if [ "$count" == 0 ]; then
+		echo "restart cdc$id"
+		run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "$id" --addr "127.0.0.1:860$id" --pd "$UP_PD"
+	fi
 }
 
 function check_capture_count() {
@@ -36,10 +36,10 @@ function check_capture_count() {
 		fi
 
 		echo "failed to check capture count, expected: $expected, got: $count, retry: $i"
-        # when sent SIGSTOP to pd leader, cdc maybe exit that is expect, and we
-        # shoule restart it
-        restart_cdc 1
-        restart_cdc 2
+		# when sent SIGSTOP to pd leader, cdc maybe exit that is expect, and we
+		# shoule restart it
+		restart_cdc 1
+		restart_cdc 2
 		sleep 10
 	done
 }
