@@ -358,6 +358,8 @@ func SupportAPIVersionConvert(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
+
+	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
 	gate := feature.NewFeatureGate(semver.New(clusterVersion))
 	return gate.IsEnabled(feature.APIVersionConversion)
 }
@@ -366,6 +368,7 @@ func SupportChecksum(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
+	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
 	gate := feature.NewFeatureGate(semver.New(clusterVersion))
 	return gate.IsEnabled(feature.Checksum)
 }
@@ -374,6 +377,7 @@ func SupportBackupTs(clusterVersion string) bool {
 	if clusterVersion == "nightly" {
 		return true
 	}
+	clusterVersion = strings.ReplaceAll(clusterVersion, "v", "")
 	gate := feature.NewFeatureGate(semver.New(clusterVersion))
 	return gate.IsEnabled(feature.BackupTs)
 }
