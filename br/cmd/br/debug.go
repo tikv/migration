@@ -9,18 +9,21 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/tikv/migration/br/pkg/checksum"
 	"github.com/tikv/migration/br/pkg/conn"
+	"github.com/tikv/migration/br/pkg/feature"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/pdutil"
 	"github.com/tikv/migration/br/pkg/task"
 	"github.com/tikv/migration/br/pkg/utils"
 	"github.com/tikv/migration/br/pkg/version/build"
 	pd "github.com/tikv/pd/client"
+	"go.uber.org/zap"
 )
 
 // NewDebugCommand return a debug subcommand.
@@ -255,6 +258,15 @@ func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
+	clusterVersion, err := pdCtrl.GetClusterVersion(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	featureGate := feature.NewFeatureGate(semver.New(clusterVersion))
+	if !featureGate.IsEnabled(feature.Checksum) {
+		log.Error("TiKV cluster does not support checksum.", zap.String("version", clusterVersion))
+		return errors.Errorf("TiKV cluster %s does not support checksum", clusterVersion)
+	}
 	storageAPIVersion, err := conn.GetTiKVApiVersion(ctx, pdCtrl.GetPDClient(), tlsConf)
 	if err != nil {
 		return errors.Trace(err)
@@ -264,7 +276,7 @@ func runRawChecksumCommand(command *cobra.Command, cmdName string) error {
 		return errors.Trace(err)
 	}
 	fileChecksum, keyRanges := task.CalcChecksumAndRangeFromBackupMeta(ctx, backupMeta, storageAPIVersion)
-	if !task.CheckBackupAPIVersion(storageAPIVersion, backupMeta.ApiVersion) {
+	if !task.CheckBackupAPIVersion(featureGate, storageAPIVersion, backupMeta.ApiVersion) {
 		return errors.Errorf("Unsupported api version, storage:%s, backup meta:%s",
 			storageAPIVersion.String(), backupMeta.ApiVersion.String())
 	}
