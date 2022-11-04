@@ -69,8 +69,10 @@ jobs:
         api_version: [1, 2]
         with_tls: [false, true]
         exclude:
-          - api_version: 2
-            tikv_version: [v5.0.0, v5.4.0]
+          - tikv_version: v5.0.0
+            api_version: 2
+          - tikv_version: v5.4.0
+            api_version: 2
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
