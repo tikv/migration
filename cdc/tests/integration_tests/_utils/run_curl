@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Copyright 2020 PingCAP, Inc.
 #
@@ -24,15 +24,15 @@ CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 TLS_DIR=$(cd $CUR/../_certificates && pwd)
 
 if [ -z "${2-}" ]; then
-    POST_ARGS=
+	POST_ARGS=
 else
-    POST_ARGS="--post-data $2"
+	POST_ARGS="--post-data $2"
 fi
 
 # FIXME: use `wget` instead of `curl` because the latter rejects ECC certs on our CI.
 # CentOS is re~~ally old.
 wget -q -O - \
-    --ca-certificate="$TLS_DIR/ca.pem" \
-    --certificate="$TLS_DIR/server.pem" \
-    --private-key="$TLS_DIR/server-key.pem" \
-    $POST_ARGS "$1"
+	--ca-certificate="$TLS_DIR/ca.pem" \
+	--certificate="$TLS_DIR/server.pem" \
+	--private-key="$TLS_DIR/server-key.pem" \
+	$POST_ARGS "$1"

@@ -213,18 +213,17 @@ tikv-server \
 	-C "$OUT_DIR/tikv-config.toml" \
 	-s "$OUT_DIR/tikv_down" &
 
-
 ensure_tikv() {
 	PD_ADDR=$1
-    echo "Waiting initializing TiKV..."
-    while ! run_curl "http://$PD_ADDR/pd/api/v1/cluster/status" | grep '"is_initialized": true'; do
-       i=$((i+1))
-       if [ "$i" -gt 20 ]; then
-          echo 'Failed to initialize TiKV cluster'
-          return 1
-       fi
-       sleep 1
-    done
+	echo "Waiting initializing TiKV..."
+	while ! run_curl "http://$PD_ADDR/pd/api/v1/cluster/status" | grep '"is_initialized": true'; do
+		i=$((i + 1))
+		if [ "$i" -gt 20 ]; then
+			echo 'Failed to initialize TiKV cluster'
+			return 1
+		fi
+		sleep 1
+	done
 }
 ensure_tikv "${UP_PD_HOST_1}:${UP_PD_PORT_1}"
 ensure_tikv "${DOWN_PD_HOST}:${DOWN_PD_PORT}"

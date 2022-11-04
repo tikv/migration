@@ -6,11 +6,6 @@ FROM amd64/centos:centos7 as downloader
 USER root
 WORKDIR /root/download
 
-COPY ./scripts/download-integration-test-binaries.sh .
-# Download all binaries into bin dir.
-RUN ./download-integration-test-binaries.sh master
-RUN ls ./bin
-
 # Download go into /usr/local dir.
 ENV GOLANG_VERSION 1.18.5
 ENV GOLANG_DOWNLOAD_URL https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz
@@ -49,7 +44,5 @@ ENV GOROOT /usr/local/go
 ENV PATH $GOPATH/bin:$GOROOT/bin:$PATH
 
 WORKDIR /cdc
-
-COPY --from=downloader /root/download/bin/* ./scripts/bin/
 
 ENTRYPOINT ["/bin/bash"]
