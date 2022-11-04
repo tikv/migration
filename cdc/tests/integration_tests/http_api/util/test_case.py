@@ -235,12 +235,15 @@ def move_keyspan():
     assert resp.status_code == rq.codes.accepted
 
     # verfiy
-    time.sleep(10)  # TODO: lower sleep duration & retry
     base_url = BASE_URL0 + "/processors"
-    resp = rq.get(base_url, cert=CERT, verify=VERIFY)
-    assert resp.status_code == rq.codes.ok
-    data = resp.json()[0]
-    assert data["capture_id"] == new_capture_id
+    for i in range(10):
+        time.sleep(3)
+        resp = rq.get(base_url, cert=CERT, verify=VERIFY)
+        assert resp.status_code == rq.codes.ok
+        data = resp.json()[0]
+        if data["capture_id"] == new_capture_id:
+            break
+        assert i < 9
 
     # move keyspan fail
     # not allow empty capture_id
