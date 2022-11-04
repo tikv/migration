@@ -8,12 +8,14 @@ const (
 	APIVersionConversion Feature = iota
 	Checksum
 	BackupTs
+	SplitRegion
 )
 
 var (
 	minAPIVersionConversionVersion = semver.New("6.1.0")
 	minChecksumVersion             = semver.New("6.1.0")
 	minBackupTsVersion             = semver.New("6.1.0")
+	minSplitRegionVersion          = semver.New("5.2.0")
 )
 
 type Gate struct {
@@ -27,6 +29,7 @@ func NewFeatureGate(pdVersion *semver.Version) *Gate {
 	featureGate.features[APIVersionConversion] = minAPIVersionConversionVersion
 	featureGate.features[Checksum] = minChecksumVersion
 	featureGate.features[BackupTs] = minBackupTsVersion
+	featureGate.features[SplitRegion] = minSplitRegionVersion
 	featureGate.pdVersion = pdVersion
 	return featureGate
 }

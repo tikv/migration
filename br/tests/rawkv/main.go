@@ -226,7 +226,7 @@ func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVer
 		CA(*tlsCA).
 		Cert(*tlsCert).
 		Key(*tlsKey).
-		Checksum(true).
+		Checksum(SupportChecksum(t.clusterVersion)).
 		Build()
 	return t.ExecBRCmd(ctx, brCmdStr)
 }
@@ -242,7 +242,7 @@ func (t *RawKVBRTester) Restore(ctx context.Context, startKey, endKey []byte) ([
 		Cert(*tlsCert).
 		Key(*tlsKey).
 		CheckReq(false).
-		Checksum(true).
+		Checksum(SupportChecksum(t.clusterVersion)).
 		Build()
 	return t.ExecBRCmd(ctx, brCmdStr)
 }

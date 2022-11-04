@@ -122,6 +122,10 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 		return errors.Errorf("Unsupported backup api version in current cluster, cur:%s, dst:%s, cluster version:%s",
 			curAPIVersion.String(), cfg.DstAPIVersion, clusterVersion)
 	}
+	if cfg.Checksum && !featureGate.IsEnabled(feature.Checksum) {
+		log.Error("TiKV cluster does not support checksum, please disable checksum", zap.String("version", clusterVersion))
+		return errors.Errorf("Current tikv cluster version %s does not support checksum, please disable checksum", clusterVersion)
+	}
 	opts := storage.ExternalStorageOptions{
 		NoCredentials:   cfg.NoCreds,
 		SendCredentials: cfg.SendCreds,
@@ -225,11 +229,6 @@ func RunBackupRaw(c context.Context, g glue.Glue, cmdName string, cfg *RawKvConf
 	g.Record(summary.BackupDataSize, metaWriter.ArchiveSize())
 
 	if cfg.Checksum {
-		if !featureGate.IsEnabled(feature.Checksum) {
-			log.Warn("TiKV cluster does not support checksum, skip checksum", zap.String("version", clusterVersion))
-			summary.SetSuccessStatus(true)
-			return nil
-		}
 		_, _, backupMeta, err := ReadBackupMeta(ctx, metautil.MetaFile, &cfg.Config)
 		if err != nil {
 			log.Error("fail to read backup meta", zap.Error(err))

@@ -163,4 +163,15 @@ func TestCheckBackupAPIVersion(t *testing.T) {
 	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V1), false)
 	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1), false)
 	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1TTL), false)
+
+	featureGate = feature.NewFeatureGate(semver.New("6.0.0"))
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V1), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V1TTL), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V2), true)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V2), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V2), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1, kvrpcpb.APIVersion_V1TTL), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V1TTL, kvrpcpb.APIVersion_V1), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1), false)
+	require.Equal(t, CheckBackupAPIVersion(featureGate, kvrpcpb.APIVersion_V2, kvrpcpb.APIVersion_V1TTL), false)
 }

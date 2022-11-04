@@ -49,6 +49,10 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		return errors.Trace(err)
 	}
 	featureGate := feature.NewFeatureGate(semver.New(clusterVersion))
+	if cfg.Checksum && !featureGate.IsEnabled(feature.Checksum) {
+		log.Error("TiKV cluster does not support checksum, please disable checksum", zap.String("version", clusterVersion))
+		return errors.Errorf("Current tikv cluster version %s does not support checksum, please disable checksum", clusterVersion)
+	}
 
 	keepaliveCfg := GetKeepalive(&cfg.Config)
 	// sometimes we have pooled the connections.
@@ -116,10 +120,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		!cfg.LogProgress)
 
 	// RawKV restore does not need to rewrite keys.
-	needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
-	err = restore.SplitRanges(ctx, client, ranges, nil, updateCh, true, needEncodeKey)
-	if err != nil {
-		return errors.Trace(err)
+	if featureGate.IsEnabled(feature.SplitRegion) {
+		needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
+		err = restore.SplitRanges(ctx, client, ranges, nil, updateCh, true, needEncodeKey)
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
 
 	restoreSchedulers, err := restorePreWork(ctx, client, mgr)
@@ -146,11 +152,6 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	updateCh.Close()
 
 	if cfg.Checksum {
-		if !featureGate.IsEnabled(feature.Checksum) {
-			log.Warn("TiKV cluster does not support checksum, skip checksum", zap.String("version", clusterVersion))
-			summary.SetSuccessStatus(true)
-			return nil
-		}
 		finalChecksum := rawkv.RawChecksum{}
 		for _, file := range files {
 			checksum.UpdateChecksum(&finalChecksum, file.Crc64Xor, file.TotalKvs, file.TotalBytes)

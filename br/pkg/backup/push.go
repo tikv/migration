@@ -87,7 +87,6 @@ func (push *pushDown) pushBackup(
 			return res, nil
 		}
 		wg.Add(1)
-		regionErrorIngestedOnce := false
 		go func() {
 			defer wg.Done()
 			failpoint.Inject("backup-storage-error", func(val failpoint.Value) {
@@ -115,22 +114,19 @@ func (push *pushDown) pushBackup(
 				}
 			})
 			failpoint.Inject("tikv-region-error", func(val failpoint.Value) {
-				if !regionErrorIngestedOnce {
-					msg := val.(string)
-					resp := new(backuppb.BackupResponse)
-					logutil.CL(ctx).Debug("failpoint tikv-regionh-error injected.", zap.String("msg", msg))
-					resp.Error = &backuppb.Error{
-						Detail: &backuppb.Error_RegionError{
-							RegionError: &errorpb.Error{
-								Message: msg,
-							},
+				msg := val.(string)
+				resp := new(backuppb.BackupResponse)
+				logutil.CL(ctx).Debug("failpoint tikv-region-error injected.", zap.String("msg", msg))
+				resp.Error = &backuppb.Error{
+					Detail: &backuppb.Error_RegionError{
+						RegionError: &errorpb.Error{
+							Message: msg,
 						},
-					}
-					push.respCh <- responseAndStore{
-						Resp:  resp,
-						Store: store,
-					}
-					regionErrorIngestedOnce = true
+					},
+				}
+				push.respCh <- responseAndStore{
+					Resp:  resp,
+					Store: store,
 				}
 			})
 			err := SendBackup(
