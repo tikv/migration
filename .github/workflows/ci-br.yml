@@ -65,9 +65,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tikv_version: [nightly]
+        tikv_version: [v6.1.2, nightly]
         api_version: [1, 2]
         with_tls: [false, true]
+        include:
+          - tikv_version: v5.0.6
+            api_version: 1
+            with_tls: true
+          - tikv_version: v5.4.3
+            api_version: 1
+            with_tls: true
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
@@ -83,6 +90,7 @@ jobs:
           # start tikv
           # Output the api version
           echo "API_VERSION=${{ matrix.api_version }}" >> $GITHUB_ENV
+          echo "CLUSTER_VERSION=${{ matrix.tikv_version }}" >> $GITHUB_ENV
           # TODO: different deploy method for tls enabled and disabled, may use same one. 
           if ${{ matrix.with_tls }}; then 
             echo "TLS_PD_PORT=2579" >> $GITHUB_ENV

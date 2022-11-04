@@ -5,6 +5,7 @@ package task
 import (
 	"context"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/log"
@@ -12,11 +13,13 @@ import (
 	"github.com/tikv/client-go/v2/rawkv"
 	"github.com/tikv/migration/br/pkg/checksum"
 	berrors "github.com/tikv/migration/br/pkg/errors"
+	"github.com/tikv/migration/br/pkg/feature"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
 	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/summary"
 	"github.com/tikv/migration/br/pkg/utils"
+	"go.uber.org/zap"
 )
 
 // DefineRawRestoreFlags defines common flags for the backup command.
@@ -40,6 +43,16 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		return errors.Trace(err)
 	}
 	defer mgr.Close()
+
+	clusterVersion, err := mgr.GetClusterVersion(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	featureGate := feature.NewFeatureGate(semver.New(clusterVersion))
+	if cfg.Checksum && !featureGate.IsEnabled(feature.Checksum) {
+		log.Error("TiKV cluster does not support checksum, please disable checksum", zap.String("version", clusterVersion))
+		return errors.Errorf("Current tikv cluster version %s does not support checksum, please disable checksum", clusterVersion)
+	}
 
 	keepaliveCfg := GetKeepalive(&cfg.Config)
 	// sometimes we have pooled the connections.
@@ -107,10 +120,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		!cfg.LogProgress)
 
 	// RawKV restore does not need to rewrite keys.
-	needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
-	err = restore.SplitRanges(ctx, client, ranges, nil, updateCh, true, needEncodeKey)
-	if err != nil {
-		return errors.Trace(err)
+	if featureGate.IsEnabled(feature.SplitRegion) {
+		needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
+		err = restore.SplitRanges(ctx, client, ranges, nil, updateCh, true, needEncodeKey)
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
 
 	restoreSchedulers, err := restorePreWork(ctx, client, mgr)

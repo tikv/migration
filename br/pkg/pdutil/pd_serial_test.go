@@ -79,6 +79,12 @@ func TestScheduler(t *testing.T) {
 	require.Equal(t, scheduler, schedulers[0])
 }
 
+func TestFormatVersionString(t *testing.T) {
+	require.Equal(t, "5.0.0", FormatVersionString([]byte("5.0.0")))
+	require.Equal(t, "5.0.0", FormatVersionString([]byte("\"5.0.0\"")))
+	require.Equal(t, "5.0.0", FormatVersionString([]byte("\"5.0.0\"\n")))
+}
+
 func TestGetClusterVersion(t *testing.T) {
 	pdController := &PdController{addrs: []string{"", ""}} // two endpoints
 	counter := 0
@@ -87,7 +93,7 @@ func TestGetClusterVersion(t *testing.T) {
 		if counter <= 1 {
 			return nil, errors.New("mock error")
 		}
-		return []byte(`test`), nil
+		return []byte("\"test\"\n"), nil
 	}
 
 	ctx := context.Background()
