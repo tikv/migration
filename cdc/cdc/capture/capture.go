@@ -196,7 +196,6 @@ func (c *Capture) Run(ctx context.Context) error {
 }
 
 func (c *Capture) run(stdCtx context.Context) error {
-	defer c.AsyncClose()
 	ctx := cdcContext.NewContext(stdCtx, &cdcContext.GlobalVars{
 		PDClient:     c.pdClient,
 		KVStorage:    c.kvStorage,
