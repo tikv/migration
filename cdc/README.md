@@ -28,7 +28,7 @@ $ make cdc
 
 ### Deploy by TiUP
 
-_Note: TiUP >= `v1.11.0` is required. This version will be released before the end of Sep, 2022_
+_Note: TiUP >= `v1.11.0` is required._
 
 #### Deploy a new TiDB/TiKV cluster including TiKV-CDC
 
