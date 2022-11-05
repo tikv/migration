@@ -29,13 +29,13 @@ RUN yum install -y \
 	git \
 	bash-completion \
 	wget \
-    which \
+	which \
 	gcc \
 	make \
-    curl \
-    tar \
-    musl-dev \
-    psmisc \
+	curl \
+	tar \
+	musl-dev \
+	psmisc \
 	mysql
 RUN wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 RUN yum install -y epel-release-latest-7.noarch.rpm
