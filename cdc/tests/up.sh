@@ -113,7 +113,7 @@ else
 	done
 	echo "Run a new container"
 	echo "Run \"make integration_test\" to start integrated tests"
-	 # shellcheck disable=SC2068
+	# shellcheck disable=SC2068
 	exec docker run -it \
 		-v "$host_tmp":/tmp/tikv_cdc_test \
 		-v "$host_bash_history":/root/.bash_history \

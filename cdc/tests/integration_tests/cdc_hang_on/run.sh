@@ -66,7 +66,7 @@ function run() {
 			continue
 		fi
 		echo "pd leader: $name"
-		pid=$(ps -aux | grep "name=$name" | awk '{print $2}' | head -n1)
+		pid=$(pgrep -f "name=$name" | head -n1)
 		kill -19 $pid
 		sleep 10
 		check_capture_count 2
