@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 # fork from https://github.com/pingcap/tidb/blob/master/br/tests/up.sh
+#
+# Use for creating a container to run integrated tests in a isolated environment.
+#
+# Usage:
+# 1. Run up.sh from cdc directory: tests/up.sh
+# 2. Run: make integration_test
+#
+
 set -eo pipefail
 
 IMAGE_TAG="nightly"
