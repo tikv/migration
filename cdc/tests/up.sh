@@ -121,9 +121,11 @@ else
 		volume_args="$volume_args -v $(pwd)/$f:/cdc/$f"
 	done
 	echo "Run a new container"
+	echo "Run \"make integration_test\" to start integrated tests"
 	exec docker run -it \
 		-v $host_tmp:/tmp/tikv_cdc_test \
 		-v $host_bash_history:/root/.bash_history \
 		$volume_args \
+		--cpus=8 --memory=16g \
 		$docker_repo:$IMAGE_TAG
 fi

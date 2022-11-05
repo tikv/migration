@@ -30,13 +30,12 @@ RUN yum install -y \
 	make \
     curl \
     tar \
-    musl-dev \
     psmisc \
-	mysql \
-    jq
+	mysql
+
 RUN wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 RUN yum install -y epel-release-latest-7.noarch.rpm
-RUN yum --enablerepo=epel install -y s3cmd
+RUN yum --enablerepo=epel install -y s3cmd jq
 
 COPY --from=downloader /usr/local/go /usr/local/go
 ENV GOPATH /go

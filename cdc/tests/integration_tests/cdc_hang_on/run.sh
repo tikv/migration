@@ -22,18 +22,21 @@ function restart_cdc() {
 function check_capture_count() {
 	expected=$1
 
+	local max_retry=60
 	local i
-	for ((i = 0; i <= 50; i++)); do
-		local count=$(tikv-cdc cli capture list --pd=$UP_PD | jq '.|length')
+	for ((i = 0; i <= $max_retry; i++)); do
+		local captures=$(tikv-cdc cli capture list --pd=$UP_PD)
+		local count=$(echo $captures | jq '.|length')
 		if [[ "$count" == "$expected" ]]; then
 			echo "check capture count successfully"
 			break
 		fi
-		if [ "$i" -eq 50 ]; then
-			echo "failed to check capture count, expected: $expected, got: $count"
+		echo "failed to check capture count, expected: $expected, got: $count, retry: $i"
+		echo "captures: $captures"
+		if [ "$i" -eq "$max_retry" ]; then
+			echo "failed to check capture count, max retires exceed"
 			exit 1
 		fi
-		echo "failed to check capture count, expected: $expected, got: $count, retry: $i"
 		# when sent SIGSTOP to pd leader, cdc maybe exit that is expect, and we
 		# shoule restart it
 		restart_cdc 1
