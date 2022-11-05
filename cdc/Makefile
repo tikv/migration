@@ -69,6 +69,8 @@ LDFLAGS += -X "$(CDC_PKG)/pkg/version.GitHash=$(GITHASH)"
 LDFLAGS += -X "$(CDC_PKG)/pkg/version.GitBranch=$(GITBRANCH)"
 LDFLAGS += -X "$(CDC_PKG)/pkg/version.GoVersion=$(GOVERSION)"
 
+SCVERSION := stable
+
 default: build buildsucc
 
 buildsucc:
@@ -276,3 +278,11 @@ check_third_party_binary:
 	@which scripts/bin/go-ycsb
 	@which scripts/bin/etcdctl
 
+shellcheck: tools/bin/shellcheck
+	tools/bin/shellcheck ./**/*.sh
+
+tools/bin/shellcheck:
+	wget -qO- "https://github.com/koalaman/shellcheck/releases/download/$(SCVERSION)/shellcheck-$(SCVERSION).$(ARCH).x86_64.tar.xz" | tar -xJv
+	mv "shellcheck-$(SCVERSION)/shellcheck" tools/bin/
+	chmod +x tools/bin/shellcheck
+	rm -rf "shellcheck-$(SCVERSION)"
