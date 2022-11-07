@@ -47,8 +47,8 @@ if [ "$HELP" ]; then
 	echo "Usage: $0 [OPTIONS]"
 	echo "OPTIONS:"
 	echo "  --help                 Display this message"
-	echo "  --tag (TAG)            Specify images tag used in br tests"
-	echo "  --cleanup-docker       Clean up br tests Docker containers"
+	echo "  --tag (TAG)            Specify images tag used in tests"
+	echo "  --cleanup-docker       Clean up tests Docker containers"
 	echo "  --cleanup-data         Clean up persistent data"
 	echo "  --cleanup-all          Clean up all data inlcuding Docker images, containers and persistent data"
 	exit 0
