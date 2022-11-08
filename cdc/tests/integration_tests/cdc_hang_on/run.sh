@@ -12,7 +12,7 @@ DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 RETRY_TIME=10
 function restart_cdc() {
 	id=$1
-	count=$(ps -aux | grep "tikv-cdc.test" | grep "cdc$id.log" | wc | awk '{print $1}')
+	local count=$(ps -aux | grep "tikv-cdc.test" | grep "cdc$id.log" | wc | awk '{print $1}')
 	if [ "$count" -eq 0 ]; then
 		echo "restart cdc$id"
 		run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "$id" --addr "127.0.0.1:860$id" --pd "$UP_PD"
@@ -22,22 +22,26 @@ function restart_cdc() {
 function check_capture_count() {
 	expected=$1
 
-	for ((i = 0; i <= 10; i++)); do
-		count=$(tikv-cdc cli capture list --pd=$UP_PD | jq '.|length')
+	local max_retry=60
+	local i
+	for ((i = 0; i <= $max_retry; i++)); do
+		local captures=$(tikv-cdc cli capture list --pd=$UP_PD)
+		local count=$(echo $captures | jq '.|length')
 		if [[ "$count" == "$expected" ]]; then
 			echo "check capture count successfully"
 			break
 		fi
-		if [ "$i" -eq 10 ]; then
-			echo "failed to check capture count, expected: $expected, got: $count"
+		echo "failed to check capture count, expected: $expected, got: $count, retry: $i"
+		echo "captures: $captures"
+		if [ "$i" -eq "$max_retry" ]; then
+			echo "failed to check capture count, max retires exceed"
 			exit 1
 		fi
-		echo "failed to check capture count, expected: $expected, got: $count, retry: $i"
 		# when sent SIGSTOP to pd leader, cdc maybe exit that is expect, and we
 		# shoule restart it
 		restart_cdc 1
 		restart_cdc 2
-		sleep 10
+		sleep 1
 	done
 }
 
@@ -51,15 +55,24 @@ function run() {
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8600" --pd "$UP_PD"
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8601" --pd "$UP_PD"
 
-	for i in {1..10}; do
+	local i=1
+	while [ $i -le 10 ]; do
 		echo "cdc_hang_on test $i"
-		name=$(pd-ctl member --pd=$UP_PD | jq ."leader" | jq ."name" | tr -d '"')
-		pid=$(ps -aux | grep "name=$name" | awk '{print $2}' | head -n1)
+		member="$(pd-ctl member --pd=$UP_PD)"
+		name=$(echo $member | jq ."leader" | jq ."name" | tr -d '"')
+		if ! [[ "$name" =~ ^pd[0-9]+ ]]; then
+			echo "pd leader not found: $member"
+			sleep 1
+			continue
+		fi
+		echo "pd leader: $name"
+		pid=$(pgrep -f "name=$name" | head -n1)
 		kill -19 $pid
 		sleep 10
 		check_capture_count 2
 		kill -18 $pid
-		sleep 10
+		sleep 1
+		((i++))
 	done
 
 	cleanup_process $CDC_BINARY
