@@ -53,6 +53,6 @@ COPY . .
 # Clean bin dir and build TiKV-CDC.
 # We always need to clean before we build, please don't adjust its order.
 RUN make clean
-RUN make integration_test_build cdc
+RUN make integration_test_build
 COPY --from=downloader /root/download/bin/* ./scripts/bin/
 RUN make check_third_party_binary
