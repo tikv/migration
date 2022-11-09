@@ -399,6 +399,9 @@ func (w *fileBackEndWriter) flushAndClose() error {
 		w.f = nil
 	}()
 
+	failpoint.Inject("SorterFlushDiskFull", func() {
+		failpoint.Return(errors.Trace(wrapIOError(errors.Errorf("disk space is full"))))
+	})
 	err := w.writer.Flush()
 	if err != nil {
 		return errors.Trace(wrapIOError(err))
