@@ -37,10 +37,11 @@ EOF
 	sleep 3
 	state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
 	if [[ "$state" == "normal" ]]; then
+        echo "expected state is normal, but get $state"
 		exit 1
 	fi
 
-	pid=$(ps -aux | grep "tikv-cdc" | awk '{print $2}' | head -n1)
+	pid=$(pgrep -f "tikv-cdc" | head -n1)
 	kill -9 $pid
 	export GO_FAILPOINTS=''
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --config $WORK_DIR/tikv-cdc-config.toml
