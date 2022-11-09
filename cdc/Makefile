@@ -43,7 +43,7 @@ FAILPOINT_DISABLE := $$(echo $(FAILPOINT_DIR) | xargs $(FAILPOINT) disable >/dev
 
 RELEASE_VERSION =
 ifeq ($(RELEASE_VERSION),)
-	RELEASE_VERSION := v1.0.0-master
+	RELEASE_VERSION := v1.1.0-master
 	release_version_regex := ^cdc-v[0-9]\..*$$
 	release_branch_regex := "^cdc-[0-9]\.[0-9].*$$|^HEAD$$|^.*/*tags/cdc-v[0-9]\.[0-9]\..*$$"
 	ifneq ($(shell git rev-parse --abbrev-ref HEAD | egrep $(release_branch_regex)),)
@@ -68,6 +68,8 @@ LDFLAGS += -X "$(CDC_PKG)/pkg/version.BuildTS=$(BUILDTS)"
 LDFLAGS += -X "$(CDC_PKG)/pkg/version.GitHash=$(GITHASH)"
 LDFLAGS += -X "$(CDC_PKG)/pkg/version.GitBranch=$(GITBRANCH)"
 LDFLAGS += -X "$(CDC_PKG)/pkg/version.GoVersion=$(GOVERSION)"
+
+SCVERSION := stable
 
 default: build buildsucc
 
@@ -276,3 +278,11 @@ check_third_party_binary:
 	@which scripts/bin/go-ycsb
 	@which scripts/bin/etcdctl
 
+shellcheck: tools/bin/shellcheck
+	tools/bin/shellcheck ./**/*.sh
+
+tools/bin/shellcheck:
+	wget -qO- "https://github.com/koalaman/shellcheck/releases/download/$(SCVERSION)/shellcheck-$(SCVERSION).$(ARCH).x86_64.tar.xz" | tar -xJv
+	mv "shellcheck-$(SCVERSION)/shellcheck" tools/bin/
+	chmod +x tools/bin/shellcheck
+	rm -rf "shellcheck-$(SCVERSION)"
