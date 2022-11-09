@@ -34,19 +34,19 @@ EOF
 
 	rawkv_op $UP_PD put 5000
 
-    sleep 3
+	sleep 3
 	state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
 	if [[ "$state" == "normal" ]]; then
-        exit 1
+		exit 1
 	fi
 
-    pid=$(ps -aux | grep "tikv-cdc" | awk '{print $2}' | head -n1)
-    kill -9 $pid
-    export GO_FAILPOINTS=''
+	pid=$(ps -aux | grep "tikv-cdc" | awk '{print $2}' | head -n1)
+	kill -9 $pid
+	export GO_FAILPOINTS=''
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --config $WORK_DIR/tikv-cdc-config.toml
-    sleep 10
+	sleep 10
 
-    tikv-cdc cli changefeed resume --pd=$UP_PD --changefeed-id=$CF_ID
+	tikv-cdc cli changefeed resume --pd=$UP_PD --changefeed-id=$CF_ID
 
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	rawkv_op $UP_PD delete 5000
