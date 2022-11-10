@@ -63,7 +63,7 @@ bin/tikv-br restore raw \
 
 - Allocate sufficient resources for backup and restoration.
 
-- TiKV-BR only support raw data backup/restoration in TiKV cluster with version >= `6.1.0`. May support TiKV cluster with 5.x versions in the future.
+- TiKV-BR only support raw data backup/restoration in TiKV cluster with version >= `5.0.0`.  
 
 TiKV-BR, TiKV nodes, and the backup storage system should provide network bandwidth that is greater than the backup speed. If the target cluster is particularly large, the threshold of backup and restoration speed is limited by the bandwidth of the backup network.  
 The backup storage system should also provide sufficient write/read performance (IOPS). Otherwise, the IOPS might become a performance bottleneck during backup or restoration.  
