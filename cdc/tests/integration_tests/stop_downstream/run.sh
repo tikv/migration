@@ -42,8 +42,8 @@ function run() {
 	# resume downstream
 	kill -18 $down_pd_pid
 	kill -18 $down_tikv_pid
-    # make sure servers recover
-    sleep 10
+	# make sure servers recover
+	sleep 10
 
 	state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
 	if [[ "$state" == "error" ]]; then
