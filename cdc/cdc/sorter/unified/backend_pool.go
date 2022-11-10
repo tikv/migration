@@ -39,7 +39,7 @@ import (
 
 const (
 	backgroundJobInterval      = time.Second * 15
-	sortDirLockFileName        = "ticdc_lock"
+	sortDirLockFileName        = "tikv_cdc_lock"
 	sortDirDataFileMagicPrefix = "sort"
 )
 

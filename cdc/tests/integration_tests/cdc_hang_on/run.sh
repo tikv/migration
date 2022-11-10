@@ -22,7 +22,7 @@ function restart_cdc() {
 function check_capture_count() {
 	expected=$1
 
-	local max_retry=60
+	local max_retry=100
 	local i
 	for ((i = 0; i <= $max_retry; i++)); do
 		local captures=$(tikv-cdc cli capture list --pd=$UP_PD)

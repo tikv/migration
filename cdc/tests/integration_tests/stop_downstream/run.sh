@@ -9,7 +9,7 @@ CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
-CF_ID="kill-downstream"
+CF_ID="stop-downstream"
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -38,9 +38,12 @@ function run() {
 	# Wait for cdc to retry to create tikv sink
 	# TODO: find better way to speed up the retry, now integration test takes too long.
 	sleep 180
+
 	# resume downstream
 	kill -18 $down_pd_pid
 	kill -18 $down_tikv_pid
+	# make sure servers recover
+	sleep 10
 
 	state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
 	if [[ "$state" == "error" ]]; then
