@@ -37,7 +37,7 @@ EOF
 	sleep 3
 	state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
 	if [[ "$state" == "normal" ]]; then
-		echo "expected state is normal, but get $state"
+		echo "state is NOT expected to be normal"
 		exit 1
 	fi
 
