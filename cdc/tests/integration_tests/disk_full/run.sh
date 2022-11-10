@@ -37,17 +37,17 @@ EOF
 	local max_retry=10
 	local i
 	for ((i = 0; i <= $max_retry; i++)); do
-        state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
-        echo "get changefeed state: $state with retry: $i"
-        if [[ "$state" == "error" ]]; then
-            break
-        fi
+		state=$(tikv-cdc cli changefeed list --pd=$UP_PD | jq .[0]."summary" | jq ."state" | tr -d '"')
+		echo "get changefeed state: $state with retry: $i"
+		if [[ "$state" == "error" ]]; then
+			break
+		fi
 		if [ "$i" -eq "$max_retry" ]; then
-            echo "state is NOT expected to be normal"
+			echo "state is NOT expected to be normal"
 			exit 1
 		fi
-        sleep 1
-    done
+		sleep 1
+	done
 
 	pid=$(pgrep -f "tikv-cdc" | head -n1)
 	kill -9 $pid
