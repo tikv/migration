@@ -41,12 +41,12 @@ We recommend that you provide docker with at least 6+ cores and 8G+ memory. Of c
 
 #### Run integration tests locally
 
-1. Run `make integration_test_build` to generate `tikv-cdc` binaries for integration test
+1. Run `make integration_test` to execute the integration tests. This command will
 
-2. Run `make integration_test` to execute the integration tests. This command will
-
-   1. Check that all required executables exist.
-   2. Execute `tests/integration_tests/run.sh`
+   1. Download all required executables.
+   2. Check that all required executables exist.
+   3. Generate `tikv-cdc` binaries for integration test.
+   4. Execute `tests/integration_tests/run.sh`
 
    > If want to run one integration test case only, just pass the CASE parameter, e.g. `make integration_test CASE=autorandom`.
    >
