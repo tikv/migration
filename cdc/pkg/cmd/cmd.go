@@ -25,9 +25,9 @@ import (
 // NewCmd creates the root command.
 func NewCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "cdc",
-		Short: "CDC",
-		Long:  `Change Data Capture`,
+		Use:   "tikv-cdc",
+		Short: "TiKV CDC",
+		Long:  `TiKV Change Data Capture`,
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd: true,
 		},
