@@ -4933,7 +4933,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum (rate(tikv_cdc_puller_txn_collect_event_count{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\"}[1m])) by (instance, type)",
+              "expr": "sum (rate(tikv_cdc_puller_output_event_count{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\"}[1m])) by (instance, type)",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "{{instance}}-{{type}}",
@@ -11068,7 +11068,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "Test-TiKV-CDC",
+  "title": "Test-Cluster-TiKV-CDC",
   "uid": "HXILPi3nz",
   "version": 1
 }
