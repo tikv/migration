@@ -21,7 +21,7 @@ groups=(
 	["G07"]='kv_client_stream_reconnect multi_capture'
 	["G08"]='processor_err_chan processor_panic'
 	["G09"]='processor_resolved_ts_fallback processor_stop_delay'
-	["G10"]='sink_hang sink_tls'
+	["G10"]='sink_tls sink_hang'
 	["G11"]='sorter stop_downstream'
 	["G12"]='availability' # heavy test case
 )
