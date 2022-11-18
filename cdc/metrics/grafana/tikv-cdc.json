@@ -10967,7 +10967,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "Test-TiKV-CDC",
+  "title": "Test-Cluster-TiKV-CDC",
   "uid": "HXILPi3nz",
   "version": 1
 }
