@@ -71,7 +71,7 @@ function run_kill_upstream() {
 	tikv_pid=$(pgrep -f "tikv$n" | head -n1)
 	echo "kill tikv"
 	kill -19 $tikv_pid
-    sleep 10
+	sleep 10
 	check_count 2 "tikv" $UP_PD
 
 	rawkv_op $UP_PD put 5000
@@ -86,7 +86,7 @@ function run_kill_upstream() {
 	n=$(echo $(($RANDOM % 2 + 1)))
 	cdc_pid=$(pgrep -f "tikv-cdc" | sed -n "$n"p)
 	kill -19 $cdc_pid
-    sleep 10
+	sleep 10
 	check_count 2 "tikv-cdc" $UP_PD
 
 	rawkv_op $UP_PD put 5000
@@ -121,7 +121,7 @@ function run_kill_downstream() {
 	n=$(echo $(($RANDOM % 3 + 1)))
 	tikv_pid=$(pgrep -f "tikv$n" | head -n1)
 	kill -19 $tikv_pid
-    sleep 10
+	sleep 10
 	check_count 2 "tikv"
 
 	rawkv_op $DOWN_PD put 5000
@@ -133,7 +133,7 @@ function run_kill_downstream() {
 	n=$(echo $(($RANDOM % 3 + 1)))
 	pd_pid=$(pgrep -f "pd-server" | sed -n "$n"p)
 	kill -19 $pd_pid
-    sleep 10
+	sleep 10
 	check_count 2 "pd"
 
 	rawkv_op $DOWN_PD delete 5000
