@@ -15,13 +15,13 @@ groups=(
 	["G01"]='capture_session_done_during_task cdc_hang_on'
 	["G02"]='changefeed_auto_stop changefeed_error changefeed_fast_fail'
 	["G03"]='changefeed_finish changefeed_pause_resume changefeed_reconstruct'
-	["G04"]='cli cli_tls http_api http_proxies'
+	["G04"]='cli tls http_api http_proxies'
 	["G05"]='disk_full flow_control'
 	["G06"]='gc_safepoint kill_owner'
 	["G07"]='kv_client_stream_reconnect multi_capture'
 	["G08"]='processor_err_chan processor_panic'
 	["G09"]='processor_resolved_ts_fallback processor_stop_delay'
-	["G10"]='sink_tls sink_hang'
+	["G10"]='sink_hang'
 	["G11"]='sorter stop_downstream'
 	["G12"]='availability' # heavy test case
 )
