@@ -2,6 +2,7 @@
 # parameter 1: expected count
 # parameter 2: component name
 # parameter 3: pd addr
+# parameter 4: max retry
 
 expected=$1
 name=$2
