@@ -15,33 +15,33 @@ else
 fi
 
 for ((i = 0; i <= $max_retry; i++)); do
-    case $name in
-    tikv)
-        :
-        count=$(pd-ctl store --pd $pd_addr | grep 'Up' | wc | awk '{print $1}')
-        ;;
-    pd)
-        :
-        count=$(pd-ctl health --pd $pd_addr | grep '\"health\": true' | wc | awk '{print $1}')
-        ;;
-    tikv-cdc)
-        :
-        count=$(tikv-cdc cli capture list --pd $pd_addr | jq '.|length')
-        ;;
-    *)
-        exit 1
-        ;;
-    esac
+	case $name in
+	tikv)
+		:
+		count=$(pd-ctl store --pd $pd_addr | grep 'Up' | wc | awk '{print $1}')
+		;;
+	pd)
+		:
+		count=$(pd-ctl health --pd $pd_addr | grep '\"health\": true' | wc | awk '{print $1}')
+		;;
+	tikv-cdc)
+		:
+		count=$(tikv-cdc cli capture list --pd $pd_addr | jq '.|length')
+		;;
+	*)
+		exit 1
+		;;
+	esac
 
-    if [[ "$count" == "$expected" ]]; then
-        echo "check $name count successfully"
-        break
-    fi
+	if [[ "$count" == "$expected" ]]; then
+		echo "check $name count successfully"
+		break
+	fi
 
-    echo "failed to check $name count, expected: $expected, got: $count, retry: $i"
-    if [ "$i" -eq "$max_retry" ]; then
-        echo "failed to check $name count, max retires exceed"
-        exit 1
-    fi
-    sleep 2
+	echo "failed to check $name count, expected: $expected, got: $count, retry: $i"
+	if [ "$i" -eq "$max_retry" ]; then
+		echo "failed to check $name count, max retires exceed"
+		exit 1
+	fi
+	sleep 2
 done

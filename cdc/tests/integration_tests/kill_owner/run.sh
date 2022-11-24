@@ -21,9 +21,9 @@ function kill_cdc_and_restart() {
 	cdc_pid=$(echo "$status" | jq '.pid')
 
 	kill $cdc_pid
-    check_count 0 "tikv-cdc" $pd_addr $MAX_RETRIES
+	check_count 0 "tikv-cdc" $pd_addr $MAX_RETRIES
 	run_cdc_server --workdir $work_dir --binary $cdc_binary --addr "127.0.0.1:8600" --pd $pd_addr
-    check_count 1 "tikv-cdc" $pd_addr $MAX_RETRIES
+	check_count 1 "tikv-cdc" $pd_addr $MAX_RETRIES
 }
 
 export -f kill_cdc_and_restart
