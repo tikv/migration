@@ -10,44 +10,6 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
-function check_count() {
-	expected=$1
-	name=$2
-
-	local max_retry=30
-	local i
-	for ((i = 0; i <= $max_retry; i++)); do
-		case $name in
-		tikv)
-			:
-			count=$(pd-ctl store --pd $UP_PD | grep 'Up' | wc | awk '{print $1}')
-			;;
-		pd)
-			:
-			count=$(pd-ctl health --pd $UP_PD | grep '\"health\": true' | wc | awk '{print $1}')
-			;;
-		tikv-cdc)
-			:
-			count=$(tikv-cdc cli capture list --pd $UP_PD | jq '.|length')
-			;;
-		*)
-			exit 1
-			;;
-		esac
-
-		if [[ "$count" == "$expected" ]]; then
-			echo "check $name count successfully"
-			break
-		fi
-
-		echo "failed to check $name count, expected: $expected, got: $count, retry: $i"
-		if [ "$i" -eq "$max_retry" ]; then
-			echo "failed to check $name count, max retires exceed"
-			exit 1
-		fi
-		sleep 2
-	done
-}
 
 function run_kill_upstream() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -69,15 +31,14 @@ function run_kill_upstream() {
 	# send sigstop to tikv
 	n=$(echo $(($RANDOM % 3 + 1)))
 	tikv_pid=$(pgrep -f "tikv$n" | head -n1)
-	echo "kill tikv"
 	kill -19 $tikv_pid
-	sleep 5
-	check_count 2 "tikv"
+	sleep 10
+	check_count 2 "tikv" $UP_PD
 
 	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $tikv_pid
-	check_count 3 "tikv"
+	check_count 3 "tikv" $UP_PD
 	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
@@ -88,13 +49,13 @@ function run_kill_upstream() {
 	n=$(echo $(($RANDOM % 2 + 1)))
 	cdc_pid=$(pgrep -f "tikv-cdc" | sed -n "$n"p)
 	kill -19 $cdc_pid
-	sleep 5
-	check_count 2 "tikv-cdc"
+	sleep 10
+	check_count 2 "tikv-cdc" $UP_PD
 
 	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $cdc_pid
-	check_count 3 "tikv-cdc"
+	check_count 3 "tikv-cdc" $UP_PD
 	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
@@ -125,13 +86,13 @@ function run_kill_downstream() {
 	n=$(echo $(($RANDOM % 3 + 1)))
 	tikv_pid=$(pgrep -f "tikv$n" | head -n1)
 	kill -19 $tikv_pid
-	sleep 5
-	check_count 2 "tikv"
+	sleep 10
+	check_count 2 "tikv" $UP_PD
 
 	rawkv_op $DOWN_PD put 5000
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 	kill -18 $tikv_pid
-	check_count 3 "tikv"
+	check_count 3 "tikv" $UP_PD
 	rawkv_op $DOWN_PD delete 5000
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 
@@ -139,13 +100,13 @@ function run_kill_downstream() {
 	n=$(echo $(($RANDOM % 3 + 1)))
 	pd_pid=$(pgrep -f "pd-server" | sed -n "$n"p)
 	kill -19 $pd_pid
-	sleep 5
-	check_count 2 "pd"
+	sleep 10
+	check_count 2 "pd" $UP_PD
 
 	rawkv_op $DOWN_PD put 5000
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 	kill -18 $pd_pid
-	check_count 3 "pd"
+	check_count 3 "pd" $UP_PD
 	rawkv_op $DOWN_PD delete 5000
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 
