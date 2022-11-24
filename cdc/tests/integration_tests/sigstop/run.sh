@@ -72,12 +72,12 @@ function run_kill_upstream() {
 	echo "kill tikv"
 	kill -19 $tikv_pid
 	sleep 5
-	check_count 2 "tikv" $UP_PD
+	check_count 2 "tikv"
 
 	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $tikv_pid
-	check_count 3 "tikv" $UP_PD
+	check_count 3 "tikv"
 	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
@@ -89,12 +89,12 @@ function run_kill_upstream() {
 	cdc_pid=$(pgrep -f "tikv-cdc" | sed -n "$n"p)
 	kill -19 $cdc_pid
 	sleep 5
-	check_count 2 "tikv-cdc" $UP_PD
+	check_count 2 "tikv-cdc"
 
 	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $cdc_pid
-	check_count 3 "tikv-cdc" $UP_PD
+	check_count 3 "tikv-cdc"
 	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
