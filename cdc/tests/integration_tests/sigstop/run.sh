@@ -78,6 +78,8 @@ function run_kill_upstream() {
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $tikv_pid
 	check_count 3 "tikv" $UP_PD
+	rawkv_op $UP_PD delete 5000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	# Ignore the test on PD, because sending SIGSTOP to PD may cause CDC to exit,
 	# `cdc_hang_on` has tested sending SIGSTOP to PD leader.
@@ -93,6 +95,8 @@ function run_kill_upstream() {
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $cdc_pid
 	check_count 3 "tikv-cdc" $UP_PD
+	rawkv_op $UP_PD delete 5000
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
 }
@@ -128,6 +132,8 @@ function run_kill_downstream() {
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 	kill -18 $tikv_pid
 	check_count 3 "tikv"
+	rawkv_op $DOWN_PD delete 5000
+	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 
 	# send sigstop to pd
 	n=$(echo $(($RANDOM % 3 + 1)))
@@ -136,10 +142,12 @@ function run_kill_downstream() {
 	sleep 5
 	check_count 2 "pd"
 
-	rawkv_op $DOWN_PD delete 5000
+	rawkv_op $DOWN_PD put 5000
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 	kill -18 $pd_pid
 	check_count 3 "pd"
+	rawkv_op $DOWN_PD delete 5000
+	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 
 	cleanup_process $CDC_BINARY
 }
