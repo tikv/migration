@@ -27,6 +27,8 @@ function run_kill_upstream() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 
+	rawkv_op $UP_PD put 10000 &
+	sleep 1
 	# send sigstop to tikv
 	n=$(echo $(($RANDOM % 3 + 1)))
 	tikv_pid=$(pgrep -f "tikv$n" | head -n1)
@@ -34,16 +36,15 @@ function run_kill_upstream() {
 	sleep 10
 	check_count 2 "tikv" $UP_PD
 
-	rawkv_op $UP_PD put 5000
-	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $tikv_pid
 	check_count 3 "tikv" $UP_PD
-	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	# Ignore the test on PD, because sending SIGSTOP to PD may cause CDC to exit,
 	# `cdc_hang_on` has tested sending SIGSTOP to PD leader.
 
+	rawkv_op $UP_PD delete 10000 &
+	sleep 1
 	# send sigstop to tikv-cdc
 	n=$(echo $(($RANDOM % 2 + 1)))
 	cdc_pid=$(pgrep -f "tikv-cdc" | sed -n "$n"p)
@@ -51,11 +52,8 @@ function run_kill_upstream() {
 	sleep 10
 	check_count 2 "tikv-cdc" $UP_PD
 
-	rawkv_op $UP_PD put 5000
-	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 	kill -18 $cdc_pid
 	check_count 3 "tikv-cdc" $UP_PD
-	rawkv_op $UP_PD delete 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
@@ -81,6 +79,8 @@ function run_kill_downstream() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --pd $DOWN_PD
 
+	rawkv_op $DOWN_PD put 10000 &
+	sleep 1
 	# send sigstop to tikv
 	n=$(echo $(($RANDOM % 3 + 1)))
 	tikv_pid=$(pgrep -f "tikv$n" | head -n1)
@@ -88,13 +88,12 @@ function run_kill_downstream() {
 	sleep 10
 	check_count 2 "tikv" $UP_PD
 
-	rawkv_op $DOWN_PD put 5000
-	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 	kill -18 $tikv_pid
 	check_count 3 "tikv" $UP_PD
-	rawkv_op $DOWN_PD delete 5000
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 
+	rawkv_op $DOWN_PD delete 10000 &
+	sleep 1
 	# send sigstop to pd
 	n=$(echo $(($RANDOM % 3 + 1)))
 	pd_pid=$(pgrep -f "pd-server" | sed -n "$n"p)
@@ -102,11 +101,8 @@ function run_kill_downstream() {
 	sleep 10
 	check_count 2 "pd" $UP_PD
 
-	rawkv_op $DOWN_PD put 5000
-	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 	kill -18 $pd_pid
 	check_count 3 "pd" $UP_PD
-	rawkv_op $DOWN_PD delete 5000
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 
 	cleanup_process $CDC_BINARY

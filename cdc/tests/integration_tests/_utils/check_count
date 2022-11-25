@@ -3,6 +3,7 @@
 # parameter 2: component name
 # parameter 3: pd addr
 # parameter 4: max retry
+set -eu
 
 expected=$1
 name=$2
