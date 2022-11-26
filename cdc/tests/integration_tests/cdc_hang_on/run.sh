@@ -10,6 +10,7 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1,http://$UP_PD_HOST_2:$UP_PD_PORT_2,http://$UP_PD_HOST_3:$UP_PD_PORT_3
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 RETRY_TIME=10
+
 function restart_cdc() {
 	id=$1
 	local count=$(ps -aux | grep "tikv-cdc.test" | grep "cdc$id.log" | wc | awk '{print $1}')

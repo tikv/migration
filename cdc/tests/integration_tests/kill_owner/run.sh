@@ -12,16 +12,6 @@ MAX_RETRIES=10
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
-function check_capture_count() {
-	pd=$1
-	expected=$2
-	count=$(tikv-cdc cli capture list --pd=$pd 2>&1 | jq '.|length')
-	if [[ ! "$count" -eq "$expected" ]]; then
-		echo "count: $count expected: $expected"
-		exit 1
-	fi
-}
-
 function kill_cdc_and_restart() {
 	pd_addr=$1
 	work_dir=$2
@@ -31,12 +21,11 @@ function kill_cdc_and_restart() {
 	cdc_pid=$(echo "$status" | jq '.pid')
 
 	kill $cdc_pid
-	ensure $MAX_RETRIES check_capture_count $pd_addr 0
+	check_count 0 "tikv-cdc" $pd_addr $MAX_RETRIES
 	run_cdc_server --workdir $work_dir --binary $cdc_binary --addr "127.0.0.1:8600" --pd $pd_addr
-	ensure $MAX_RETRIES check_capture_count $pd_addr 1
+	check_count 1 "tikv-cdc" $pd_addr $MAX_RETRIES
 }
 
-export -f check_capture_count
 export -f kill_cdc_and_restart
 
 function run() {

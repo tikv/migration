@@ -13,7 +13,7 @@ DOWN_PD=$3
 if [ $# -ge 4 ]; then
 	check_time=$4
 else
-	check_time=30
+	check_time=50
 fi
 PWD=$(pwd)
 
