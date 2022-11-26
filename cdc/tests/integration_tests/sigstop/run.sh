@@ -7,7 +7,7 @@ source $CUR/../_utils/test_prepare
 WORK_DIR=$OUT_DIR/$TEST_NAME
 CDC_BINARY=tikv-cdc.test
 SINK_TYPE=$1
-UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
+UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1,http://$UP_PD_HOST_2:$UP_PD_PORT_2,http://$UP_PD_HOST_3:$UP_PD_PORT_3
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 
 function run_kill_upstream() {

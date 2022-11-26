@@ -43,13 +43,17 @@ func runChecksum(cmd *cobra.Command) error {
 	}
 	ctx := context.Background()
 
-	srcCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
+	srcCli, err := rawkv.NewClientWithOpts(ctx, cfg.SrcPD,
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}
 	defer srcCli.Close()
 
-	dstCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.DstPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.DstSec))
+	dstCli, err := rawkv.NewClientWithOpts(ctx, cfg.DstPD,
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithSecurity(cfg.DstSec))
 	if err != nil {
 		return err
 	}

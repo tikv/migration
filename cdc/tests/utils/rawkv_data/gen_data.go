@@ -87,7 +87,9 @@ func runDeleteCmd(cmd *cobra.Command) error {
 	}
 
 	ctx := context.Background()
-	cli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
+	cli, err := rawkv.NewClientWithOpts(ctx, cfg.SrcPD,
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}
@@ -122,12 +124,16 @@ func runPutCmd(cmd *cobra.Command) error {
 	}
 	ctx := context.Background()
 
-	cli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
+	cli, err := rawkv.NewClientWithOpts(ctx, cfg.SrcPD,
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}
 	defer cli.Close()
-	atomicCli, err := rawkv.NewClientWithOpts(ctx, []string{cfg.SrcPD}, rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2), rawkv.WithSecurity(cfg.SrcSec))
+	atomicCli, err := rawkv.NewClientWithOpts(ctx, cfg.SrcPD,
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithSecurity(cfg.SrcSec))
 	if err != nil {
 		return err
 	}
