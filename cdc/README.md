@@ -1,7 +1,7 @@
 # TiKV-CDC
 
 [![Build Status](https://github.com/tikv/migration/actions/workflows/ci-cdc.yml/badge.svg)](https://github.com/tikv/migration/actions/workflows/ci-cdc.yml)
-[![codecov](https://codecov.io/gh/tikv/migration/branch/main/graph/badge.svg?token=7nmbrqKeWs&cdc)](https://github.com/tikv/migration/tree/main/cdc)
+[![codecov](https://codecov.io/gh/tikv/migration/branch/main/graph/badge.svg?token=7nmbrqKeWs&cdc)](https://app.codecov.io/gh/tikv/migration/tree/main/cdc)
 [![LICENSE](https://img.shields.io/github/license/tikv/migration)](https://github.com/tikv/migration/blob/main/cdc/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tikv/migration/cdc)](https://goreportcard.com/report/github.com/tikv/migration/cdc)
 
