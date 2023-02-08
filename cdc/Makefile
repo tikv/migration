@@ -279,7 +279,7 @@ check_third_party_binary:
 	@which scripts/bin/etcdctl
 
 shellcheck: tools/bin/shellcheck
-	tools/bin/shellcheck ./**/*.sh tests/integration_tests/_utils/start_tidb_cluster*
+	tools/bin/shellcheck ./**/*.sh
 
 tools/bin/shellcheck:
 	wget -qO- "https://github.com/koalaman/shellcheck/releases/download/$(SCVERSION)/shellcheck-$(SCVERSION).$(ARCH).x86_64.tar.xz" | tar -xJv
