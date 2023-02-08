@@ -123,6 +123,7 @@ for idx in $(seq 1 $pd_count); do
 		i=$((i + 1))
 		if [ "$i" -gt 60 ]; then
 			echo 'Failed to start upstream PD'
+			cat "$OUT_DIR/down_pd.log"
 			exit 1
 		fi
 		sleep 1
@@ -132,7 +133,9 @@ for idx in $(seq 1 $pd_count); do
 	while [ -z "$(curl http://${!host}:${!port}/pd/api/v1/health 2>/dev/null | grep 'health' | grep 'true')" ]; do
 		i=$((i + 1))
 		if [ "$i" -gt 60 ]; then
-			echo 'Failed to start upstream PD'
+			echo 'Failed to start upstream PD (unhealthy)'
+			curl http://${!host}:${!port}/pd/api/v1/health
+			cat "$OUT_DIR/down_pd.log"
 			exit 1
 		fi
 		sleep 1
