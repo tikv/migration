@@ -41,9 +41,9 @@ FAILPOINT := tools/bin/failpoint-ctl
 FAILPOINT_ENABLE  := $$(echo $(FAILPOINT_DIR) | xargs $(FAILPOINT) enable >/dev/null)
 FAILPOINT_DISABLE := $$(echo $(FAILPOINT_DIR) | xargs $(FAILPOINT) disable >/dev/null)
 
-RELEASE_VERSION =
+RELEASE_VERSION ?=
 ifeq ($(RELEASE_VERSION),)
-	RELEASE_VERSION := v1.1.0-master
+	RELEASE_VERSION := v1.1-master
 	release_version_regex := ^cdc-v[0-9]\..*$$
 	release_branch_regex := "^cdc-[0-9]\.[0-9].*$$|^HEAD$$|^.*/*tags/cdc-v[0-9]\.[0-9]\..*$$"
 	ifneq ($(shell git rev-parse --abbrev-ref HEAD | egrep $(release_branch_regex)),)
