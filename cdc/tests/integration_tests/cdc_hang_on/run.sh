@@ -12,7 +12,7 @@ DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 RETRY_TIME=10
 
 function restart_cdc() {
-	id=$1
+	local id=$1
 	local count=$(ps -aux | grep "tikv-cdc.test" | grep "cdc$id.log" | wc | awk '{print $1}')
 	if [ "$count" -eq 0 ]; then
 		echo "restart cdc$id"
@@ -42,7 +42,7 @@ function check_capture_count() {
 		# shoule restart it
 		restart_cdc 1
 		restart_cdc 2
-		sleep 1
+		sleep 3
 	done
 }
 

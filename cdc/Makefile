@@ -266,6 +266,24 @@ integration_test: prepare_test_binaries check_third_party_binary integration_tes
 	tests/integration_tests/run.sh "$(CASE)"
 	@bash <(curl -s https://codecov.io/bash) -F cdc -s /tmp/tikv_cdc_test -f *.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
+# To make try on integration tests easier.
+# Comment out the succeed cases and retry from the failed one.
+# TODO: find better method.
+integration_test_by_group: prepare_test_binaries check_third_party_binary integration_test_build
+	tests/integration_tests/run_group.sh G00
+	tests/integration_tests/run_group.sh G01
+	tests/integration_tests/run_group.sh G02
+	tests/integration_tests/run_group.sh G03
+	tests/integration_tests/run_group.sh G04
+	tests/integration_tests/run_group.sh G05
+	tests/integration_tests/run_group.sh G06
+	tests/integration_tests/run_group.sh G07
+	tests/integration_tests/run_group.sh G08
+	tests/integration_tests/run_group.sh G09
+	tests/integration_tests/run_group.sh G10
+	tests/integration_tests/run_group.sh G11
+	tests/integration_tests/run_group.sh G12
+	tests/integration_tests/run_group.sh others
 
 prepare_test_binaries:
 	cd scripts && ./download-integration-test-binaries.sh master && cd ..
