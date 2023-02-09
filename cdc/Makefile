@@ -41,9 +41,9 @@ FAILPOINT := tools/bin/failpoint-ctl
 FAILPOINT_ENABLE  := $$(echo $(FAILPOINT_DIR) | xargs $(FAILPOINT) enable >/dev/null)
 FAILPOINT_DISABLE := $$(echo $(FAILPOINT_DIR) | xargs $(FAILPOINT) disable >/dev/null)
 
-RELEASE_VERSION =
+RELEASE_VERSION ?=
 ifeq ($(RELEASE_VERSION),)
-	RELEASE_VERSION := v1.1.0-master
+	RELEASE_VERSION := v1.1-master
 	release_version_regex := ^cdc-v[0-9]\..*$$
 	release_branch_regex := "^cdc-[0-9]\.[0-9].*$$|^HEAD$$|^.*/*tags/cdc-v[0-9]\.[0-9]\..*$$"
 	ifneq ($(shell git rev-parse --abbrev-ref HEAD | egrep $(release_branch_regex)),)
@@ -266,6 +266,24 @@ integration_test: prepare_test_binaries check_third_party_binary integration_tes
 	tests/integration_tests/run.sh "$(CASE)"
 	@bash <(curl -s https://codecov.io/bash) -F cdc -s /tmp/tikv_cdc_test -f *.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
 
+# To make try on integration tests easier.
+# Comment out the succeed cases and retry from the failed one.
+# TODO: find better method.
+integration_test_by_group: prepare_test_binaries check_third_party_binary integration_test_build
+	tests/integration_tests/run_group.sh G00
+	tests/integration_tests/run_group.sh G01
+	tests/integration_tests/run_group.sh G02
+	tests/integration_tests/run_group.sh G03
+	tests/integration_tests/run_group.sh G04
+	tests/integration_tests/run_group.sh G05
+	tests/integration_tests/run_group.sh G06
+	tests/integration_tests/run_group.sh G07
+	tests/integration_tests/run_group.sh G08
+	tests/integration_tests/run_group.sh G09
+	tests/integration_tests/run_group.sh G10
+	tests/integration_tests/run_group.sh G11
+	tests/integration_tests/run_group.sh G12
+	tests/integration_tests/run_group.sh others
 
 prepare_test_binaries:
 	cd scripts && ./download-integration-test-binaries.sh master && cd ..
