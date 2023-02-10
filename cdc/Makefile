@@ -287,6 +287,7 @@ integration_test_by_group: prepare_test_binaries check_third_party_binary integr
 
 prepare_test_binaries:
 	cd scripts && ./download-integration-test-binaries.sh master && cd ..
+	touch prepare_test_binaries
 
 check_third_party_binary:
 	@which scripts/bin/tidb-server
