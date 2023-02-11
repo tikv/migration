@@ -49,8 +49,8 @@ PORTS=(
 # "lsof" is possibly blocked for a long time due to unknown reason (maybe container environment ?)
 # And "lsof -bn" (See https://bugzilla.redhat.com/show_bug.cgi?id=171637) does not address this issue.
 # So add "timeout"
-KILL="timeout -s SIGKILL 3s kill -9 "
-LSOF="lsof -bn -i "
+KILL="kill -9 "
+LSOF="timeout -s SIGKILL 3s lsof -bn -i "
 
 for port in "${PORTS[@]}"; do
 	${KILL} $(${LSOF} tcp:"${port}" -t 2>/dev/null) &>/dev/null || true
