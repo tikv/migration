@@ -52,7 +52,6 @@ PORTS=(
 KILL="timeout -s SIGKILL 3s kill -9 "
 LSOF="lsof -bn -i "
 
-for port in "${PORTS[@]}"
-do
+for port in "${PORTS[@]}"; do
 	${KILL} $(${LSOF} tcp:"${port}" -t 2>/dev/null) &>/dev/null || true
 done
