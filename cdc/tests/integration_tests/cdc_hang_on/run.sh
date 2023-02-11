@@ -36,7 +36,7 @@ function check_capture_count() {
 		echo "failed to check capture count, expected: $expected, got: $count, retry: $i"
 		echo "captures: $captures"
 		echo "tikv_cdc process:"
-		pgrep -a "$CDC_BINARY"
+		pgrep -a "$CDC_BINARY" || true
 		if [ "$i" -eq "$max_retry" ]; then
 			echo "failed to check capture count, max retires exceed"
 			exit 1
