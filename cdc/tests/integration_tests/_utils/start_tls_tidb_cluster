@@ -4,13 +4,13 @@
 # --tlsdir: certificates directory
 # --retry: retry times
 
-set -e
+set -euxo pipefail
 
 OUT_DIR=
 TLS_DIR=
-retry_times=3
+retry_times=10
 
-while [[ ${1} ]]; do
+while [[ ${1-} ]]; do
 	case "${1}" in
 	--workdir)
 		OUT_DIR=${2}

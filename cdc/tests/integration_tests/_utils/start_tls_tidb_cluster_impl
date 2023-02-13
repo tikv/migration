@@ -3,12 +3,12 @@
 # --workdir: work directory
 # --tlsdir: certificates directory
 
-set -e
+set -euxo pipefail
 
 OUT_DIR=
 TLS_DIR=
 
-while [[ ${1} ]]; do
+while [[ ${1-} ]]; do
 	case "${1}" in
 	--workdir)
 		OUT_DIR=${2}

@@ -3,7 +3,7 @@
 # parameter 2: component name
 # parameter 3: pd addr
 # parameter 4: max retry
-set -eu
+set -eux
 
 expected=$1
 name=$2
@@ -23,7 +23,8 @@ for ((i = 0; i <= $max_retry; i++)); do
 		;;
 	pd)
 		:
-		count=$(pd-ctl health --pd $pd_addr | grep '\"health\": true' | wc | awk '{print $1}')
+		# Need "timeout", as pd-ctl would be blocked for a long time due to kill -SIGSTOP
+		count=$(timeout -s SIGKILL 3s pd-ctl health --pd $pd_addr | grep '\"health\": true' | wc | awk '{print $1}')
 		;;
 	tikv-cdc)
 		:

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -eux
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -99,7 +99,8 @@ function run_kill_downstream() {
 	pd_pid=$(pgrep -f "pd-server" | sed -n "$n"p)
 	kill -19 $pd_pid
 	sleep 10
-	check_count 2 "pd" $UP_PD
+	# PD would not recover when ETCD leader is stopped. So skip check_count here.
+	# check_count 2 "pd" $UP_PD
 
 	kill -18 $pd_pid
 	check_count 3 "pd" $UP_PD
