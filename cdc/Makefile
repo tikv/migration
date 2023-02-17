@@ -200,7 +200,7 @@ tools/bin/goveralls: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/goveralls github.com/mattn/goveralls
 
 tools/bin/golangci-lint: tools/check/go.mod
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b tools/bin v1.46.2
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b tools/bin v1.51.1
 
 tools/bin/mockgen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/mockgen github.com/golang/mock/mockgen
