@@ -171,7 +171,7 @@ func (o *createChangefeedOptions) complete(ctx context.Context, f factory.Factor
 }
 
 // completeCfg complete the replica config from file and cmd flags.
-func (o *createChangefeedOptions) completeCfg(ctx context.Context, cmd *cobra.Command) error {
+func (o *createChangefeedOptions) completeCfg(_ context.Context, cmd *cobra.Command) error {
 	cfg := config.GetDefaultReplicaConfig()
 	if len(o.commonChangefeedOptions.configFile) > 0 {
 		if err := o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
