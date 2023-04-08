@@ -314,8 +314,9 @@ func ScatterFinishInTimeImpl(t *testing.T, needEncodeKey bool) {
 // range: [aaa, aae), [aae, aaz), [ccd, ccf), [ccf, ccj)
 // rewrite rules: aa -> xx,  cc -> bb
 // expected regions after split:
-//   [, aay), [aay, bba), [bba, bbf), [bbf, bbh), [bbh, bbj),
-//   [bbj, cca), [cca, xxe), [xxe, xxz), [xxz, )
+//
+//	[, aay), [aay, bba), [bba, bbf), [bbf, bbh), [bbh, bbj),
+//	[bbj, cca), [cca, xxe), [xxe, xxz), [xxz, )
 func TestSplitAndScatter(t *testing.T) {
 	for _, needEncodeKey := range []bool{false, true} {
 		t.Run("BatchScatter", func(t *testing.T) {
@@ -443,8 +444,9 @@ func initRewriteRules() *RewriteRules {
 }
 
 // expected regions after split:
-//   [, aay), [aay, bba), [bba, bbf), [bbf, bbh), [bbh, bbj),
-//   [bbj, cca), [cca, xxe), [xxe, xxz), [xxz, )
+//
+//	[, aay), [aay, bba), [bba, bbf), [bbf, bbh), [bbh, bbj),
+//	[bbj, cca), [cca, xxe), [xxe, xxz), [xxz, )
 func validateRegions(regions map[uint64]*RegionInfo) bool {
 	keys := [...]string{"", "aay", "bba", "bbf", "bbh", "bbj", "cca", "xxe", "xxz", ""}
 	if len(regions) != len(keys)-1 {
