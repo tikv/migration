@@ -38,8 +38,8 @@ const (
 )
 
 type Config struct {
-	SrcPD      string          `json:"src-pd"`
-	DstPD      string          `json:"dst-pd"`
+	SrcPD      []string        `json:"src-pd"`
+	DstPD      []string        `json:"dst-pd"`
 	StartIndex int             `json:"start-index"`
 	Count      int             `json:"count"`
 	CAPath     string          `json:"ca-path"`
@@ -61,12 +61,18 @@ func AddFlags(cmd *cobra.Command) {
 
 func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, requireDstPD bool) error {
 	var err error
-	if cfg.SrcPD, err = flags.GetString(flagSrcPD); err != nil {
+	srcPD, err := flags.GetString(flagSrcPD)
+	if err != nil {
 		return err
 	}
-	if cfg.DstPD, err = flags.GetString(flagDstPD); err != nil {
+	cfg.SrcPD = strings.Split(srcPD, ",")
+
+	dstPD, err := flags.GetString(flagDstPD)
+	if err != nil {
 		return err
 	}
+	cfg.DstPD = strings.Split(dstPD, ",")
+
 	if cfg.StartIndex, err = flags.GetInt(flagStartIndex); err != nil {
 		return err
 	}
@@ -83,10 +89,10 @@ func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, requireDstPD bool) error
 		return err
 	}
 
-	if cfg.SrcPD == "" {
+	if len(cfg.SrcPD) == 0 {
 		return fmt.Errorf("Upstream cluster PD is not set")
 	}
-	if strings.HasPrefix(cfg.SrcPD, "https://") {
+	if strings.HasPrefix(cfg.SrcPD[0], "https://") {
 		if cfg.CAPath == "" || cfg.CertPath == "" || cfg.KeyPath == "" {
 			return fmt.Errorf("CAPath/CertPath/KeyPath is not set")
 		}
@@ -96,10 +102,10 @@ func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, requireDstPD bool) error
 	}
 
 	if requireDstPD {
-		if cfg.DstPD == "" {
+		if len(cfg.DstPD) == 0 {
 			return fmt.Errorf("Downstream cluster PD is not set")
 		}
-		if strings.HasPrefix(cfg.DstPD, "https://") {
+		if strings.HasPrefix(cfg.DstPD[0], "https://") {
 			if cfg.CAPath == "" || cfg.CertPath == "" || cfg.KeyPath == "" {
 				return fmt.Errorf("CAPath/CertPath/KeyPath is not set")
 			}

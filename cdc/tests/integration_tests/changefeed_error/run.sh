@@ -91,20 +91,11 @@ function check_no_changefeed() {
 	fi
 }
 
-function check_no_capture() {
-	pd=$1
-	count=$(tikv-cdc cli capture list --pd=$pd 2>&1 | jq '.|length')
-	if [[ ! "$count" -eq "0" ]]; then
-		exit 1
-	fi
-}
-
 export -f check_changefeed_mark_error
 export -f check_changefeed_mark_failed_regex
 export -f check_changefeed_mark_stopped_regex
 export -f check_changefeed_mark_stopped
 export -f check_no_changefeed
-export -f check_no_capture
 
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
@@ -138,7 +129,7 @@ function run() {
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/owner/NewChangefeedRetryError=return(true)'
 	kill $capture_pid
-	ensure $MAX_RETRIES check_no_capture $UP_PD
+	check_count 0 "tikv-cdc" $UP_PD $MAX_RETRIES
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY
 	ensure $MAX_RETRIES check_changefeed_mark_error $UP_PD ${changefeedid} "failpoint injected retriable error"
 

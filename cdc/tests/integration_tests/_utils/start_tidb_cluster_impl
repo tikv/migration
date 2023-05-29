@@ -4,7 +4,7 @@
 # --tidb-config: path to tidb config file
 # --multiple-upstream-pd: whether to deploy multiple pd severs in upstream
 
-set -e
+set -euxo pipefail
 
 OUT_DIR=
 tidb_config=
@@ -26,7 +26,7 @@ randomGenSocketsConf() {
 	echo "socket = \"/tmp/tidb-$random_str.sock\"" >>"$random_file_name"
 }
 
-while [[ ${1} ]]; do
+while [[ ${1-} ]]; do
 	case "${1}" in
 	--workdir)
 		OUT_DIR=${2}

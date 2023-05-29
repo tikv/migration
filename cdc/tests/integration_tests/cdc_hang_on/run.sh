@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -eux
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
@@ -10,9 +10,10 @@ SINK_TYPE=$1
 UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1,http://$UP_PD_HOST_2:$UP_PD_PORT_2,http://$UP_PD_HOST_3:$UP_PD_PORT_3
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 RETRY_TIME=10
+
 function restart_cdc() {
-	id=$1
-	local count=$(ps -aux | grep "tikv-cdc.test" | grep "cdc$id.log" | wc | awk '{print $1}')
+	local id=$1
+	local count=$(pgrep -a "$CDC_BINARY" | grep "cdc$id.log" | wc -l)
 	if [ "$count" -eq 0 ]; then
 		echo "restart cdc$id"
 		run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "$id" --addr "127.0.0.1:860$id" --pd "$UP_PD"
@@ -26,22 +27,26 @@ function check_capture_count() {
 	local i
 	for ((i = 0; i <= $max_retry; i++)); do
 		local captures=$(tikv-cdc cli capture list --pd=$UP_PD)
-		local count=$(echo $captures | jq '.|length')
+		# A tomestone tikv-cdc server will left capture record in ETCD. So check unique address for counting.
+		local count=$(echo $captures | jq '.[] | .address' | sort -u | wc -l)
 		if [[ "$count" == "$expected" ]]; then
 			echo "check capture count successfully"
 			break
 		fi
 		echo "failed to check capture count, expected: $expected, got: $count, retry: $i"
 		echo "captures: $captures"
+		echo "tikv_cdc process:"
+		pgrep -a "$CDC_BINARY" || true
 		if [ "$i" -eq "$max_retry" ]; then
 			echo "failed to check capture count, max retires exceed"
 			exit 1
 		fi
+
 		# when sent SIGSTOP to pd leader, cdc maybe exit that is expect, and we
 		# shoule restart it
 		restart_cdc 1
 		restart_cdc 2
-		sleep 1
+		sleep 3
 	done
 }
 
@@ -52,8 +57,8 @@ function run() {
 	start_tidb_cluster --workdir $WORK_DIR --multiple-upstream-pd "true"
 	cd $WORK_DIR
 
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8600" --pd "$UP_PD"
-	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8601" --pd "$UP_PD"
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "1" --addr "127.0.0.1:8601" --pd "$UP_PD"
+	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix "2" --addr "127.0.0.1:8602" --pd "$UP_PD"
 
 	local i=1
 	while [ $i -le 10 ]; do

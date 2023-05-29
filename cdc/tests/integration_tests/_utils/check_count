@@ -1,0 +1,49 @@
+#!/bin/bash
+# parameter 1: expected count
+# parameter 2: component name
+# parameter 3: pd addr
+# parameter 4: max retry
+set -eux
+
+expected=$1
+name=$2
+pd_addr=$3
+
+if [ $# -ge 4 ]; then
+	max_retry=$4
+else
+	max_retry=30
+fi
+
+for ((i = 0; i <= $max_retry; i++)); do
+	case $name in
+	tikv)
+		:
+		count=$(pd-ctl store --pd $pd_addr | grep 'Up' | wc | awk '{print $1}')
+		;;
+	pd)
+		:
+		# Need "timeout", as pd-ctl would be blocked for a long time due to kill -SIGSTOP
+		count=$(timeout -s SIGKILL 3s pd-ctl health --pd $pd_addr | grep '\"health\": true' | wc | awk '{print $1}')
+		;;
+	tikv-cdc)
+		:
+		count=$(tikv-cdc cli capture list --pd $pd_addr | jq '.|length')
+		;;
+	*)
+		exit 1
+		;;
+	esac
+
+	if [[ "$count" == "$expected" ]]; then
+		echo "check $name count successfully"
+		break
+	fi
+
+	echo "failed to check $name count, expected: $expected, got: $count, retry: $i"
+	if [ "$i" -eq "$max_retry" ]; then
+		echo "failed to check $name count, max retires exceed"
+		exit 1
+	fi
+	sleep 2
+done

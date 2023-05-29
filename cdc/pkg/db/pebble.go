@@ -44,8 +44,7 @@ func (logger *pebbleLogger) Fatalf(format string, args ...interface{}) {
 	log.Panic(fmt.Sprintf(format, args...), zap.Int("db", logger.id))
 }
 
-// TODO: Update DB config once we switch to pebble,
-//       as some configs are not applicable to pebble.
+// TODO: Update DB config once we switch to pebble, as some configs are not applicable to pebble.
 func buildPebbleOption(id int, cfg *config.DBConfig) (pebble.Options, *writeStall) {
 	var option pebble.Options
 	option.ErrorIfExists = true
@@ -158,8 +157,7 @@ func (p *pebbleDB) Close() error {
 	return p.db.Close()
 }
 
-// TODO: Update metrics once we switch to pebble,
-//       as some metrics are not applicable to pebble.
+// TODO: Update metrics once we switch to pebble, as some metrics are not applicable to pebble.
 func (p *pebbleDB) CollectMetrics(captureAddr string, i int) {
 	db := p.db
 	stats := db.Metrics()

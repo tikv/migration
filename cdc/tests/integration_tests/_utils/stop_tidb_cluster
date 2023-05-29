@@ -3,6 +3,8 @@
 # cdc server is ran by binary cdc.test, kill cdc server first to avoid too much
 # noise in cdc logs.
 
+set -x
+
 PKILL="killall -q -w -s 9 "
 if [ "$(uname)" == "Darwin" ]; then
 	PKILL="pkill -9 "
@@ -13,33 +15,43 @@ ${PKILL} tikv-cdc || true
 ${PKILL} cdc_state_checker || true
 ${PKILL} tidb-server || true
 ${PKILL} tikv-server || true
-${PKILL} flash_cluster_manager || true
 ${PKILL} pd-server || true
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source $CUR/../_utils/test_prepare
 
-kill -9 $(lsof -i tcp:${UP_TIDB_PORT} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIDB_OTHER_PORT} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIDB_STATUS} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIDB_OTHER_STATUS} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${DOWN_TIDB_PORT} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${DOWN_TIDB_STATUS} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_PD_PORT_1} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_PD_PEER_PORT_1} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_PD_PORT_2} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_PD_PEER_PORT_2} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_PD_PORT_3} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_PD_PEER_PORT_3} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${DOWN_PD_PORT} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${DOWN_PD_PEER_PORT} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIKV_PORT_1} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIKV_STATUS_PORT_1} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIKV_PORT_2} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIKV_STATUS_PORT_2} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIKV_PORT_3} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${UP_TIKV_STATUS_PORT_3} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${DOWN_TIKV_PORT} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:${DOWN_TIKV_STATUS_PORT} -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:9500 -t 2>/dev/null) &>/dev/null || true
-kill -9 $(lsof -i tcp:17000 -t 2>/dev/null) &>/dev/null || true
+PORTS=(
+	"${UP_TIDB_STATUS}"
+	"${UP_TIDB_OTHER_STATUS}"
+	"${DOWN_TIDB_PORT}"
+	"${DOWN_TIDB_STATUS}"
+	"${UP_PD_PORT_1}"
+	"${UP_PD_PEER_PORT_1}"
+	"${UP_PD_PORT_2}"
+	"${UP_PD_PEER_PORT_2}"
+	"${UP_PD_PORT_3}"
+	"${UP_PD_PEER_PORT_3}"
+	"${DOWN_PD_PORT}"
+	"${DOWN_PD_PEER_PORT}"
+	"${UP_TIKV_PORT_1}"
+	"${UP_TIKV_STATUS_PORT_1}"
+	"${UP_TIKV_PORT_2}"
+	"${UP_TIKV_STATUS_PORT_2}"
+	"${UP_TIKV_PORT_3}"
+	"${UP_TIKV_STATUS_PORT_3}"
+	"${DOWN_TIKV_PORT}"
+	"${DOWN_TIKV_STATUS_PORT}"
+	8600
+	8601
+	8602
+)
+
+# "lsof" is possibly blocked for a long time due to unknown reason (maybe container environment ?)
+# And "lsof -bn" (See https://bugzilla.redhat.com/show_bug.cgi?id=171637) does not address this issue.
+# So add "timeout"
+KILL="kill -9 "
+LSOF="timeout -s SIGKILL 3s lsof -bn -i "
+
+for port in "${PORTS[@]}"; do
+	${KILL} $(${LSOF} tcp:"${port}" -t 2>/dev/null) &>/dev/null || true
+done

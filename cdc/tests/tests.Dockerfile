@@ -31,7 +31,9 @@ RUN yum install -y \
 	curl \
 	tar \
 	psmisc \
-	mysql
+	mysql \
+	python3 \
+	lsof
 
 RUN wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 RUN yum install -y epel-release-latest-7.noarch.rpm
