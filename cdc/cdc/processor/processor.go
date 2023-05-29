@@ -649,6 +649,10 @@ func (p *processor) removeKeySpan(keyspan keyspanpipeline.KeySpanPipeline, keysp
 }
 
 func (p *processor) Close() error {
+	if !p.initialized {
+		return nil
+	}
+
 	for _, tbl := range p.keyspans {
 		tbl.Cancel()
 	}
@@ -675,6 +679,7 @@ func (p *processor) Close() error {
 		}
 	}
 
+	p.initialized = false
 	return nil
 }
 

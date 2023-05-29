@@ -199,6 +199,14 @@ func (o *Owner) Tick(stdCtx context.Context, rawState orchestrator.ReactorState)
 	return state, nil
 }
 
+// Close try to close the owner when the owner is not running.
+// Note: This method must not be called with `Tick`. Please be careful.
+func (o *Owner) Close(ctx cdcContext.Context) {
+	for _, cfReactor := range o.changefeeds {
+		cfReactor.Close(ctx)
+	}
+}
+
 // EnqueueJob enqueues an admin job into an internal queue, and the Owner will handle the job in the next tick
 func (o *Owner) EnqueueJob(adminJob model.AdminJob) {
 	o.pushOwnerJob(&ownerJob{
