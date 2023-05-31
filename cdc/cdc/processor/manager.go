@@ -155,9 +155,9 @@ func (m *Manager) sendCommand(tp commandTp, payload interface{}) chan struct{} {
 	return cmd.done
 }
 
-// Close closes all processors.
+// SyncClose closes all processors.
 // Note: This method must not be called with `Tick`. Please be careful.
-func (m *Manager) Close() {
+func (m *Manager) SyncClose() {
 	for changefeedID := range m.processors {
 		m.closeProcessor(changefeedID)
 	}

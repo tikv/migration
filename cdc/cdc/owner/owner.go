@@ -188,21 +188,19 @@ func (o *Owner) Tick(stdCtx context.Context, rawState orchestrator.ReactorState)
 		}
 	}
 	if atomic.LoadInt32(&o.closed) != 0 {
-		for changefeedID, cfReactor := range o.changefeeds {
-			ctx = cdcContext.WithChangefeedVars(ctx, &cdcContext.ChangefeedVars{
-				ID: changefeedID,
-			})
-			cfReactor.Close(ctx)
-		}
+		o.CloseAllChangefeeds(ctx)
 		return state, cerror.ErrReactorFinished.GenWithStackByArgs()
 	}
 	return state, nil
 }
 
-// Close try to close the owner when the owner is not running.
-// Note: This method must not be called with `Tick`. Please be careful.
-func (o *Owner) Close(ctx cdcContext.Context) {
-	for _, cfReactor := range o.changefeeds {
+// CloseAllCaptures close all changefeeds
+// Note: Please be careful to call this method!
+func (o *Owner) CloseAllChangefeeds(ctx cdcContext.Context) {
+	for changefeedID, cfReactor := range o.changefeeds {
+		ctx = cdcContext.WithChangefeedVars(ctx, &cdcContext.ChangefeedVars{
+			ID: changefeedID,
+		})
 		cfReactor.Close(ctx)
 	}
 }

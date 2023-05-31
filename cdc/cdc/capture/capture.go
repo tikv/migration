@@ -234,7 +234,7 @@ func (c *Capture) run(stdCtx context.Context) error {
 		// (recoverable errors are intercepted in the processor tick)
 		// so we should also stop the processor and let capture restart or exit
 		processorErr = c.runEtcdWorker(ctx, c.processorManager, globalState, processorFlushInterval)
-		c.processorManager.Close()
+		c.processorManager.SyncClose()
 		log.Info("the processor routine has exited", zap.Error(processorErr))
 	}()
 	wg.Add(1)
@@ -327,7 +327,7 @@ func (c *Capture) campaignOwner(ctx cdcContext.Context) error {
 		err = c.runEtcdWorker(ownerCtx, owner, orchestrator.NewGlobalState(), ownerFlushInterval)
 		c.setOwner(nil)
 		log.Info("run owner exited", zap.Error(err))
-		owner.Close(ownerCtx)
+		owner.CloseAllChangefeeds(ownerCtx)
 
 		// TODO: fix invalid resign
 		// When exiting normally, cancel will be called to make `owner routine`
