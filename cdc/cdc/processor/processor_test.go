@@ -42,7 +42,10 @@ func newProcessor4Test(
 	createKeySpanPipeline func(ctx cdcContext.Context, keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo) (keyspanpipeline.KeySpanPipeline, error),
 ) *processor {
 	p := newProcessor(ctx)
-	p.lazyInit = func(ctx cdcContext.Context) error { return nil }
+	p.lazyInit = func(ctx cdcContext.Context) error {
+		p.initialized = true
+		return nil
+	}
 	p.sinkManager = &sink.Manager{}
 	p.createKeySpanPipeline = createKeySpanPipeline
 	return p
