@@ -194,7 +194,7 @@ func (o *Owner) Tick(stdCtx context.Context, rawState orchestrator.ReactorState)
 	return state, nil
 }
 
-// CloseAllCaptures close all changefeeds
+// CloseAllCaptures close all changefeeds.
 // Note: Please be careful to call this method!
 func (o *Owner) CloseAllChangefeeds(ctx cdcContext.Context) {
 	for changefeedID, cfReactor := range o.changefeeds {
