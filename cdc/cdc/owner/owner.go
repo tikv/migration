@@ -188,15 +188,21 @@ func (o *Owner) Tick(stdCtx context.Context, rawState orchestrator.ReactorState)
 		}
 	}
 	if atomic.LoadInt32(&o.closed) != 0 {
-		for changefeedID, cfReactor := range o.changefeeds {
-			ctx = cdcContext.WithChangefeedVars(ctx, &cdcContext.ChangefeedVars{
-				ID: changefeedID,
-			})
-			cfReactor.Close(ctx)
-		}
+		o.CloseAllChangefeeds(ctx)
 		return state, cerror.ErrReactorFinished.GenWithStackByArgs()
 	}
 	return state, nil
+}
+
+// CloseAllCaptures close all changefeeds.
+// Note: Please be careful to call this method!
+func (o *Owner) CloseAllChangefeeds(ctx cdcContext.Context) {
+	for changefeedID, cfReactor := range o.changefeeds {
+		ctx = cdcContext.WithChangefeedVars(ctx, &cdcContext.ChangefeedVars{
+			ID: changefeedID,
+		})
+		cfReactor.Close(ctx)
+	}
 }
 
 // EnqueueJob enqueues an admin job into an internal queue, and the Owner will handle the job in the next tick
