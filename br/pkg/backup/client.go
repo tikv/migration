@@ -122,10 +122,10 @@ func (bc *Client) GetTS(ctx context.Context, duration time.Duration, ts uint64) 
 
 			backupTime := oracle.GetTimeFromTS(backupTS)
 			backupAgo := backupTime.Add(-duration)
-			if backupTS < oracle.ComposeTS(oracle.GetPhysical(backupAgo), l) {
+			if backupTS < oracle.ComposeTS(oracle.GetPhysical(backupAgo), logical) {
 				return 0, errors.Annotate(berrors.ErrInvalidArgument, "backup ts overflow please choose a smaller timeago")
 			}
-			backupTS = oracle.ComposeTS(oracle.GetPhysical(backupAgo), l)
+			backupTS = oracle.ComposeTS(oracle.GetPhysical(backupAgo), logical)
 		}
 	}
 
