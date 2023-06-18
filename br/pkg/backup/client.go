@@ -101,11 +101,18 @@ func (bc *Client) GetTS(ctx context.Context, duration time.Duration, ts uint64) 
 	if ts > 0 {
 		backupTS = ts
 	} else {
-		p, l, err := bc.mgr.GetPDClient().GetTS(ctx)
+		var (
+			physical int64
+			logical  int64
+		)
+		err = utils.WithRetry(ctx, func() error {
+			physical, logical, err = bc.mgr.GetPDClient().GetTS(ctx)
+			return errors.Trace(err)
+		}, utils.NewPDReqBackoffer())
 		if err != nil {
 			return 0, errors.Trace(err)
 		}
-		backupTS = oracle.ComposeTS(p, l)
+		backupTS = oracle.ComposeTS(physical, logical)
 
 		switch {
 		case duration < 0:
