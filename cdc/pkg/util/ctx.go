@@ -31,6 +31,7 @@ const (
 	ctxKeyIsOwner      = ctxKey("isOwner")
 	ctxKeyTimezone     = ctxKey("timezone")
 	ctxKeyKVStorage    = ctxKey("kvStorage")
+	ctxEventFilter     = ctxKey("eventFilter")
 )
 
 // CaptureAddrFromCtx returns a capture ID stored in the specified context.
@@ -119,6 +120,18 @@ func ChangefeedIDFromCtx(ctx context.Context) string {
 // PutChangefeedIDInCtx returns a new child context with the specified changefeed ID stored.
 func PutChangefeedIDInCtx(ctx context.Context, changefeedID string) context.Context {
 	return context.WithValue(ctx, ctxKeyChangefeedID, changefeedID)
+}
+
+func EventFilterFromCtx(ctx context.Context) *Filter {
+	filter, ok := ctx.Value(ctxEventFilter).(*Filter)
+	if !ok {
+		return nil
+	}
+	return filter
+}
+
+func PutEventFilterInCtx(ctx context.Context, filter *Filter) context.Context {
+	return context.WithValue(ctx, ctxEventFilter, filter)
 }
 
 // ZapFieldCapture returns a zap field containing capture address

@@ -127,6 +127,12 @@ const (
   "scheduler": {
     "type": "keyspan-number",
     "polling-time": -1
+  },
+  "filter": {
+    "key-format": "raw",
+    "key-prefix": "prefix",
+    "key-pattern": "key\\x00pattern",
+    "value-pattern": "value\\ffpattern"
   }
 }`
 
@@ -151,6 +157,12 @@ const (
   "scheduler": {
     "type": "keyspan-number",
     "polling-time": -1
+  },
+  "filter": {
+    "key-format": "raw",
+    "key-prefix": "prefix",
+    "key-pattern": "key\\x00pattern",
+    "value-pattern": "value\\ffpattern"
   }
 }`
 )

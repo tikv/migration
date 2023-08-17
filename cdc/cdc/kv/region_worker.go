@@ -115,6 +115,7 @@ type regionWorkerMetrics struct {
 	metricPullEventCommitCounter      prometheus.Counter
 	metricPullEventCommittedCounter   prometheus.Counter
 	metricPullEventRollbackCounter    prometheus.Counter
+	metricPullEventFilterOutCounter   prometheus.Counter
 	metricSendEventResolvedCounter    prometheus.Counter
 	metricSendEventCommitCounter      prometheus.Counter
 	metricSendEventCommittedCounter   prometheus.Counter
@@ -156,9 +157,11 @@ type regionWorker struct {
 
 	enableOldValue bool
 	storeAddr      string
+
+	eventFilter *util.Filter
 }
 
-func newRegionWorker(s *eventFeedSession, addr string) *regionWorker {
+func newRegionWorker(s *eventFeedSession, addr string, eventFilter *util.Filter) *regionWorker {
 	cfg := config.GetGlobalServerConfig().KVClient
 	worker := &regionWorker{
 		session:        s,
@@ -171,6 +174,7 @@ func newRegionWorker(s *eventFeedSession, addr string) *regionWorker {
 		enableOldValue: s.enableOldValue,
 		storeAddr:      addr,
 		concurrent:     cfg.WorkerConcurrent,
+		eventFilter:    eventFilter,
 	}
 	return worker
 }
@@ -187,6 +191,7 @@ func (w *regionWorker) initMetrics(ctx context.Context) {
 	metrics.metricPullEventCommitCounter = pullEventCounter.WithLabelValues(cdcpb.Event_COMMIT.String(), captureAddr, changefeedID)
 	metrics.metricPullEventPrewriteCounter = pullEventCounter.WithLabelValues(cdcpb.Event_PREWRITE.String(), captureAddr, changefeedID)
 	metrics.metricPullEventRollbackCounter = pullEventCounter.WithLabelValues(cdcpb.Event_ROLLBACK.String(), captureAddr, changefeedID)
+	metrics.metricPullEventFilterOutCounter = pullEventCounter.WithLabelValues("filter-out", captureAddr, changefeedID)
 	metrics.metricSendEventResolvedCounter = sendEventCounter.WithLabelValues("native-resolved", captureAddr, changefeedID)
 	metrics.metricSendEventCommitCounter = sendEventCounter.WithLabelValues("commit", captureAddr, changefeedID)
 	metrics.metricSendEventCommittedCounter = sendEventCounter.WithLabelValues("committed", captureAddr, changefeedID)
@@ -655,6 +660,13 @@ func (w *regionWorker) handleEventEntry(
 			}
 		case cdcpb.Event_COMMITTED:
 			w.metrics.metricPullEventCommittedCounter.Inc()
+
+			if !w.eventFilter.EventMatch(entry) {
+				w.metrics.metricPullEventFilterOutCounter.Inc()
+				log.Info("handleEventEntry: event is filter out and drop", zap.String("OpType", entry.OpType.String()), zap.String("key", string(entry.Key)))
+				continue
+			}
+
 			revent, err := assembleRowEvent(regionID, entry, w.enableOldValue)
 			if err != nil {
 				return errors.Trace(err)

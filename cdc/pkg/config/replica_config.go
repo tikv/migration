@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/tikv/migration/cdc/pkg/config/outdated"
+	"github.com/tikv/migration/cdc/pkg/util"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
@@ -33,16 +34,18 @@ var defaultReplicaConfig = &ReplicaConfig{
 		Tp:          "keyspan-number",
 		PollingTime: -1,
 	},
+	Filter: &util.FilterConfig{},
 }
 
 // ReplicaConfig represents some addition replication config for a changefeed
 type ReplicaConfig replicaConfig
 
 type replicaConfig struct {
-	EnableOldValue   bool             `toml:"enable-old-value" json:"enable-old-value"`
-	CheckGCSafePoint bool             `toml:"check-gc-safe-point" json:"check-gc-safe-point"`
-	Sink             *SinkConfig      `toml:"sink" json:"sink"`
-	Scheduler        *SchedulerConfig `toml:"scheduler" json:"scheduler"`
+	EnableOldValue   bool               `toml:"enable-old-value" json:"enable-old-value"`
+	CheckGCSafePoint bool               `toml:"check-gc-safe-point" json:"check-gc-safe-point"`
+	Sink             *SinkConfig        `toml:"sink" json:"sink"`
+	Scheduler        *SchedulerConfig   `toml:"scheduler" json:"scheduler"`
+	Filter           *util.FilterConfig `toml:"filter" json:"filter"`
 }
 
 // Marshal returns the json marshal format of a ReplicationConfig
@@ -109,6 +112,12 @@ func (c *replicaConfig) fillFromV1(v1 *outdated.ReplicaConfigV1) {
 func (c *ReplicaConfig) Validate() error {
 	if c.Sink != nil {
 		err := c.Sink.validate(c.EnableOldValue)
+		if err != nil {
+			return err
+		}
+	}
+	if c.Filter != nil {
+		err := c.Filter.Validate()
 		if err != nil {
 			return err
 		}
