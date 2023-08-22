@@ -15,7 +15,6 @@ package util
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"regexp"
@@ -25,7 +24,7 @@ import (
 )
 
 type FilterConfig struct {
-	KeyFormat    string `toml:"key-format" json:"key-format"`
+	// Binary data is specified in escaped format, e.g. \x00\x01
 	KeyPrefix    string `toml:"key-prefix" json:"key-prefix"`
 	KeyPattern   string `toml:"key-pattern" json:"key-pattern"`
 	ValuePattern string `toml:"value-pattern" json:"value-pattern"`
@@ -33,19 +32,19 @@ type FilterConfig struct {
 
 func (c *FilterConfig) Validate() error {
 	if c.KeyPrefix != "" {
-		if _, err := ParseKey(c.KeyFormat, c.KeyPrefix); err != nil {
-			return errors.New(fmt.Sprintf("invalid key-prefix: %s", err.Error()))
+		if _, err := ParseKey("escaped", c.KeyPrefix); err != nil {
+			return fmt.Errorf("invalid key-prefix: %s", err.Error())
 		}
 	}
 	if c.KeyPattern != "" {
 		if _, err := regexp.Compile(c.KeyPattern); err != nil {
-			return errors.New(fmt.Sprintf("invalid key-pattern: %s", err.Error()))
+			return fmt.Errorf("invalid key-pattern: %s", err.Error())
 		}
 	}
 
 	if c.ValuePattern != "" {
 		if _, err := regexp.Compile(c.ValuePattern); err != nil {
-			return errors.New(fmt.Sprintf("invalid value-pattern: %s", err.Error()))
+			return fmt.Errorf("invalid value-pattern: %s", err.Error())
 		}
 	}
 
@@ -66,7 +65,7 @@ func CreateFilter(conf *FilterConfig) Filter {
 	)
 
 	if conf.KeyPrefix != "" {
-		keyPrefix, _ = ParseKey(conf.KeyFormat, conf.KeyPrefix)
+		keyPrefix, _ = ParseKey("escaped", conf.KeyPrefix)
 	}
 	if conf.KeyPattern != "" {
 		keyPattern = regexp.MustCompile(conf.KeyPattern)

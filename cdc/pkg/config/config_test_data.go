@@ -40,6 +40,11 @@ const (
   "scheduler": {
     "type": "keyspan-number",
     "polling-time": -1
+  },
+  "Filter": {
+    "key-prefix": "",
+    "key-pattern": "",
+    "value-pattern": ""
   }
 }`
 
@@ -129,7 +134,6 @@ const (
     "polling-time": -1
   },
   "filter": {
-    "key-format": "raw",
     "key-prefix": "prefix",
     "key-pattern": "key\\x00pattern",
     "value-pattern": "value\\ffpattern"
@@ -159,7 +163,6 @@ const (
     "polling-time": -1
   },
   "filter": {
-    "key-format": "raw",
     "key-prefix": "prefix",
     "key-pattern": "key\\x00pattern",
     "value-pattern": "value\\ffpattern"

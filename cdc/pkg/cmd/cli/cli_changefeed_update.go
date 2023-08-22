@@ -159,7 +159,7 @@ func (o *updateChangefeedOptions) applyChanges(oldInfo *model.ChangeFeedInfo, cm
 			newInfo.SinkURI = o.commonChangefeedOptions.sinkURI
 		case "config":
 			cfg := newInfo.Config
-			if err = o.commonChangefeedOptions.strictDecodeConfig("TiCDC changefeed", cfg); err != nil {
+			if err = o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
 				log.Error("decode config file error", zap.Error(err))
 			}
 		case "opts":

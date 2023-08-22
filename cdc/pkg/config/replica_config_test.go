@@ -40,7 +40,6 @@ func TestReplicaConfigMarshal(t *testing.T) {
 		},
 	}
 	conf.Filter = &util.FilterConfig{
-		KeyFormat:    "raw",
 		KeyPrefix:    `prefix`,
 		KeyPattern:   `key\x00pattern`,
 		ValuePattern: `value\ffpattern`,
