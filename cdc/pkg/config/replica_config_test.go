@@ -39,7 +39,7 @@ func TestReplicaConfigMarshal(t *testing.T) {
 			Columns: []string{"a", "b"},
 		},
 	}
-	conf.Filter = &util.FilterConfig{
+	conf.Filter = &util.KvFilterConfig{
 		KeyPrefix:    `prefix`,
 		KeyPattern:   `key\x00pattern`,
 		ValuePattern: `value\ffpattern`,

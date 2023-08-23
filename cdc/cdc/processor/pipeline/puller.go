@@ -32,13 +32,13 @@ type pullerNode struct {
 	keyspanName string
 	keyspan     regionspan.Span
 	replicaInfo *model.KeySpanReplicaInfo
-	eventFilter *util.Filter
+	eventFilter *util.KvFilter
 	cancel      context.CancelFunc
 	wg          *errgroup.Group
 }
 
 func newPullerNode(
-	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo, filterConfig *util.FilterConfig,
+	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo, filterConfig *util.KvFilterConfig,
 ) pipeline.Node {
 	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
 	filter := util.CreateFilter(filterConfig)

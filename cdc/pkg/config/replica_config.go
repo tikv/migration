@@ -34,18 +34,18 @@ var defaultReplicaConfig = &ReplicaConfig{
 		Tp:          "keyspan-number",
 		PollingTime: -1,
 	},
-	Filter: &util.FilterConfig{},
+	Filter: &util.KvFilterConfig{},
 }
 
 // ReplicaConfig represents some addition replication config for a changefeed
 type ReplicaConfig replicaConfig
 
 type replicaConfig struct {
-	EnableOldValue   bool               `toml:"enable-old-value" json:"enable-old-value"`
-	CheckGCSafePoint bool               `toml:"check-gc-safe-point" json:"check-gc-safe-point"`
-	Sink             *SinkConfig        `toml:"sink" json:"sink"`
-	Scheduler        *SchedulerConfig   `toml:"scheduler" json:"scheduler"`
-	Filter           *util.FilterConfig `toml:"filter" json:"filter"`
+	EnableOldValue   bool                 `toml:"enable-old-value" json:"enable-old-value"`
+	CheckGCSafePoint bool                 `toml:"check-gc-safe-point" json:"check-gc-safe-point"`
+	Sink             *SinkConfig          `toml:"sink" json:"sink"`
+	Scheduler        *SchedulerConfig     `toml:"scheduler" json:"scheduler"`
+	Filter           *util.KvFilterConfig `toml:"filter" json:"filter"`
 }
 
 // Marshal returns the json marshal format of a ReplicationConfig

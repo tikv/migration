@@ -122,15 +122,15 @@ func PutChangefeedIDInCtx(ctx context.Context, changefeedID string) context.Cont
 	return context.WithValue(ctx, ctxKeyChangefeedID, changefeedID)
 }
 
-func EventFilterFromCtx(ctx context.Context) *Filter {
-	filter, ok := ctx.Value(ctxEventFilter).(*Filter)
+func EventFilterFromCtx(ctx context.Context) *KvFilter {
+	filter, ok := ctx.Value(ctxEventFilter).(*KvFilter)
 	if !ok {
 		return nil
 	}
 	return filter
 }
 
-func PutEventFilterInCtx(ctx context.Context, filter *Filter) context.Context {
+func PutEventFilterInCtx(ctx context.Context, filter *KvFilter) context.Context {
 	return context.WithValue(ctx, ctxEventFilter, filter)
 }
 

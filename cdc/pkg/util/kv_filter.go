@@ -16,21 +16,21 @@ package util
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"regexp"
 
 	"github.com/pingcap/kvproto/pkg/cdcpb"
 	"golang.org/x/net/html/charset"
 )
 
-type FilterConfig struct {
+type KvFilterConfig struct {
 	// Binary data is specified in escaped format, e.g. \x00\x01
 	KeyPrefix    string `toml:"key-prefix" json:"key-prefix"`
 	KeyPattern   string `toml:"key-pattern" json:"key-pattern"`
 	ValuePattern string `toml:"value-pattern" json:"value-pattern"`
 }
 
-func (c *FilterConfig) Validate() error {
+func (c *KvFilterConfig) Validate() error {
 	if c.KeyPrefix != "" {
 		if _, err := ParseKey("escaped", c.KeyPrefix); err != nil {
 			return fmt.Errorf("invalid key-prefix: %s", err.Error())
@@ -51,13 +51,13 @@ func (c *FilterConfig) Validate() error {
 	return nil
 }
 
-type Filter struct {
+type KvFilter struct {
 	keyPrefix    []byte
 	keyPattern   *regexp.Regexp
 	valuePattern *regexp.Regexp
 }
 
-func CreateFilter(conf *FilterConfig) Filter {
+func CreateFilter(conf *KvFilterConfig) KvFilter {
 	var (
 		keyPrefix    []byte
 		keyPattern   *regexp.Regexp
@@ -74,14 +74,14 @@ func CreateFilter(conf *FilterConfig) Filter {
 		valuePattern = regexp.MustCompile(conf.ValuePattern)
 	}
 
-	return Filter{
+	return KvFilter{
 		keyPrefix:    keyPrefix,
 		keyPattern:   keyPattern,
 		valuePattern: valuePattern,
 	}
 }
 
-func (f *Filter) EventMatch(entry *cdcpb.Event_Row) bool {
+func (f *KvFilter) EventMatch(entry *cdcpb.Event_Row) bool {
 	// Filter on put & delete only.
 	if entry.GetOpType() != cdcpb.Event_Row_DELETE && entry.GetOpType() != cdcpb.Event_Row_PUT {
 		return true
@@ -105,6 +105,6 @@ func (f *Filter) EventMatch(entry *cdcpb.Event_Row) bool {
 func ConvertToUTF8(strBytes []byte, origEncoding string) string {
 	byteReader := bytes.NewReader(strBytes)
 	reader, _ := charset.NewReaderLabel(origEncoding, byteReader)
-	strBytes, _ = ioutil.ReadAll(reader)
+	strBytes, _ = io.ReadAll(reader)
 	return string(strBytes)
 }

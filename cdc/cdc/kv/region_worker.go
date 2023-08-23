@@ -158,10 +158,10 @@ type regionWorker struct {
 	enableOldValue bool
 	storeAddr      string
 
-	eventFilter *util.Filter
+	eventFilter *util.KvFilter
 }
 
-func newRegionWorker(s *eventFeedSession, addr string, eventFilter *util.Filter) *regionWorker {
+func newRegionWorker(s *eventFeedSession, addr string, eventFilter *util.KvFilter) *regionWorker {
 	cfg := config.GetGlobalServerConfig().KVClient
 	worker := &regionWorker{
 		session:        s,
