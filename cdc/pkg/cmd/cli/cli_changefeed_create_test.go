@@ -40,7 +40,12 @@ func (s *changefeedSuite) TestStrictDecodeConfig(c *check.C) {
 	dir := c.MkDir()
 	path := filepath.Join(dir, "config.toml")
 	content := `
-	check-gc-safe-point = true`
+	check-gc-safe-point = true
+	[filter]
+	key-prefix = "key\\x00"
+	key-pattern = "key\\x00pattern"
+	value-pattern = "value\\ffpattern"
+	`
 	err := os.WriteFile(path, []byte(content), 0o644)
 	c.Assert(err, check.IsNil)
 
@@ -49,6 +54,10 @@ func (s *changefeedSuite) TestStrictDecodeConfig(c *check.C) {
 	cfg := config.GetDefaultReplicaConfig()
 	err = o.strictDecodeConfig("cdc", cfg)
 	c.Assert(err, check.IsNil)
+	c.Assert(cfg.CheckGCSafePoint, check.IsTrue)
+	c.Assert(cfg.Filter.KeyPrefix, check.Equals, `key\x00`)
+	c.Assert(cfg.Filter.KeyPattern, check.Equals, `key\x00pattern`)
+	c.Assert(cfg.Filter.ValuePattern, check.Equals, `value\ffpattern`)
 
 	path = filepath.Join(dir, "config1.toml")
 	content = `
