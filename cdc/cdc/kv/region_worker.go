@@ -108,16 +108,19 @@ func (rsm *regionStateManager) delState(regionID uint64) {
 
 type regionWorkerMetrics struct {
 	// kv events related metrics
-	metricReceivedEventSize              prometheus.Observer
-	metricDroppedEventSize               prometheus.Observer
-	metricPullEventInitializedCounter    prometheus.Counter
-	metricPullEventPrewriteCounter       prometheus.Counter
-	metricPullEventCommitCounter         prometheus.Counter
-	metricPullEventCommittedCounter      prometheus.Counter
-	metricPullEventRollbackCounter       prometheus.Counter
-	metricSendEventResolvedCounter       prometheus.Counter
-	metricSendEventCommitCounter         prometheus.Counter
-	metricSendEventCommittedCounter      prometheus.Counter
+	metricReceivedEventSize prometheus.Observer
+	metricDroppedEventSize  prometheus.Observer
+
+	metricPullEventInitializedCounter prometheus.Counter
+	metricPullEventPrewriteCounter    prometheus.Counter
+	metricPullEventCommitCounter      prometheus.Counter
+	metricPullEventCommittedCounter   prometheus.Counter
+	metricPullEventRollbackCounter    prometheus.Counter
+
+	metricSendEventResolvedCounter  prometheus.Counter
+	metricSendEventCommitCounter    prometheus.Counter
+	metricSendEventCommittedCounter prometheus.Counter
+
 	metricFilterOutEventCommittedCounter prometheus.Counter
 
 	// TODO: add region runtime related metrics
@@ -663,7 +666,7 @@ func (w *regionWorker) handleEventEntry(
 
 			if w.eventFilter != nil && !w.eventFilter.EventMatch(entry) {
 				w.metrics.metricFilterOutEventCommittedCounter.Inc()
-				log.Info("handleEventEntry: event is filter out and drop", zap.String("OpType", entry.OpType.String()), zap.String("key", string(entry.Key)))
+				log.Debug("handleEventEntry: event is filter out and drop", zap.String("OpType", entry.OpType.String()), zap.String("key", string(entry.Key)))
 				continue
 			}
 

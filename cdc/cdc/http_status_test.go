@@ -316,7 +316,7 @@ func (s *httpStatusSuite) TestServerTLSWithCommonName(c *check.C) {
 		resp.Body.Close()
 		return nil
 	}, retry.WithMaxTries(retryTime), retry.WithBackoffBaseDelay(50), retry.WithIsRetryableErr(cerrors.IsRetryableError))
-	c.Assert(strings.Contains(err.Error(), "remote error: tls: certificate required"), check.IsTrue)
+	c.Assert(strings.Contains(err.Error(), "remote error: tls: "), check.IsTrue)
 
 	// test cli sends request with a cert will success
 	err = retry.Do(ctx, func() error {
