@@ -19,6 +19,8 @@ ifeq (${CDC_ENABLE_VENDOR}, 1)
 GOVENDORFLAG := -mod=vendor
 endif
 
+BUILD_FLAG := -buildvcs=false
+
 GOBUILD  := CGO_ENABLED=0 $(GO) build $(BUILD_FLAG) -trimpath $(GOVENDORFLAG)
 GOBUILD_DEBUG  := CGO_ENABLED=0 $(GO) build $(BUILD_FLAG) -gcflags "all=-N -l" $(GOVENDORFLAG)
 GOBUILDNOVENDOR  := CGO_ENABLED=0 $(GO) build $(BUILD_FLAG) -trimpath
