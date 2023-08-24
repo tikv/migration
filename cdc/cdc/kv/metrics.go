@@ -118,6 +118,7 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(eventFeedGauge)
 	registry.MustRegister(pullEventCounter)
 	registry.MustRegister(sendEventCounter)
+	registry.MustRegister(filterOutEventCounter)
 	registry.MustRegister(clientChannelSize)
 	registry.MustRegister(clientRegionTokenSize)
 	registry.MustRegister(cachedRegionSize)
