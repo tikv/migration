@@ -34,7 +34,6 @@ var defaultReplicaConfig = &ReplicaConfig{
 		Tp:          "keyspan-number",
 		PollingTime: -1,
 	},
-	Filter: &util.KvFilterConfig{},
 }
 
 // ReplicaConfig represents some addition replication config for a changefeed

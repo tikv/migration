@@ -57,7 +57,7 @@ type KvFilter struct {
 	valuePattern *regexp.Regexp
 }
 
-func CreateFilter(conf *KvFilterConfig) KvFilter {
+func CreateFilter(conf *KvFilterConfig) *KvFilter {
 	var (
 		keyPrefix    []byte
 		keyPattern   *regexp.Regexp
@@ -74,7 +74,7 @@ func CreateFilter(conf *KvFilterConfig) KvFilter {
 		valuePattern = regexp.MustCompile(conf.ValuePattern)
 	}
 
-	return KvFilter{
+	return &KvFilter{
 		keyPrefix:    keyPrefix,
 		keyPattern:   keyPattern,
 		valuePattern: valuePattern,

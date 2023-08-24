@@ -41,13 +41,16 @@ func newPullerNode(
 	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo, filterConfig *util.KvFilterConfig,
 ) pipeline.Node {
 	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
-	filter := util.CreateFilter(filterConfig)
+	var filter *util.KvFilter
+	if filterConfig != nil {
+		filter = util.CreateFilter(filterConfig)
+	}
 	return &pullerNode{
 		keyspanID:   keyspanID,
 		keyspanName: keyspan.Name(),
 		keyspan:     keyspan,
 		replicaInfo: replicaInfo,
-		eventFilter: &filter,
+		eventFilter: filter,
 	}
 }
 

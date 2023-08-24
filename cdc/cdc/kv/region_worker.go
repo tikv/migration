@@ -108,17 +108,17 @@ func (rsm *regionStateManager) delState(regionID uint64) {
 
 type regionWorkerMetrics struct {
 	// kv events related metrics
-	metricReceivedEventSize           prometheus.Observer
-	metricDroppedEventSize            prometheus.Observer
-	metricPullEventInitializedCounter prometheus.Counter
-	metricPullEventPrewriteCounter    prometheus.Counter
-	metricPullEventCommitCounter      prometheus.Counter
-	metricPullEventCommittedCounter   prometheus.Counter
-	metricPullEventRollbackCounter    prometheus.Counter
-	metricPullEventFilterOutCounter   prometheus.Counter
-	metricSendEventResolvedCounter    prometheus.Counter
-	metricSendEventCommitCounter      prometheus.Counter
-	metricSendEventCommittedCounter   prometheus.Counter
+	metricReceivedEventSize              prometheus.Observer
+	metricDroppedEventSize               prometheus.Observer
+	metricPullEventInitializedCounter    prometheus.Counter
+	metricPullEventPrewriteCounter       prometheus.Counter
+	metricPullEventCommitCounter         prometheus.Counter
+	metricPullEventCommittedCounter      prometheus.Counter
+	metricPullEventRollbackCounter       prometheus.Counter
+	metricSendEventResolvedCounter       prometheus.Counter
+	metricSendEventCommitCounter         prometheus.Counter
+	metricSendEventCommittedCounter      prometheus.Counter
+	metricFilterOutEventCommittedCounter prometheus.Counter
 
 	// TODO: add region runtime related metrics
 }
@@ -191,10 +191,10 @@ func (w *regionWorker) initMetrics(ctx context.Context) {
 	metrics.metricPullEventCommitCounter = pullEventCounter.WithLabelValues(cdcpb.Event_COMMIT.String(), captureAddr, changefeedID)
 	metrics.metricPullEventPrewriteCounter = pullEventCounter.WithLabelValues(cdcpb.Event_PREWRITE.String(), captureAddr, changefeedID)
 	metrics.metricPullEventRollbackCounter = pullEventCounter.WithLabelValues(cdcpb.Event_ROLLBACK.String(), captureAddr, changefeedID)
-	metrics.metricPullEventFilterOutCounter = pullEventCounter.WithLabelValues("filter-out", captureAddr, changefeedID)
 	metrics.metricSendEventResolvedCounter = sendEventCounter.WithLabelValues("native-resolved", captureAddr, changefeedID)
 	metrics.metricSendEventCommitCounter = sendEventCounter.WithLabelValues("commit", captureAddr, changefeedID)
 	metrics.metricSendEventCommittedCounter = sendEventCounter.WithLabelValues("committed", captureAddr, changefeedID)
+	metrics.metricFilterOutEventCommittedCounter = filterOutEventCounter.WithLabelValues("committed", captureAddr, changefeedID)
 
 	w.metrics = metrics
 }
@@ -661,8 +661,8 @@ func (w *regionWorker) handleEventEntry(
 		case cdcpb.Event_COMMITTED:
 			w.metrics.metricPullEventCommittedCounter.Inc()
 
-			if !w.eventFilter.EventMatch(entry) {
-				w.metrics.metricPullEventFilterOutCounter.Inc()
+			if w.eventFilter != nil && !w.eventFilter.EventMatch(entry) {
+				w.metrics.metricFilterOutEventCommittedCounter.Inc()
 				log.Info("handleEventEntry: event is filter out and drop", zap.String("OpType", entry.OpType.String()), zap.String("key", string(entry.Key)))
 				continue
 			}

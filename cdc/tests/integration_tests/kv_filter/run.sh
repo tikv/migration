@@ -30,7 +30,7 @@ function run() {
 		--changefeed-id="$uuid" \
 		--config $CUR/conf/changefeed.toml
 
-	rawkv_op $UP_PD put 5000	
+	rawkv_op $UP_PD put 5000
 
 	# Filter configured in $CUR/conf/changefeed.toml will filter events with key >= 3000
 	# So wait for sync finished, pause changefeed, delete keys < 3000 for upstream, then check_sync_diff

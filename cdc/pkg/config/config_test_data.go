@@ -40,11 +40,6 @@ const (
   "scheduler": {
     "type": "keyspan-number",
     "polling-time": -1
-  },
-  "Filter": {
-    "key-prefix": "",
-    "key-pattern": "",
-    "value-pattern": ""
   }
 }`
 
