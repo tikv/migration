@@ -12,6 +12,7 @@ pd_config=
 multiple_upstream_pd=
 random_file_name=
 verify_tidb=false
+tikv_count=3
 
 # Random generate the sockets config.
 # Make sure we dont use the same sock.
@@ -46,6 +47,10 @@ while [[ ${1-} ]]; do
 		;;
 	--verify-tidb)
 		vierfy_tidb=true
+		;;
+	--tikv-count)
+		tikv_count=${2}
+		shift
 		;;
 	*)
 		echo "Unknown parameter: ${1}" >&2
@@ -168,6 +173,7 @@ cat - >"$OUT_DIR/tikv-config.toml" <<EOF
 reserve-space = "0MB"
 api-version = 2
 enable-ttl = true
+capacity = "1MB"
 [rocksdb]
 max-open-files = 4096
 [raftdb]
@@ -189,7 +195,7 @@ EOF
 fi
 
 echo "Starting Upstream TiKV..."
-for idx in $(seq 1 3); do
+for idx in $(seq 1 "$tikv_count"); do
 	host="UP_TIKV_HOST_$idx"
 	port="UP_TIKV_PORT_$idx"
 	status_port="UP_TIKV_STATUS_PORT_$idx"

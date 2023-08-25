@@ -98,6 +98,7 @@ api-version = 2
 enable-ttl = true
 # Disable creating a large temp file.
 reserve-space = "0MB"
+capacity = "1MB"
 [rocksdb]
 max-open-files = 4096
 [raftdb]
