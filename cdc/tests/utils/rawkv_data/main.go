@@ -129,6 +129,7 @@ func main() {
 	rootCmd.AddCommand(NewPutCommand())
 	rootCmd.AddCommand(NewDeleteCommand())
 	rootCmd.AddCommand(NewChecksumCommand())
+	rootCmd.AddCommand(NewTotalKvsCommand())
 
 	rootCmd.SetOut(os.Stdout)
 	rootCmd.SetArgs(os.Args[1:])

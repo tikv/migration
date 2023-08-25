@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/migration/cdc/pkg/util"
 )
 
 func mustIdentJSON(t *testing.T, j string) string {
@@ -37,6 +38,11 @@ func TestReplicaConfigMarshal(t *testing.T) {
 			Matcher: []string{"1.1"},
 			Columns: []string{"a", "b"},
 		},
+	}
+	conf.Filter = &util.KvFilterConfig{
+		KeyPrefix:    `prefix`,
+		KeyPattern:   `key\x00pattern`,
+		ValuePattern: `value\ffpattern`,
 	}
 	b, err := conf.Marshal()
 	require.Nil(t, err)

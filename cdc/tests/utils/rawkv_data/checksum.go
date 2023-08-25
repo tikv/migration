@@ -81,3 +81,45 @@ func runChecksum(cmd *cobra.Command) error {
 	fmt.Printf("Upstream checksum %v are same with downstream %v\n", srcChecksum, dstChecksum)
 	return nil
 }
+
+func NewTotalKvsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:          "totalkvs",
+		Short:        "Verify that the total number of key-values of downstream is equal to --count argument",
+		SilenceUsage: true,
+		Args:         cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runTotalKvs(cmd)
+		},
+	}
+}
+
+func runTotalKvs(cmd *cobra.Command) error {
+	cfg := &Config{}
+	err := cfg.ParseFromFlags(cmd.Flags(), true)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+
+	dstCli, err := rawkv.NewClientWithOpts(ctx, cfg.DstPD,
+		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
+		rawkv.WithSecurity(cfg.DstSec))
+	if err != nil {
+		return err
+	}
+	defer dstCli.Close()
+
+	dstChecksum, err := dstCli.Checksum(ctx, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	if dstChecksum.TotalKvs != uint64(cfg.Count) {
+		msg := fmt.Sprintf("Downstream total kvs %v is not equal to expected %v", dstChecksum, cfg.Count)
+		log.Info(msg)
+		return fmt.Errorf(msg)
+	}
+	fmt.Printf("Downstream total kvs %v equals to expected %v", dstChecksum, cfg.Count)
+	return nil
+}

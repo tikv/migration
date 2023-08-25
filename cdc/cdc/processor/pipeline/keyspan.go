@@ -196,7 +196,7 @@ func NewKeySpanPipeline(ctx cdcContext.Context,
 
 	sinkNode := newSinkNode(keyspanID, sink, replicaInfo.StartTs, targetTs, flowController)
 
-	p.AppendNode(ctx, "puller", newPullerNode(keyspanID, replicaInfo))
+	p.AppendNode(ctx, "puller", newPullerNode(keyspanID, replicaInfo, replConfig.Filter))
 	p.AppendNode(ctx, "sorter", sorterNode)
 	p.AppendNode(ctx, "sink", sinkNode)
 

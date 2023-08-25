@@ -1,0 +1,3 @@
+[filter]
+key-prefix = "indexInfo_:_pf01_:"
+key-pattern = "_APD0101_:_0{15}[3-9]"

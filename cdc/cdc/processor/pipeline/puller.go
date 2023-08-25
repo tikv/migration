@@ -32,19 +32,25 @@ type pullerNode struct {
 	keyspanName string
 	keyspan     regionspan.Span
 	replicaInfo *model.KeySpanReplicaInfo
+	eventFilter *util.KvFilter
 	cancel      context.CancelFunc
 	wg          *errgroup.Group
 }
 
 func newPullerNode(
-	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo,
+	keyspanID model.KeySpanID, replicaInfo *model.KeySpanReplicaInfo, filterConfig *util.KvFilterConfig,
 ) pipeline.Node {
 	keyspan := regionspan.Span{Start: replicaInfo.Start, End: replicaInfo.End}
+	var filter *util.KvFilter
+	if filterConfig != nil {
+		filter = util.CreateFilter(filterConfig)
+	}
 	return &pullerNode{
 		keyspanID:   keyspanID,
 		keyspanName: keyspan.Name(),
 		keyspan:     keyspan,
 		replicaInfo: replicaInfo,
+		eventFilter: filter,
 	}
 }
 
@@ -63,6 +69,7 @@ func (n *pullerNode) InitWithWaitGroup(ctx pipeline.NodeContext, wg *errgroup.Gr
 	ctxC = util.PutKeySpanInfoInCtx(ctxC, n.keyspanID, n.keyspanName)
 	ctxC = util.PutCaptureAddrInCtx(ctxC, ctx.GlobalVars().CaptureInfo.AdvertiseAddr)
 	ctxC = util.PutChangefeedIDInCtx(ctxC, ctx.ChangefeedVars().ID)
+	ctxC = util.PutEventFilterInCtx(ctxC, n.eventFilter)
 
 	plr := puller.NewPuller(ctxC, ctx.GlobalVars().PDClient, ctx.GlobalVars().GrpcPool, ctx.GlobalVars().RegionCache, ctx.GlobalVars().KVStorage,
 		n.replicaInfo.StartTs, n.keyspans(), true)

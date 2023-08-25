@@ -33,11 +33,11 @@ func generateTestData(keyIndex int) (key, value0, value1 []byte) {
 	key = []byte(fmt.Sprintf("indexInfo_:_pf01_:_APD0101_:_%019d", keyIndex))
 	value0 = []byte{}       // Don't assign nil, which means "NotFound" in CompareAndSwap
 	if keyIndex%100 != 42 { // To generate test data with empty value. See https://github.com/tikv/migration/issues/250
-		value0 = []byte(fmt.Sprintf("v0_%020d", keyIndex))
+		value0 = []byte(fmt.Sprintf("v0_%020d_%v", keyIndex, rand.Uint64()))
 	}
 	value1 = []byte{}
 	if keyIndex%100 != 43 {
-		value1 = []byte(fmt.Sprintf("v1_%020d%020d", keyIndex, keyIndex))
+		value1 = []byte(fmt.Sprintf("v1_%020d%020d_%v", keyIndex, keyIndex, rand.Uint64()))
 	}
 	return key, value0, value1
 }
@@ -169,7 +169,7 @@ func runPutCmd(cmd *cobra.Command) error {
 		endIdx := startIdx + count1 + count2
 		kvCntPerBatch := 512
 		for startIdx1 < endIdx {
-			batchCnt := min(kvCntPerBatch, endIdx-startIdx)
+			batchCnt := min(kvCntPerBatch, endIdx-startIdx1)
 			keys, values0, values1 := batchGenerateData(startIdx1, batchCnt)
 			err := cli.BatchPut(ctx, keys, values0)
 			if err != nil {
@@ -179,7 +179,7 @@ func runPutCmd(cmd *cobra.Command) error {
 			if err != nil {
 				return err
 			}
-			startIdx1 += kvCntPerBatch
+			startIdx1 += batchCnt
 		}
 		return nil
 	})
@@ -199,7 +199,7 @@ func runPutCmd(cmd *cobra.Command) error {
 				return err
 			}
 			if !ret && !bytes.Equal(preValue, value1) {
-				return errors.Errorf("CAS put data error: preValue: %v, ret: %v, value0: %v, value1: %v", preValue, ret, value0, value1)
+				return errors.Errorf("CAS put data error: preValue: %v, ret: %v, value0: %v, value1: %v", string(preValue), ret, string(value0), string(value1))
 			}
 		}
 		return nil

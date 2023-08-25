@@ -108,16 +108,20 @@ func (rsm *regionStateManager) delState(regionID uint64) {
 
 type regionWorkerMetrics struct {
 	// kv events related metrics
-	metricReceivedEventSize           prometheus.Observer
-	metricDroppedEventSize            prometheus.Observer
+	metricReceivedEventSize prometheus.Observer
+	metricDroppedEventSize  prometheus.Observer
+
 	metricPullEventInitializedCounter prometheus.Counter
 	metricPullEventPrewriteCounter    prometheus.Counter
 	metricPullEventCommitCounter      prometheus.Counter
 	metricPullEventCommittedCounter   prometheus.Counter
 	metricPullEventRollbackCounter    prometheus.Counter
-	metricSendEventResolvedCounter    prometheus.Counter
-	metricSendEventCommitCounter      prometheus.Counter
-	metricSendEventCommittedCounter   prometheus.Counter
+
+	metricSendEventResolvedCounter  prometheus.Counter
+	metricSendEventCommitCounter    prometheus.Counter
+	metricSendEventCommittedCounter prometheus.Counter
+
+	metricFilterOutEventCommittedCounter prometheus.Counter
 
 	// TODO: add region runtime related metrics
 }
@@ -156,9 +160,11 @@ type regionWorker struct {
 
 	enableOldValue bool
 	storeAddr      string
+
+	eventFilter *util.KvFilter
 }
 
-func newRegionWorker(s *eventFeedSession, addr string) *regionWorker {
+func newRegionWorker(s *eventFeedSession, addr string, eventFilter *util.KvFilter) *regionWorker {
 	cfg := config.GetGlobalServerConfig().KVClient
 	worker := &regionWorker{
 		session:        s,
@@ -171,6 +177,7 @@ func newRegionWorker(s *eventFeedSession, addr string) *regionWorker {
 		enableOldValue: s.enableOldValue,
 		storeAddr:      addr,
 		concurrent:     cfg.WorkerConcurrent,
+		eventFilter:    eventFilter,
 	}
 	return worker
 }
@@ -190,6 +197,7 @@ func (w *regionWorker) initMetrics(ctx context.Context) {
 	metrics.metricSendEventResolvedCounter = sendEventCounter.WithLabelValues("native-resolved", captureAddr, changefeedID)
 	metrics.metricSendEventCommitCounter = sendEventCounter.WithLabelValues("commit", captureAddr, changefeedID)
 	metrics.metricSendEventCommittedCounter = sendEventCounter.WithLabelValues("committed", captureAddr, changefeedID)
+	metrics.metricFilterOutEventCommittedCounter = filterOutEventCounter.WithLabelValues("committed", captureAddr, changefeedID)
 
 	w.metrics = metrics
 }
@@ -655,6 +663,18 @@ func (w *regionWorker) handleEventEntry(
 			}
 		case cdcpb.Event_COMMITTED:
 			w.metrics.metricPullEventCommittedCounter.Inc()
+
+			if w.eventFilter != nil {
+				matched, err := w.eventFilter.EventMatch(entry)
+				// EventMatch will return error when fail to decode key.
+				// Pass such entry to be handled by following steps.
+				if err == nil && !matched {
+					w.metrics.metricFilterOutEventCommittedCounter.Inc()
+					log.Debug("handleEventEntry: event is filter out and drop", zap.String("OpType", entry.OpType.String()), zap.String("key", hex.EncodeToString(entry.Key)))
+					continue
+				}
+			}
+
 			revent, err := assembleRowEvent(regionID, entry, w.enableOldValue)
 			if err != nil {
 				return errors.Trace(err)

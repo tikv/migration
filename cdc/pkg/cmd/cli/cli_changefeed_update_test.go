@@ -14,6 +14,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,26 @@ func (s *changefeedUpdateSuite) TestApplyChanges(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(newInfo.SinkURI, check.Equals, "mysql://root@downstream-tidb:4000")
 
+	// Test update config file
+	oldInfo = &model.ChangeFeedInfo{}
+	dir := c.MkDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `
+	[filter]
+	key-prefix = "key\\x00"
+	key-pattern = "key\\x00pattern"
+	value-pattern = "value\\ffpattern"
+	`
+	err = os.WriteFile(path, []byte(content), 0o644)
+	c.Assert(err, check.IsNil)
+	c.Assert(cmd.ParseFlags([]string{fmt.Sprintf("--config=%s", path)}), check.IsNil)
+	newInfo, err = o.applyChanges(oldInfo, cmd)
+	c.Assert(err, check.IsNil)
+	filterCnf := newInfo.Config.Filter
+	c.Assert(filterCnf.KeyPrefix, check.Equals, `key\x00`)
+	c.Assert(filterCnf.KeyPattern, check.Equals, `key\x00pattern`)
+	c.Assert(filterCnf.ValuePattern, check.Equals, `value\ffpattern`)
+
 	// Test for cli command flags that should be ignored.
 	oldInfo = &model.ChangeFeedInfo{SortDir: "."}
 	c.Assert(cmd.ParseFlags([]string{"--interact"}), check.IsNil)
@@ -63,7 +84,6 @@ func (s *changefeedUpdateSuite) TestApplyChanges(c *check.C) {
 	c.Assert(newInfo.EndKey, check.Equals, "")
 	c.Assert(newInfo.Format, check.Equals, "hex")
 
-	dir := c.MkDir()
 	filename := filepath.Join(dir, "log.txt")
 	reset, err := initTestLogger(filename)
 	defer reset()

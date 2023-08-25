@@ -4837,6 +4837,13 @@
               "intervalFactor": 1,
               "legendFormat": "{{instance}}-{{type}}",
               "refId": "A"
+            },
+            {
+              "expr": "sum(rate(tikv_cdc_kvclient_filter_out_event_count{tidb_cluster=\"$tidb_cluster\", changefeed=~\"$changefeed\"}[1m])) by (instance, type)",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "filter-out-{{instance}}-{{type}}",
+              "refId": "B"
             }
           ],
           "thresholds": [],
