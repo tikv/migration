@@ -15,11 +15,14 @@ package util
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"regexp"
 
 	"github.com/pingcap/kvproto/pkg/cdcpb"
+	"github.com/pingcap/log"
+	"go.uber.org/zap"
 	"golang.org/x/net/html/charset"
 )
 
@@ -81,25 +84,33 @@ func CreateFilter(conf *KvFilterConfig) *KvFilter {
 	}
 }
 
-func (f *KvFilter) EventMatch(entry *cdcpb.Event_Row) bool {
+// Key of entry is expected to be in RawKV APIv2 format.
+// Return error if not.
+func (f *KvFilter) EventMatch(entry *cdcpb.Event_Row) (bool, error) {
 	// Filter on put & delete only.
 	if entry.GetOpType() != cdcpb.Event_Row_DELETE && entry.GetOpType() != cdcpb.Event_Row_PUT {
-		return true
+		return true, nil
 	}
 
-	if len(f.keyPrefix) > 0 && !bytes.HasPrefix(entry.Key, f.keyPrefix) {
-		return false
+	userKey, err := DecodeV2Key(entry.Key)
+	if err != nil {
+		log.Warn("Unexpected key not in RawKV V2 format", zap.String("entry.Key", hex.EncodeToString(entry.Key)), zap.Error(err))
+		return false, err
 	}
-	if f.keyPattern != nil && !f.keyPattern.MatchString(ConvertToUTF8(entry.Key, "latin1")) {
-		return false
+
+	if len(f.keyPrefix) > 0 && !bytes.HasPrefix(userKey, f.keyPrefix) {
+		return false, nil
+	}
+	if f.keyPattern != nil && !f.keyPattern.MatchString(ConvertToUTF8(userKey, "latin1")) {
+		return false, nil
 	}
 	if entry.GetOpType() == cdcpb.Event_Row_PUT &&
 		f.valuePattern != nil &&
 		!f.valuePattern.MatchString(ConvertToUTF8(entry.GetValue(), "latin1")) {
-		return false
+		return false, nil
 	}
 
-	return true
+	return true, nil
 }
 
 func ConvertToUTF8(strBytes []byte, origEncoding string) string {

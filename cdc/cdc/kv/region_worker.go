@@ -664,10 +664,15 @@ func (w *regionWorker) handleEventEntry(
 		case cdcpb.Event_COMMITTED:
 			w.metrics.metricPullEventCommittedCounter.Inc()
 
-			if w.eventFilter != nil && !w.eventFilter.EventMatch(entry) {
-				w.metrics.metricFilterOutEventCommittedCounter.Inc()
-				log.Debug("handleEventEntry: event is filter out and drop", zap.String("OpType", entry.OpType.String()), zap.String("key", string(entry.Key)))
-				continue
+			if w.eventFilter != nil {
+				matched, err := w.eventFilter.EventMatch(entry)
+				// EventMatch will return error when fail to decode key.
+				// Pass such entry to be handled by following steps.
+				if err == nil && !matched {
+					w.metrics.metricFilterOutEventCommittedCounter.Inc()
+					log.Debug("handleEventEntry: event is filter out and drop", zap.String("OpType", entry.OpType.String()), zap.String("key", hex.EncodeToString(entry.Key)))
+					continue
+				}
 			}
 
 			revent, err := assembleRowEvent(regionID, entry, w.enableOldValue)

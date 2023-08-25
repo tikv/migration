@@ -45,7 +45,7 @@ func TestKvFilterMatch(t *testing.T) {
 
 	entry := cdcpb.Event_Row{
 		OpType: cdcpb.Event_Row_PUT,
-		Key:    []byte("key\x00\x11pattern"),
+		Key:    []byte("r\x00\x00\x00key\x00\x11pattern"),
 		Value:  []byte("value\xaa\xffpattern"),
 	}
 
@@ -63,7 +63,9 @@ func TestKvFilterMatch(t *testing.T) {
 	for _, c := range keyPrefixCases {
 		conf := KvFilterConfig{KeyPrefix: c.pattern}
 		filter := CreateFilter(&conf)
-		assert.Equalf(c.match, filter.EventMatch(&entry), "pattern: %s", c.pattern)
+		matched, err := filter.EventMatch(&entry)
+		assert.NoError(err)
+		assert.Equalf(c.match, matched, "pattern: %s", c.pattern)
 	}
 
 	keyPatternCases := []testCase{
@@ -80,7 +82,9 @@ func TestKvFilterMatch(t *testing.T) {
 	for _, c := range keyPatternCases {
 		conf := KvFilterConfig{KeyPattern: c.pattern}
 		filter := CreateFilter(&conf)
-		assert.Equalf(c.match, filter.EventMatch(&entry), "pattern: %s", c.pattern)
+		matched, err := filter.EventMatch(&entry)
+		assert.NoError(err)
+		assert.Equalf(c.match, matched, "pattern: %s", c.pattern)
 	}
 
 	valuePatternCases := []testCase{
@@ -90,14 +94,16 @@ func TestKvFilterMatch(t *testing.T) {
 	for _, c := range valuePatternCases {
 		conf := KvFilterConfig{ValuePattern: c.pattern}
 		filter := CreateFilter(&conf)
-		assert.Equalf(c.match, filter.EventMatch(&entry), "pattern: %s", c.pattern)
+		matched, err := filter.EventMatch(&entry)
+		assert.NoError(err)
+		assert.Equalf(c.match, matched, "pattern: %s", c.pattern)
 	}
 
 	// delete entry
 	{
 		entry := cdcpb.Event_Row{
 			OpType: cdcpb.Event_Row_DELETE,
-			Key:    []byte("key\x00\x11pattern"),
+			Key:    []byte("r\x00\x00\x00key\x00\x11pattern"),
 			Value:  []byte(""),
 		}
 		conf := KvFilterConfig{
@@ -106,6 +112,21 @@ func TestKvFilterMatch(t *testing.T) {
 			ValuePattern: `value`,
 		}
 		filter := CreateFilter(&conf)
-		assert.True(filter.EventMatch(&entry))
+		matched, err := filter.EventMatch(&entry)
+		assert.NoError(err)
+		assert.True(matched)
+	}
+
+	// not RawKV V2 key
+	{
+		entry := cdcpb.Event_Row{
+			OpType: cdcpb.Event_Row_DELETE,
+			Key:    []byte("k"),
+			Value:  []byte(""),
+		}
+		conf := KvFilterConfig{}
+		filter := CreateFilter(&conf)
+		_, err := filter.EventMatch(&entry)
+		assert.Error(err)
 	}
 }
