@@ -11,7 +11,7 @@ group=$1
 # https://github.com/PingCAP-QE/ci/blob/main/pipelines/tikv/migration/latest/pull_integration_test.groovy
 declare -A groups
 groups=(
-	["G00"]='autorandom'
+	["G00"]='autorandom kv_filter'
 	["G01"]='capture_session_done_during_task cdc_hang_on'
 	["G02"]='changefeed_auto_stop changefeed_error changefeed_fast_fail'
 	["G03"]='changefeed_finish changefeed_pause_resume changefeed_reconstruct'

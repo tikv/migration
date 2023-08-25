@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/etcd"
 
 	"github.com/pingcap/errors"
@@ -158,8 +159,11 @@ func (o *updateChangefeedOptions) applyChanges(oldInfo *model.ChangeFeedInfo, cm
 		case "sink-uri":
 			newInfo.SinkURI = o.commonChangefeedOptions.sinkURI
 		case "config":
+			if newInfo.Config == nil {
+				newInfo.Config = &config.ReplicaConfig{}
+			}
 			cfg := newInfo.Config
-			if err = o.commonChangefeedOptions.strictDecodeConfig("TiCDC changefeed", cfg); err != nil {
+			if err = o.commonChangefeedOptions.strictDecodeConfig("TiKV-CDC changefeed", cfg); err != nil {
 				log.Error("decode config file error", zap.Error(err))
 			}
 		case "opts":

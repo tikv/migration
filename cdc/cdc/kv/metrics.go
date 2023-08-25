@@ -58,6 +58,13 @@ var (
 			Name:      "pull_event_count",
 			Help:      "event count received by this puller",
 		}, []string{"type", "capture", "changefeed"})
+	filterOutEventCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "tikv_cdc",
+			Subsystem: "kvclient",
+			Name:      "filter_out_event_count",
+			Help:      "event count filtered out by event filter",
+		}, []string{"type", "capture", "changefeed"})
 	sendEventCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "tikv_cdc",
@@ -111,6 +118,7 @@ func InitMetrics(registry *prometheus.Registry) {
 	registry.MustRegister(eventFeedGauge)
 	registry.MustRegister(pullEventCounter)
 	registry.MustRegister(sendEventCounter)
+	registry.MustRegister(filterOutEventCounter)
 	registry.MustRegister(clientChannelSize)
 	registry.MustRegister(clientRegionTokenSize)
 	registry.MustRegister(cachedRegionSize)
