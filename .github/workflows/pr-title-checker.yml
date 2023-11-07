@@ -9,6 +9,6 @@ jobs:
     steps:
       - uses: naveenk1223/action-pr-title@master
         with:
-          regex: '\[to|fix|close #[0-9]+\] .+'
+          regex: '(\[to|fix|close #[0-9]+\]|Bump) .+' # "Bump" is for the auto-generated PRs from Dependabot
           prefix_case_sensitive: true
           max_length: -1
