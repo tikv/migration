@@ -117,11 +117,11 @@ unit_test: check_failpoint_ctl
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	$(FAILPOINT_DISABLE)
 
-unit_test_in_verify_ci: check_failpoint_ctl tools/bin/gotestsum gocov gocov-xml
+unit_test_in_verify_ci: check_failpoint_ctl gotestsum gocov gocov-xml
 	mkdir -p "$(TEST_DIR)"
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
-	CGO_ENABLED=1 tools/bin/gotestsum --junitfile cdc-junit-report.xml -- -v -timeout 30m -p $(P) --race \
+	CGO_ENABLED=1 gotestsum --junitfile cdc-junit-report.xml -- -v -timeout 30m -p $(P) --race \
 	-covermode=atomic -coverprofile="$(TEST_DIR)/cov.unit.out" $(PACKAGES) \
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	gocov convert "$(TEST_DIR)/cov.unit.out" | gocov-xml > cdc-coverage.xml
@@ -231,8 +231,8 @@ gocov:
 gocov-xml:
 	$(GO) install github.com/AlekSi/gocov-xml@latest
 
-tools/bin/gotestsum: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gotestsum gotest.tools/gotestsum
+gotestsum:
+	$(GO) install gotest.tools/gotestsum@latest
 
 tools/bin/errdoc-gen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/errdoc-gen github.com/pingcap/errors/errdoc-gen
