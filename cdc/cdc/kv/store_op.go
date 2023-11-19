@@ -19,7 +19,6 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/kv"
 	tikvconfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/tikv"
@@ -95,8 +94,7 @@ func (s *StorageWithCurVersionCache) GetCachedCurrentVersion() (version uint64, 
 		if err != nil {
 			return
 		}
-		ver := kv.NewVersion(ts)
-		entry.ts = ver.Ver
+		entry.ts = ts
 		entry.lastUpdated = time.Now()
 	}
 
