@@ -19,6 +19,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/kv"
+	"github.com/tikv/client-go/v2/tikv"
 	"go.uber.org/zap"
 )
 
@@ -55,7 +56,7 @@ func PutTimezoneInCtx(ctx context.Context, timezone *time.Location) context.Cont
 }
 
 // PutKVStorageInCtx returns a new child context with the given tikv store
-func PutKVStorageInCtx(ctx context.Context, store kv.Storage) context.Context {
+func PutKVStorageInCtx(ctx context.Context, store tikv.Storage) context.Context {
 	return context.WithValue(ctx, ctxKeyKVStorage, store)
 }
 

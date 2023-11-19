@@ -45,6 +45,15 @@ func (us *URLsValue) HostString() string {
 	return strings.Join(all, ",")
 }
 
+// HostList return an list of host:port
+func (us *URLsValue) HostList() []string {
+	all := make([]string, len(*us))
+	for i, u := range *us {
+		all[i] = u.Host
+	}
+	return all
+}
+
 // NewURLsValue return a URLsValue from a string of URLs list
 func NewURLsValue(init string) (*URLsValue, error) {
 	v := &URLsValue{}

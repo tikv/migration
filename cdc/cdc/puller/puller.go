@@ -20,7 +20,6 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/kv"
@@ -68,15 +67,11 @@ func NewPuller(
 	pdCli pd.Client,
 	grpcPool kv.GrpcPool,
 	regionCache *tikv.RegionCache,
-	kvStorage tidbkv.Storage,
+	tikvStorage tikv.Storage,
 	checkpointTs uint64,
 	spans []regionspan.Span,
 	enableOldValue bool,
 ) Puller {
-	tikvStorage, ok := kvStorage.(tikv.Storage)
-	if !ok {
-		log.Panic("can't create puller for non-tikv storage")
-	}
 	comparableSpans := make([]regionspan.ComparableSpan, len(spans))
 	for i := range spans {
 		comparableSpans[i] = regionspan.ToComparableSpan(spans[i])
