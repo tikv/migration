@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	"go.uber.org/zap"
 )
@@ -89,8 +88,8 @@ func TimezoneFromCtx(ctx context.Context) *time.Location {
 }
 
 // KVStorageFromCtx returns a tikv store
-func KVStorageFromCtx(ctx context.Context) (kv.Storage, error) {
-	store, ok := ctx.Value(ctxKeyKVStorage).(kv.Storage)
+func KVStorageFromCtx(ctx context.Context) (tikv.Storage, error) {
+	store, ok := ctx.Value(ctxKeyKVStorage).(tikv.Storage)
 	if !ok {
 		return nil, errors.Errorf("context can not find the value associated with key: %s", ctxKeyKVStorage)
 	}

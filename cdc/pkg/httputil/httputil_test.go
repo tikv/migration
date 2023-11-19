@@ -92,3 +92,10 @@ func runServer(tlsCfg *tls.Config, port int, t *testing.T) *http.Server {
 	}()
 	return server
 }
+
+// TestHttpClient test the tls config
+func TestHttpClientByTlsConfig(t *testing.T) {
+	tlsConf := tls.Config{}
+	cli := NewClientByTLSConfig(&tlsConf)
+	require.Equal(t, &tlsConf, cli.Transport.(*http.Transport).TLSClientConfig)
+}

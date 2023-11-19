@@ -28,11 +28,11 @@ import (
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/failpoint"
-	"github.com/pingcap/tidb/br/pkg/httputil"
 	"github.com/tikv/migration/cdc/cdc/capture"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerrors "github.com/tikv/migration/cdc/pkg/errors"
+	"github.com/tikv/migration/cdc/pkg/httputil"
 	"github.com/tikv/migration/cdc/pkg/retry"
 	security2 "github.com/tikv/migration/cdc/pkg/security"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
@@ -246,7 +246,7 @@ func (s *httpStatusSuite) TestServerTLSWithoutCommonName(c *check.C) {
 		if err != nil {
 			c.Assert(err, check.IsNil)
 		}
-		cli := httputil.NewClient(tlsConfig)
+		cli := httputil.NewClientByTLSConfig(tlsConfig)
 		resp, err := cli.Get(statusURL)
 		if err != nil {
 			return err
@@ -324,7 +324,7 @@ func (s *httpStatusSuite) TestServerTLSWithCommonName(c *check.C) {
 		if err != nil {
 			c.Assert(err, check.IsNil)
 		}
-		cli := httputil.NewClient(tlsConfig)
+		cli := httputil.NewClientByTLSConfig(tlsConfig)
 		resp, err := cli.Get(statusURL)
 		if err != nil {
 			return err

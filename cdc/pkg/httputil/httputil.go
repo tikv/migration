@@ -14,7 +14,9 @@
 package httputil
 
 import (
+	"crypto/tls"
 	"net/http"
+	"time"
 
 	"github.com/tikv/migration/cdc/pkg/security"
 )
@@ -42,4 +44,19 @@ func NewClient(credential *security.Credential) (*Client, error) {
 	return &Client{
 		Client: http.Client{Transport: transport},
 	}, nil
+}
+
+// NewClient returns an HTTP(s) client.
+// Copied from br/pkg/httputil/http.go
+// TODO: eliminate duplicated codes with `NewClient`.
+func NewClientByTLSConfig(tlsConf *tls.Config) *http.Client {
+	// defaultTimeout for non-context requests.
+	const defaultTimeout = 30 * time.Second
+	cli := &http.Client{Timeout: defaultTimeout}
+	if tlsConf != nil {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = tlsConf
+		cli.Transport = transport
+	}
+	return cli
 }

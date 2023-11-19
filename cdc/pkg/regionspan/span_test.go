@@ -14,10 +14,8 @@
 package regionspan
 
 import (
-	"bytes"
 	"testing"
 
-	"github.com/pingcap/tidb/tablecodec"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,17 +96,6 @@ func TestIntersect(t *testing.T) {
 			require.Equal(t, *test.res, res2)
 		}
 	}
-}
-
-func TestGetTableSpan(t *testing.T) {
-	t.Parallel()
-
-	span := GetTableSpan(123)
-	require.Equal(t, -1, bytes.Compare(span.Start, span.End))
-	prefix := []byte(tablecodec.GenTableRecordPrefix(123))
-	require.GreaterOrEqual(t, 0, bytes.Compare(span.Start, prefix))
-	prefix[len(prefix)-1]++
-	require.LessOrEqual(t, 0, bytes.Compare(span.End, prefix))
 }
 
 func TestSpanHack(t *testing.T) {

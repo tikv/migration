@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
-	ticonfig "github.com/pingcap/tidb/config"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+	ticonfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/migration/cdc/pkg/config"
 )
 
