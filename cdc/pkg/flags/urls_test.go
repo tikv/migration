@@ -14,6 +14,7 @@
 package flags
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,7 @@ func TestNewURLsValue(t *testing.T) {
 		require.Nil(t, err)
 		hs := urlsValue.HostString()
 		require.Equal(t, testCase.hostString, hs)
+		require.Equal(t, strings.Split(testCase.hostString, ","), urlsValue.HostList())
 	}
 }
 

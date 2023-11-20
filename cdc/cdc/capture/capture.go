@@ -24,7 +24,6 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
-	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
 	"go.etcd.io/etcd/client/v3/concurrency"
@@ -61,7 +60,7 @@ type Capture struct {
 	election *concurrency.Election
 
 	pdClient         pd.Client
-	kvStorage        tidbkv.Storage
+	kvStorage        tikv.Storage
 	createEtcdClient createEtcdClientFunc
 	etcdClient       *etcd.CDCEtcdClient
 	grpcPool         kv.GrpcPool
@@ -75,7 +74,7 @@ type Capture struct {
 }
 
 // NewCapture returns a new Capture instance
-func NewCapture(pdClient pd.Client, kvStorage tidbkv.Storage, createEtcdClient createEtcdClientFunc) *Capture {
+func NewCapture(pdClient pd.Client, kvStorage tikv.Storage, createEtcdClient createEtcdClientFunc) *Capture {
 	return &Capture{
 		pdClient:         pdClient,
 		kvStorage:        kvStorage,

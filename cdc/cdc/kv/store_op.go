@@ -14,20 +14,15 @@
 package kv
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
-	tidbconfig "github.com/pingcap/tidb/config"
-	"github.com/pingcap/tidb/kv"
-	tidbkv "github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/meta"
-	"github.com/pingcap/tidb/store"
-	"github.com/pingcap/tidb/store/driver"
+	tikvconfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/tikv"
+	"github.com/tikv/client-go/v2/txnkv"
 	"github.com/tikv/migration/cdc/cdc/model"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/tikv/migration/cdc/pkg/flags"
@@ -38,7 +33,7 @@ import (
 // TiKVStorage is the tikv storage interface used by CDC.
 type TiKVStorage interface {
 	tikv.Storage
-	GetCachedCurrentVersion() (version tidbkv.Version, err error)
+	GetCachedCurrentVersion() (version uint64, err error)
 }
 
 const (
@@ -80,7 +75,7 @@ func newStorageWithCurVersionCache(storage tikv.Storage, cacheKey string) TiKVSt
 }
 
 // GetCachedCurrentVersion gets the cached version of currentVersion, and update the cache if necessary
-func (s *StorageWithCurVersionCache) GetCachedCurrentVersion() (version tidbkv.Version, err error) {
+func (s *StorageWithCurVersionCache) GetCachedCurrentVersion() (version uint64, err error) {
 	curVersionCacheMu.Lock()
 	entry, exists := curVersionCache[s.cacheKey]
 	curVersionCacheMu.Unlock()
@@ -99,42 +94,30 @@ func (s *StorageWithCurVersionCache) GetCachedCurrentVersion() (version tidbkv.V
 		if err != nil {
 			return
 		}
-		ver := kv.NewVersion(ts)
-		entry.ts = ver.Ver
+		entry.ts = ts
 		entry.lastUpdated = time.Now()
 	}
 
-	version.Ver = entry.ts
+	version = entry.ts
 	return
 }
 
-// GetSnapshotMeta returns tidb meta information
-// TODO: Simplify the signature of this function
-func GetSnapshotMeta(tiStore tidbkv.Storage, ts uint64) (*meta.Meta, error) {
-	snapshot := tiStore.GetSnapshot(tidbkv.NewVersion(ts))
-	return meta.NewSnapshotMeta(snapshot), nil
-}
-
 // CreateTiStore creates a new tikv storage client
-func CreateTiStore(urls string, credential *security.Credential) (kv.Storage, error) {
+func CreateTiStore(urls string, credential *security.Credential) (tikv.Storage, error) {
 	urlv, err := flags.NewURLsValue(urls)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	// Ignore error if it is already registered.
-	_ = store.Register("tikv", driver.TiKVDriver{})
-
 	if credential.CAPath != "" {
-		conf := tidbconfig.GetGlobalConfig()
+		conf := tikvconfig.GetGlobalConfig()
 		conf.Security.ClusterSSLCA = credential.CAPath
 		conf.Security.ClusterSSLCert = credential.CertPath
 		conf.Security.ClusterSSLKey = credential.KeyPath
-		tidbconfig.StoreGlobalConfig(conf)
+		tikvconfig.StoreGlobalConfig(conf)
 	}
 
-	tiPath := fmt.Sprintf("tikv://%s?disableGC=true", urlv.HostString())
-	tiStore, err := store.New(tiPath)
+	tiStore, err := txnkv.NewClient(urlv.HostList())
 	if err != nil {
 		return nil, cerror.WrapError(cerror.ErrNewStore, err)
 	}

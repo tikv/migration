@@ -22,7 +22,6 @@ import (
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
-	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/store/mockstore"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/kv"
@@ -116,11 +115,17 @@ func (s *pullerSuite) newPullerForTest(
 	c *check.C,
 	spans []regionspan.Span,
 	checkpointTs uint64,
-) (*mockInjectedPuller, context.CancelFunc, *sync.WaitGroup, tidbkv.Storage) {
+) (*mockInjectedPuller, context.CancelFunc, *sync.WaitGroup, tikv.Storage) {
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	store, err := mockstore.NewMockStore()
 	c.Assert(err, check.IsNil)
+
+	tikvStorage, ok := store.(tikv.Storage)
+	if !ok {
+		panic("can't create puller for non-tikv storage")
+	}
+
 	enableOldValue := true
 	backupNewCDCKVClient := kv.NewCDCKVClient
 	kv.NewCDCKVClient = newMockCDCKVClient
@@ -132,7 +137,7 @@ func (s *pullerSuite) newPullerForTest(
 	defer grpcPool.Close()
 	regionCache := tikv.NewRegionCache(pdCli)
 	defer regionCache.Close()
-	plr := NewPuller(ctx, pdCli, grpcPool, regionCache, store, checkpointTs, spans, enableOldValue)
+	plr := NewPuller(ctx, pdCli, grpcPool, regionCache, tikvStorage, checkpointTs, spans, enableOldValue)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -146,7 +151,7 @@ func (s *pullerSuite) newPullerForTest(
 		Puller: plr,
 		cli:    plr.(*pullerImpl).kvCli.(*mockCDCKVClient),
 	}
-	return mockPlr, cancel, &wg, store
+	return mockPlr, cancel, &wg, tikvStorage
 }
 
 func (s *pullerSuite) TestPullerResolvedForward(c *check.C) {

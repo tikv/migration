@@ -18,6 +18,7 @@ import (
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/tidb/store/mockstore"
+	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"go.uber.org/zap"
 )
@@ -104,8 +105,14 @@ func (s *ctxValueSuite) TestKeySpanInfoNotSet(c *check.C) {
 
 func (s *ctxValueSuite) TestShouldReturnKVStorage(c *check.C) {
 	defer testleak.AfterTest(c)()
-	kvStorage, _ := mockstore.NewMockStore()
-	defer kvStorage.Close()
+	store, _ := mockstore.NewMockStore()
+	defer store.Close()
+
+	kvStorage, ok := store.(tikv.Storage)
+	if !ok {
+		panic("can't create puller for non-tikv storage")
+	}
+
 	ctx := PutKVStorageInCtx(context.Background(), kvStorage)
 	kvStorage2, err := KVStorageFromCtx(ctx)
 	c.Assert(kvStorage2, check.DeepEquals, kvStorage)

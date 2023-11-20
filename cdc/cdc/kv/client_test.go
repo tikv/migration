@@ -32,7 +32,6 @@ import (
 	"github.com/pingcap/kvproto/pkg/errorpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/store/mockstore/mockcopr"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/client-go/v2/oracle"
@@ -399,9 +398,8 @@ func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 	cluster.ChangeLeader(3, 5)
 
 	ts, err := kvStorage.CurrentTimestamp(oracle.GlobalTxnScope)
-	ver := kv.NewVersion(ts)
 	c.Assert(err, check.IsNil)
-	ch2 <- makeEvent(ver.Ver)
+	ch2 <- makeEvent(ts)
 	var event model.RegionFeedEvent
 	// consume the first resolved ts event, which is sent before region starts
 	<-eventCh
@@ -417,7 +415,7 @@ func (s *clientSuite) TestConnectOfflineTiKV(c *check.C) {
 	case <-time.After(time.Second):
 		c.Fatalf("reconnection not succeed in 1 second")
 	}
-	checkEvent(event, GetSafeResolvedTs(ver.Ver))
+	checkEvent(event, GetSafeResolvedTs(ts))
 
 	// check gRPC connection active counter is updated correctly
 	bucket, ok := grpcPool.bucketConns[invalidStore]

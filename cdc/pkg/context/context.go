@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/pingcap/log"
-	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/cdc/kv"
@@ -37,7 +36,7 @@ import (
 // All field in Vars should be READ-ONLY and THREAD-SAFE
 type GlobalVars struct {
 	PDClient     pd.Client
-	KVStorage    tidbkv.Storage
+	KVStorage    tikv.Storage
 	CaptureInfo  *model.CaptureInfo
 	EtcdClient   *etcd.CDCEtcdClient
 	GrpcPool     kv.GrpcPool

@@ -19,8 +19,6 @@ import (
 	"fmt"
 
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/util/codec"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/twmb/murmur3"
@@ -94,48 +92,6 @@ func hackSpan(originStart []byte, originEnd []byte) (start []byte, end []byte) {
 		end = UpperBoundKey
 	}
 	return
-}
-
-// GetTableSpan returns the span to watch for the specified table
-func GetTableSpan(tableID int64) Span {
-	sep := byte('_')
-	recordMarker := byte('r')
-	tablePrefix := tablecodec.GenTablePrefix(tableID)
-	var start, end kv.Key
-	// ignore index keys.
-	start = append(tablePrefix, sep, recordMarker)
-	end = append(tablePrefix, sep, recordMarker+1)
-	return Span{
-		Start: start,
-		End:   end,
-	}
-}
-
-// GetDDLSpan returns the span to watch for DDL related events
-func GetDDLSpan() Span {
-	return getMetaListKey("DDLJobList")
-}
-
-// GetAddIndexDDLSpan returns the span to watch for Add Index DDL related events
-func GetAddIndexDDLSpan() Span {
-	return getMetaListKey("DDLJobAddIdxList")
-}
-
-func getMetaListKey(key string) Span {
-	metaPrefix := []byte("m")
-	metaKey := []byte(key)
-	listData := 'l'
-	start := make([]byte, 0, len(metaPrefix)+len(metaKey)+8)
-	start = append(start, metaPrefix...)
-	start = codec.EncodeBytes(start, metaKey)
-	start = codec.EncodeUint(start, uint64(listData))
-	end := make([]byte, len(start))
-	copy(end, start)
-	end[len(end)-1]++
-	return Span{
-		Start: start,
-		End:   end,
-	}
 }
 
 // KeyInSpans check if k in the range of spans.

@@ -312,7 +312,7 @@ func (w *regionWorker) resolveLock(ctx context.Context) error {
 				log.Warn("failed to get current version from PD", zap.Error(err))
 				continue
 			}
-			currentTimeFromPD := oracle.GetTimeFromTS(version.Ver)
+			currentTimeFromPD := oracle.GetTimeFromTS(version)
 			expired := make([]*regionTsInfo, 0)
 			for w.rtsManager.Len() > 0 {
 				item := w.rtsManager.Pop()
@@ -330,7 +330,7 @@ func (w *regionWorker) resolveLock(ctx context.Context) error {
 			if len(expired) == 0 {
 				continue
 			}
-			maxVersion := oracle.ComposeTS(oracle.GetPhysical(currentTimeFromPD.Add(-10*time.Second)), 0)
+			// maxVersion := oracle.ComposeTS(oracle.GetPhysical(currentTimeFromPD.Add(-10*time.Second)), 0)
 			for _, rts := range expired {
 				state, ok := w.getRegionState(rts.regionID)
 				if !ok || state.isStopped() {
@@ -359,18 +359,19 @@ func (w *regionWorker) resolveLock(ctx context.Context) error {
 						w.rtsManager.Upsert(rts)
 						continue
 					}
-					log.Warn("region not receiving resolved event from tikv or resolved ts is not pushing for too long time, try to resolve lock",
+					log.Warn("region not receiving resolved event from tikv or resolved ts is not pushing for too long time",
 						zap.Uint64("regionID", rts.regionID),
 						zap.Stringer("span", state.getRegionSpan()),
 						zap.Duration("duration", sinceLastResolvedTs),
 						zap.Duration("lastEvent", sinceLastEvent),
 						zap.Uint64("resolvedTs", lastResolvedTs),
 					)
-					err = w.session.lockResolver.Resolve(ctx, rts.regionID, maxVersion)
-					if err != nil {
-						log.Warn("failed to resolve lock", zap.Uint64("regionID", rts.regionID), zap.Error(err))
-						continue
-					}
+					// Resolve locks for RawKV is not necessary. Add it back after we support TxnKV.
+					// err = w.session.lockResolver.Resolve(ctx, rts.regionID, maxVersion)
+					// if err != nil {
+					// 	log.Warn("failed to resolve lock", zap.Uint64("regionID", rts.regionID), zap.Error(err))
+					// 	continue
+					// }
 					rts.ts.penalty = 0
 				}
 				rts.ts.resolvedTs = lastResolvedTs

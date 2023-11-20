@@ -22,7 +22,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
-	ticonfig "github.com/pingcap/tidb/config"
+	ticonfig "github.com/tikv/client-go/v2/config"
 	"github.com/tikv/migration/cdc/cdc"
 
 	//	"github.com/tikv/migration/cdc/cdc/sorter/unified"
@@ -288,6 +288,7 @@ func NewCmdServer() *cobra.Command {
 func patchTiDBConf() {
 	ticonfig.UpdateGlobal(func(conf *ticonfig.Config) {
 		// Disable kv client batch send loop introduced by tidb library, which is not used in TiCDC server
+		// pingyu: Need to enable this for RawKV downstream sinking ?
 		conf.TiKVClient.MaxBatchSize = 0
 	})
 }
