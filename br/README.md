@@ -21,7 +21,7 @@ $ make release // build the release binary used for production
 $ make test    // run unit test
 ```
 
-*Notice TiKV-BR requires building with Go version `Go >= 1.18`*
+*Notice TiKV-BR requires building with Go version `Go >= 1.21`*
 
 When TiKV-BR is built successfully, you can find binary in the `bin` directory.
 

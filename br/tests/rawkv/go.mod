@@ -1,6 +1,6 @@
 module github.com/tikv/migration/br/tests/br_rawkv
 
-go 1.18
+go 1.21
 
 require (
 	github.com/coreos/go-semver v0.3.0

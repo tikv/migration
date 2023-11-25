@@ -11,7 +11,7 @@ RUN ./download-integration-test-binaries.sh master
 RUN ls ./bin
 
 # Download go into /usr/local dir.
-ENV GOLANG_VERSION 1.18.5
+ENV GOLANG_VERSION 1.21
 ENV GOLANG_DOWNLOAD_URL https://dl.google.com/go/go$GOLANG_VERSION.linux-amd64.tar.gz
 ENV GOLANG_DOWNLOAD_SHA256 9e5de37f9c49942c601b191ac5fba404b868bfc21d446d6960acc12283d6e5f2
 RUN curl -fsSL "$GOLANG_DOWNLOAD_URL" -o golang.tar.gz \
