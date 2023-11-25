@@ -1,5 +1,5 @@
 FROM golang:1.21-alpine3.18 as builder
-RUN apk add --no-cache git make bash
+RUN apk add --no-cache git make bash build-base
 WORKDIR /go/src/github.com/tikv/migration/br
 COPY . .
 RUN make release
