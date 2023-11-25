@@ -89,7 +89,7 @@ HHiRAoGAXbUZ25LcrmyuxKWpbty8fck1tjKPvclQB35rOx6vgnfW6pcKMeebYvgq
 nJka/QunEReOH/kGxAd/+ymvUBuFQCfFg3Aus+DtAuh9AkBr+cIyPjJqynnIT87J
 MbkOw4uEhDJAtGUR9o1j83N1f05bnEwssXiXR0LZPylb9Qzc4tg=
 -----END RSA PRIVATE KEY-----
-`
+` // #nosec G101
 
 // NewCredential4Test return a Credential for testing
 func NewCredential4Test(cn string) (Credential, error) {
