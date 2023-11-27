@@ -1,6 +1,6 @@
 module github.com/tikv/migration/br/tests/br_rawkv
 
-go 1.18
+go 1.21
 
 require (
 	github.com/coreos/go-semver v0.3.0
@@ -12,7 +12,7 @@ require (
 	github.com/tikv/migration/br v0.0.0-20221104062935-658ccf72a949
 	github.com/tikv/pd/client v0.0.0-20220307081149-841fa61e9710
 	go.uber.org/zap v1.21.0
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/sync v0.1.0
 	google.golang.org/grpc v1.56.3
 )
 

@@ -238,7 +238,7 @@ tools/bin/errdoc-gen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/errdoc-gen github.com/pingcap/errors/errdoc-gen
 
 tools/bin/gosec:
-	curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b tools/bin v2.12.0
+	curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b tools/bin v2.18.2
 
 check_failpoint_ctl: tools/bin/failpoint-ctl
 

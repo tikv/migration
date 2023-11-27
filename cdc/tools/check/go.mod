@@ -1,6 +1,6 @@
 module github.com/tikv/migration/cdc/_tools
 
-go 1.18
+go 1.21
 
 require (
 	github.com/deepmap/oapi-codegen v1.9.0

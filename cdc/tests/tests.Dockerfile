@@ -7,9 +7,10 @@ USER root
 WORKDIR /root/download
 
 # Download go into /usr/local dir.
-ENV GOLANG_VERSION 1.18.5
+# Get the SHA256 from https://golang.org/dl/.
+ENV GOLANG_VERSION 1.21.4
 ENV GOLANG_DOWNLOAD_URL https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz
-ENV GOLANG_DOWNLOAD_SHA256 9e5de37f9c49942c601b191ac5fba404b868bfc21d446d6960acc12283d6e5f2
+ENV GOLANG_DOWNLOAD_SHA256 73cac0215254d0c7d1241fa40837851f3b9a8a742d0b54714cbdfb3feaf8f0af
 RUN curl -fsSL "$GOLANG_DOWNLOAD_URL" -o golang.tar.gz \
 	&& echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
 	&& tar -C /usr/local -xzf golang.tar.gz \

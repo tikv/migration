@@ -14,8 +14,8 @@ your contribution accepted.
 
 Developing BR requires:
 
-* [Go 1.18+](http://golang.org/doc/code.html)
-* An internet connection to download the dependencies
+- [Go 1.21+](http://golang.org/doc/code.html)
+- An internet connection to download the dependencies
 
 Simply run `make` to build the program.
 
@@ -60,7 +60,7 @@ We follow a rough convention for commit messages that is designed to answer two
 questions: what changed and why. The subject line should feature the what and
 the body of the commit should describe the why.
 
-```
+```text
 restore: add comment for variable declaration
 
 Improve documentation.
@@ -68,7 +68,7 @@ Improve documentation.
 
 The format can be described more formally as follows:
 
-```
+```text
 <subsystem>: <what changed>
 <BLANK LINE>
 <why this change was made>
