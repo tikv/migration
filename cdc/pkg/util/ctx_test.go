@@ -17,7 +17,7 @@ import (
 	"context"
 
 	"github.com/pingcap/check"
-	"github.com/pingcap/tidb/store/mockstore"
+	"github.com/pingcap/tidb/pkg/store/mockstore"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 	"go.uber.org/zap"
