@@ -71,6 +71,10 @@ func (s *mockChangeDataService2) EventFeed(server cdcpb.ChangeData_EventFeedServ
 	return nil
 }
 
+func (s *mockChangeDataService2) EventFeedV2(_server cdcpb.ChangeData_EventFeedV2Server) error {
+	panic("unimplemented")
+}
+
 func newMockService2(
 	ctx context.Context,
 	b *testing.B,

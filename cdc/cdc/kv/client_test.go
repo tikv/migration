@@ -274,6 +274,10 @@ loop:
 	return nil
 }
 
+func (s *mockChangeDataService) EventFeedV2(_server cdcpb.ChangeData_EventFeedV2Server) error {
+	panic("unimplemented")
+}
+
 func newMockService(
 	ctx context.Context,
 	c *check.C,

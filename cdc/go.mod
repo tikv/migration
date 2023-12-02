@@ -28,9 +28,9 @@ require (
 	github.com/pingcap/check v0.0.0-20211026125417-57bd13f7b5f0
 	github.com/pingcap/errors v0.11.5-0.20221009092201-b66cddb77c32
 	github.com/pingcap/failpoint v0.0.0-20220801062533-2eaa32854a6c
-	github.com/pingcap/kvproto v0.0.0-20230925123611-87bebcc0d071
+	github.com/pingcap/kvproto v0.0.0-20231122054644-fb0f5c2a0a10
 	github.com/pingcap/log v1.1.1-0.20230317032135-a0d097d16e22
-	github.com/pingcap/tidb v1.1.0-beta.0.20231025055903-f3dfd896b5e6
+	github.com/pingcap/tidb v1.1.0-beta.0.20231124053542-069631e2ecfe
 	github.com/pingcap/tidb-tools v6.0.1-0.20220516050036-b3ea358e374a+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
@@ -154,7 +154,7 @@ require (
 	github.com/pingcap/badger v1.5.1-0.20230103063557-828f39b09b6d // indirect
 	github.com/pingcap/goleveldb v0.0.0-20191226122134-f82aafb29989 // indirect
 	github.com/pingcap/sysutil v1.0.1-0.20230407040306-fb007c5aff21 // indirect
-	github.com/pingcap/tidb/pkg/parser v0.0.0-20231020070330-48d69d39c3d0 // indirect
+	github.com/pingcap/tidb/pkg/parser v0.0.0-20231124053542-069631e2ecfe // indirect
 	github.com/pingcap/tipb v0.0.0-20230919054518-dfd7d194838f // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
@@ -210,7 +210,10 @@ require (
 
 replace (
 	github.com/benbjohnson/clock v1.3.0 => github.com/benbjohnson/clock v1.1.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
-	github.com/golang-jwt/jwt v3.2.1+incompatible => github.com/golang-jwt/jwt v3.2.0+incompatible
+
+	// Required by github.com/pingcap/tidb, see https://github.com/pingcap/tidb/blob/release-7.5/go.mod.
+	github.com/dgrijalva/jwt-go => github.com/form3tech-oss/jwt-go v3.2.6-0.20210809144907-32ab6a8243d7+incompatible
+	github.com/go-ldap/ldap/v3 => github.com/YangKeao/ldap/v3 v3.4.5-0.20230421065457-369a3bab1117
+
 	github.com/uber-go/atomic => go.uber.org/atomic v1.4.0
 )
