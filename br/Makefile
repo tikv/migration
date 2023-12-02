@@ -86,7 +86,7 @@ failpoint/disable: tools/bin/failpoint-ctl
 	find `pwd` -type d | grep -vE "(\.git|tools)" | xargs tools/bin/failpoint-ctl disable
 
 tools/bin/golangci-lint:
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.52.2
+	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./tools/bin v1.55.2
 
 tools/bin/failpoint-ctl: tools/check/go.mod
 	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
