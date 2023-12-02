@@ -21,7 +21,7 @@ import (
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/br/pkg/mock"
-	. "github.com/tikv/migration/br/pkg/storage"
+	. "github.com/tikv/migration/br/pkg/storage" // nolint:revive
 )
 
 type s3Suite struct {
