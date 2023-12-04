@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jarcoal/httpmock"
-	. "github.com/pingcap/check"
+	. "github.com/pingcap/check" // nolint:revive
 	backuppb "github.com/pingcap/kvproto/pkg/brpb"
 	"github.com/pingcap/kvproto/pkg/errorpb"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
