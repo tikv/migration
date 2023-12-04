@@ -24,7 +24,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/cdcpb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/store/mockstore/mockcopr"
+	"github.com/pingcap/tidb/pkg/store/mockstore/mockcopr"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/testutils"
 	"github.com/tikv/client-go/v2/tikv"
@@ -69,6 +69,10 @@ func (s *mockChangeDataService2) EventFeed(server cdcpb.ChangeData_EventFeedServ
 		}
 	}
 	return nil
+}
+
+func (s *mockChangeDataService2) EventFeedV2(_server cdcpb.ChangeData_EventFeedV2Server) error {
+	panic("unimplemented")
 }
 
 func newMockService2(

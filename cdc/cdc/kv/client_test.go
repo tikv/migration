@@ -32,7 +32,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/errorpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/store/mockstore/mockcopr"
+	"github.com/pingcap/tidb/pkg/store/mockstore/mockcopr"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/client-go/v2/oracle"
 	"github.com/tikv/client-go/v2/testutils"
@@ -272,6 +272,10 @@ loop:
 	}
 	notify.callback <- struct{}{}
 	return nil
+}
+
+func (s *mockChangeDataService) EventFeedV2(_server cdcpb.ChangeData_EventFeedV2Server) error {
+	panic("unimplemented")
 }
 
 func newMockService(

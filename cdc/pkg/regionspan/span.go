@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/util/codec"
+	"github.com/pingcap/tidb/pkg/util/codec"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 	"github.com/twmb/murmur3"
 	"go.uber.org/zap"

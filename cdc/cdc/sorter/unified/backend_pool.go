@@ -27,7 +27,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
-	"github.com/pingcap/tidb/util/memory"
+	"github.com/pingcap/tidb/pkg/util/memory"
 	"github.com/tikv/migration/cdc/cdc/sorter"
 	sorterencoding "github.com/tikv/migration/cdc/cdc/sorter/encoding"
 	"github.com/tikv/migration/cdc/pkg/config"
