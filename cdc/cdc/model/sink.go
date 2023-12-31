@@ -13,7 +13,7 @@
 
 package model
 
-// go:generate msgp
+//go:generate msgp
 
 // MqMessageType is the type of message
 type MqMessageType int

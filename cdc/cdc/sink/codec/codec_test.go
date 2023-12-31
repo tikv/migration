@@ -14,8 +14,6 @@
 package codec
 
 import (
-	"bytes"
-	"compress/zlib"
 	"testing"
 
 	"github.com/pingcap/check"
@@ -97,26 +95,26 @@ var _ = check.Suite(&codecTestSuite{})
 
 type codecTestSuite struct{}
 
-func (s *codecTestSuite) checkCompressedSize(messages []*MQMessage) (int, int) {
-	var buff bytes.Buffer
-	writer := zlib.NewWriter(&buff)
-	originalSize := 0
-	for _, message := range messages {
-		originalSize += len(message.Key) + len(message.Value)
-		if len(message.Key) > 0 {
-			_, _ = writer.Write(message.Key)
-		}
-		_, _ = writer.Write(message.Value)
-	}
-	writer.Close()
-	return originalSize, buff.Len()
-}
+// func (s *codecTestSuite) checkCompressedSize(messages []*MQMessage) (int, int) {
+// 	var buff bytes.Buffer
+// 	writer := zlib.NewWriter(&buff)
+// 	originalSize := 0
+// 	for _, message := range messages {
+// 		originalSize += len(message.Key) + len(message.Value)
+// 		if len(message.Key) > 0 {
+// 			_, _ = writer.Write(message.Key)
+// 		}
+// 		_, _ = writer.Write(message.Value)
+// 	}
+// 	writer.Close()
+// 	return originalSize, buff.Len()
+// }
 
-func (s *codecTestSuite) encodeKvCase(c *check.C, encoder EventBatchEncoder, events []*model.RawKVEntry) []*MQMessage {
-	msg, err := codecEncodeKvCase(encoder, events)
-	c.Assert(err, check.IsNil)
-	return msg
-}
+// func (s *codecTestSuite) encodeKvCase(c *check.C, encoder EventBatchEncoder, events []*model.RawKVEntry) []*MQMessage {
+// 	msg, err := codecEncodeKvCase(encoder, events)
+// 	c.Assert(err, check.IsNil)
+// 	return msg
+// }
 
 // func (s *codecTestSuite) TestJsonVsCraftVsPB(c *check.C) {
 // 	defer testleak.AfterTest(c)()
@@ -335,17 +333,17 @@ func BenchmarkJsonEncoding(b *testing.B) {
 func BenchmarkJsonDecoding(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, message := range codecJSONEncodedKvChanges {
-			if decoder, err := NewJSONEventBatchDecoder(message.Key, message.Value); err != nil {
+			decoder, err := NewJSONEventBatchDecoder(message.Key, message.Value)
+			if err != nil {
 				panic(err)
-			} else {
-				for {
-					if _, hasNext, err := decoder.HasNext(); err != nil {
-						panic(err)
-					} else if hasNext {
-						_, _ = decoder.NextChangedEvent()
-					} else {
-						break
-					}
+			}
+			for {
+				if _, hasNext, err := decoder.HasNext(); err != nil {
+					panic(err)
+				} else if hasNext {
+					_, _ = decoder.NextChangedEvent()
+				} else {
+					break
 				}
 			}
 		}
