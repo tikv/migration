@@ -8,7 +8,7 @@ FAIL_ON_STDOUT := awk '{ print  } END { if (NR > 0) { exit 1  }  }'
 
 CURDIR := $(shell pwd)
 path_to_add := $(addsuffix /bin,$(subst :,/bin:,$(GOPATH)))
-export PATH := $(CURDIR)/bin:$(path_to_add):$(PATH)
+export PATH := $(CURDIR)/bin:$(CURDIR)/tools/bin:$(path_to_add):$(PATH)
 
 SHELL := /usr/bin/env bash
 
@@ -73,6 +73,8 @@ LDFLAGS += -X "$(CDC_PKG)/pkg/version.GoVersion=$(GOVERSION)"
 
 SCVERSION := stable
 
+include tools/Makefile
+
 default: build buildsucc
 
 buildsucc:
@@ -97,7 +99,7 @@ build-failpoint: check_failpoint_ctl
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go
 	$(FAILPOINT_DISABLE)
 
-cdc:
+cdc: go-generate
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go
 
 debug:
@@ -109,7 +111,7 @@ kafka_consumer:
 install:
 	go install ./...
 
-unit_test: check_failpoint_ctl
+unit_test: check_failpoint_ctl go-generate
 	mkdir -p "$(TEST_DIR)"
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
@@ -117,7 +119,7 @@ unit_test: check_failpoint_ctl
 	|| { $(FAILPOINT_DISABLE); exit 1; }
 	$(FAILPOINT_DISABLE)
 
-unit_test_in_verify_ci: check_failpoint_ctl gotestsum gocov gocov-xml
+unit_test_in_verify_ci: check_failpoint_ctl go-generate gotestsum gocov gocov-xml
 	mkdir -p "$(TEST_DIR)"
 	$(FAILPOINT_ENABLE)
 	@export log_level=error;\
@@ -171,7 +173,7 @@ check-merge-conflicts:
 check-gosec: tools/bin/gosec
 	tools/bin/gosec -fmt=junit-xml -out=results.xml -stdout -verbose=text -exclude-dir tests/.unmodify -exclude=G103,G104,G204,G304,G307,G401,G404,G501,G505,G601 ./...
 
-check: check-copyright fmt check-static tidy errdoc check-leaktest-added check-merge-conflicts
+check: check-copyright go-generate fmt check-static tidy errdoc check-leaktest-added check-merge-conflicts
 
 unit_test_coverage:
 	grep -vE ".*.pb.go|$(CDC_PKG)/testing_utils/.*|$(CDC_PKG)/cdc/kv/testing.go|$(CDC_PKG)/cdc/sink/simple_mysql_tester.go|.*.__failpoint_binding__.go" "$(TEST_DIR)/cov.unit.out" > "$(TEST_DIR)/unit_cov.out"
@@ -191,54 +193,6 @@ clean:
 install_test_python_dep:
 	@echo "install python requirments for test"
 	pip install --user -q -r ./dm/tests/requirements.txt
-
-tools/bin/failpoint-ctl: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
-
-tools/bin/gocovmerge: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/gocovmerge github.com/zhouqiang-cl/gocovmerge
-
-tools/bin/goveralls: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/goveralls github.com/mattn/goveralls
-
-tools/bin/golangci-lint: tools/check/go.mod
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b tools/bin v1.55.2
-
-tools/bin/mockgen: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/mockgen github.com/golang/mock/mockgen
-
-tools/bin/protoc-gen-gogofaster: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/protoc-gen-gogofaster github.com/gogo/protobuf/protoc-gen-gogofaster
-
-tools/bin/protoc-gen-grpc-gateway: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/protoc-gen-grpc-gateway github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
-
-tools/bin/statik: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/statik github.com/rakyll/statik
-
-gofumpt:
-	$(GO) install mvdan.cc/gofumpt@latest
-
-shfmt:
-	$(GO) install mvdan.cc/sh/v3/cmd/shfmt@latest
-
-tools/bin/oapi-codegen: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/oapi-codegen github.com/deepmap/oapi-codegen/cmd/oapi-codegen
-
-gocov:
-	$(GO) install github.com/axw/gocov/gocov@latest
-
-gocov-xml:
-	$(GO) install github.com/AlekSi/gocov-xml@latest
-
-gotestsum:
-	$(GO) install gotest.tools/gotestsum@latest
-
-tools/bin/errdoc-gen: tools/check/go.mod
-	cd tools/check && $(GO) build -mod=mod -o ../bin/errdoc-gen github.com/pingcap/errors/errdoc-gen
-
-tools/bin/gosec:
-	curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b tools/bin v2.18.2
 
 check_failpoint_ctl: tools/bin/failpoint-ctl
 
@@ -299,11 +253,7 @@ check_third_party_binary:
 	@which scripts/bin/go-ycsb
 	@which scripts/bin/etcdctl
 
-shellcheck: tools/bin/shellcheck
-	tools/bin/shellcheck ./**/*.sh
-
-tools/bin/shellcheck:
-	wget -qO- "https://github.com/koalaman/shellcheck/releases/download/$(SCVERSION)/shellcheck-$(SCVERSION).$(ARCH).x86_64.tar.xz" | tar -xJv
-	mv "shellcheck-$(SCVERSION)/shellcheck" tools/bin/
-	chmod +x tools/bin/shellcheck
-	rm -rf "shellcheck-$(SCVERSION)"
+go-generate: ## Run go generate on all packages.
+go-generate: tools/bin/msgp
+	@echo "go generate"
+	@go generate ./...

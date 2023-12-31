@@ -84,7 +84,7 @@ type RawKVEntry struct {
 	StartTs  uint64 `msg:"start_ts"`
 	// Commit or resolved TS
 	CRTs      uint64 `msg:"crts"`
-	ExpiredTs uint64 `msh:"expired_ts"`
+	ExpiredTs uint64 `msg:"expired_ts"`
 
 	// Additional debug info
 	RegionID  uint64 `msg:"region_id"`
