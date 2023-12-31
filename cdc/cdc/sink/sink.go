@@ -89,7 +89,8 @@ func init() {
 
 	// register kafka sink
 	sinkIniterMap["kafka"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
-		config *config.ReplicaConfig, opts map[string]string, errCh chan error) (Sink, error) {
+		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	) (Sink, error) {
 		return newKafkaSaramaSink(ctx, sinkURI, config, opts, errCh)
 	}
 	sinkIniterMap["kafka+ssl"] = sinkIniterMap["kafka"]

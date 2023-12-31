@@ -25,11 +25,12 @@ import (
 type OpType int
 
 // OpType for kv
+// Use explicit values to avoid compatibility issues.
 const (
-	OpTypeUnknow OpType = iota
-	OpTypePut
-	OpTypeDelete
-	OpTypeResolved
+	OpTypeUnknown  OpType = 0
+	OpTypePut      OpType = 1
+	OpTypeDelete   OpType = 2
+	OpTypeResolved OpType = 3
 )
 
 // RegionFeedEvent from the kv layer.
