@@ -344,6 +344,7 @@ func mqMessageToKvEvent(key *mqMessageKey, value *mqMessageValue) *model.RawKVEn
 	// 	e.Table.TableID = *key.Partition
 	// 	e.Table.IsPartition = true
 	// }
+	e.OpType = value.OpType
 	e.Key = key.Key
 	e.Value = value.Value
 	e.ExpiredTs = decodeExpiredTs(value.ExpiredTs)
