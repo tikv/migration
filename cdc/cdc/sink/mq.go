@@ -29,7 +29,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	cerror "github.com/tikv/migration/cdc/pkg/errors"
 
-	// "github.com/tikv/migration/cdc/pkg/filter"
 	"github.com/tikv/migration/cdc/pkg/notify"
 	"github.com/tikv/migration/cdc/pkg/security"
 	"github.com/twmb/murmur3"
@@ -44,31 +43,26 @@ type mqEvent struct {
 
 const (
 	defaultPartitionInputChSize = 12800
-	// -1 means broadcast to all partitions, it's the default for the default open protocol.
-	// defaultDDLDispatchPartition = -1
 )
 
 type mqSink struct {
-	mqProducer producer.Producer
-	// dispatcher     dispatcher.Dispatcher
+	mqProducer     producer.Producer
 	encoderBuilder codec.EncoderBuilder
-	// filter         *filter.Filter
-	protocol config.Protocol
+	protocol       config.Protocol
 
 	partitionNum        int32
 	partitionInput      []chan mqEvent
 	partitionResolvedTs []uint64
-	// tableCheckpointTs   map[model.TableID]uint64
-	checkpointTs     uint64
-	resolvedNotifier *notify.Notifier
-	resolvedReceiver *notify.Receiver
+	checkpointTs        uint64
+	resolvedNotifier    *notify.Notifier
+	resolvedReceiver    *notify.Receiver
 
 	statistics *Statistics
 }
 
 func newMqSink(
 	ctx context.Context, credential *security.Credential, mqProducer producer.Producer,
-	/*filter *filter.Filter,*/ replicaConfig *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	replicaConfig *config.ReplicaConfig, opts map[string]string, errCh chan error,
 ) (*mqSink, error) {
 	var protocol config.Protocol
 	err := protocol.FromString(replicaConfig.Sink.Protocol)
@@ -85,11 +79,6 @@ func newMqSink(
 	}
 
 	partitionNum := mqProducer.GetPartitionNum()
-	// d, err := dispatcher.NewDispatcher(replicaConfig, partitionNum)
-	// if err != nil {
-	// 	return nil, errors.Trace(err)
-	// }
-
 	partitionInput := make([]chan mqEvent, partitionNum)
 	for i := 0; i < int(partitionNum); i++ {
 		partitionInput[i] = make(chan mqEvent, defaultPartitionInputChSize)
@@ -102,18 +91,15 @@ func newMqSink(
 	}
 
 	s := &mqSink{
-		mqProducer: mqProducer,
-		// dispatcher:     d,
+		mqProducer:     mqProducer,
 		encoderBuilder: encoderBuilder,
-		// filter:         filter,
-		protocol: protocol,
+		protocol:       protocol,
 
 		partitionNum:        partitionNum,
 		partitionInput:      partitionInput,
 		partitionResolvedTs: make([]uint64, partitionNum),
-		// tableCheckpointTs:   make(map[model.TableID]uint64),
-		resolvedNotifier: notifier,
-		resolvedReceiver: resolvedReceiver,
+		resolvedNotifier:    notifier,
+		resolvedReceiver:    resolvedReceiver,
 
 		statistics: NewStatistics(ctx, "MQ", opts),
 	}
@@ -142,10 +128,6 @@ func (k *mqSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.R
 	entriesCount := 0
 
 	for _, entry := range rawKVEntries {
-		// if k.filter.ShouldIgnoreDMLEvent(row.StartTs, row.Table.Schema, row.Table.Table) {
-		// 	log.Info("Row changed event ignored", zap.Uint64("start-ts", row.StartTs))
-		// 	continue
-		// }
 		partition := k.dispatch(entry)
 		select {
 		case <-ctx.Done():
@@ -162,9 +144,6 @@ func (k *mqSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.R
 }
 
 func (k *mqSink) FlushChangedEvents(ctx context.Context, keyspanID model.KeySpanID, resolvedTs uint64) (uint64, error) {
-	// if checkpointTs, ok := k.tableCheckpointTs[tableID]; ok && resolvedTs <= checkpointTs {
-	// 	return checkpointTs, nil
-	// }
 	if resolvedTs <= k.checkpointTs {
 		return k.checkpointTs, nil
 	}
@@ -199,7 +178,6 @@ flushLoop:
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
-	// k.tableCheckpointTs[tableID] = resolvedTs
 	k.checkpointTs = resolvedTs
 	k.statistics.PrintStatus(ctx)
 	return k.checkpointTs, nil
@@ -220,44 +198,6 @@ func (k *mqSink) EmitCheckpointTs(ctx context.Context, ts uint64) error {
 	err = k.writeToProducer(ctx, msg, codec.EncoderNeedSyncWrite, -1)
 	return errors.Trace(err)
 }
-
-// func (k *mqSink) EmitDDLEvent(ctx context.Context, ddl *model.DDLEvent) error {
-// 	if k.filter.ShouldIgnoreDDLEvent(ddl.StartTs, ddl.Type, ddl.TableInfo.Schema, ddl.TableInfo.Table) {
-// 		log.Info(
-// 			"DDL event ignored",
-// 			zap.String("query", ddl.Query),
-// 			zap.Uint64("startTs", ddl.StartTs),
-// 			zap.Uint64("commitTs", ddl.CommitTs),
-// 		)
-// 		return cerror.ErrDDLEventIgnored.GenWithStackByArgs()
-// 	}
-// 	encoder, err := k.encoderBuilder.Build(ctx)
-// 	if err != nil {
-// 		return errors.Trace(err)
-// 	}
-// 	msg, err := encoder.EncodeDDLEvent(ddl)
-// 	if err != nil {
-// 		return errors.Trace(err)
-// 	}
-
-// 	if msg == nil {
-// 		return nil
-// 	}
-
-// 	var partition int32 = defaultDDLDispatchPartition
-// 	// for Canal-JSON / Canal-PB, send to partition 0.
-// 	if _, ok := encoder.(*codec.CanalFlatEventBatchEncoder); ok {
-// 		partition = 0
-// 	}
-// 	if _, ok := encoder.(*codec.CanalEventBatchEncoder); ok {
-// 		partition = 0
-// 	}
-
-// 	k.statistics.AddDDLCount()
-// 	log.Debug("emit ddl event", zap.String("query", ddl.Query), zap.Uint64("commit-ts", ddl.CommitTs), zap.Int32("partition", partition))
-// 	err = k.writeToProducer(ctx, msg, codec.EncoderNeedSyncWrite, partition)
-// 	return errors.Trace(err)
-// }
 
 func (k *mqSink) Close(ctx context.Context) error {
 	err := k.mqProducer.Close()
@@ -419,36 +359,3 @@ func newKafkaSaramaSink(ctx context.Context, sinkURI *url.URL /*filter *filter.F
 	}
 	return sink, nil
 }
-
-// func newPulsarSink(ctx context.Context, sinkURI *url.URL, filter *filter.Filter, replicaConfig *config.ReplicaConfig, opts map[string]string, errCh chan error) (*mqSink, error) {
-// 	producer, err := pulsar.NewProducer(sinkURI, errCh)
-// 	if err != nil {
-// 		return nil, errors.Trace(err)
-// 	}
-// 	s := sinkURI.Query().Get(config.ProtocolKey)
-// 	if s != "" {
-// 		replicaConfig.Sink.Protocol = s
-// 	}
-// 	// These two options are not used by Pulsar producer itself, but the encoders
-// 	s = sinkURI.Query().Get("max-message-bytes")
-// 	if s != "" {
-// 		opts["max-message-bytes"] = s
-// 	}
-
-// 	s = sinkURI.Query().Get("max-batch-size")
-// 	if s != "" {
-// 		opts["max-batch-size"] = s
-// 	}
-// 	err = replicaConfig.Validate()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	// For now, it's a placeholder. Avro format have to make connection to Schema Registry,
-// 	// and it may need credential.
-// 	credential := &security.Credential{}
-// 	sink, err := newMqSink(ctx, credential, producer, filter, replicaConfig, opts, errCh)
-// 	if err != nil {
-// 		return nil, errors.Trace(err)
-// 	}
-// 	return sink, nil
-// }

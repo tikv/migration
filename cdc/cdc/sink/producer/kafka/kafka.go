@@ -336,7 +336,7 @@ func kafkaClientID(role, captureAddr, changefeedID, configuredClientID string) (
 	if configuredClientID != "" {
 		clientID = configuredClientID
 	} else {
-		clientID = fmt.Sprintf("TiCDC_sarama_producer_%s_%s_%s", role, captureAddr, changefeedID)
+		clientID = fmt.Sprintf("TiKVCDC_sarama_producer_%s_%s_%s", role, captureAddr, changefeedID)
 		clientID = commonInvalidChar.ReplaceAllString(clientID, "_")
 	}
 	if !validClientID.MatchString(clientID) {

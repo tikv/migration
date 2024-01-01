@@ -22,10 +22,12 @@ type MqMessageType int
 const (
 	// MqMessageTypeUnknown is unknown type of message key
 	MqMessageTypeUnknown MqMessageType = 0
-	// MqMessageTypeKv is RawKV entry type of message key
-	MqMessageTypeKv MqMessageType = 1
+	// MqMessageTypeRow is row type of message key
+	// MqMessageTypeRow MqMessageType = 1
 	// MqMessageTypeDDL is ddl type of message key
-	// MqMessageTypeDDL
+	// MqMessageTypeDDL MqMessageType = 2
 	// MqMessageTypeResolved is resolved type of message key
 	MqMessageTypeResolved MqMessageType = 3
+	// MqMessageTypeKv is RawKV entry type of message key
+	MqMessageTypeKv MqMessageType = 4
 )

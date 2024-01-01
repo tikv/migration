@@ -43,61 +43,12 @@ func (s *codecInterfaceSuite) TestCreate(c *check.C) {
 	c.Assert(msg.Value, check.BytesEquals, []byte("value1"))
 	c.Assert(msg.Ts, check.Equals, event.CRTs)
 	c.Assert(msg.Type, check.Equals, model.MqMessageTypeKv)
-	// c.Assert(*msg.Schema, check.Equals, event.Table.Schema)
-	// c.Assert(*msg.Table, check.Equals, event.Table.Table)
 	c.Assert(msg.Protocol, check.Equals, config.ProtocolOpen)
-
-	// job := &timodel.Job{
-	// 	ID:         1071,
-	// 	TableID:    49,
-	// 	SchemaName: "test",
-	// 	Type:       timodel.ActionAddColumn,
-	// 	StartTS:    420536581131337731,
-	// 	Query:      "alter table t1 add column a int",
-	// 	BinlogInfo: &timodel.HistoryInfo{
-	// 		TableInfo: &timodel.TableInfo{
-	// 			ID:   49,
-	// 			Name: timodel.CIStr{O: "t1"},
-	// 			Columns: []*timodel.ColumnInfo{
-	// 				{ID: 1, Name: timodel.CIStr{O: "id"}, FieldType: types.FieldType{Flag: mysql.PriKeyFlag}, State: timodel.StatePublic},
-	// 				{ID: 2, Name: timodel.CIStr{O: "a"}, FieldType: types.FieldType{}, State: timodel.StatePublic},
-	// 			},
-	// 		},
-	// 		FinishedTS: 420536581196873729,
-	// 	},
-	// }
-	// preTableInfo := &model.TableInfo{
-	// 	TableName: model.TableName{
-	// 		Schema:  "test",
-	// 		Table:   "t1",
-	// 		TableID: 49,
-	// 	},
-	// 	TableInfo: &timodel.TableInfo{
-	// 		ID:   49,
-	// 		Name: timodel.CIStr{O: "t1"},
-	// 		Columns: []*timodel.ColumnInfo{
-	// 			{ID: 1, Name: timodel.CIStr{O: "id"}, FieldType: types.FieldType{Flag: mysql.PriKeyFlag}, State: timodel.StatePublic},
-	// 		},
-	// 	},
-	// }
-	// ddlEvent := &model.DDLEvent{}
-	// ddlEvent.FromJob(job, preTableInfo)
-
-	// msg = newDDLMQMessage(config.ProtocolMaxwell, nil, []byte("value1"), ddlEvent)
-	// c.Assert(msg.Key, check.IsNil)
-	// c.Assert(msg.Value, check.BytesEquals, []byte("value1"))
-	// c.Assert(msg.Ts, check.Equals, ddlEvent.CommitTs)
-	// c.Assert(msg.Type, check.Equals, model.MqMessageTypeDDL)
-	// c.Assert(*msg.Schema, check.Equals, ddlEvent.TableInfo.Schema)
-	// c.Assert(*msg.Table, check.Equals, ddlEvent.TableInfo.Table)
-	// c.Assert(msg.Protocol, check.Equals, config.ProtocolMaxwell)
 
 	msg = newResolvedMQMessage(config.ProtocolOpen, []byte("key1"), nil, 1234)
 	c.Assert(msg.Key, check.BytesEquals, []byte("key1"))
 	c.Assert(msg.Value, check.IsNil)
 	c.Assert(msg.Ts, check.Equals, uint64(1234))
 	c.Assert(msg.Type, check.Equals, model.MqMessageTypeResolved)
-	// c.Assert(msg.Schema, check.IsNil)
-	// c.Assert(msg.Table, check.IsNil)
 	c.Assert(msg.Protocol, check.Equals, config.ProtocolOpen)
 }

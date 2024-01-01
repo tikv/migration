@@ -393,7 +393,7 @@ json codec invalid data
 
 ["CDC:ErrJSONCodecRowTooLarge"]
 error = '''
-json codec single row too large
+json codec single key-value too large
 '''
 
 ["CDC:ErrKVStorageBackoffFailed"]

@@ -35,170 +35,10 @@ const (
 	DefaultMaxBatchSize int = 16
 )
 
-// type column struct {
-// 	Type byte `json:"t"`
-
-// 	// WhereHandle is deprecation
-// 	// WhereHandle is replaced by HandleKey in Flag
-// 	WhereHandle *bool                `json:"h,omitempty"`
-// 	Flag        model.ColumnFlagType `json:"f"`
-// 	Value       interface{}          `json:"v"`
-// }
-
-// func NewColumn(value interface{}, tp byte) *column {
-// 	return &column{
-// 		Value: value,
-// 		Type:  tp,
-// 	}
-// }
-
-// func (c *column) FromSinkColumn(col *model.Column) {
-// 	c.Type = col.Type
-// 	c.Flag = col.Flag
-// 	if c.Flag.IsHandleKey() {
-// 		whereHandle := true
-// 		c.WhereHandle = &whereHandle
-// 	}
-// 	if col.Value == nil {
-// 		c.Value = nil
-// 		return
-// 	}
-// 	switch col.Type {
-// 	case mysql.TypeString, mysql.TypeVarString, mysql.TypeVarchar:
-// 		var str string
-// 		switch col.Value.(type) {
-// 		case []byte:
-// 			str = string(col.Value.([]byte))
-// 		case string:
-// 			str = col.Value.(string)
-// 		default:
-// 			log.Panic("invalid column value, please report a bug", zap.Any("col", col))
-// 		}
-// 		if c.Flag.IsBinary() {
-// 			str = strconv.Quote(str)
-// 			str = str[1 : len(str)-1]
-// 		}
-// 		c.Value = str
-// 	default:
-// 		c.Value = col.Value
-// 	}
-// }
-
-// func (c *column) decodeCanalJSONColumn(name string, javaType JavaSQLType) *model.Column {
-// 	col := new(model.Column)
-// 	col.Type = c.Type
-// 	col.Flag = c.Flag
-// 	col.Name = name
-// 	col.Value = c.Value
-// 	if c.Value == nil {
-// 		return col
-// 	}
-
-// 	value, ok := col.Value.(string)
-// 	if !ok {
-// 		log.Panic("canal-json encoded message should have type in `string`")
-// 	}
-
-// 	if javaType != JavaSQLTypeBLOB {
-// 		col.Value = value
-// 		return col
-// 	}
-
-// 	// when encoding the `JavaSQLTypeBLOB`, use `ISO8859_1` decoder, now reverse it back.
-// 	encoder := charmap.ISO8859_1.NewEncoder()
-// 	value, err := encoder.String(value)
-// 	if err != nil {
-// 		log.Panic("invalid column value, please report a bug", zap.Any("col", c), zap.Error(err))
-// 	}
-
-// 	col.Value = value
-// 	return col
-// }
-
-// func (c *column) ToSinkColumn(name string) *model.Column {
-// 	col := new(model.Column)
-// 	col.Type = c.Type
-// 	col.Flag = c.Flag
-// 	col.Name = name
-// 	col.Value = c.Value
-// 	if c.Value == nil {
-// 		return col
-// 	}
-// 	switch col.Type {
-// 	case mysql.TypeString, mysql.TypeVarString, mysql.TypeVarchar:
-// 		str := col.Value.(string)
-// 		var err error
-// 		if c.Flag.IsBinary() {
-// 			str, err = strconv.Unquote("\"" + str + "\"")
-// 			if err != nil {
-// 				log.Panic("invalid column value, please report a bug", zap.Any("col", c), zap.Error(err))
-// 			}
-// 		}
-// 		col.Value = []byte(str)
-// 	default:
-// 		col.Value = c.Value
-// 	}
-// 	return col
-// }
-
-// func formatColumnVal(c column) column {
-// 	switch c.Type {
-// 	case mysql.TypeTinyBlob, mysql.TypeMediumBlob,
-// 		mysql.TypeLongBlob, mysql.TypeBlob:
-// 		if s, ok := c.Value.(string); ok {
-// 			var err error
-// 			c.Value, err = base64.StdEncoding.DecodeString(s)
-// 			if err != nil {
-// 				log.Panic("invalid column value, please report a bug", zap.Any("col", c), zap.Error(err))
-// 			}
-// 		}
-// 	case mysql.TypeFloat, mysql.TypeDouble:
-// 		if s, ok := c.Value.(json.Number); ok {
-// 			f64, err := s.Float64()
-// 			if err != nil {
-// 				log.Panic("invalid column value, please report a bug", zap.Any("col", c), zap.Error(err))
-// 			}
-// 			c.Value = f64
-// 		}
-// 	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeLong, mysql.TypeLonglong, mysql.TypeInt24, mysql.TypeYear:
-// 		if s, ok := c.Value.(json.Number); ok {
-// 			var err error
-// 			if c.Flag.IsUnsigned() {
-// 				c.Value, err = strconv.ParseUint(s.String(), 10, 64)
-// 			} else {
-// 				c.Value, err = strconv.ParseInt(s.String(), 10, 64)
-// 			}
-// 			if err != nil {
-// 				log.Panic("invalid column value, please report a bug", zap.Any("col", c), zap.Error(err))
-// 			}
-// 		} else if f, ok := c.Value.(float64); ok {
-// 			if c.Flag.IsUnsigned() {
-// 				c.Value = uint64(f)
-// 			} else {
-// 				c.Value = int64(f)
-// 			}
-// 		}
-// 	case mysql.TypeBit:
-// 		if s, ok := c.Value.(json.Number); ok {
-// 			intNum, err := s.Int64()
-// 			if err != nil {
-// 				log.Panic("invalid column value, please report a bug", zap.Any("col", c), zap.Error(err))
-// 			}
-// 			c.Value = uint64(intNum)
-// 		}
-// 	}
-// 	return c
-// }
-
 type mqMessageKey struct {
-	// TODO: should we rename it to CRTs
-	// CRTs in key to keep all versions in mq against compaction.
-	CRTs uint64 `json:"ts"`
-	Key  []byte `json:"k,omitempty"`
-	// Schema    string              `json:"scm,omitempty"`
-	// Table     string              `json:"tbl,omitempty"`
-	// RowID     int64               `json:"rid,omitempty"`
-	// Partition *int64              `json:"ptn,omitempty"`
+	// CRTs in key to keep all versions in MQ against compaction.
+	CRTs uint64              `json:"ts"`
+	Key  []byte              `json:"k,omitempty"`
 	Type model.MqMessageType `json:"t"`
 }
 
@@ -229,31 +69,8 @@ func (m *mqMessageValue) Decode(data []byte) error {
 	if err != nil {
 		return cerror.WrapError(cerror.ErrUnmarshalFailed, err)
 	}
-	// for colName, column := range m.Update {
-	// 	m.Update[colName] = formatColumnVal(column)
-	// }
-	// for colName, column := range m.Delete {
-	// 	m.Delete[colName] = formatColumnVal(column)
-	// }
-	// for colName, column := range m.PreColumns {
-	// 	m.PreColumns[colName] = formatColumnVal(column)
-	// }
 	return nil
 }
-
-// type mqMessageDDL struct {
-// 	Query string             `json:"q"`
-// 	Type  timodel.ActionType `json:"t"`
-// }
-
-// func (m *mqMessageDDL) Encode() ([]byte, error) {
-// 	data, err := json.Marshal(m)
-// 	return data, cerror.WrapError(cerror.ErrMarshalFailed, err)
-// }
-
-// func (m *mqMessageDDL) Decode(data []byte) error {
-// 	return cerror.WrapError(cerror.ErrUnmarshalFailed, json.Unmarshal(data, m))
-// }
 
 func newResolvedMessage(ts uint64) *mqMessageKey {
 	return &mqMessageKey{
@@ -278,112 +95,28 @@ func decodeExpiredTs(expiredTs *uint64) uint64 {
 }
 
 func kvEventToMqMessage(e *model.RawKVEntry) (*mqMessageKey, *mqMessageValue) {
-	// var partition *int64
-	// if e.Table.IsPartition {
-	// 	partition = &e.Table.TableID
-	// }
 	key := &mqMessageKey{
-		CRTs: e.CRTs,
-		Key:  e.Key,
-		// Schema:    e.Table.Schema,
-		// Table:     e.Table.Table,
-		// RowID:     e.RowID,
-		// Partition: partition,
-		Type: model.MqMessageTypeKv,
+		e.CRTs,
+		e.Key,
+		model.MqMessageTypeKv,
 	}
 	value := &mqMessageValue{
-		OpType:    e.OpType,
-		Value:     e.Value,
-		ExpiredTs: encodeExpiredTs(e),
+		e.OpType,
+		e.Value,
+		encodeExpiredTs(e),
 	}
 	return key, value
 }
 
-// func sinkColumns2JsonColumns(cols []*model.Column) map[string]column {
-// 	jsonCols := make(map[string]column, len(cols))
-// 	for _, col := range cols {
-// 		if col == nil {
-// 			continue
-// 		}
-// 		c := column{}
-// 		c.FromSinkColumn(col)
-// 		jsonCols[col.Name] = c
-// 	}
-// 	if len(jsonCols) == 0 {
-// 		return nil
-// 	}
-// 	return jsonCols
-// }
-
-// func jsonColumns2SinkColumns(cols map[string]column) []*model.Column {
-// 	sinkCols := make([]*model.Column, 0, len(cols))
-// 	for name, col := range cols {
-// 		c := col.ToSinkColumn(name)
-// 		sinkCols = append(sinkCols, c)
-// 	}
-// 	if len(sinkCols) == 0 {
-// 		return nil
-// 	}
-// 	sort.Slice(sinkCols, func(i, j int) bool {
-// 		return strings.Compare(sinkCols[i].Name, sinkCols[j].Name) > 0
-// 	})
-// 	return sinkCols
-// }
-
 func mqMessageToKvEvent(key *mqMessageKey, value *mqMessageValue) *model.RawKVEntry {
 	e := new(model.RawKVEntry)
-	// TODO: we lost the startTs from kafka message
-	// startTs-based txn filter is out of work
 	e.CRTs = key.CRTs
-	// e.Table = &model.TableName{
-	// 	Schema: key.Schema,
-	// 	Table:  key.Table,
-	// }
-	// TODO: we lost the tableID from kafka message
-	// if key.Partition != nil {
-	// 	e.Table.TableID = *key.Partition
-	// 	e.Table.IsPartition = true
-	// }
-	e.OpType = value.OpType
 	e.Key = key.Key
+	e.OpType = value.OpType
 	e.Value = value.Value
 	e.ExpiredTs = decodeExpiredTs(value.ExpiredTs)
-
-	// if len(value.Delete) != 0 {
-	// 	e.PreColumns = jsonColumns2SinkColumns(value.Delete)
-	// } else {
-	// 	e.Columns = jsonColumns2SinkColumns(value.Update)
-	// 	e.PreColumns = jsonColumns2SinkColumns(value.PreColumns)
-	// }
 	return e
 }
-
-// func ddlEventtoMqMessage(e *model.DDLEvent) (*mqMessageKey, *mqMessageDDL) {
-// 	key := &mqMessageKey{
-// 		CRTs:   e.CommitTs,
-// 		Schema: e.TableInfo.Schema,
-// 		Table:  e.TableInfo.Table,
-// 		Type:   model.MqMessageTypeDDL,
-// 	}
-// 	value := &mqMessageDDL{
-// 		Query: e.Query,
-// 		Type:  e.Type,
-// 	}
-// 	return key, value
-// }
-
-// func mqMessageToDDLEvent(key *mqMessageKey, value *mqMessageDDL) *model.DDLEvent {
-// 	e := new(model.DDLEvent)
-// 	e.TableInfo = new(model.SimpleTableInfo)
-// 	// TODO: we lost the startTs from kafka message
-// 	// startTs-based txn filter is out of work
-// 	e.CommitTs = key.CRTs
-// 	e.TableInfo.Table = key.Table
-// 	e.TableInfo.Schema = key.Schema
-// 	e.Type = value.Type
-// 	e.Query = value.Query
-// 	return e
-// }
 
 // JSONEventBatchEncoder encodes the events into the byte of a batch into.
 type JSONEventBatchEncoder struct {
@@ -483,7 +216,7 @@ func (d *JSONEventBatchEncoder) AppendChangedEvent(e *model.RawKVEntry) (Encoder
 		if length > d.maxMessageBytes {
 			log.Warn("Single message too large",
 				zap.Int("max-message-size", d.maxMessageBytes), zap.Int("length", length))
-			return EncoderNoOperation, cerror.ErrJSONCodecRowTooLarge.GenWithStackByArgs()
+			return EncoderNoOperation, cerror.ErrJSONCodecKvTooLarge.GenWithStackByArgs()
 		}
 
 		if len(d.messageBuf) == 0 ||
@@ -503,8 +236,6 @@ func (d *JSONEventBatchEncoder) AppendChangedEvent(e *model.RawKVEntry) (Encoder
 		message.Value = append(message.Value, valueLenByte[:]...)
 		message.Value = append(message.Value, value...)
 		message.Ts = e.CRTs
-		// message.Schema = &e.Table.Schema
-		// message.Table = &e.Table.Table
 		message.IncEntriesCount()
 
 		if message.Length() > d.maxMessageBytes {
@@ -516,46 +247,6 @@ func (d *JSONEventBatchEncoder) AppendChangedEvent(e *model.RawKVEntry) (Encoder
 	}
 	return EncoderNoOperation, nil
 }
-
-// EncodeDDLEvent implements the EventBatchEncoder interface
-// func (d *JSONEventBatchEncoder) EncodeDDLEvent(e *model.DDLEvent) (*MQMessage, error) {
-// 	keyMsg, valueMsg := ddlEventtoMqMessage(e)
-// 	key, err := keyMsg.Encode()
-// 	if err != nil {
-// 		return nil, errors.Trace(err)
-// 	}
-// 	value, err := valueMsg.Encode()
-// 	if err != nil {
-// 		return nil, errors.Trace(err)
-// 	}
-
-// 	var keyLenByte [8]byte
-// 	binary.BigEndian.PutUint64(keyLenByte[:], uint64(len(key)))
-// 	var valueLenByte [8]byte
-// 	binary.BigEndian.PutUint64(valueLenByte[:], uint64(len(value)))
-
-// 	if d.supportMixedBuild {
-// 		d.keyBuf.Write(keyLenByte[:])
-// 		d.keyBuf.Write(key)
-// 		d.valueBuf.Write(valueLenByte[:])
-// 		d.valueBuf.Write(value)
-// 		return nil, nil
-// 	}
-
-// 	keyBuf := new(bytes.Buffer)
-// 	var versionByte [8]byte
-// 	binary.BigEndian.PutUint64(versionByte[:], BatchVersion1)
-// 	keyBuf.Write(versionByte[:])
-// 	keyBuf.Write(keyLenByte[:])
-// 	keyBuf.Write(key)
-
-// 	valueBuf := new(bytes.Buffer)
-// 	valueBuf.Write(valueLenByte[:])
-// 	valueBuf.Write(value)
-
-// 	ret := newDDLMQMessage(config.ProtocolOpen, keyBuf.Bytes(), valueBuf.Bytes(), e)
-// 	return ret, nil
-// }
 
 // Build implements the EventBatchEncoder interface
 func (d *JSONEventBatchEncoder) Build() (mqMessages []*MQMessage) {
@@ -745,29 +436,6 @@ func (b *JSONEventBatchMixedDecoder) NextChangedEvent() (*model.RawKVEntry, erro
 	return rowEvent, nil
 }
 
-// NextDDLEvent implements the EventBatchDecoder interface
-// func (b *JSONEventBatchMixedDecoder) NextDDLEvent() (*model.DDLEvent, error) {
-// 	if b.nextKey == nil {
-// 		if err := b.decodeNextKey(); err != nil {
-// 			return nil, err
-// 		}
-// 	}
-// 	b.mixedBytes = b.mixedBytes[b.nextKeyLen+8:]
-// 	if b.nextKey.Type != model.MqMessageTypeDDL {
-// 		return nil, cerror.ErrJSONCodecInvalidData.GenWithStack("not found ddl event message")
-// 	}
-// 	valueLen := binary.BigEndian.Uint64(b.mixedBytes[:8])
-// 	value := b.mixedBytes[8 : valueLen+8]
-// 	b.mixedBytes = b.mixedBytes[valueLen+8:]
-// 	ddlMsg := new(mqMessageDDL)
-// 	if err := ddlMsg.Decode(value); err != nil {
-// 		return nil, errors.Trace(err)
-// 	}
-// 	ddlEvent := mqMessageToDDLEvent(b.nextKey, ddlMsg)
-// 	b.nextKey = nil
-// 	return ddlEvent, nil
-// }
-
 func (b *JSONEventBatchMixedDecoder) hasNext() bool {
 	return len(b.mixedBytes) > 0
 }
@@ -845,29 +513,6 @@ func (b *JSONEventBatchDecoder) NextChangedEvent() (*model.RawKVEntry, error) {
 	b.nextKey = nil
 	return rowEvent, nil
 }
-
-// NextDDLEvent implements the EventBatchDecoder interface
-// func (b *JSONEventBatchDecoder) NextDDLEvent() (*model.DDLEvent, error) {
-// 	if b.nextKey == nil {
-// 		if err := b.decodeNextKey(); err != nil {
-// 			return nil, err
-// 		}
-// 	}
-// 	b.keyBytes = b.keyBytes[b.nextKeyLen+8:]
-// 	if b.nextKey.Type != model.MqMessageTypeDDL {
-// 		return nil, cerror.ErrJSONCodecInvalidData.GenWithStack("not found ddl event message")
-// 	}
-// 	valueLen := binary.BigEndian.Uint64(b.valueBytes[:8])
-// 	value := b.valueBytes[8 : valueLen+8]
-// 	b.valueBytes = b.valueBytes[valueLen+8:]
-// 	ddlMsg := new(mqMessageDDL)
-// 	if err := ddlMsg.Decode(value); err != nil {
-// 		return nil, errors.Trace(err)
-// 	}
-// 	ddlEvent := mqMessageToDDLEvent(b.nextKey, ddlMsg)
-// 	b.nextKey = nil
-// 	return ddlEvent, nil
-// }
 
 func (b *JSONEventBatchDecoder) hasNext() bool {
 	return len(b.keyBytes) > 0 && len(b.valueBytes) > 0

@@ -36,8 +36,6 @@ type EventBatchEncoder interface {
 	// AppendResolvedEvent appends a resolved event into the batch.
 	// This event is used to tell the encoder that no event prior to ts will be sent.
 	AppendResolvedEvent(ts uint64) (EncoderResult, error)
-	// EncodeDDLEvent appends a DDL event into the batch
-	// EncodeDDLEvent(e *model.DDLEvent) (*MQMessage, error)
 	// Build builds the batch and returns the bytes of key and value.
 	Build() []*MQMessage
 	// MixedBuild builds the batch and returns the bytes of mixed keys and values.
@@ -57,11 +55,9 @@ type EventBatchEncoder interface {
 
 // MQMessage represents an MQ message to the mqSink
 type MQMessage struct {
-	Key   []byte
-	Value []byte
-	Ts    uint64 // reserved for possible output sorting
-	// Schema    *string             // schema
-	// Table     *string             // table
+	Key          []byte
+	Value        []byte
+	Ts           uint64              // reserved for possible output sorting
 	Type         model.MqMessageType // type
 	Protocol     config.Protocol     // protocol
 	entriesCount int                 // rows in one MQ Message
@@ -69,7 +65,7 @@ type MQMessage struct {
 
 // maximumRecordOverhead is used to calculate ProducerMessage's byteSize by sarama kafka client.
 // reference: https://github.com/Shopify/sarama/blob/66521126c71c522c15a36663ae9cddc2b024c799/async_producer.go#L233
-// for TiCDC, minimum supported kafka version is `0.11.0.2`, which will be treated as `version = 2` by sarama producer.
+// for TiKV-CDC, minimum supported kafka version is `0.11.0.2`, which will be treated as `version = 2` by sarama producer.
 const maximumRecordOverhead = 5*binary.MaxVarintLen32 + binary.MaxVarintLen64 + 1
 
 // Length returns the expected size of the Kafka message
@@ -99,10 +95,6 @@ func (m *MQMessage) IncEntriesCount() {
 	m.entriesCount++
 }
 
-// func newDDLMQMessage(proto config.Protocol, key, value []byte, event *model.DDLEvent) *MQMessage {
-// 	return NewMQMessage(proto, key, value, event.CommitTs, model.MqMessageTypeDDL, &event.TableInfo.Schema, &event.TableInfo.Table)
-// }
-
 func newResolvedMQMessage(proto config.Protocol, key, value []byte, ts uint64) *MQMessage {
 	return NewMQMessage(proto, key, value, ts, model.MqMessageTypeResolved)
 }
@@ -111,11 +103,9 @@ func newResolvedMQMessage(proto config.Protocol, key, value []byte, ts uint64) *
 // It copies the input byte slices to avoid any surprises in asynchronous MQ writes.
 func NewMQMessage(proto config.Protocol, key []byte, value []byte, ts uint64, ty model.MqMessageType) *MQMessage {
 	ret := &MQMessage{
-		Key:   nil,
-		Value: nil,
-		Ts:    ts,
-		// Schema:    schema,
-		// Table:     table,
+		Key:          nil,
+		Value:        nil,
+		Ts:           ts,
 		Type:         ty,
 		Protocol:     proto,
 		entriesCount: 0,
@@ -146,8 +136,6 @@ type EventBatchDecoder interface {
 	NextResolvedEvent() (uint64, error)
 	// NextChangedEvent returns the next row changed event if exists
 	NextChangedEvent() (*model.RawKVEntry, error)
-	// NextDDLEvent returns the next DDL event if exists
-	// NextDDLEvent() (*model.DDLEvent, error)
 }
 
 // EncoderResult indicates an action request by the encoder to the mqSink

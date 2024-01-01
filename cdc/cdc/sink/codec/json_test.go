@@ -29,38 +29,14 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type batchSuite struct {
-	kvCases [][]*model.RawKVEntry
-	// ddlCases        [][]*model.DDLEvent
+	kvCases         [][]*model.RawKVEntry
 	resolvedTsCases [][]uint64
 }
 
 var _ = check.Suite(&batchSuite{
-	kvCases: codecEntryCases,
-	// ddlCases:        codecDDLCases,
+	kvCases:         codecEntryCases,
 	resolvedTsCases: codecResolvedTSCases,
 })
-
-// type columnsArray []*model.Column
-
-// func (a columnsArray) Len() int {
-// 	return len(a)
-// }
-
-// func (a columnsArray) Less(i, j int) bool {
-// 	return a[i].Name < a[j].Name
-// }
-
-// func (a columnsArray) Swap(i, j int) {
-// 	a[i], a[j] = a[j], a[i]
-// }
-
-// func sortColumnsArrays(arrays ...[]*model.Column) {
-// 	for _, array := range arrays {
-// 		if array != nil {
-// 			sort.Sort(columnsArray(array))
-// 		}
-// 	}
-// }
 
 func (s *batchSuite) testBatchCodec(c *check.C, newEncoder func() EventBatchEncoder, newDecoder func(key []byte, value []byte) (EventBatchDecoder, error)) {
 	checkKvDecoder := func(decoder EventBatchDecoder, cs []*model.RawKVEntry) {
@@ -72,28 +48,12 @@ func (s *batchSuite) testBatchCodec(c *check.C, newEncoder func() EventBatchEnco
 				break
 			}
 			c.Assert(tp, check.Equals, model.MqMessageTypeKv)
-			row, err := decoder.NextChangedEvent()
+			kv, err := decoder.NextChangedEvent()
 			c.Assert(err, check.IsNil)
-			// sortColumnsArrays(row.Columns, row.PreColumns, cs[index].Columns, cs[index].PreColumns)
-			c.Assert(row, check.DeepEquals, cs[index])
+			c.Assert(kv, check.DeepEquals, cs[index])
 			index++
 		}
 	}
-	// checkDDLDecoder := func(decoder EventBatchDecoder, cs []*model.DDLEvent) {
-	// 	index := 0
-	// 	for {
-	// 		tp, hasNext, err := decoder.HasNext()
-	// 		c.Assert(err, check.IsNil)
-	// 		if !hasNext {
-	// 			break
-	// 		}
-	// 		c.Assert(tp, check.Equals, model.MqMessageTypeDDL)
-	// 		ddl, err := decoder.NextDDLEvent()
-	// 		c.Assert(err, check.IsNil)
-	// 		c.Assert(ddl, check.DeepEquals, cs[index])
-	// 		index++
-	// 	}
-	// }
 	checkTSDecoder := func(decoder EventBatchDecoder, cs []uint64) {
 		index := 0
 		for {
@@ -140,34 +100,6 @@ func (s *batchSuite) testBatchCodec(c *check.C, newEncoder func() EventBatchEnco
 			checkKvDecoder(decoder, cs)
 		}
 	}
-
-	// for _, cs := range s.ddlCases {
-	// 	encoder := newEncoder()
-	// 	mixedEncoder := newEncoder()
-	// 	err := encoder.SetParams(map[string]string{"max-message-bytes": "8192", "max-batch-size": "64"})
-	// 	c.Assert(err, check.IsNil)
-
-	// 	mixedEncoder.(*JSONEventBatchEncoder).SetMixedBuildSupport(true)
-	// 	for i, ddl := range cs {
-	// 		msg, err := encoder.EncodeDDLEvent(ddl)
-	// 		c.Assert(err, check.IsNil)
-	// 		c.Assert(msg, check.NotNil)
-	// 		decoder, err := newDecoder(msg.Key, msg.Value)
-	// 		c.Assert(err, check.IsNil)
-	// 		checkDDLDecoder(decoder, cs[i:i+1])
-
-	// 		msg, err = mixedEncoder.EncodeDDLEvent(ddl)
-	// 		c.Assert(msg, check.IsNil)
-	// 		c.Assert(err, check.IsNil)
-	// 	}
-
-	// 	// test mixed encode
-	// 	mixed := mixedEncoder.MixedBuild(true)
-	// 	c.Assert(len(mixed), check.Equals, mixedEncoder.Size())
-	// 	mixedDecoder, err := newDecoder(mixed, nil)
-	// 	c.Assert(err, check.IsNil)
-	// 	checkDDLDecoder(mixedDecoder, cs)
-	// }
 
 	for _, cs := range s.resolvedTsCases {
 		encoder := newEncoder()
@@ -276,8 +208,6 @@ func (s *batchSuite) TestMaxMessageBytes(c *check.C) {
 		Value:     []byte("value"),
 		CRTs:      100,
 		ExpiredTs: 200,
-		// Table:    &model.TableName{Schema: "a", Table: "b"},
-		// Columns:  []*model.Column{{Name: "col1", Type: 1, Value: "aa"}},
 	}
 	eventSize := 75
 
@@ -321,9 +251,11 @@ func (s *batchSuite) TestMaxBatchSize(c *check.C) {
 	c.Assert(encoder, check.NotNil)
 
 	testEvent := &model.RawKVEntry{
-		CRTs: 1,
-		// Table:    &model.TableName{Schema: "a", Table: "b"},
-		// Columns:  []*model.Column{{Name: "col1", Type: 1, Value: "aa"}},
+		OpType:    model.OpTypePut,
+		Key:       []byte("key"),
+		Value:     []byte("value"),
+		CRTs:      1,
+		ExpiredTs: 20,
 	}
 
 	for i := 0; i < 10000; i++ {
@@ -363,74 +295,3 @@ func (s *batchSuite) TestDefaultEventBatchCodec(c *check.C) {
 		return encoder
 	}, NewJSONEventBatchDecoder)
 }
-
-// var _ = check.Suite(&columnSuite{})
-
-// type columnSuite struct{}
-
-// func (s *columnSuite) TestFormatCol(c *check.C) {
-// 	defer testleak.AfterTest(c)()
-// 	row := &mqMessageValue{
-// 		Value: []byte("测"),
-// 	}
-// 	rowEncode, err := row.Encode()
-// 	c.Assert(err, check.IsNil)
-// 	row2 := new(mqMessageValue)
-// 	err = row2.Decode(rowEncode)
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(row2, check.DeepEquals, row)
-
-// 	row = &mqMessageValue{
-// 		Value: []byte("测"),
-// 	}
-// 	rowEncode, err = row.Encode()
-// 	c.Assert(err, check.IsNil)
-// 	row2 = new(mqMessageValue)
-// 	err = row2.Decode(rowEncode)
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(row2, check.DeepEquals, row)
-// }
-
-// func (s *columnSuite) TestNonBinaryStringCol(c *check.C) {
-// 	defer testleak.AfterTest(c)()
-// 	col := &model.Column{
-// 		Name:  "test",
-// 		Type:  mysql.TypeString,
-// 		Value: "value",
-// 	}
-// 	jsonCol := column{}
-// 	jsonCol.FromSinkColumn(col)
-// 	row := &mqMessageValue{Update: map[string]column{"test": jsonCol}}
-// 	rowEncode, err := row.Encode()
-// 	c.Assert(err, check.IsNil)
-// 	row2 := new(mqMessageValue)
-// 	err = row2.Decode(rowEncode)
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(row2, check.DeepEquals, row)
-// 	jsonCol2 := row2.Update["test"]
-// 	col2 := jsonCol2.ToSinkColumn("test")
-// 	col2.Value = string(col2.Value.([]byte))
-// 	c.Assert(col2, check.DeepEquals, col)
-// }
-
-// func (s *columnSuite) TestVarBinaryCol(c *check.C) {
-// 	defer testleak.AfterTest(c)()
-// 	col := &model.Column{
-// 		Name:  "test",
-// 		Type:  mysql.TypeString,
-// 		Flag:  model.BinaryFlag,
-// 		Value: []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
-// 	}
-// 	jsonCol := column{}
-// 	jsonCol.FromSinkColumn(col)
-// 	row := &mqMessageValue{Update: map[string]column{"test": jsonCol}}
-// 	rowEncode, err := row.Encode()
-// 	c.Assert(err, check.IsNil)
-// 	row2 := new(mqMessageValue)
-// 	err = row2.Decode(rowEncode)
-// 	c.Assert(err, check.IsNil)
-// 	c.Assert(row2, check.DeepEquals, row)
-// 	jsonCol2 := row2.Update["test"]
-// 	col2 := jsonCol2.ToSinkColumn("test")
-// 	c.Assert(col2, check.DeepEquals, col)
-// }
