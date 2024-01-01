@@ -17,7 +17,6 @@ import (
 	"context"
 	"math"
 	"strconv"
-	"testing"
 
 	"github.com/pingcap/check"
 	"github.com/pingcap/errors"
@@ -25,8 +24,6 @@ import (
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
-
-func Test(t *testing.T) { check.TestingT(t) }
 
 type batchSuite struct {
 	kvCases         [][]*model.RawKVEntry

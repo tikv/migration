@@ -23,6 +23,8 @@ import (
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
+func Test(t *testing.T) { check.TestingT(t) }
+
 var (
 	codecEntryCases = [][]*model.RawKVEntry{{{
 		OpType:    model.OpTypePut,

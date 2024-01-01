@@ -170,7 +170,7 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 		Key:     []byte("key"),
 		Value:   []byte("value"),
 		StartTs: 90,
-		CRTs:    110,
+		CRTs:    125,
 	}
 	err = sink.EmitChangedEvents(ctx, kv2)
 	c.Assert(err, check.IsNil)
@@ -203,7 +203,7 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 	// flush older resolved ts
 	checkpointTsOld, err := sink.FlushChangedEvents(ctx, keyspanID1, uint64(110))
 	c.Assert(err, check.IsNil)
-	c.Assert(checkpointTsOld, check.Equals, kv1.CRTs)
+	c.Assert(checkpointTsOld, check.Equals, kv3.CRTs)
 
 	err = sink.Close(ctx)
 	if err != nil {

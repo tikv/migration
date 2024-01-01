@@ -45,9 +45,9 @@ func (s *kafkaSuite) TestClientID(c *check.C) {
 		hasError     bool
 		expected     string
 	}{
-		{"owner", "domain:1234", "123-121-121-121", "", false, "TiCDC_sarama_producer_owner_domain_1234_123-121-121-121"},
-		{"owner", "127.0.0.1:1234", "123-121-121-121", "", false, "TiCDC_sarama_producer_owner_127.0.0.1_1234_123-121-121-121"},
-		{"owner", "127.0.0.1:1234?:,\"", "123-121-121-121", "", false, "TiCDC_sarama_producer_owner_127.0.0.1_1234_____123-121-121-121"},
+		{"owner", "domain:1234", "123-121-121-121", "", false, "TiKVCDC_sarama_producer_owner_domain_1234_123-121-121-121"},
+		{"owner", "127.0.0.1:1234", "123-121-121-121", "", false, "TiKVCDC_sarama_producer_owner_127.0.0.1_1234_123-121-121-121"},
+		{"owner", "127.0.0.1:1234?:,\"", "123-121-121-121", "", false, "TiKVCDC_sarama_producer_owner_127.0.0.1_1234_____123-121-121-121"},
 		{"owner", "中文", "123-121-121-121", "", true, ""},
 		{"owner", "127.0.0.1:1234", "123-121-121-121", "cdc-changefeed-1", false, "cdc-changefeed-1"},
 	}

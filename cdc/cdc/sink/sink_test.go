@@ -17,11 +17,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/pingcap/check"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/tikv/migration/cdc/pkg/config"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
+
+func TestSink(t *testing.T) { check.TestingT(t) }
 
 func TestValidateSink(t *testing.T) {
 	defer testleak.AfterTestT(t)()
@@ -45,11 +48,12 @@ func TestValidateSink(t *testing.T) {
 		hasError    bool
 		expectedErr string
 	}{
-		{"tikv://127.0.0.1:3306/", true, expectedErrs[0]},
-		{"tikv://127.0.0.1:3306/?concurrency=4", true, expectedErrs[0]},
+		// tikv
+		{"tikv://127.0.0.1:3306/", false, ""},
+		{"tikv://127.0.0.1:3306/?concurrency=4", false, ""},
 		{"blackhole://", false, ""},
-		{"tikv://127.0.0.1:3306,127.0.0.1:3307/", true, expectedErrs[0]},
-		{"tikv://hostname:3306", true, expectedErrs[0]},
+		{"tikv://127.0.0.1:3306,127.0.0.1:3307/", false, ""},
+		{"tikv://hostname:3306", false, ""},
 		{"tikv://http://127.0.0.1:3306/", true, expectedErrs[1]},
 		{"tikv://127.0.0.1:3306a/", true, expectedErrs[2]},
 		{"tikv://127.0.0.1:3306, tikv://127.0.0.1:3307/", true, expectedErrs[3]},
@@ -59,6 +63,7 @@ func TestValidateSink(t *testing.T) {
 	for _, tc := range testCases {
 		err := Validate(ctx, tc.sinkURI, replicateConfig, opts)
 		if tc.hasError {
+			require.Error(t, err)
 			require.Equal(t, tc.expectedErr, errors.Cause(err).Error())
 		} else {
 			require.NoError(t, err)
