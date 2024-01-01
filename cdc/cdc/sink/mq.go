@@ -331,22 +331,10 @@ func (k *mqSink) writeToProducer(ctx context.Context, message *codec.MQMessage, 
 	return nil
 }
 
-func newKafkaSaramaSink(ctx context.Context, sinkURI *url.URL /*filter *filter.Filter, */, replicaConfig *config.ReplicaConfig, opts map[string]string, errCh chan error) (*mqSink, error) {
-	producerConfig := kafka.NewConfig()
-	if err := kafka.CompleteConfigsAndOpts(sinkURI, producerConfig, replicaConfig, opts); err != nil {
-		return nil, cerror.WrapError(cerror.ErrKafkaInvalidConfig, err)
-	}
-	// NOTICE: Please check after the completion, as we may get the configuration from the sinkURI.
-	err := replicaConfig.Validate()
+func newKafkaSaramaSink(ctx context.Context, sinkURI *url.URL, replicaConfig *config.ReplicaConfig, opts map[string]string, errCh chan error) (*mqSink, error) {
+	producerConfig, topic, err := parseKafkaSinkConfig(sinkURI, replicaConfig, opts)
 	if err != nil {
 		return nil, err
-	}
-
-	topic := strings.TrimFunc(sinkURI.Path, func(r rune) bool {
-		return r == '/'
-	})
-	if topic == "" {
-		return nil, cerror.ErrKafkaInvalidConfig.GenWithStack("no topic is specified in sink-uri")
 	}
 
 	sProducer, err := kafka.NewKafkaSaramaProducer(ctx, topic, producerConfig, opts, errCh)
@@ -358,4 +346,25 @@ func newKafkaSaramaSink(ctx context.Context, sinkURI *url.URL /*filter *filter.F
 		return nil, errors.Trace(err)
 	}
 	return sink, nil
+}
+
+func parseKafkaSinkConfig(sinkURI *url.URL, replicaConfig *config.ReplicaConfig, opts map[string]string) (producerConfig *kafka.Config, topic string, err error) {
+	producerConfig = kafka.NewConfig()
+	if err := kafka.CompleteConfigsAndOpts(sinkURI, producerConfig, replicaConfig, opts); err != nil {
+		return nil, "", cerror.WrapError(cerror.ErrKafkaInvalidConfig, err)
+	}
+	// NOTICE: Please check after the completion, as we may get the configuration from the sinkURI.
+	err = replicaConfig.Validate()
+	if err != nil {
+		return nil, "", err
+	}
+
+	topic = strings.TrimFunc(sinkURI.Path, func(r rune) bool {
+		return r == '/'
+	})
+	if topic == "" {
+		return nil, "", cerror.ErrKafkaInvalidConfig.GenWithStack("no topic is specified in sink-uri")
+	}
+
+	return producerConfig, topic, nil
 }

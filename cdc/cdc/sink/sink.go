@@ -101,7 +101,14 @@ func init() {
 	) (Sink, error) {
 		return newKafkaSaramaSink(ctx, sinkURI, config, opts, errCh)
 	}
+	sinkUriCheckerMap["kafka"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
+		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	) (Sink, error) {
+		_, _, err := parseKafkaSinkConfig(sinkURI, config, opts)
+		return nil, err
+	}
 	sinkIniterMap["kafka+ssl"] = sinkIniterMap["kafka"]
+	sinkUriCheckerMap["kafka+ssl"] = sinkUriCheckerMap["kafka"]
 }
 
 // New creates a new sink with the sink-uri
