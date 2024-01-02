@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	github.com/tinylib/msgp v1.1.9 // indirect
 	gotest.tools/gotestsum v1.8.1 // indirect
 	mvdan.cc/sh/v3 v3.5.1 // indirect
 )

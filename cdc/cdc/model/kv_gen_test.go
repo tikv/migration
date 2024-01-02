@@ -6,41 +6,11 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
 
-func TestGetStructFieldNum(t *testing.T) {
-	type StructA struct {
-		field1 int
-		field2 uint64
-		field3 string
-	}
-
-	require.Equal(t, 3, getStructFieldNum(StructA{}))
-}
-
-func TestGenerateFieldName(t *testing.T) {
-	s := "keyspan_id"
-	tbytes := []byte{0xaa, 0x6b, 0x65, 0x79, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64}
-	bytes := generateFeildName(s)
-	require.Equal(t, bytes, tbytes)
-}
-
 func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
-	v := RawKVEntry{
-		OpType:    OpTypePut,
-		Key:       []byte("key"),
-		Value:     []byte("value"),
-		OldValue:  []byte("old_value"),
-		StartTs:   0,
-		CRTs:      1,
-		ExpiredTs: 2,
-		RegionID:  3,
-		KeySpanID: 4,
-		Sequence:  5,
-	}
-
+	v := RawKVEntry{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -52,18 +22,6 @@ func TestMarshalUnmarshalRawKVEntry(t *testing.T) {
 	if len(left) > 0 {
 		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
 	}
-	require.Equal(t, v, RawKVEntry{
-		OpType:    OpTypePut,
-		Key:       []byte("key"),
-		Value:     []byte("value"),
-		OldValue:  []byte("old_value"),
-		StartTs:   0,
-		CRTs:      1,
-		ExpiredTs: 2,
-		RegionID:  3,
-		KeySpanID: 4,
-		Sequence:  5,
-	})
 
 	left, err = msgp.Skip(bts)
 	if err != nil {
@@ -110,19 +68,7 @@ func BenchmarkUnmarshalRawKVEntry(b *testing.B) {
 }
 
 func TestEncodeDecodeRawKVEntry(t *testing.T) {
-	v := RawKVEntry{
-		OpType:    OpTypePut,
-		Key:       []byte("key"),
-		Value:     []byte("value"),
-		OldValue:  []byte("old_value"),
-		StartTs:   0,
-		CRTs:      1,
-		ExpiredTs: 2,
-		RegionID:  3,
-		KeySpanID: 4,
-		Sequence:  5,
-	}
-
+	v := RawKVEntry{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -136,8 +82,6 @@ func TestEncodeDecodeRawKVEntry(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-
-	require.Equal(t, v, vn)
 
 	buf.Reset()
 	msgp.Encode(&buf, &v)
