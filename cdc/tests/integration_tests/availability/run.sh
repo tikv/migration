@@ -9,6 +9,8 @@ source $CUR/capture.sh
 source $CUR/processor.sh
 WORK_DIR=$OUT_DIR/$TEST_NAME
 CDC_BINARY=tikv-cdc
+SINK_TYPE=$1
+UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 
 export DOWN_TIDB_HOST
 export DOWN_TIDB_PORT
@@ -21,9 +23,19 @@ function prepare() {
 	cd $WORK_DIR
 
 	start_ts=$(get_start_ts $UP_PD)
+
+	case $SINK_TYPE in
+	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
+	*) SINK_URI="" ;;
+	esac
+
 	run_cdc_cli changefeed create \
-		--start-ts=$start_ts --sink-uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" \
+		--start-ts=$start_ts --sink-uri="$SINK_URI" \
 		--disable-version-check
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer $WORK_DIR "$SINK_URI"
+	fi
 }
 
 trap stop_tidb_cluster EXIT

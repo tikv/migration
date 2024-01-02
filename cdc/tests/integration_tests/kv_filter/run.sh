@@ -20,6 +20,7 @@ function run() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
@@ -29,6 +30,9 @@ function run() {
 		--sink-uri="$SINK_URI" \
 		--changefeed-id="$uuid" \
 		--config $CUR/conf/changefeed.toml
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer $WORK_DIR "$SINK_URI"
+	fi
 
 	rawkv_op $UP_PD put 5000
 

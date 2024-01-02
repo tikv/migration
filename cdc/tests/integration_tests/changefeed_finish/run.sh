@@ -38,6 +38,7 @@ function run() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
@@ -46,6 +47,9 @@ function run() {
 	# 90s after start_ts
 	target_ts=$(($start_ts + 90 * 10 ** 3 * 2 ** 18))
 	changefeed_id=$(tikv-cdc cli changefeed create --sink-uri="$SINK_URI" --start-ts=$start_ts --target-ts=$target_ts 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer $WORK_DIR "$SINK_URI"
+	fi
 
 	rawkv_op $UP_PD put 5000
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD

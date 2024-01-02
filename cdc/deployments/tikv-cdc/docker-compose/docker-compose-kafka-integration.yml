@@ -43,4 +43,4 @@ services:
       - tests/integration_tests/run.sh kafka "${CASE}" & tail -f /dev/null
     network_mode: "service:kafka"
     volumes:
-      - ./logs/tikv_cdc_test:/tmp/tikv_cdc_test
+      - /tmp/tikv_cdc_test_pingyu/:/tmp/tikv_cdc_test

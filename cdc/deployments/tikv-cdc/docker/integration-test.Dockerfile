@@ -45,7 +45,7 @@ RUN yum install -y \
 
 RUN wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 RUN yum install -y epel-release-latest-7.noarch.rpm
-RUN yum --enablerepo=epel install -y s3cmd
+RUN yum --enablerepo=epel install -y s3cmd jq
 
 # Copy go form downloader.
 COPY --from=downloader /usr/local/go /usr/local/go

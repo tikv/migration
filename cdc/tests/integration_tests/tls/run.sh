@@ -61,6 +61,11 @@ function run() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT}/?ca-path=$TLS_DIR/ca.pem&cert-path=$TLS_DIR/client.pem&key-path=$TLS_DIR/client-key.pem" ;;
+	kafka)
+		# TODO: support TLS
+		echo "Kafka not support TLS yet. Skip"
+		return 0
+		;;
 	*) SINK_URI="" ;;
 	esac
 

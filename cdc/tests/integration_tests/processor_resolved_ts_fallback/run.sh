@@ -20,11 +20,15 @@ function run() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
 	start_ts=$(get_start_ts $UP_PD)
 	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer $WORK_DIR "$SINK_URI"
+	fi
 	ensure 10 "tikv-cdc cli processor list|jq '.|length'|grep -E '^1$'"
 
 	export GO_FAILPOINTS=''
