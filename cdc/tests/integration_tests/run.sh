@@ -44,10 +44,10 @@ run_case() {
 		bash "$script" "$sink_type"
 }
 
-sink_type="tikv"
+sink_type=$1
 
 set +eu
-test_case=$1
+test_case=$2
 
 if [ -z "$test_case" ]; then
 	test_case="*"

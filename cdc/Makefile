@@ -73,6 +73,8 @@ LDFLAGS += -X "$(CDC_PKG)/pkg/version.GoVersion=$(GOVERSION)"
 
 SCVERSION := stable
 
+TEST_ON_BRANCH ?= release-6.5
+
 include tools/Makefile
 
 default: build buildsucc
@@ -208,7 +210,7 @@ rawkv_data:
 cdc_state_checker:
 	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc_state_checker ./tests/utils/cdc_state_checker/
 
-integration_test_build: check_failpoint_ctl rawkv_data cdc_state_checker
+integration_test_build: check_failpoint_ctl rawkv_data cdc_state_checker kafka_consumer
 	$(FAILPOINT_ENABLE)
 	$(GOTEST) -ldflags '$(LDFLAGS)' -c -cover -covermode=atomic \
         -coverpkg=github.com/tikv/migration/... \
@@ -219,8 +221,12 @@ integration_test_build: check_failpoint_ctl rawkv_data cdc_state_checker
 	$(FAILPOINT_DISABLE)
 
 integration_test: prepare_test_binaries check_third_party_binary integration_test_build
-	tests/integration_tests/run.sh "$(CASE)"
-	@bash <(curl -s https://codecov.io/bash) -F cdc -s /tmp/tikv_cdc_test -f *.out -t $(TIKV_MIGRATION_CODECOV_TOKEN)
+	tests/integration_tests/run.sh tikv "$(CASE)"
+	@bash <(curl -s https://codecov.io/bash) -F cdc -s /tmp/tikv_cdc_test -f *.out -t "$(TIKV_MIGRATION_CODECOV_TOKEN)"
+
+integration_test_kafka: prepare_test_binaries check_third_party_binary integration_test_build
+	tests/integration_tests/run.sh kafka "$(CASE)"
+	@bash <(curl -s https://codecov.io/bash) -F cdc -s /tmp/tikv_cdc_test -f *.out -t "$(TIKV_MIGRATION_CODECOV_TOKEN)"
 
 # To make try on integration tests easier.
 # Comment out the succeed cases and retry from the failed one.
@@ -242,7 +248,7 @@ integration_test_by_group: prepare_test_binaries check_third_party_binary integr
 	tests/integration_tests/run_group.sh others
 
 prepare_test_binaries:
-	cd scripts && ./download-integration-test-binaries.sh master && cd ..
+	cd scripts && ./download-integration-test-binaries.sh "$(TEST_ON_BRANCH)" && cd ..
 	touch prepare_test_binaries
 
 check_third_party_binary:

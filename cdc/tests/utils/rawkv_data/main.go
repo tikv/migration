@@ -18,6 +18,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pingcap/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/tikv/client-go/v2/config"
@@ -35,6 +36,7 @@ const (
 	flagCAPath     = "ca-path"
 	flagCertPath   = "cert-path"
 	flagKeyPath    = "key-path"
+	flagLogLevel   = "log-level"
 )
 
 type Config struct {
@@ -57,6 +59,7 @@ func AddFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String(flagCAPath, "", "Path to CA certificate")
 	cmd.PersistentFlags().String(flagCertPath, "", "Path to client certificate")
 	cmd.PersistentFlags().String(flagKeyPath, "", "Path to client key")
+	cmd.PersistentFlags().String(flagLogLevel, "warn", "Log level")
 }
 
 func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, requireDstPD bool) error {
@@ -114,6 +117,20 @@ func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet, requireDstPD bool) error
 			cfg.DstSec.ClusterSSLKey = cfg.KeyPath
 		}
 	}
+	return nil
+}
+
+func InitLogger(flags *pflag.FlagSet) error {
+	logLevel, err := flags.GetString(flagLogLevel)
+	if err != nil {
+		return err
+	}
+	conf := &log.Config{Level: logLevel}
+	logger, props, err := log.InitLogger(conf)
+	if err != nil {
+		return err
+	}
+	log.ReplaceGlobals(logger, props)
 	return nil
 }
 
