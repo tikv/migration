@@ -28,7 +28,7 @@ function run_kill_upstream() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "$SINK_URI"
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
 	fi
 
 	rawkv_op $UP_PD put 10000 &
@@ -87,7 +87,7 @@ function run_kill_downstream() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --pd $DOWN_PD
 	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "$SINK_URI"
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI" --downstream-uri "tikv://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
 	fi
 
 	rawkv_op $DOWN_PD put 10000 &

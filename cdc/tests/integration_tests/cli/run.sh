@@ -55,7 +55,7 @@ function run() {
 	uuid="custom-changefeed-name"
 	run_cdc_cli changefeed create --start-ts=$start_ts --sort-engine=memory --sink-uri="$SINK_URI" --tz="Asia/Shanghai" -c="$uuid"
 	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "$SINK_URI"
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
 	fi
 
 	# Make sure changefeed is created.

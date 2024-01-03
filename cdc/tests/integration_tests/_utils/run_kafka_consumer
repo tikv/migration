@@ -1,0 +1,56 @@
+#!/bin/bash
+# Usage:
+#   run_kafka_consumer --workdir=... --upstream-uri=... --downstream-uri=... --log-suffix=...
+
+set -e
+
+pwd=$(pwd)
+
+CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$CUR"/../_utils/test_prepare
+
+workdir=
+upstream_uri=
+downstream_uri="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}"
+log_suffix=
+
+while [[ $# -gt 0 ]]; do
+	key="$1"
+
+	case $key in
+	--workdir)
+		workdir=$2
+		shift
+		shift
+		;;
+	--upstream-uri)
+		upstream_uri=$2
+		shift
+        shift
+		;;
+	--downstream-uri)
+		downstream_uri=$2
+		shift
+        shift
+		;;
+	--log-suffix)
+		log_suffix=$2
+		shift
+        shift
+		;;
+	*)
+		echo "run_kafka_consumer: Unknown argument: $key"
+        exit 1
+		;;
+	esac
+done
+
+echo "[$(date)] <<<<<< START kafka consumer in $TEST_NAME case >>>>>>"
+cd "$workdir"
+cdc_kafka_consumer \
+    --log-file "$workdir/cdc_kafka_consumer$log_suffix.log" \
+    --log-level info \
+    --upstream-uri "$upstream_uri" \
+    --downstream-uri "$downstream_uri" \
+    >> "$workdir/cdc_kafka_consumer_stdout$log_suffix.log" 2>&1 &
+cd "$pwd"

@@ -27,7 +27,7 @@ function run() {
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --changefeed-id=$CF_ID
 	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "$SINK_URI"
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
 	fi
 
 	rawkv_op $UP_PD put 5000

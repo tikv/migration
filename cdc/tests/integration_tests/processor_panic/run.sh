@@ -29,7 +29,7 @@ function run() {
 	# Make sure the task is assigned to the first cdc
 	run_cdc_cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
 	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "$SINK_URI"
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
 	fi
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --logsuffix 2 --addr 127.0.0.1:8601

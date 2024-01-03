@@ -65,7 +65,7 @@ function run() {
 
 	python3 $CUR/util/test_case.py create_changefeed $TLS_DIR "$SINK_URI"
 	if [ "$SINK_TYPE" == "kafka" ]; then
-		run_kafka_consumer $WORK_DIR "$SINK_URI"
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
 	fi
 	# wait for changefeed created
 	sleep 2
