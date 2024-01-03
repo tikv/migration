@@ -45,7 +45,7 @@ EOF
 	if [ "$SINK_TYPE" == "kafka" ]; then
 		run_kafka_consumer $WORK_DIR "$SINK_URI"
 	fi
-	
+
 	# Wait until cdc pulls the data from tikv and store it in soter
 	sleep 90
 
