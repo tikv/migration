@@ -31,7 +31,7 @@ type EventBatchEncoder interface {
 	// EncodeCheckpointEvent appends a checkpoint event into the batch.
 	// This event will be broadcast to all partitions to signal a global checkpoint.
 	EncodeCheckpointEvent(ts uint64) (*MQMessage, error)
-	// AppendChangedEvent appends a row changed event into the batch
+	// AppendChangedEvent appends a changed event into the batch
 	AppendChangedEvent(e *model.RawKVEntry) (EncoderResult, error)
 	// AppendResolvedEvent appends a resolved event into the batch.
 	// This event is used to tell the encoder that no event prior to ts will be sent.
@@ -60,7 +60,7 @@ type MQMessage struct {
 	Ts           uint64              // reserved for possible output sorting
 	Type         model.MqMessageType // type
 	Protocol     config.Protocol     // protocol
-	entriesCount int                 // rows in one MQ Message
+	entriesCount int                 // entries in one MQ Message
 }
 
 // maximumRecordOverhead is used to calculate ProducerMessage's byteSize by sarama kafka client.
@@ -80,17 +80,17 @@ func (m *MQMessage) PhysicalTime() time.Time {
 	return oracle.GetTimeFromTS(m.Ts)
 }
 
-// GetEntriesCount returns the number of rows batched in one MQMessage
+// GetEntriesCount returns the number of entries batched in one MQMessage
 func (m *MQMessage) GetEntriesCount() int {
 	return m.entriesCount
 }
 
-// SetEntriesCount set the number of rows
+// SetEntriesCount set the number of entries
 func (m *MQMessage) SetEntriesCount(cnt int) {
 	m.entriesCount = cnt
 }
 
-// IncEntriesCount increase the number of rows
+// IncEntriesCount increase the number of entries
 func (m *MQMessage) IncEntriesCount() {
 	m.entriesCount++
 }

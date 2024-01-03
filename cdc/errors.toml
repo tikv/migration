@@ -391,7 +391,7 @@ error = '''
 json codec invalid data
 '''
 
-["CDC:ErrJSONCodecRowTooLarge"]
+["CDC:ErrJSONCodecKvTooLarge"]
 error = '''
 json codec single key-value too large
 '''

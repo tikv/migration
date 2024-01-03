@@ -45,8 +45,8 @@ func (s *codecInterfaceSuite) TestCreate(c *check.C) {
 	c.Assert(msg.Type, check.Equals, model.MqMessageTypeKv)
 	c.Assert(msg.Protocol, check.Equals, config.ProtocolOpen)
 
-	msg = newResolvedMQMessage(config.ProtocolOpen, []byte("key1"), nil, 1234)
-	c.Assert(msg.Key, check.BytesEquals, []byte("key1"))
+	msg = newResolvedMQMessage(config.ProtocolOpen, nil, nil, 1234)
+	c.Assert(msg.Key, check.IsNil)
 	c.Assert(msg.Value, check.IsNil)
 	c.Assert(msg.Ts, check.Equals, uint64(1234))
 	c.Assert(msg.Type, check.Equals, model.MqMessageTypeResolved)
