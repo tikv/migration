@@ -60,6 +60,9 @@ function run() {
 	ensure $MAX_RETRIES check_changefeed_is_finished $UP_PD $changefeed_id
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT

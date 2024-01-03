@@ -54,6 +54,7 @@ var (
 	kafkaMaxBatchSize    = math.MaxInt64
 
 	downstreamURIStr string
+	waitTopicDur     time.Duration
 
 	logPath       string
 	logLevel      string
@@ -72,6 +73,7 @@ func init() {
 	flag.StringVar(&ca, "ca", "", "CA certificate path for Kafka SSL connection")
 	flag.StringVar(&cert, "cert", "", "Certificate path for Kafka SSL connection")
 	flag.StringVar(&key, "key", "", "Private key path for Kafka SSL connection")
+	flag.DurationVar(&waitTopicDur, "wait-topic", time.Minute, "Duration waiting for topic created")
 	flag.Parse()
 
 	err := logutil.InitLogger(&logutil.Config{
@@ -172,7 +174,8 @@ func waitTopicCreated(address []string, topic string, cfg *sarama.Config) error 
 		return errors.Trace(err)
 	}
 	defer admin.Close()
-	for i := 0; i <= 30; i++ {
+	start := time.Now()
+	for time.Since(start) < waitTopicDur {
 		topics, err := admin.ListTopics()
 		if err != nil {
 			return errors.Trace(err)

@@ -45,9 +45,12 @@ function run() {
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT
 run $*
-check_logs_contains $WORK_DIR "tikv sink injected error" 1
+check_logs_contains $WORK_DIR "$SINK_TYPE sink injected error" 1
 echo "[$(date)] <<<<<< run test case $TEST_NAME success! >>>>>>"

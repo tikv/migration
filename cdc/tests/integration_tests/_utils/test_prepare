@@ -62,3 +62,7 @@ function get_kafka_sink_uri() {
     TOPIC_NAME="tikvcdc-$TEST_NAME-test-$RANDOM"
     echo "kafka://127.0.0.1:9092/$TOPIC_NAME?protocol=open-protocol&partition-num=4&kafka-version=$KAFKA_VERSION&max-message-bytes=10485760"
 }
+
+function stop_kafka_consumer() {
+    cleanup_process cdc_kafka_consumer
+}

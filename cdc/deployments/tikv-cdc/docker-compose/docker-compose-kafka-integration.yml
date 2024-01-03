@@ -10,6 +10,7 @@ services:
     image: wurstmeister/kafka:2.12-2.4.1
     ports:
       - "9092:9092"
+      - "9093:9093"
     environment:
       KAFKA_MESSAGE_MAX_BYTES: 11534336
       KAFKA_REPLICA_FETCH_MAX_BYTES: 11534336

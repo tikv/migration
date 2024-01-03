@@ -4,6 +4,7 @@ set -eo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
+sink_type=tikv
 group=$1
 
 # Define groups
@@ -51,5 +52,5 @@ fi
 # Run test cases
 if [[ -n $test_names ]]; then
 	echo "Run cases: ${test_names}"
-	"${CUR}"/run.sh "${test_names}"
+	"${CUR}"/run.sh "${sink_type}" "${test_names}"
 fi

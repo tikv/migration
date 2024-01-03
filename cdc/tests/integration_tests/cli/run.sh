@@ -146,6 +146,9 @@ EOF
 	curl http://127.0.0.1:8600/status
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT
