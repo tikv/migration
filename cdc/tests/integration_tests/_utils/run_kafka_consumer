@@ -26,21 +26,21 @@ while [[ $# -gt 0 ]]; do
 	--upstream-uri)
 		upstream_uri=$2
 		shift
-        shift
+		shift
 		;;
 	--downstream-uri)
 		downstream_uri=$2
 		shift
-        shift
+		shift
 		;;
 	--log-suffix)
 		log_suffix=$2
 		shift
-        shift
+		shift
 		;;
 	*)
 		echo "run_kafka_consumer: Unknown argument: $key"
-        exit 1
+		exit 1
 		;;
 	esac
 done
@@ -48,9 +48,9 @@ done
 echo "[$(date)] <<<<<< START kafka consumer in $TEST_NAME case >>>>>>"
 cd "$workdir"
 cdc_kafka_consumer \
-    --log-file "$workdir/cdc_kafka_consumer$log_suffix.log" \
-    --log-level info \
-    --upstream-uri "$upstream_uri" \
-    --downstream-uri "$downstream_uri" \
-    >> "$workdir/cdc_kafka_consumer_stdout$log_suffix.log" 2>&1 &
+	--log-file "$workdir/cdc_kafka_consumer$log_suffix.log" \
+	--log-level info \
+	--upstream-uri "$upstream_uri" \
+	--downstream-uri "$downstream_uri" \
+	>>"$workdir/cdc_kafka_consumer_stdout$log_suffix.log" 2>&1 &
 cd "$pwd"
