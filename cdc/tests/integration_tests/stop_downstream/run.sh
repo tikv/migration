@@ -11,6 +11,12 @@ UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 CF_ID="stop-downstream"
 
+# TODO: support Kafka
+if [ "$SINK_TYPE" == "kafka" ]; then
+	echo "Kafka not support \"stop_downstream\" yet. Skip"
+	exit 0
+fi
+
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR

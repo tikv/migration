@@ -67,6 +67,12 @@ function run_kill_upstream() {
 }
 
 function run_kill_downstream() {
+	# TODO: support Kafka
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		echo "Kafka not support \"kill_downstream\" yet. Skip"
+		return 0
+	fi
+
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR --multiple-upstream-pd "true"
 	cd $WORK_DIR

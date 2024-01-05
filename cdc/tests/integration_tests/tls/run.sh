@@ -12,6 +12,12 @@ UP_PD=https://$UP_TLS_PD_HOST:$UP_TLS_PD_PORT
 DOWN_PD=https://$DOWN_TLS_PD_HOST:$DOWN_TLS_PD_PORT
 SUFFIX=" --pd=$UP_PD --ca=$TLS_DIR/ca.pem --cert=$TLS_DIR/client.pem --key=$TLS_DIR/client-key.pem"
 
+# TODO: support Kafka TLS
+if [ "$SINK_TYPE" == "kafka" ]; then
+	echo "Kafka not support TLS yet. Skip"
+	exit 0
+fi
+
 function check_changefeed_state() {
 	changefeedid=$1
 	expected=$2
@@ -62,9 +68,7 @@ function run() {
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_TLS_PD_HOST}:${DOWN_TLS_PD_PORT}/?ca-path=$TLS_DIR/ca.pem&cert-path=$TLS_DIR/client.pem&key-path=$TLS_DIR/client-key.pem" ;;
 	kafka)
-		# TODO: support TLS
-		echo "Kafka not support TLS yet. Skip"
-		return 0
+		# TODO: support Kafka TLS
 		;;
 	*) SINK_URI="" ;;
 	esac
