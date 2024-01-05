@@ -6,7 +6,7 @@ CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 if [[ $# -eq 1 ]]; then
 	# TODO: remove this branch when CI pipeline is updated.
-	sink_type=kafka
+	sink_type=tikv
 	group=$1
 elif [[ $# -eq 2 ]]; then
 	sink_type=$1
