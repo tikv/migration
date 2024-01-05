@@ -4,8 +4,17 @@ set -eo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-sink_type=tikv
-group=$1
+if [[ $# -eq 1 ]]; then
+	# TODO: remove this branch when CI pipeline is updated.
+	sink_type=kafka
+	group=$1
+elif [[ $# -eq 2 ]]; then
+	sink_type=$1
+	group=$2
+else
+	echo "Usage: $0 [sink_type] group"
+	exit 1
+fi
 
 # Define groups
 # Note: If new group is added, the group name must also be added to CI
