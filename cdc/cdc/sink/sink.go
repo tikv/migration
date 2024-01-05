@@ -69,7 +69,10 @@ type Sink interface {
 	Barrier(ctx context.Context, keyspanID model.KeySpanID) error
 }
 
-var sinkIniterMap = make(map[string]sinkInitFunc)
+var (
+	sinkIniterMap     = make(map[string]sinkInitFunc)
+	sinkURICheckerMap = make(map[string]sinkInitFunc)
+)
 
 type sinkInitFunc func(context.Context, model.ChangeFeedID, *url.URL, *config.ReplicaConfig, map[string]string, chan error) (Sink, error)
 
@@ -81,11 +84,33 @@ func init() {
 		return newBlackHoleSink(ctx, opts), nil
 	}
 
+	// register tikv sink
 	sinkIniterMap["tikv"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
 		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
 	) (Sink, error) {
 		return newTiKVSink(ctx, sinkURI, config, opts, errCh)
 	}
+	sinkURICheckerMap["tikv"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
+		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	) (Sink, error) {
+		_, _, err := parseTiKVUri(sinkURI, opts)
+		return nil, err
+	}
+
+	// register kafka sink
+	sinkIniterMap["kafka"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
+		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	) (Sink, error) {
+		return newKafkaSaramaSink(ctx, sinkURI, config, opts, errCh)
+	}
+	sinkURICheckerMap["kafka"] = func(ctx context.Context, changefeedID model.ChangeFeedID, sinkURI *url.URL,
+		config *config.ReplicaConfig, opts map[string]string, errCh chan error,
+	) (Sink, error) {
+		_, _, err := parseKafkaSinkConfig(sinkURI, config, opts)
+		return nil, err
+	}
+	sinkIniterMap["kafka+ssl"] = sinkIniterMap["kafka"]
+	sinkURICheckerMap["kafka+ssl"] = sinkURICheckerMap["kafka"]
 }
 
 // New creates a new sink with the sink-uri
@@ -103,16 +128,32 @@ func New(ctx context.Context, changefeedID model.ChangeFeedID, sinkURIStr string
 }
 
 // Validate sink if given valid parameters.
-func Validate(ctx context.Context, sinkURI string, cfg *config.ReplicaConfig, opts map[string]string) error {
+func Validate(ctx context.Context, sinkURIStr string, cfg *config.ReplicaConfig, opts map[string]string) error {
 	errCh := make(chan error)
-	// TODO: find a better way to verify a sinkURI is valid
-	s, err := New(ctx, "sink-verify", sinkURI, cfg, opts, errCh)
+
+	// parse sinkURI as a URI
+	sinkURI, err := url.Parse(sinkURIStr)
+	if err != nil {
+		return cerror.WrapError(cerror.ErrSinkURIInvalid, err)
+	}
+	scheme := strings.ToLower(sinkURI.Scheme)
+	newSink, ok := sinkURICheckerMap[scheme]
+	if !ok {
+		newSink, ok = sinkIniterMap[scheme]
+		if !ok {
+			return cerror.ErrSinkURIInvalid.GenWithStack("the sink scheme (%s) is not supported", sinkURI.Scheme)
+		}
+	}
+
+	s, err := newSink(ctx, "sink-verify", sinkURI, cfg, opts, errCh)
 	if err != nil {
 		return err
 	}
-	err = s.Close(ctx)
-	if err != nil {
-		return err
+	if s != nil {
+		err = s.Close(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	select {
 	case err = <-errCh:
