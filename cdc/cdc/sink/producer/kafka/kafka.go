@@ -371,7 +371,7 @@ func validateMaxMessageBytesAndCreateTopic(admin kafka.ClusterAdminClient, topic
 
 		// no need to create the topic, but we would have to log user if they found enter wrong topic name later
 		if config.AutoCreate {
-			log.Warn("topic already exist, TiCDC will not create the topic",
+			log.Warn("topic already exist, TiKV CDC will not create the topic",
 				zap.String("topic", topic), zap.Any("detail", info))
 		}
 
@@ -388,13 +388,13 @@ func validateMaxMessageBytesAndCreateTopic(admin kafka.ClusterAdminClient, topic
 
 	brokerMessageMaxBytes, err := getBrokerMessageMaxBytes(admin)
 	if err != nil {
-		log.Warn("TiCDC cannot find `message.max.bytes` from broker's configuration")
+		log.Warn("TiKV CDC cannot find `message.max.bytes` from broker's configuration")
 		return errors.Trace(err)
 	}
 
 	// when create the topic, `max.message.bytes` is decided by the broker,
 	// it would use broker's `message.max.bytes` to set topic's `max.message.bytes`.
-	// TiCDC need to make sure that the producer's `MaxMessageBytes` won't larger than
+	// TiKV CDC need to make sure that the producer's `MaxMessageBytes` won't larger than
 	// broker's `message.max.bytes`.
 	if brokerMessageMaxBytes < config.MaxMessageBytes {
 		log.Warn("broker's `message.max.bytes` less than the user set `max-message-bytes`,"+
@@ -421,7 +421,7 @@ func validateMaxMessageBytesAndCreateTopic(admin kafka.ClusterAdminClient, topic
 		return cerror.WrapError(cerror.ErrKafkaNewSaramaProducer, err)
 	}
 
-	log.Info("TiCDC create the topic",
+	log.Info("TiKV CDC create the topic",
 		zap.Int32("partition-num", config.PartitionNum),
 		zap.Int16("replication-factor", config.ReplicationFactor))
 
@@ -446,7 +446,7 @@ func getBrokerMessageMaxBytes(admin kafka.ClusterAdminClient) (int, error) {
 	if len(configEntries) == 0 || configEntries[0].Name != kafka.BrokerMessageMaxBytesConfigName {
 		return 0, cerror.ErrKafkaNewSaramaProducer.GenWithStack(
 			"since cannot find the `message.max.bytes` from the broker's configuration, " +
-				"ticdc decline to create the topic and changefeed to prevent potential error")
+				"tikv cdc decline to create the topic and changefeed to prevent potential error")
 	}
 
 	result, err := strconv.Atoi(configEntries[0].Value)

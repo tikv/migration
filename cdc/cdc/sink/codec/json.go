@@ -109,13 +109,13 @@ func kvEventToMqMessage(e *model.RawKVEntry) (*mqMessageKey, *mqMessageValue) {
 }
 
 func mqMessageToKvEvent(key *mqMessageKey, value *mqMessageValue) *model.RawKVEntry {
-	e := new(model.RawKVEntry)
-	e.CRTs = key.CRTs
-	e.Key = key.Key
-	e.OpType = value.OpType
-	e.Value = value.Value
-	e.ExpiredTs = decodeExpiredTs(value.ExpiredTs)
-	return e
+	return &model.RawKVEntry{
+		OpType:    value.OpType,
+		Key:       key.Key,
+		Value:     value.Value,
+		CRTs:      key.CRTs,
+		ExpiredTs: decodeExpiredTs(value.ExpiredTs),
+	}
 }
 
 // JSONEventBatchEncoder encodes the events into the byte of a batch into.
@@ -413,7 +413,7 @@ func (b *JSONEventBatchMixedDecoder) NextResolvedEvent() (uint64, error) {
 	return resolvedTs, nil
 }
 
-// NextRowChangedEvent implements the EventBatchDecoder interface
+// NextChangedEvent implements the EventBatchDecoder interface
 func (b *JSONEventBatchMixedDecoder) NextChangedEvent() (*model.RawKVEntry, error) {
 	if b.nextKey == nil {
 		if err := b.decodeNextKey(); err != nil {
@@ -422,18 +422,18 @@ func (b *JSONEventBatchMixedDecoder) NextChangedEvent() (*model.RawKVEntry, erro
 	}
 	b.mixedBytes = b.mixedBytes[b.nextKeyLen+8:]
 	if b.nextKey.Type != model.MqMessageTypeKv {
-		return nil, cerror.ErrJSONCodecInvalidData.GenWithStack("not found row event message")
+		return nil, cerror.ErrJSONCodecInvalidData.GenWithStack("not found kv event message")
 	}
 	valueLen := binary.BigEndian.Uint64(b.mixedBytes[:8])
 	value := b.mixedBytes[8 : valueLen+8]
 	b.mixedBytes = b.mixedBytes[valueLen+8:]
-	rowMsg := new(mqMessageValue)
-	if err := rowMsg.Decode(value); err != nil {
+	kvMsg := new(mqMessageValue)
+	if err := kvMsg.Decode(value); err != nil {
 		return nil, errors.Trace(err)
 	}
-	rowEvent := mqMessageToKvEvent(b.nextKey, rowMsg)
+	kvEvent := mqMessageToKvEvent(b.nextKey, kvMsg)
 	b.nextKey = nil
-	return rowEvent, nil
+	return kvEvent, nil
 }
 
 func (b *JSONEventBatchMixedDecoder) hasNext() bool {
@@ -505,13 +505,13 @@ func (b *JSONEventBatchDecoder) NextChangedEvent() (*model.RawKVEntry, error) {
 	valueLen := binary.BigEndian.Uint64(b.valueBytes[:8])
 	value := b.valueBytes[8 : valueLen+8]
 	b.valueBytes = b.valueBytes[valueLen+8:]
-	rowMsg := new(mqMessageValue)
-	if err := rowMsg.Decode(value); err != nil {
+	kvMsg := new(mqMessageValue)
+	if err := kvMsg.Decode(value); err != nil {
 		return nil, errors.Trace(err)
 	}
-	rowEvent := mqMessageToKvEvent(b.nextKey, rowMsg)
+	kvEvent := mqMessageToKvEvent(b.nextKey, kvMsg)
 	b.nextKey = nil
-	return rowEvent, nil
+	return kvEvent, nil
 }
 
 func (b *JSONEventBatchDecoder) hasNext() bool {
