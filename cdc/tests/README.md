@@ -70,7 +70,7 @@ Some useful tips:
 
 #### Run Integration Tests in Docker for Kafka Sink
 
-1. Run `tests/integration_tests/run_kafka_in_docker.sh --case [test names]`. The rule of `test name` is the same with above.
+1. Run `tests/integration_tests/run_kafka_in_docker.sh --case [test names]`. The rule of `test names` is the same with above.
 
 ## Writing new tests
 

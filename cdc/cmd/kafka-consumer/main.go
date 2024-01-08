@@ -272,7 +272,11 @@ func main() {
 	go func() {
 		defer wg.Done()
 		if err := consumer.Run(ctx); err != nil {
-			log.Fatal("Error running consumer: %v", zap.Error(err))
+			if errors.Cause(err) == context.Canceled {
+				log.Info("consumer stopped", zap.Error(err))
+			} else {
+				log.Fatal("Error running consumer: %v", zap.Error(err))
+			}
 		}
 	}()
 
@@ -368,7 +372,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	}
 ClaimMessages:
 	for message := range claim.Messages() {
-		log.Info("Message claimed", zap.Int32("partition", message.Partition), zap.ByteString("key", message.Key), zap.ByteString("value", message.Value))
+		log.Debug("Message claimed", zap.Int32("partition", message.Partition), zap.ByteString("key", message.Key), zap.ByteString("value", message.Value))
 		batchDecoder, err := codec.NewJSONEventBatchDecoder(message.Key, message.Value)
 		if err != nil {
 			return errors.Trace(err)
@@ -388,7 +392,7 @@ ClaimMessages:
 			// If the message containing only one event exceeds the length limit, CDC will allow it and issue a warning.
 			if len(message.Key)+len(message.Value) > kafkaMaxMessageBytes && counter > 1 {
 				log.Fatal("kafka max-messages-bytes exceeded", zap.Int("max-message-bytes", kafkaMaxMessageBytes),
-					zap.Int("recevied-bytes", len(message.Key)+len(message.Value)))
+					zap.Int("received-bytes", len(message.Key)+len(message.Value)))
 			}
 
 			switch tp {
@@ -409,7 +413,7 @@ ClaimMessages:
 				if err != nil {
 					log.Fatal("emit row changed event failed", zap.Error(err))
 				}
-				log.Info("Emit ChangedEvent", zap.Any("kv", kv))
+				log.Debug("Emit ChangedEvent", zap.Any("kv", kv))
 				lastCRTs := sink.lastCRTs.Load()
 				if lastCRTs < kv.CRTs {
 					sink.lastCRTs.Store(kv.CRTs)

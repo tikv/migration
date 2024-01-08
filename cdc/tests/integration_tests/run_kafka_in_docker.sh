@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage:
-#   ./tests/integration_tests/run_kafka_in_docker.sh --case [test_name]
+#   ./tests/integration_tests/run_kafka_in_docker.sh --case [test_names]
 
 set -euo pipefail
 

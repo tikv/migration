@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-echo "[$(date)] <<<<<< START kafka consumer in $TEST_NAME case >>>>>>"
+echo "[$(date)] <<<<<< START Kafka consumer in $TEST_NAME case >>>>>>"
 cd "$workdir"
 cdc_kafka_consumer \
 	--log-file "$workdir/cdc_kafka_consumer$log_suffix.log" \

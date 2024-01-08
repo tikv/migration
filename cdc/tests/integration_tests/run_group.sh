@@ -5,7 +5,7 @@ set -eo pipefail
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 if [[ $# -eq 1 ]]; then
-	# TODO: remove this branch when CI pipeline is updated.
+	# For backward compatibility
 	sink_type=tikv
 	group=$1
 elif [[ $# -eq 2 ]]; then

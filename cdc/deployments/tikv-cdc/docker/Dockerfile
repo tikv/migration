@@ -1,6 +1,11 @@
 FROM golang:1.21-alpine3.18 as builder
 RUN apk add --no-cache git make bash
 WORKDIR /go/src/github.com/tikv/migration/cdc
+
+COPY go.mod .
+COPY go.sum .
+RUN GO111MODULE=on go mod download
+
 COPY . .
 ENV CDC_ENABLE_VENDOR=0
 RUN make release
