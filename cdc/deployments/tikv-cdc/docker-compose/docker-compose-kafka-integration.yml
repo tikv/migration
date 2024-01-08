@@ -15,14 +15,8 @@ services:
       KAFKA_REPLICA_FETCH_MAX_BYTES: 11534336
       KAFKA_CREATE_TOPICS: "big-message-test:1:1"
       KAFKA_BROKER_ID: 1
-      RACK_COMMAND: "curl -sfL https://git.io/JJZXX -o /tmp/kafka.server.keystore.jks && curl -sfL https://git.io/JJZXM -o /tmp/kafka.server.truststore.jks"
       KAFKA_LISTENERS: "SSL://127.0.0.1:9093,PLAINTEXT://127.0.0.1:9092"
-      KAFKA_ADVERTISED_LISTENERS: "SSL://127.0.0.1:9093,PLAINTEXT://127.0.0.1:9092"
-      KAFKA_SSL_KEYSTORE_LOCATION: "/tmp/kafka.server.keystore.jks"
-      KAFKA_SSL_KEYSTORE_PASSWORD: "test1234"
-      KAFKA_SSL_KEY_PASSWORD: "test1234"
-      KAFKA_SSL_TRUSTSTORE_LOCATION: "/tmp/kafka.server.truststore.jks"
-      KAFKA_SSL_TRUSTSTORE_PASSWORD: "test1234"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://127.0.0.1:9092"
       ZK: "zk"
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
     depends_on:
@@ -31,14 +25,16 @@ services:
   kafka_integration_test:
     build:
       context: ../../../
-      dockerfile: ./deployments/ticdc/docker/integration-test.Dockerfile
+      dockerfile: ./deployments/tikv-cdc/docker/integration-test.Dockerfile
+      args:
+        - TEST_ON_BRANCH=release-6.5
     depends_on:
       - "zookeeper"
       - "kafka"
     command:
       - bash
       - -c
-      - make integration_test_kafka CASE="${CASE}" & tail -f /dev/null
+      - tests/integration_tests/run.sh kafka "${CASE}" & tail -f /dev/null
     network_mode: "service:kafka"
     volumes:
-      - ./logs/tidb_cdc_test:/tmp/tidb_cdc_test
+      - /tmp/tikv_cdc_test/:/tmp/tikv_cdc_test

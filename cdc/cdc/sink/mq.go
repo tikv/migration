@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/failpoint"
 	"github.com/pingcap/log"
 	"github.com/tikv/migration/cdc/cdc/model"
 	"github.com/tikv/migration/cdc/cdc/sink/codec"
@@ -242,6 +243,11 @@ func (k *mqSink) runWorker(ctx context.Context, partition int32) error {
 			if len(messages) == 0 {
 				return 0, nil
 			}
+
+			failpoint.Inject("SinkFlushEventPanic", func() {
+				time.Sleep(time.Second)
+				log.Fatal("kafka sink injected error")
+			})
 
 			for _, msg := range messages {
 				err := k.writeToProducer(ctx, msg, codec.EncoderNeedAsyncWrite, partition)

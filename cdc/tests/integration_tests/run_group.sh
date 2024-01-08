@@ -4,7 +4,17 @@ set -eo pipefail
 
 CUR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-group=$1
+if [[ $# -eq 1 ]]; then
+	# For backward compatibility
+	sink_type=tikv
+	group=$1
+elif [[ $# -eq 2 ]]; then
+	sink_type=$1
+	group=$2
+else
+	echo "Usage: $0 [sink_type] group"
+	exit 1
+fi
 
 # Define groups
 # Note: If new group is added, the group name must also be added to CI
@@ -51,5 +61,5 @@ fi
 # Run test cases
 if [[ -n $test_names ]]; then
 	echo "Run cases: ${test_names}"
-	"${CUR}"/run.sh "${test_names}"
+	"${CUR}"/run.sh "${sink_type}" "${test_names}"
 fi

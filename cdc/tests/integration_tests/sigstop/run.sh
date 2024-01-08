@@ -22,10 +22,14 @@ function run_kill_upstream() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI"
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
+	fi
 
 	rawkv_op $UP_PD put 10000 &
 	sleep 1
@@ -57,9 +61,18 @@ function run_kill_upstream() {
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 function run_kill_downstream() {
+	# TODO: support Kafka
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		echo "Kafka not support \"kill_downstream\" yet. Skip"
+		return 0
+	fi
+
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR --multiple-upstream-pd "true"
 	cd $WORK_DIR
@@ -74,10 +87,14 @@ function run_kill_downstream() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${UP_PD_HOST_1}:${UP_PD_PORT_1}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
 	tikv-cdc cli changefeed create --start-ts=$start_ts --sink-uri="$SINK_URI" --pd $DOWN_PD
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI" --downstream-uri "tikv://${UP_PD_HOST_1}:${UP_PD_PORT_1}"
+	fi
 
 	rawkv_op $DOWN_PD put 10000 &
 	sleep 1
@@ -107,6 +124,9 @@ function run_kill_downstream() {
 	check_sync_diff $WORK_DIR $DOWN_PD $UP_PD
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT

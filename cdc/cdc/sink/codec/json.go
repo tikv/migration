@@ -505,11 +505,11 @@ func (b *JSONEventBatchDecoder) NextChangedEvent() (*model.RawKVEntry, error) {
 	valueLen := binary.BigEndian.Uint64(b.valueBytes[:8])
 	value := b.valueBytes[8 : valueLen+8]
 	b.valueBytes = b.valueBytes[valueLen+8:]
-	mvMsg := new(mqMessageValue)
-	if err := mvMsg.Decode(value); err != nil {
+	kvMsg := new(mqMessageValue)
+	if err := kvMsg.Decode(value); err != nil {
 		return nil, errors.Trace(err)
 	}
-	kvEvent := mqMessageToKvEvent(b.nextKey, mvMsg)
+	kvEvent := mqMessageToKvEvent(b.nextKey, kvMsg)
 	b.nextKey = nil
 	return kvEvent, nil
 }

@@ -36,12 +36,16 @@ function run() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
 	run_cdc_server --workdir $WORK_DIR --binary $CDC_BINARY --addr "127.0.0.1:8600" --pd $UP_PD
 	start_ts=$(get_start_ts $UP_PD)
 	tikv-cdc cli changefeed create --pd=$UP_PD --start-ts=$start_ts --sink-uri="$SINK_URI"
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
+	fi
 
 	export GO_FAILPOINTS='github.com/tikv/migration/cdc/cdc/capture/ownerFlushIntervalInject=return(10)'
 	kill_cdc_and_restart $UP_PD $WORK_DIR $CDC_BINARY
@@ -61,6 +65,9 @@ function run() {
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT

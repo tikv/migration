@@ -3,8 +3,6 @@
 # cdc server is ran by binary cdc.test, kill cdc server first to avoid too much
 # noise in cdc logs.
 
-set -x
-
 PKILL="killall -q -w -s 9 "
 if [ "$(uname)" == "Darwin" ]; then
 	PKILL="pkill -9 "

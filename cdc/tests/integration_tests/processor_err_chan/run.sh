@@ -39,6 +39,7 @@ function run() {
 	pd_addr="http://$UP_PD_HOST_1:$UP_PD_PORT_1"
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
@@ -47,6 +48,9 @@ function run() {
 
 	start_ts=$(get_start_ts $UP_PD)
 	changefeed_id=$(tikv-cdc cli changefeed create --pd=$pd_addr --start-ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
+	fi
 
 	retry_time=10
 	ensure $retry_time check_changefeed_mark_normal $pd_addr $changefeed_id "null"
@@ -58,6 +62,9 @@ function run() {
 
 	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT

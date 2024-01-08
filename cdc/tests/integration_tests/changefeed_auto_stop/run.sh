@@ -44,10 +44,15 @@ function run() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
 	changefeedid=$(tikv-cdc cli changefeed create --pd="http://${UP_PD_HOST_1}:${UP_PD_PORT_1}" --start-ts=$start_ts --sink-uri="$SINK_URI" 2>&1 | tail -n2 | head -n1 | awk '{print $2}')
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
+	fi
+
 	# make sure the first capture does job first.
 	sleep 3
 	export GO_FAILPOINTS=''
@@ -60,6 +65,9 @@ function run() {
 	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT

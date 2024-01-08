@@ -56,6 +56,7 @@ function run() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
 	*) SINK_URI="" ;;
 	esac
 
@@ -63,6 +64,9 @@ function run() {
 	python3 $CUR/util/test_case.py get_status $TLS_DIR
 
 	python3 $CUR/util/test_case.py create_changefeed $TLS_DIR "$SINK_URI"
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
+	fi
 	# wait for changefeed created
 	sleep 2
 
@@ -94,6 +98,9 @@ function run() {
 	done
 
 	cleanup_process $CDC_BINARY
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		stop_kafka_consumer
+	fi
 }
 
 trap stop_tidb_cluster EXIT

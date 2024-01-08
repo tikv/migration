@@ -36,6 +36,8 @@ func NewChecksumCommand() *cobra.Command {
 }
 
 func runChecksum(cmd *cobra.Command) error {
+	InitLogger(cmd.Flags())
+
 	cfg := &Config{}
 	err := cfg.ParseFromFlags(cmd.Flags(), true)
 	if err != nil {
@@ -75,7 +77,7 @@ func runChecksum(cmd *cobra.Command) error {
 
 	if srcChecksum != dstChecksum {
 		msg := fmt.Sprintf("Upstream checksum %v are not same with downstream %v", srcChecksum, dstChecksum)
-		log.Info(msg)
+		log.Warn(msg)
 		return fmt.Errorf(msg)
 	}
 	fmt.Printf("Upstream checksum %v are same with downstream %v\n", srcChecksum, dstChecksum)
@@ -95,6 +97,8 @@ func NewTotalKvsCommand() *cobra.Command {
 }
 
 func runTotalKvs(cmd *cobra.Command) error {
+	InitLogger(cmd.Flags())
+
 	cfg := &Config{}
 	err := cfg.ParseFromFlags(cmd.Flags(), true)
 	if err != nil {
@@ -117,7 +121,7 @@ func runTotalKvs(cmd *cobra.Command) error {
 
 	if dstChecksum.TotalKvs != uint64(cfg.Count) {
 		msg := fmt.Sprintf("Downstream total kvs %v is not equal to expected %v", dstChecksum, cfg.Count)
-		log.Info(msg)
+		log.Warn(msg)
 		return fmt.Errorf(msg)
 	}
 	fmt.Printf("Downstream total kvs %v equals to expected %v", dstChecksum, cfg.Count)

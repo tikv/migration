@@ -80,6 +80,8 @@ func NewDeleteCommand() *cobra.Command {
 }
 
 func runDeleteCmd(cmd *cobra.Command) error {
+	InitLogger(cmd.Flags())
+
 	cfg := &Config{}
 	err := cfg.ParseFromFlags(cmd.Flags(), false)
 	if err != nil {
@@ -111,12 +113,14 @@ func runDeleteCmd(cmd *cobra.Command) error {
 	if err != nil {
 		log.Error("failed to delete data", zap.Error(err), zap.Int("delete count", cfg.Count))
 	} else {
-		log.Info("delete data successfully", zap.Error(err), zap.Int("delete count", cfg.Count))
+		log.Warn("[INFO] delete data successfully", zap.Error(err), zap.Int("delete count", cfg.Count))
 	}
 	return err
 }
 
 func runPutCmd(cmd *cobra.Command) error {
+	InitLogger(cmd.Flags())
+
 	cfg := &Config{}
 	err := cfg.ParseFromFlags(cmd.Flags(), false)
 	if err != nil {
@@ -209,7 +213,7 @@ func runPutCmd(cmd *cobra.Command) error {
 	if err != nil {
 		log.Error("failed to put data", zap.Error(err))
 	} else {
-		log.Info("put data successfully", zap.Int("point put count", count1),
+		log.Warn("[INFO] put data successfully", zap.Int("point put count", count1),
 			zap.Int("batch put count", count2), zap.Int("cas put count", cfg.Count-count1-count2))
 	}
 

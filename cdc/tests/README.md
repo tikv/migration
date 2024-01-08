@@ -27,6 +27,7 @@ The following programs must be installed:
 
 * [docker](https://docs.docker.com/get-docker/)
 * [docker-compose](https://docs.docker.com/compose/install/)
+* [BuildKit](https://docs.docker.com/build/buildkit/#getting-started) (for integration tests with Kafka sink)
 
 We recommend that you provide docker with at least 6+ cores and 8G+ memory. Of course, the more resources, the better.
 
@@ -39,7 +40,7 @@ We recommend that you provide docker with at least 6+ cores and 8G+ memory. Of c
 
 ### Integration Test
 
-#### Run integration tests locally
+#### Run Integration Tests Locally
 
 1. Run `make integration_test` to execute the integration tests. This command will
 
@@ -52,11 +53,11 @@ We recommend that you provide docker with at least 6+ cores and 8G+ memory. Of c
    >
    > There are some environment variables that you can set by yourself, see [test_prepare](./integration_tests/_utils/test_prepare).
 
-#### Run integration tests in docker
+#### Run Integration Tests in Docker for TiKV Sink
 
 1. Run `tests/up.sh`. This script will setup a container with some tools ready, and run `/bin/bash` interactively in the container.
 
-2. Run `make integration_test` or `make integration_test CASE=[test name]` to execute the integration tests.
+2. Run `make integration_test` or `make integration_test CASE=[test names]` to execute the integration tests.
 
 > **Warning:**
 > These scripts and files may not work under the arm architecture,
@@ -64,8 +65,12 @@ We recommend that you provide docker with at least 6+ cores and 8G+ memory. Of c
 
 Some useful tips:
 
-- You can specify multiple tests to run in CASE, for example: `CASE="cli cli_tls"`. You can even
+* You can specify multiple tests to run in CASE, for example: `CASE="cli cli_tls"`. You can even
    use `CASE="*"` to indicate that you are running all tests。
+
+#### Run Integration Tests in Docker for Kafka Sink
+
+1. Run `tests/integration_tests/run_kafka_in_docker.sh --case [test names]`. The rule of `test names` is the same with above.
 
 ## Writing new tests
 
