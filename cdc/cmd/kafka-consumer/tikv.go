@@ -51,7 +51,6 @@ func newSimpleTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaC
 		rawkv.WithAPIVersion(kvrpcpb.APIVersion_V2),
 		rawkv.WithPDOptions(pd.WithMaxErrorRetry(defaultPDErrorRetry)),
 	)
-
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

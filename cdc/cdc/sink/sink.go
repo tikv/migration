@@ -70,11 +70,11 @@ type Sink interface {
 }
 
 var (
-	sinkIniterMap     = make(map[string]SinkInitFunc)
-	sinkURICheckerMap = make(map[string]SinkInitFunc)
+	sinkIniterMap     = make(map[string]InitFunc)
+	sinkURICheckerMap = make(map[string]InitFunc)
 )
 
-type SinkInitFunc func(context.Context, model.ChangeFeedID, *url.URL, *config.ReplicaConfig, map[string]string, chan error) (Sink, error)
+type InitFunc func(context.Context, model.ChangeFeedID, *url.URL, *config.ReplicaConfig, map[string]string, chan error) (Sink, error)
 
 func init() {
 	// register blackhole sink
@@ -113,7 +113,7 @@ func init() {
 	sinkURICheckerMap["kafka+ssl"] = sinkURICheckerMap["kafka"]
 }
 
-func RegisterSink(scheme string, initFunc SinkInitFunc, checkerFunc SinkInitFunc) {
+func RegisterSink(scheme string, initFunc InitFunc, checkerFunc InitFunc) {
 	sinkIniterMap[scheme] = initFunc
 	if checkerFunc != nil {
 		sinkURICheckerMap[scheme] = checkerFunc

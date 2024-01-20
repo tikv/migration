@@ -428,15 +428,14 @@ ClaimMessages:
 							sink.lastCRTs.Store(kv.CRTs)
 						}
 						break
-					} else {
-						log.Warn("emit row changed event failed", zap.Error(err))
-						if session.Context().Err() != nil {
-							log.Warn("session closed", zap.Error(session.Context().Err()))
-							return nil
-						} else {
-							time.Sleep(downstreamRetryInterval)
-						}
-					}	
+					}
+
+					log.Warn("emit row changed event failed", zap.Error(err))
+					if session.Context().Err() != nil {
+						log.Warn("session closed", zap.Error(session.Context().Err()))
+						return nil
+					}
+					time.Sleep(downstreamRetryInterval)
 				}
 			case model.MqMessageTypeResolved:
 				ts, err := batchDecoder.NextResolvedEvent()
