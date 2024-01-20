@@ -103,7 +103,7 @@ func TestExtractRawKVEntry(t *testing.T) {
 	}
 
 	for i, c := range cases {
-		opType, key, value, ttl, err := extractEntry(c, now)
+		opType, key, value, ttl, err := ExtractRawKVEntry(c, now)
 		require.Equal(expects[i].opType, opType)
 		require.Equal(expects[i].key, key)
 		require.Equal(expects[i].value, value)
@@ -135,7 +135,7 @@ func TestTiKVSinkConfig(t *testing.T) {
 		require.NoError(err)
 
 		opts := make(map[string]string)
-		config, pdAddr, err := parseTiKVUri(sinkURI, opts)
+		config, pdAddr, err := ParseTiKVUri(sinkURI, opts)
 		require.NoError(err)
 		require.Equal(expected[i].pdAddr, pdAddr)
 		require.Equal(expected[i].concurrency, opts["concurrency"])
@@ -222,7 +222,7 @@ func TestTiKVSink(t *testing.T) {
 	require.NoError(err)
 
 	opts := make(map[string]string)
-	config, pdAddr, err := parseTiKVUri(sinkURI, opts)
+	config, pdAddr, err := ParseTiKVUri(sinkURI, opts)
 	require.NoError(err)
 
 	errCh := make(chan error)

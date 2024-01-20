@@ -43,6 +43,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	downstreamRetryInterval = 500 * time.Millisecond
+)
+
 // Sarama configuration options
 var (
 	kafkaAddrs           []string
@@ -105,14 +109,14 @@ func init() {
 	})
 	kafkaAddrs = strings.Split(upstreamURI.Host, ",")
 
-	config, err := newSaramaConfig()
+	cnf, err := newSaramaConfig()
 	if err != nil {
 		log.Fatal("Error creating sarama config", zap.Error(err))
 	}
 
 	s = upstreamURI.Query().Get("partition-num")
 	if s == "" {
-		partition, err := getPartitionNum(kafkaAddrs, kafkaTopic, config)
+		partition, err := getPartitionNum(kafkaAddrs, kafkaTopic, cnf)
 		if err != nil {
 			log.Fatal("can not get partition number", zap.String("topic", kafkaTopic), zap.Error(err))
 		}
@@ -144,6 +148,10 @@ func init() {
 		log.Info("Setting max-batch-size", zap.Int("max-batch-size", c))
 		kafkaMaxBatchSize = c
 	}
+
+	// Use `tikvSimpleSink` for "tikv".
+	// As `sink.tikvSink` has internal batch, it is not easy to tolerate errors of TiKV in Kafka consuming scene.
+	registerSimpleTiKVSink("tikv")
 }
 
 func getPartitionNum(address []string, topic string, cfg *sarama.Config) (int32, error) {
@@ -362,7 +370,8 @@ func (c *Consumer) Cleanup(sarama.ConsumerGroupSession) error {
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	ctx := context.TODO()
+	ctx, cancel := context.WithCancel(session.Context())
+	defer cancel()
 	partition := claim.Partition()
 	c.sinksMu.Lock()
 	sink := c.sinks[partition]
@@ -409,14 +418,25 @@ ClaimMessages:
 						zap.Int32("partition", partition))
 					break ClaimMessages
 				}
-				err = sink.EmitChangedEvents(ctx, kv)
-				if err != nil {
-					log.Fatal("emit row changed event failed", zap.Error(err))
-				}
-				log.Debug("Emit ChangedEvent", zap.Any("kv", kv))
-				lastCRTs := sink.lastCRTs.Load()
-				if lastCRTs < kv.CRTs {
-					sink.lastCRTs.Store(kv.CRTs)
+
+				for {
+					err = sink.EmitChangedEvents(ctx, kv)
+					if err == nil {
+						log.Debug("emit changed events", zap.Any("kv", kv))
+						lastCRTs := sink.lastCRTs.Load()
+						if lastCRTs < kv.CRTs {
+							sink.lastCRTs.Store(kv.CRTs)
+						}
+						break
+					} else {
+						log.Warn("emit row changed event failed", zap.Error(err))
+						if session.Context().Err() != nil {
+							log.Warn("session closed", zap.Error(session.Context().Err()))
+							return nil
+						} else {
+							time.Sleep(downstreamRetryInterval)
+						}
+					}	
 				}
 			case model.MqMessageTypeResolved:
 				ts, err := batchDecoder.NextResolvedEvent()

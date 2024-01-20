@@ -289,7 +289,7 @@ func (b *tikvBatcher) getNow() uint64 {
 	return uint64(time.Now().Unix()) // TODO: use TSO ?
 }
 
-func extractEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
+func ExtractRawKVEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType,
 	key []byte, value []byte, ttl uint64, err error,
 ) {
 	opType = entry.OpType
@@ -321,7 +321,7 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 		b.now = b.getNow()
 	}
 
-	opType, key, value, ttl, err := extractEntry(entry, b.now)
+	opType, key, value, ttl, err := ExtractRawKVEntry(entry, b.now)
 	if err != nil {
 		log.Error("failed to extract entry", zap.Any("event", entry), zap.Error(err))
 		b.statistics.AddInvalidKeyCount()
@@ -436,7 +436,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	}
 }
 
-func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config, []string, error) {
+func ParseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config, []string, error) {
 	config := tikvconfig.DefaultConfig()
 	pdAddrPrefix := "http://"
 
@@ -477,7 +477,7 @@ func parseTiKVUri(sinkURI *url.URL, opts map[string]string) (*tikvconfig.Config,
 }
 
 func newTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaConfig, opts map[string]string, errCh chan error) (*tikvSink, error) {
-	config, pdAddr, err := parseTiKVUri(sinkURI, opts)
+	config, pdAddr, err := ParseTiKVUri(sinkURI, opts)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
