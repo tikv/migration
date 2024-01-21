@@ -248,8 +248,10 @@ integration_test_by_group: prepare_test_binaries check_third_party_binary integr
 	tests/integration_tests/run_group.sh others
 
 prepare_test_binaries:
-	cd scripts && ./download-integration-test-binaries.sh "$(TEST_ON_BRANCH)" && cd ..
-	touch prepare_test_binaries
+	cd scripts && \
+		./download-integration-test-binaries.sh "$(TEST_ON_BRANCH)" && \
+		cd .. && \
+		touch prepare_test_binaries
 
 check_third_party_binary:
 	@which scripts/bin/tidb-server
