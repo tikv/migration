@@ -81,8 +81,6 @@ function on_exit() {
 	else
 		echo "Error $STATUS_CODE occurred on $LINE for sink $SINK_TYPE"
 
-		if [ "$SINK_TYPE" == "kafka" ]; then
-			cat "$WORK_DIR"/cdc_kafka_consumer*.log || true
-		fi
+		tail -n +1 "$WORK_DIR"/cdc*.log
 	fi
 }
