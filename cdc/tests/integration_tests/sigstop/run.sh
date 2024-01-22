@@ -125,7 +125,7 @@ function run_kill_downstream() {
 	fi
 }
 
-trap stop_tidb_cluster EXIT
+trap 'on_exit $? $LINENO $SINK_TYPE $WORK_DIR' EXIT
 run_kill_upstream $*
 run_kill_downstream $*
 check_logs $WORK_DIR
