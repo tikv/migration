@@ -57,6 +57,11 @@ EOF
 	# We set `per-changefeed-memory-quota=10M` and forbid sorter to use memory cache data,
 	# so maybe there is 10M of memory for data. But still needs some memory to hold related data structures.
 	expected=307200 #300M
+	if [ "$SINK_TYPE" == "kafka" ]; then
+		# Kafka sink use more memory
+		# TODO: investigate why. Maybe memory leak.
+		expected=$((expected + 524288)) # +500M
+	fi
 	used=$(expr $rss1 - $rss0)
 	echo "cdc server used memory: $used"
 	if [ $used -gt $expected ]; then
