@@ -69,7 +69,8 @@ EOF
 		fi
 	fi
 
-	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD
+	# As "per-changefeed-memory-quota" is low the syncing will cost more time.
+	check_sync_diff $WORK_DIR $UP_PD $DOWN_PD 200
 
 	export GO_FAILPOINTS=''
 	cleanup_process $CDC_BINARY
