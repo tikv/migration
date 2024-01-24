@@ -508,6 +508,7 @@ func (s *clientSuite) TestRecvLargeMessageSize(c *check.C) {
 	case <-time.After(30 * time.Second): // Send 128MB object may costs lots of time.
 		c.Fatalf("receiving message takes too long")
 	}
+	c.Assert(event, check.NotNil)
 	c.Assert(len(event.Val.Value), check.Equals, largeValSize)
 }
 
