@@ -44,7 +44,7 @@ function cleanup() {
 	fi
 }
 
-trap stop_tidb_cluster EXIT
+trap 'on_exit $? $LINENO $SINK_TYPE $WORK_DIR' EXIT
 prepare $*
 
 test_owner_ha $*

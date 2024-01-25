@@ -108,7 +108,7 @@ debug:
 	$(GOBUILD_DEBUG) -ldflags '$(LDFLAGS)' -o bin/tikv-cdc ./cmd/cdc/main.go
 
 kafka_consumer:
-	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc_kafka_consumer ./cmd/kafka-consumer/main.go
+	$(GOBUILD) -ldflags '$(LDFLAGS)' -o bin/cdc_kafka_consumer ./cmd/kafka-consumer/
 
 install:
 	go install ./...
@@ -248,8 +248,10 @@ integration_test_by_group: prepare_test_binaries check_third_party_binary integr
 	tests/integration_tests/run_group.sh others
 
 prepare_test_binaries:
-	cd scripts && ./download-integration-test-binaries.sh "$(TEST_ON_BRANCH)" && cd ..
-	touch prepare_test_binaries
+	cd scripts && \
+		./download-integration-test-binaries.sh "$(TEST_ON_BRANCH)" && \
+		cd .. && \
+		touch prepare_test_binaries
 
 check_third_party_binary:
 	@which scripts/bin/tidb-server

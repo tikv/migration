@@ -50,7 +50,7 @@ function run() {
 	fi
 }
 
-trap stop_tidb_cluster EXIT
+trap 'on_exit $? $LINENO $SINK_TYPE $WORK_DIR' EXIT
 run $*
 check_logs_contains $WORK_DIR "$SINK_TYPE sink injected error" 1
 echo "[$(date)] <<<<<< run test case $TEST_NAME success! >>>>>>"

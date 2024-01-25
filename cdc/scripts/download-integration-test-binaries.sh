@@ -28,6 +28,19 @@ color-green() { # Green
 	echo -e "\x1B[1;32m${*}\x1B[0m"
 }
 
+function download() {
+	local url=$1
+	local file_name=$2
+	local file_path=$3
+	if [[ -f "${file_path}" ]]; then
+		echo "file ${file_name} already exists, skip download"
+		return
+	fi
+	echo ">>>"
+	echo "download ${file_name} from ${url}"
+	wget --no-verbose --retry-connrefused --waitretry=1 -t 3 -O "${file_path}" "${url}"
+}
+
 # Specify the download branch.
 branch=$1
 
@@ -56,18 +69,22 @@ mkdir -p tmp
 mkdir -p bin
 
 color-green "Download binaries..."
-curl "${tidb_download_url}" | tar xz -C tmp bin/tidb-server
-curl "${tikv_download_url}" | tar xz -C tmp bin/tikv-server
-curl "${pd_download_url}" | tar xz --wildcards -C tmp bin/*
-mv tmp/bin/* third_bin
 
-curl "${go_ycsb_download_url}" -o third_bin/go-ycsb
-curl -L "${etcd_download_url}" | tar xz -C tmp
-mv tmp/etcd-v3.4.7-linux-amd64/etcdctl third_bin
+download "$tidb_download_url" "tidb-server.tar.gz" "tmp/tidb-server.tar.gz"
+tar -xz -C third_bin bin/tidb-server -f tmp/tidb-server.tar.gz && mv third_bin/bin/tidb-server third_bin/
+download "$pd_download_url" "pd-server.tar.gz" "tmp/pd-server.tar.gz"
+tar -xz --wildcards -C third_bin 'bin/*' -f tmp/pd-server.tar.gz && mv third_bin/bin/* third_bin/
+download "$tikv_download_url" "tikv-server.tar.gz" "tmp/tikv-server.tar.gz"
+tar -xz -C third_bin bin/tikv-server -f tmp/tikv-server.tar.gz && mv third_bin/bin/tikv-server third_bin/
+download "$go_ycsb_download_url" "go-ycsb" "third_bin/go-ycsb"
+download "$etcd_download_url" "etcd.tar.gz" "tmp/etcd.tar.gz"
+tar -xz -C third_bin etcd-v3.4.7-linux-amd64/etcdctl -f tmp/etcd.tar.gz && mv third_bin/etcd-v3.4.7-linux-amd64/etcdctl third_bin/
+
 chmod a+x third_bin/*
 
 # Copy it to the bin directory in the root directory.
 rm -rf tmp
+rm -rf bin/bin
 mv third_bin/* ./bin
 rm -rf third_bin
 

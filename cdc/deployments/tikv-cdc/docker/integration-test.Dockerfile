@@ -8,6 +8,8 @@ ARG TEST_ON_BRANCH=master
 USER root
 WORKDIR /root/download
 
+RUN yum install -y wget
+
 COPY ./scripts/download-integration-test-binaries.sh .
 # Download all binaries into bin dir.
 RUN ./download-integration-test-binaries.sh ${TEST_ON_BRANCH}

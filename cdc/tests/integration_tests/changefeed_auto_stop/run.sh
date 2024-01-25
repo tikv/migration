@@ -70,7 +70,7 @@ function run() {
 	fi
 }
 
-trap stop_tidb_cluster EXIT
+trap 'on_exit $? $LINENO $SINK_TYPE $WORK_DIR' EXIT
 run $*
 check_logs $WORK_DIR
 # the "1" below is the log suffix

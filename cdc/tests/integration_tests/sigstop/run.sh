@@ -22,7 +22,7 @@ function run_kill_upstream() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${DOWN_PD_HOST}:${DOWN_PD_PORT}" ;;
-	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME-upstream") ;;
 	*) SINK_URI="" ;;
 	esac
 
@@ -66,13 +66,9 @@ function run_kill_upstream() {
 	fi
 }
 
+# Note for Kafka sink: "kill_downstream" kills PD & TiKV in downstream cluster, but not Kafka.
+# TODO: kill Kafka in Kafka sink.
 function run_kill_downstream() {
-	# TODO: support Kafka
-	if [ "$SINK_TYPE" == "kafka" ]; then
-		echo "Kafka not support \"kill_downstream\" yet. Skip"
-		return 0
-	fi
-
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR --multiple-upstream-pd "true"
 	cd $WORK_DIR
@@ -87,7 +83,7 @@ function run_kill_downstream() {
 
 	case $SINK_TYPE in
 	tikv) SINK_URI="tikv://${UP_PD_HOST_1}:${UP_PD_PORT_1}" ;;
-	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME") ;;
+	kafka) SINK_URI=$(get_kafka_sink_uri "$TEST_NAME-downstream") ;;
 	*) SINK_URI="" ;;
 	esac
 
@@ -129,7 +125,7 @@ function run_kill_downstream() {
 	fi
 }
 
-trap stop_tidb_cluster EXIT
+trap 'on_exit $? $LINENO $SINK_TYPE $WORK_DIR' EXIT
 run_kill_upstream $*
 run_kill_downstream $*
 check_logs $WORK_DIR

@@ -11,12 +11,8 @@ UP_PD=http://$UP_PD_HOST_1:$UP_PD_PORT_1
 DOWN_PD=http://$DOWN_PD_HOST:$DOWN_PD_PORT
 CF_ID="stop-downstream"
 
-# TODO: support Kafka
-if [ "$SINK_TYPE" == "kafka" ]; then
-	echo "Kafka not support \"stop_downstream\" yet. Skip"
-	exit 0
-fi
-
+# Note for Kafka sink: "stop_downstream" stops PD & TiKV in downstream cluster, but not Kafka.
+# TODO: stop Kafka in Kafka sink.
 function run() {
 	rm -rf $WORK_DIR && mkdir -p $WORK_DIR
 	start_tidb_cluster --workdir $WORK_DIR
@@ -70,7 +66,7 @@ function run() {
 	fi
 }
 
-trap stop_tidb_cluster EXIT
+trap 'on_exit $? $LINENO $SINK_TYPE $WORK_DIR' EXIT
 run $*
 check_logs $WORK_DIR
 echo "[$(date)] <<<<<< run test case $TEST_NAME success! >>>>>>"

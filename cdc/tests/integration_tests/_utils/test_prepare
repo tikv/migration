@@ -66,3 +66,20 @@ function get_kafka_sink_uri() {
 function stop_kafka_consumer() {
 	cleanup_process cdc_kafka_consumer
 }
+
+# Usage: trap 'on_exit $? $LINENO $SINK_TYPE $WORK_DIR' EXIT
+function on_exit() {
+	STATUS_CODE=$1
+	LINE=$2
+	SINK_TYPE=$3
+	WORK_DIR=$4
+
+	stop_tidb_cluster
+
+	if [ "$STATUS_CODE" = "0" ]; then
+		return 0
+	else
+		echo "Error $STATUS_CODE occurred on $LINE for sink $SINK_TYPE"
+		tail -n +1 "$WORK_DIR"/cdc*.log
+	fi
+}
