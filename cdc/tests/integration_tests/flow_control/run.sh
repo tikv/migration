@@ -55,7 +55,9 @@ EOF
 		exit 1
 	fi
 	# We set `per-changefeed-memory-quota=10M` and forbid sorter to use memory cache data,
-	# so maybe there is 10M of memory for data. But still needs some memory to hold related data structures.
+	# so maybe there is 10M of memory for data.
+	# Note that there is memory usage between puller & sorter, and it's limited by size of channels.
+	# Use small record size to reduce memory usage of this part (see flow_control/config/workload).
 	expected=307200 #300M
 	used=$(expr $rss1 - $rss0)
 	echo "cdc server used memory: $used"

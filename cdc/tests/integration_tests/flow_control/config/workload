@@ -34,3 +34,5 @@ insertproportion=0
 
 requestdistribution=uniform
 
+fieldcount=1
+fieldlength=100
