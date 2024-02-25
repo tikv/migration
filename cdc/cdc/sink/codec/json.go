@@ -125,8 +125,10 @@ type JSONEventBatchEncoder struct {
 	valueBuf          *bytes.Buffer // Deprecated: only used for MixedBuild for now
 	supportMixedBuild bool          // TODO decouple this out
 
-	messageBuf   []*MQMessage
-	curBatchSize int
+	messageBuf      []*MQMessage
+	curBatchSize    int
+	totalBatchBytes int
+
 	// configs
 	maxMessageBytes int
 	maxBatchSize    int
@@ -226,6 +228,9 @@ func (d *JSONEventBatchEncoder) AppendChangedEvent(e *model.RawKVEntry) (Encoder
 			versionHead := make([]byte, 8)
 			binary.BigEndian.PutUint64(versionHead, BatchVersion1)
 
+			if len(d.messageBuf) > 0 {
+				d.totalBatchBytes += d.messageBuf[len(d.messageBuf)-1].Length()
+			}
 			d.messageBuf = append(d.messageBuf, NewMQMessage(config.ProtocolOpen, versionHead, nil, 0, model.MqMessageTypeKv))
 			d.curBatchSize = 0
 		}
@@ -307,13 +312,24 @@ func (d *JSONEventBatchEncoder) MixedBuild(withVersion bool) []byte {
 
 // Size implements the EventBatchEncoder interface
 func (d *JSONEventBatchEncoder) Size() int {
-	return d.keyBuf.Len() + d.valueBuf.Len()
+	if d.supportMixedBuild {
+		return d.keyBuf.Len() + d.valueBuf.Len()
+	}
+	lastMessageLength := 0
+	if len(d.messageBuf) > 0 {
+		lastMessageLength = d.messageBuf[len(d.messageBuf)-1].Length()
+	}
+	return d.totalBatchBytes + lastMessageLength
 }
 
 // Reset implements the EventBatchEncoder interface
 func (d *JSONEventBatchEncoder) Reset() {
 	d.keyBuf.Reset()
 	d.valueBuf.Reset()
+
+	d.messageBuf = d.messageBuf[:0]
+	d.curBatchSize = 0
+	d.totalBatchBytes = 0
 }
 
 // SetParams reads relevant parameters for Open Protocol
