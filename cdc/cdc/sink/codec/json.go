@@ -127,7 +127,7 @@ type JSONEventBatchEncoder struct {
 
 	messageBuf      []*MQMessage
 	curBatchSize    int
-	totalBatchBytes int
+	totalBatchBytes int // Note: The size of last message is not included
 
 	// configs
 	maxMessageBytes int
@@ -315,6 +315,7 @@ func (d *JSONEventBatchEncoder) Size() int {
 	if d.supportMixedBuild {
 		return d.keyBuf.Len() + d.valueBuf.Len()
 	}
+
 	lastMessageLength := 0
 	if len(d.messageBuf) > 0 {
 		lastMessageLength = d.messageBuf[len(d.messageBuf)-1].Length()
