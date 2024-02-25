@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	defaultPDErrorRetry int = math.MaxInt
+	defaultPDErrorRetry        int    = math.MaxInt
 	defaultTiKVBatchBytesLimit uint64 = 40 * 1024 * 1024 // 40MB
 )
 
@@ -38,7 +38,7 @@ var _ sink.Sink = (*tikvSimpleSink)(nil)
 // tikvSimpleSink is a sink that sends events to downstream TiKV cluster.
 // The reason why we need this sink other than `cdc/sink/tikv.tikvSink` is that we need Kafka message offset to handle TiKV errors, which is not provided by `tikvSink`.
 type tikvSimpleSink struct {
-	client *rawkv.Client
+	client  *rawkv.Client
 	batcher *sink.TikvBatcher
 }
 
@@ -57,7 +57,7 @@ func newSimpleTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaC
 		return nil, errors.Trace(err)
 	}
 	return &tikvSimpleSink{
-		client: client,
+		client:  client,
 		batcher: sink.NewTiKVBatcher(nil),
 	}, nil
 }
