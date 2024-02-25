@@ -154,7 +154,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 	}()
 
 	statistics := NewStatistics(context.Background(), "TiKV", map[string]string{})
-	batcher := newTiKVBatcher(statistics)
+	batcher := NewTiKVBatcher(statistics)
 	keys := []string{
 		"a", "b", "c", "d", "e", "f",
 	}

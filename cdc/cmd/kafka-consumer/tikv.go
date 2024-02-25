@@ -17,7 +17,6 @@ import (
 	"context"
 	"math"
 	"net/url"
-	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
@@ -31,6 +30,7 @@ import (
 
 const (
 	defaultPDErrorRetry int = math.MaxInt
+	defaultTiKVBatchBytesLimit uint64 = 40 * 1024 * 1024 // 40MB
 )
 
 var _ sink.Sink = (*tikvSimpleSink)(nil)
@@ -39,6 +39,7 @@ var _ sink.Sink = (*tikvSimpleSink)(nil)
 // The reason why we need this sink other than `cdc/sink/tikv.tikvSink` is that we need Kafka message offset to handle TiKV errors, which is not provided by `tikvSink`.
 type tikvSimpleSink struct {
 	client *rawkv.Client
+	batcher *sink.TikvBatcher
 }
 
 func newSimpleTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaConfig, opts map[string]string, _ chan error) (*tikvSimpleSink, error) {
@@ -57,33 +58,49 @@ func newSimpleTiKVSink(ctx context.Context, sinkURI *url.URL, _ *config.ReplicaC
 	}
 	return &tikvSimpleSink{
 		client: client,
+		batcher: sink.NewTiKVBatcher(nil),
 	}, nil
 }
 
 func (s *tikvSimpleSink) EmitChangedEvents(ctx context.Context, rawKVEntries ...*model.RawKVEntry) error {
-	now := uint64(time.Now().Unix())
+	s.batcher.Reset()
+
+	flushToTiKV := func() error {
+		if s.batcher.IsEmpty() {
+			return nil
+		}
+
+		var err error
+		for _, batch := range s.batcher.Batches {
+			if batch.OpType == model.OpTypePut {
+				err = s.client.BatchPutWithTTL(ctx, batch.Keys, batch.Values, batch.TTLs)
+			} else if batch.OpType == model.OpTypeDelete {
+				err = s.client.BatchDelete(ctx, batch.Keys)
+			} else {
+				err = errors.Errorf("unexpected OpType: %v", batch.OpType)
+			}
+			if err != nil {
+				return errors.Trace(err)
+			}
+		}
+		s.batcher.Reset()
+		return nil
+	}
 
 	for _, entry := range rawKVEntries {
-		opType, key, value, ttl, err := sink.ExtractRawKVEntry(entry, now)
+		err := s.batcher.Append(entry)
 		if err != nil {
 			return errors.Trace(err)
 		}
 
-		if opType == model.OpTypePut {
-			err := s.client.PutWithTTL(ctx, key, value, ttl)
-			if err != nil {
+		if s.batcher.ByteSize() >= defaultTiKVBatchBytesLimit {
+			if err := flushToTiKV(); err != nil {
 				return errors.Trace(err)
 			}
-		} else if opType == model.OpTypeDelete {
-			err := s.client.Delete(ctx, key)
-			if err != nil {
-				return errors.Trace(err)
-			}
-		} else {
-			return errors.Errorf("unexpected opType %v", opType)
 		}
 	}
-	return nil
+
+	return errors.Trace(flushToTiKV())
 }
 
 func (s *tikvSimpleSink) FlushChangedEvents(ctx context.Context, _ model.KeySpanID, resolvedTs uint64) (uint64, error) {
@@ -95,6 +112,7 @@ func (s *tikvSimpleSink) EmitCheckpointTs(ctx context.Context, ts uint64) error 
 }
 
 func (s *tikvSimpleSink) Close(ctx context.Context) error {
+	s.batcher.Reset()
 	return errors.Trace(s.client.Close())
 }
 
