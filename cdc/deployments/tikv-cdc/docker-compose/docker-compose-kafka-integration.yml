@@ -8,11 +8,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: 200m
-          memory: 4Gi
+          cpus: '2'
+          memory: 4G
         reservations:
-          cpus: 2000m
-          memory: 4Gi
+          memory: 4G
 
   kafka:
     image: wurstmeister/kafka:2.12-2.4.1
@@ -30,11 +29,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: 200m
-          memory: 4Gi
+          cpus: '2'
+          memory: 4G
         reservations:
-          cpus: 2000m
-          memory: 4Gi
+          memory: 4G
     depends_on:
       - "zookeeper"
 
@@ -57,8 +55,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: 2000m
-          memory: 12Gi
+          cpus: '4'
+          memory: 16G
         reservations:
-          cpus: 4000m
-          memory: 16Gi
+          memory: 12G
