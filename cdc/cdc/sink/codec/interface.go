@@ -16,6 +16,7 @@ package codec
 import (
 	"context"
 	"encoding/binary"
+	"sync"
 	"time"
 
 	"github.com/pingcap/log"
@@ -63,6 +64,15 @@ type MQMessage struct {
 	entriesCount int                 // entries in one MQ Message
 }
 
+func (m *MQMessage) Reset() {
+	m.Key = m.Key[:0]
+	m.Value = m.Value[:0]
+	m.Ts = 0
+	m.Type = model.MqMessageTypeUnknown
+	m.Protocol = config.ProtocolDefault
+	m.entriesCount = 0
+}
+
 // maximumRecordOverhead is used to calculate ProducerMessage's byteSize by sarama kafka client.
 // reference: https://github.com/Shopify/sarama/blob/66521126c71c522c15a36663ae9cddc2b024c799/async_producer.go#L233
 // for TiKV-CDC, minimum supported kafka version is `0.11.0.2`, which will be treated as `version = 2` by sarama producer.
@@ -99,29 +109,35 @@ func newResolvedMQMessage(proto config.Protocol, key, value []byte, ts uint64) *
 	return NewMQMessage(proto, key, value, ts, model.MqMessageTypeResolved)
 }
 
+var mqMsgPool = sync.Pool{
+	New: func() any {
+		return new(MQMessage)
+	},
+}
+
 // NewMQMessage should be used when creating a MQMessage struct.
 // It copies the input byte slices to avoid any surprises in asynchronous MQ writes.
 func NewMQMessage(proto config.Protocol, key []byte, value []byte, ts uint64, ty model.MqMessageType) *MQMessage {
-	ret := &MQMessage{
-		Key:          nil,
-		Value:        nil,
-		Ts:           ts,
-		Type:         ty,
-		Protocol:     proto,
-		entriesCount: 0,
-	}
+	ret := mqMsgPool.Get().(*MQMessage)
+	ret.Ts = ts
+	ret.Type = ty
+	ret.Protocol = proto
+	ret.entriesCount = 0
 
 	if key != nil {
-		ret.Key = make([]byte, len(key))
-		copy(ret.Key, key)
+		ret.Key = append(ret.Key, key...)
 	}
 
 	if value != nil {
-		ret.Value = make([]byte, len(value))
-		copy(ret.Value, value)
+		ret.Value = append(ret.Value, value...)
 	}
 
 	return ret
+}
+
+func ReleaseMQMessage(m *MQMessage) {
+	m.Reset()
+	mqMsgPool.Put(m)
 }
 
 // EventBatchDecoder is an abstraction for events decoder
