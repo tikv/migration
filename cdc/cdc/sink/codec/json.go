@@ -254,6 +254,8 @@ func (d *JSONEventBatchEncoder) AppendChangedEvent(e *model.RawKVEntry) (Encoder
 }
 
 // Build implements the EventBatchEncoder interface
+// NOTE: when supportMixedBuild is enabled, must call Reset() after the returned `mqMessages` is used.
+// It's not a good design. As supportMixedBuild is used in unit tests only, we don't fix it now.
 func (d *JSONEventBatchEncoder) Build() (mqMessages []*MQMessage) {
 	if d.supportMixedBuild {
 		if d.valueBuf.Len() == 0 {
@@ -265,7 +267,7 @@ func (d *JSONEventBatchEncoder) Build() (mqMessages []*MQMessage) {
 	}
 
 	ret := d.messageBuf
-	d.messageBuf = make([]*MQMessage, 0)
+	d.Reset()
 	return ret
 }
 
@@ -325,12 +327,14 @@ func (d *JSONEventBatchEncoder) Size() int {
 
 // Reset implements the EventBatchEncoder interface
 func (d *JSONEventBatchEncoder) Reset() {
-	d.keyBuf.Reset()
-	d.valueBuf.Reset()
-
-	d.messageBuf = d.messageBuf[:0]
-	d.curBatchSize = 0
-	d.totalBatchBytes = 0
+	if d.supportMixedBuild {
+		d.keyBuf.Reset()
+		d.valueBuf.Reset()
+	} else {
+		d.messageBuf = make([]*MQMessage, 0)
+		d.curBatchSize = 0
+		d.totalBatchBytes = 0
+	}
 }
 
 // SetParams reads relevant parameters for Open Protocol
