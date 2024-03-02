@@ -72,6 +72,11 @@ type kafkaSaramaProducer struct {
 
 type kafkaProducerClosingFlag = int32
 
+type kafkaMetadata struct {
+	message *codec.MQMessage
+	offset  uint64
+}
+
 func (k *kafkaSaramaProducer) AsyncSendMessage(ctx context.Context, message *codec.MQMessage, partition int32) error {
 	k.clientLock.RLock()
 	defer k.clientLock.RUnlock()
@@ -88,7 +93,11 @@ func (k *kafkaSaramaProducer) AsyncSendMessage(ctx context.Context, message *cod
 		Value:     sarama.ByteEncoder(message.Value),
 		Partition: partition,
 	}
-	msg.Metadata = atomic.AddUint64(&k.partitionOffset[partition].sent, 1)
+	metadata := &kafkaMetadata{
+		message: message,
+		offset:  atomic.AddUint64(&k.partitionOffset[partition].sent, 1),
+	}
+	msg.Metadata = metadata
 
 	failpoint.Inject("KafkaSinkAsyncSendError", func() {
 		// simulate sending message to input channel successfully but flushing
@@ -242,7 +251,9 @@ func (k *kafkaSaramaProducer) run(ctx context.Context) error {
 			if msg == nil || msg.Metadata == nil {
 				continue
 			}
-			flushedOffset := msg.Metadata.(uint64)
+			metadata := msg.Metadata.(*kafkaMetadata)
+			codec.ReleaseMQMessage(metadata.message)
+			flushedOffset := metadata.offset
 			atomic.StoreUint64(&k.partitionOffset[msg.Partition].flushed, flushedOffset)
 			k.flushedNotifier.Notify()
 		case err := <-k.asyncClient.Errors():

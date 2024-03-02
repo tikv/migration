@@ -64,9 +64,23 @@ type MQMessage struct {
 	entriesCount int                 // entries in one MQ Message
 }
 
+const (
+	MemoryReleaseThreshold = 1024
+	MemoryReleaseFactor    = 10
+)
+
+func resetBuffer(buf []byte) []byte {
+	length := len(buf)
+	capSize := cap(buf)
+	if capSize > MemoryReleaseThreshold && length > 0 && length*MemoryReleaseFactor < capSize {
+		return nil
+	}
+	return buf[:0]
+}
+
 func (m *MQMessage) Reset() {
-	m.Key = m.Key[:0]
-	m.Value = m.Value[:0]
+	m.Key = resetBuffer(m.Key)
+	m.Value = resetBuffer(m.Value)
 	m.Ts = 0
 	m.Type = model.MqMessageTypeUnknown
 	m.Protocol = config.ProtocolDefault

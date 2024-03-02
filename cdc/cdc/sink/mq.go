@@ -239,11 +239,6 @@ func (k *mqSink) runWorker(ctx context.Context, partition int32) error {
 	flushToProducer := func(op codec.EncoderResult) error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
 			messages := encoder.Build()
-			defer func() {
-				for _, msg := range messages {
-					codec.ReleaseMQMessage(msg)
-				}
-			}()
 			thisBatchSize := 0
 			if len(messages) == 0 {
 				return 0, nil
