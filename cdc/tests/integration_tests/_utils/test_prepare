@@ -80,6 +80,7 @@ function on_exit() {
 		return 0
 	else
 		echo "Error $STATUS_CODE occurred on $LINE for sink $SINK_TYPE"
-		tail -n +1 "$WORK_DIR"/cdc*.log
+		# CI env already collect "*.log". Uncomment it for other envs.
+		# tail -n +1 "$WORK_DIR"/cdc*.log
 	fi
 }
