@@ -269,14 +269,14 @@ func (k *kafkaSaramaProducer) run(ctx context.Context) error {
 }
 
 var (
-	newSaramaConfigImpl                                 = newSaramaConfig
+	NewSaramaConfigImpl                                 = newSaramaConfig
 	NewAdminClientImpl  kafka.ClusterAdminClientCreator = kafka.NewSaramaAdminClient
 )
 
 // NewKafkaSaramaProducer creates a kafka sarama producer
 func NewKafkaSaramaProducer(ctx context.Context, topic string, config *Config, opts map[string]string, errCh chan error) (*kafkaSaramaProducer, error) {
 	log.Info("Starting kafka sarama producer ...", zap.Reflect("config", config))
-	cfg, err := newSaramaConfigImpl(ctx, config)
+	cfg, err := NewSaramaConfigImpl(ctx, config)
 	if err != nil {
 		return nil, err
 	}
