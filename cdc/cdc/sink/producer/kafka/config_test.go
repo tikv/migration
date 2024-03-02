@@ -33,13 +33,13 @@ func (s *kafkaSuite) TestNewSaramaConfig(c *check.C) {
 	ctx := context.Background()
 	config := NewConfig()
 	config.Version = "invalid"
-	_, err := newSaramaConfigImpl(ctx, config)
+	_, err := NewSaramaConfigImpl(ctx, config)
 	c.Assert(errors.Cause(err), check.ErrorMatches, "invalid version.*")
 
 	ctx = util.SetOwnerInCtx(ctx)
 	config.Version = "2.6.0"
 	config.ClientID = "^invalid$"
-	_, err = newSaramaConfigImpl(ctx, config)
+	_, err = NewSaramaConfigImpl(ctx, config)
 	c.Assert(cerror.ErrKafkaInvalidClientID.Equal(err), check.IsTrue)
 
 	config.ClientID = "test-kafka-client"
@@ -56,7 +56,7 @@ func (s *kafkaSuite) TestNewSaramaConfig(c *check.C) {
 	}
 	for _, cc := range compressionCases {
 		config.Compression = cc.algorithm
-		cfg, err := newSaramaConfigImpl(ctx, config)
+		cfg, err := NewSaramaConfigImpl(ctx, config)
 		c.Assert(err, check.IsNil)
 		c.Assert(cfg.Producer.Compression, check.Equals, cc.expected)
 	}
@@ -64,7 +64,7 @@ func (s *kafkaSuite) TestNewSaramaConfig(c *check.C) {
 	config.Credential = &security.Credential{
 		CAPath: "/invalid/ca/path",
 	}
-	_, err = newSaramaConfigImpl(ctx, config)
+	_, err = NewSaramaConfigImpl(ctx, config)
 	c.Assert(errors.Cause(err), check.ErrorMatches, ".*no such file or directory")
 
 	saslConfig := NewConfig()
@@ -76,7 +76,7 @@ func (s *kafkaSuite) TestNewSaramaConfig(c *check.C) {
 		SaslMechanism: sarama.SASLTypeSCRAMSHA256,
 	}
 
-	cfg, err := newSaramaConfigImpl(ctx, saslConfig)
+	cfg, err := NewSaramaConfigImpl(ctx, saslConfig)
 	c.Assert(err, check.IsNil)
 	c.Assert(cfg, check.NotNil)
 	c.Assert(cfg.Net.SASL.User, check.Equals, "user")

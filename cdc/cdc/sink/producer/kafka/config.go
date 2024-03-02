@@ -31,7 +31,7 @@ import (
 )
 
 func init() {
-	sarama.MaxRequestSize = 1024 * 1024 * 1024 // 1GB
+	sarama.MaxRequestSize = 100 * 1024 * 1024 // 100MB
 }
 
 // Config stores user specified Kafka producer configuration

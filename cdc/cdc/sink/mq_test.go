@@ -32,7 +32,7 @@ import (
 
 type mqSinkSuite struct{}
 
-var _ = check.Suite(&mqSinkSuite{})
+var _ = check.SerialSuites(&mqSinkSuite{})
 
 func (s mqSinkSuite) TestKafkaSink(c *check.C) {
 	defer testleak.AfterTest(c)()
@@ -144,6 +144,16 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 	opts := map[string]string{}
 	errCh := make(chan error, 1)
 
+	newSaramaConfigImplBak := kafkap.NewSaramaConfigImpl
+	kafkap.NewSaramaConfigImpl = func(ctx context.Context, config *kafkap.Config) (*sarama.Config, error) {
+		cfg, err := newSaramaConfigImplBak(ctx, config)
+		c.Assert(err, check.IsNil)
+		cfg.Producer.Flush.MaxMessages = 1
+		return cfg, err
+	}
+	defer func() {
+		kafkap.NewSaramaConfigImpl = newSaramaConfigImplBak
+	}()
 	kafkap.NewAdminClientImpl = kafka.NewMockAdminClient
 	defer func() {
 		kafkap.NewAdminClientImpl = kafka.NewSaramaAdminClient
@@ -152,8 +162,11 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 	sink, err := newKafkaSaramaSink(ctx, sinkURI, replicaConfig, opts, errCh)
 	c.Assert(err, check.IsNil)
 
-	// mock kafka broker processes 1 row changed event
-	leader.Returns(prodSuccess)
+	// mock kafka broker processes 3 row changed event
+	for i := 0; i < 3; i++ {
+		leader.Returns(prodSuccess)
+	}
+
 	keyspanID1 := model.KeySpanID(1)
 	kv1 := &model.RawKVEntry{
 		OpType:  model.OpTypePut,
@@ -182,12 +195,9 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 		StartTs: 110,
 		CRTs:    130,
 	}
-
 	err = sink.EmitChangedEvents(ctx, kv3)
 	c.Assert(err, check.IsNil)
 
-	// mock kafka broker processes 1 row resolvedTs event
-	leader.Returns(prodSuccess)
 	checkpointTs1, err := sink.FlushChangedEvents(ctx, keyspanID1, kv1.CRTs)
 	c.Assert(err, check.IsNil)
 	c.Assert(checkpointTs1, check.Equals, kv1.CRTs)
