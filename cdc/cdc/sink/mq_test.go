@@ -25,6 +25,7 @@ import (
 	"github.com/tikv/migration/cdc/cdc/sink/codec"
 	kafkap "github.com/tikv/migration/cdc/cdc/sink/producer/kafka"
 	"github.com/tikv/migration/cdc/pkg/config"
+	"github.com/tikv/migration/cdc/pkg/logutil"
 
 	"github.com/tikv/migration/cdc/pkg/kafka"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
@@ -120,6 +121,11 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 	defer testleak.AfterTest(c)()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	err := logutil.InitLogger(&logutil.Config{
+		Level: "debug",
+	})
+	c.Assert(err, check.IsNil)
 
 	topic := kafka.DefaultMockTopicName
 	leader := sarama.NewMockBroker(c, 1)
