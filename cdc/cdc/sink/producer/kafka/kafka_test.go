@@ -26,20 +26,12 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/tikv/migration/cdc/cdc/sink/codec"
 	"github.com/tikv/migration/cdc/pkg/kafka"
-	"github.com/tikv/migration/cdc/pkg/logutil"
 	"github.com/tikv/migration/cdc/pkg/util/testleak"
 )
 
 type kafkaSuite struct{}
 
-func (s *kafkaSuite) SetUpTest(c *check.C) {
-	err := logutil.InitLogger(&logutil.Config{
-		Level: "debug",
-	})
-	c.Assert(err, check.IsNil)
-}
-
-var _ = check.Suite(&kafkaSuite{})
+var _ = check.SerialSuites(&kafkaSuite{})
 
 func Test(t *testing.T) { check.TestingT(t) }
 
@@ -110,6 +102,9 @@ func (s *kafkaSuite) TestNewSaramaProducer(c *check.C) {
 		cfg.Producer.Flush.MaxMessages = 1
 		return cfg, err
 	}
+	defer func() {
+		newSaramaConfigImpl = newSaramaConfigImplBak
+	}()
 	NewAdminClientImpl = kafka.NewMockAdminClient
 	defer func() {
 		NewAdminClientImpl = kafka.NewSaramaAdminClient

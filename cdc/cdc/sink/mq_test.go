@@ -32,7 +32,7 @@ import (
 
 type mqSinkSuite struct{}
 
-var _ = check.Suite(&mqSinkSuite{})
+var _ = check.SerialSuites(&mqSinkSuite{})
 
 func (s mqSinkSuite) TestKafkaSink(c *check.C) {
 	defer testleak.AfterTest(c)()
