@@ -19,7 +19,7 @@ function run() {
 	cd $WORK_DIR
 
 	start_ts=$(get_start_ts $UP_PD)
-	go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 100 # About 500MiB
+	go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 200 # About 500MiB
 
 	cat - >"$WORK_DIR/tikv-cdc-config.toml" <<EOF
 per-changefeed-memory-quota=10485760 #10M
