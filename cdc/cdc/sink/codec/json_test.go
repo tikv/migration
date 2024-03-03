@@ -208,9 +208,10 @@ func (s *batchSuite) TestMaxMessageBytes(c *check.C) {
 		ExpiredTs: 200,
 	}
 	eventSize := 75
-	// for a single message, the overhead is 36(maximumRecordOverhead) + 8(versionHea) = 44, just can hold it.
+	// for a single message, the overhead is 36(maximumRecordOverhead) + 8(versionHea) = 44.
 	overhead := 36 + 8
 
+	// just can hold a single message.
 	a := strconv.Itoa(eventSize + overhead)
 	err := encoder.SetParams(map[string]string{"max-message-bytes": a})
 	c.Check(err, check.IsNil)

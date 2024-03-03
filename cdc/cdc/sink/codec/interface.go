@@ -133,6 +133,12 @@ var mqMsgPool = sync.Pool{
 // It copies the input byte slices to avoid any surprises in asynchronous MQ writes.
 func NewMQMessage(proto config.Protocol, key []byte, value []byte, ts uint64, ty model.MqMessageType) *MQMessage {
 	ret := mqMsgPool.Get().(*MQMessage)
+
+	// TODO: remove this check.
+	if len(ret.Key) > 0 || len(ret.Value) > 0 {
+		log.Panic("MQMessage is not reset", zap.String("key", string(ret.Key)), zap.String("value", string(ret.Value)))
+	}
+
 	ret.Ts = ts
 	ret.Type = ty
 	ret.Protocol = proto
