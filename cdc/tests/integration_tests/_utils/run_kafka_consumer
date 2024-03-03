@@ -49,7 +49,7 @@ echo "[$(date)] <<<<<< START Kafka consumer in $TEST_NAME case >>>>>>"
 cd "$workdir"
 cdc_kafka_consumer \
 	--log-file "$workdir/cdc_kafka_consumer$log_suffix.log" \
-	--log-level debug \
+	--log-level info \
 	--upstream-uri "$upstream_uri" \
 	--downstream-uri "$downstream_uri" \
 	>>"$workdir/cdc_kafka_consumer_stdout$log_suffix.log" 2>&1 &

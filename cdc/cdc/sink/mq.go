@@ -263,7 +263,7 @@ func (k *mqSink) runWorker(ctx context.Context, partition int32) error {
 					return 0, err
 				}
 			}
-			log.Info("MQSink flushed", zap.Int("thisBatchSize", thisBatchSize))
+			log.Debug("MQSink flushed", zap.Int("thisBatchSize", thisBatchSize))
 			return thisBatchSize, nil
 		})
 	}
