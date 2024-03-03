@@ -65,8 +65,8 @@ type MQMessage struct {
 }
 
 const (
-	MemoryReleaseThreshold = 1024
-	MemoryReleaseFactor    = 10
+	MemoryReleaseThreshold = 100 * 1024 // 100KiB
+	MemoryReleaseFactor    = 100
 )
 
 func resetBuffer(buf []byte) []byte {
