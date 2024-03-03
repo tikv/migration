@@ -162,7 +162,7 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 	sink, err := newKafkaSaramaSink(ctx, sinkURI, replicaConfig, opts, errCh)
 	c.Assert(err, check.IsNil)
 
-	// mock kafka broker processes 3 row changed event
+	// mock kafka broker processes 3 row changed events
 	for i := 0; i < 3; i++ {
 		leader.Returns(prodSuccess)
 	}

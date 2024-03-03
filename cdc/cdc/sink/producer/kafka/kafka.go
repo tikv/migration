@@ -97,6 +97,7 @@ func (k *kafkaSaramaProducer) AsyncSendMessage(ctx context.Context, message *cod
 		message: message,
 		offset:  atomic.AddUint64(&k.partitionOffset[partition].sent, 1),
 	}
+	log.Debug("kafka producer sending message", zap.Int32("partition", partition), zap.Uint64("offset", metadata.offset))
 	msg.Metadata = metadata
 
 	failpoint.Inject("KafkaSinkAsyncSendError", func() {
@@ -254,7 +255,13 @@ func (k *kafkaSaramaProducer) run(ctx context.Context) error {
 			metadata := msg.Metadata.(*kafkaMetadata)
 			codec.ReleaseMQMessage(metadata.message)
 			flushedOffset := metadata.offset
-			atomic.StoreUint64(&k.partitionOffset[msg.Partition].flushed, flushedOffset)
+
+			prevOffset := atomic.SwapUint64(&k.partitionOffset[msg.Partition].flushed, flushedOffset)
+			if flushedOffset <= prevOffset {
+				log.Panic("kafka producer flushed offset goes backward", zap.Int32("partition", msg.Partition), zap.Uint64("flushed", flushedOffset), zap.Uint64("prev", prevOffset))
+			}
+			log.Debug("kafka producer flushed message", zap.Int32("partition", msg.Partition), zap.Uint64("offset", flushedOffset))
+
 			k.flushedNotifier.Notify()
 		case err := <-k.asyncClient.Errors():
 			// We should not wrap a nil pointer if the pointer is of a subtype of `error`
