@@ -184,7 +184,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 			CRTs:      uint64(i),
 		}
 		require.NoError(batcher.Append(entry0))
-		require.NoError(batcher.Append(entry1))
+		require.Error(batcher.Append(entry1))
 	}
 	require.Len(batcher.Batches, 3)
 	require.Equal(6, batcher.Count())
