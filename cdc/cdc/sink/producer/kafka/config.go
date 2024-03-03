@@ -231,6 +231,7 @@ func newSaramaConfig(ctx context.Context, c *Config) (*sarama.Config, error) {
 	// and https://github.com/tikv/migration/cdc/issues/3352.
 	config.Metadata.Timeout = 1 * time.Minute
 
+	config.Producer.Idempotent = true
 	config.Producer.Partitioner = sarama.NewManualPartitioner
 	config.Producer.MaxMessageBytes = c.MaxMessageBytes
 	config.Producer.Return.Successes = true
@@ -259,6 +260,8 @@ func newSaramaConfig(ctx context.Context, c *Config) (*sarama.Config, error) {
 	config.Admin.Retry.Max = 120
 	config.Admin.Retry.Backoff = 500 * time.Millisecond
 	config.Admin.Timeout = 1 * time.Minute
+
+	config.Net.MaxOpenRequests = 1
 
 	if c.Credential != nil && len(c.Credential.CAPath) != 0 {
 		config.Net.TLS.Enable = true
