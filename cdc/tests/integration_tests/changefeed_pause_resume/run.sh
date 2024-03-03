@@ -28,7 +28,7 @@ function run() {
 		run_kafka_consumer --workdir "$WORK_DIR" --upstream-uri "$SINK_URI"
 	fi
 
-	for i in $(seq 1 10); do
+	for _ in $(seq 1 10); do
 		tikv-cdc cli changefeed pause --changefeed-id=$changefeed_id --pd=$UP_PD
 		rawkv_op $UP_PD put 5000
 		tikv-cdc cli changefeed resume --changefeed-id=$changefeed_id --pd=$UP_PD
