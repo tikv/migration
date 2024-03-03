@@ -93,6 +93,7 @@ func (s *kafkaSuite) TestNewSaramaProducer(c *check.C) {
 	config.Version = "0.9.0.0"
 	config.PartitionNum = int32(2)
 	config.AutoCreate = false
+	config.Idempotent = false
 	config.BrokerEndpoints = strings.Split(leader.Addr(), ",")
 
 	newSaramaConfigImplBak := NewSaramaConfigImpl
@@ -339,6 +340,7 @@ func (s *kafkaSuite) TestProducerSendMessageFailed(c *check.C) {
 	config.Version = "0.9.0.0"
 	config.PartitionNum = int32(2)
 	config.AutoCreate = false
+	config.Idempotent = false
 	config.BrokerEndpoints = strings.Split(leader.Addr(), ",")
 
 	NewAdminClientImpl = kafka.NewMockAdminClient
@@ -421,6 +423,7 @@ func (s *kafkaSuite) TestProducerDoubleClose(c *check.C) {
 	config.Version = "0.9.0.0"
 	config.PartitionNum = int32(2)
 	config.AutoCreate = false
+	config.Idempotent = false
 	config.BrokerEndpoints = strings.Split(leader.Addr(), ",")
 
 	NewAdminClientImpl = kafka.NewMockAdminClient
