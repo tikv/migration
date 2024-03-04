@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"net/url"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 )
 
 const (
-	defaultPDErrorRetry int = 10
+	defaultPDErrorRetry int = math.MaxInt
 )
 
 var _ sink.Sink = (*tikvSimpleSink)(nil)

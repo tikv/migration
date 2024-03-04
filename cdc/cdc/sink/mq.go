@@ -250,11 +250,11 @@ func (k *mqSink) runWorker(ctx context.Context, partition int32) error {
 			})
 
 			for _, msg := range messages {
+				thisBatchSize += msg.GetEntriesCount()
 				err := k.writeToProducer(ctx, msg, codec.EncoderNeedAsyncWrite, partition)
 				if err != nil {
 					return 0, err
 				}
-				thisBatchSize += msg.GetEntriesCount()
 			}
 
 			if op == codec.EncoderNeedSyncWrite {

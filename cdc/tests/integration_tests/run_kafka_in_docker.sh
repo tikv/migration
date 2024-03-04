@@ -20,4 +20,4 @@ done
 
 COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 \
 	CASE="$CASE" \
-	docker-compose -f ./deployments/tikv-cdc/docker-compose/docker-compose-kafka-integration.yml up --build
+	docker-compose --compatibility -f ./deployments/tikv-cdc/docker-compose/docker-compose-kafka-integration.yml up --build

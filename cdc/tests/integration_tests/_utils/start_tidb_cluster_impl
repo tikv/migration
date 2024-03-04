@@ -13,6 +13,7 @@ multiple_upstream_pd=
 random_file_name=
 verify_tidb=false
 tikv_count=3
+log_level=info
 
 # Random generate the sockets config.
 # Make sure we dont use the same sock.
@@ -46,10 +47,14 @@ while [[ ${1-} ]]; do
 		shift
 		;;
 	--verify-tidb)
-		vierfy_tidb=true
+		verify_tidb=true
 		;;
 	--tikv-count)
 		tikv_count=${2}
+		shift
+		;;
+	--log-level)
+		log_level=${2}
 		shift
 		;;
 	*)
@@ -204,7 +209,7 @@ for idx in $(seq 1 "$tikv_count"); do
 		-A ${!host}:${!port} \
 		--status-addr ${!host}:${!status_port} \
 		--log-file "$OUT_DIR/tikv$idx.log" \
-		--log-level debug \
+		--log-level "$log_level" \
 		-C "$OUT_DIR/tikv-config.toml" \
 		-s "$OUT_DIR/tikv$idx" &
 done
@@ -215,7 +220,7 @@ tikv-server \
 	-A ${DOWN_TIKV_HOST}:${DOWN_TIKV_PORT} \
 	--status-addr ${DOWN_TIKV_HOST}:${DOWN_TIKV_STATUS_PORT} \
 	--log-file "$OUT_DIR/tikv_down.log" \
-	--log-level debug \
+	--log-level "$log_level" \
 	-C "$OUT_DIR/tikv-config.toml" \
 	-s "$OUT_DIR/tikv_down" &
 

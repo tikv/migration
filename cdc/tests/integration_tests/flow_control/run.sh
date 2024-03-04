@@ -19,7 +19,7 @@ function run() {
 	cd $WORK_DIR
 
 	start_ts=$(get_start_ts $UP_PD)
-	go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 100 # About 1G
+	go-ycsb load tikv -P $CUR/config/workload -p tikv.pd="$UP_PD" -p tikv.type="raw" -p tikv.apiversion=V2 --threads 200 # About 500MiB
 
 	cat - >"$WORK_DIR/tikv-cdc-config.toml" <<EOF
 per-changefeed-memory-quota=10485760 #10M
@@ -49,24 +49,23 @@ EOF
 	# Wait until cdc pulls the data from tikv and store it in soter
 	sleep 90
 
-	rss1=$(ps -aux | grep 'tikv-cdc' | head -n1 | awk '{print $6}')
+	rss1=$(ps -aux | grep 'tikv-cdc' | grep -v grep | head -n1 | awk '{print $6}')
 	if [[ $rss1 == "" ]]; then
 		echo "Failed to get rrs1 by ps"
 		exit 1
 	fi
 	# We set `per-changefeed-memory-quota=10M` and forbid sorter to use memory cache data,
-	# so maybe there is 10M of memory for data. But still needs some memory to hold related data structures.
+	# so maybe there is 10M of memory for data.
+	# Note that there is memory usage between puller & sorter, and it's limited by size of channels.
+	# Use small record size to reduce memory usage of this part (see flow_control/config/workload).
 	expected=307200 #300M
 	used=$(expr $rss1 - $rss0)
 	echo "cdc server used memory: $used"
 	if [ $used -gt $expected ]; then
 		echo "Maybe flow-contorl is not working"
-
-		if [ "$SINK_TYPE" != "kafka" ]; then
-			# Kafka sink may have memory leak.
-			# TODO: investigate why.
-			exit 1
-		fi
+		# CI only collect *.log files, so name it as heap-dump.log
+		curl http://127.0.0.1:8600/debug/pprof/heap >$WORK_DIR/heap-dump.log
+		exit 1
 	fi
 
 	# As "per-changefeed-memory-quota" is low the syncing will cost more time.

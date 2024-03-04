@@ -197,6 +197,7 @@ func (s *batchSuite) TestSetParams(c *check.C) {
 func (s *batchSuite) TestMaxMessageBytes(c *check.C) {
 	defer testleak.AfterTest(c)()
 	encoder := NewJSONEventBatchEncoder()
+	c.Check(encoder.Size(), check.Equals, 0)
 
 	// the size of `testEvent` is 75
 	testEvent := &model.RawKVEntry{
@@ -207,14 +208,24 @@ func (s *batchSuite) TestMaxMessageBytes(c *check.C) {
 		ExpiredTs: 200,
 	}
 	eventSize := 75
+	// for a single message, the overhead is 36(maximumRecordOverhead) + 8(versionHea) = 44.
+	overhead := 36 + 8
 
-	// for a single message, the overhead is 36(maximumRecordOverhead) + 8(versionHea) = 44, just can hold it.
-	a := strconv.Itoa(eventSize + 44)
+	// just can hold a single message.
+	a := strconv.Itoa(eventSize + overhead)
 	err := encoder.SetParams(map[string]string{"max-message-bytes": a})
 	c.Check(err, check.IsNil)
 	r, err := encoder.AppendChangedEvent(testEvent)
 	c.Check(err, check.IsNil)
 	c.Check(r, check.Equals, EncoderNoOperation)
+	totalSize := eventSize + overhead
+	c.Check(encoder.Size(), check.Equals, totalSize)
+
+	r, err = encoder.AppendChangedEvent(testEvent)
+	c.Check(err, check.IsNil)
+	c.Check(r, check.Equals, EncoderNoOperation)
+	totalSize += eventSize + overhead
+	c.Check(encoder.Size(), check.Equals, totalSize)
 
 	a = strconv.Itoa(eventSize + 43)
 	err = encoder.SetParams(map[string]string{"max-message-bytes": a})
@@ -222,8 +233,10 @@ func (s *batchSuite) TestMaxMessageBytes(c *check.C) {
 	r, err = encoder.AppendChangedEvent(testEvent)
 	c.Check(err, check.NotNil)
 	c.Check(r, check.Equals, EncoderNoOperation)
+	c.Check(encoder.Size(), check.Equals, totalSize)
 
 	// make sure each batch's `Length` not greater than `max-message-bytes`
+	// 256: each message can hold 2 events (75 * 2 + 36 + 8 = 194)
 	err = encoder.SetParams(map[string]string{"max-message-bytes": "256"})
 	c.Check(err, check.IsNil)
 
@@ -232,6 +245,8 @@ func (s *batchSuite) TestMaxMessageBytes(c *check.C) {
 		c.Check(r, check.Equals, EncoderNoOperation)
 		c.Check(err, check.IsNil)
 	}
+	totalSize += (eventSize*2 + overhead) * 5000
+	c.Check(encoder.Size(), check.Equals, totalSize)
 
 	messages := encoder.Build()
 	for _, msg := range messages {

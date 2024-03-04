@@ -72,6 +72,11 @@ type kafkaSaramaProducer struct {
 
 type kafkaProducerClosingFlag = int32
 
+type kafkaMetadata struct {
+	message *codec.MQMessage
+	offset  uint64
+}
+
 func (k *kafkaSaramaProducer) AsyncSendMessage(ctx context.Context, message *codec.MQMessage, partition int32) error {
 	k.clientLock.RLock()
 	defer k.clientLock.RUnlock()
@@ -88,7 +93,12 @@ func (k *kafkaSaramaProducer) AsyncSendMessage(ctx context.Context, message *cod
 		Value:     sarama.ByteEncoder(message.Value),
 		Partition: partition,
 	}
-	msg.Metadata = atomic.AddUint64(&k.partitionOffset[partition].sent, 1)
+	metadata := &kafkaMetadata{
+		message: message,
+		offset:  atomic.AddUint64(&k.partitionOffset[partition].sent, 1),
+	}
+	log.Debug("kafka producer sending message", zap.Int32("partition", partition), zap.Uint64("offset", metadata.offset))
+	msg.Metadata = metadata
 
 	failpoint.Inject("KafkaSinkAsyncSendError", func() {
 		// simulate sending message to input channel successfully but flushing
@@ -242,8 +252,16 @@ func (k *kafkaSaramaProducer) run(ctx context.Context) error {
 			if msg == nil || msg.Metadata == nil {
 				continue
 			}
-			flushedOffset := msg.Metadata.(uint64)
-			atomic.StoreUint64(&k.partitionOffset[msg.Partition].flushed, flushedOffset)
+			metadata := msg.Metadata.(*kafkaMetadata)
+			codec.ReleaseMQMessage(metadata.message)
+			flushedOffset := metadata.offset
+
+			prevOffset := atomic.SwapUint64(&k.partitionOffset[msg.Partition].flushed, flushedOffset)
+			if flushedOffset <= prevOffset {
+				log.Panic("kafka producer flushed offset goes backward", zap.Int32("partition", msg.Partition), zap.Uint64("flushed", flushedOffset), zap.Uint64("prev", prevOffset))
+			}
+			log.Debug("kafka producer flushed message", zap.Int32("partition", msg.Partition), zap.Uint64("offset", flushedOffset), zap.Uint64("prev", prevOffset))
+
 			k.flushedNotifier.Notify()
 		case err := <-k.asyncClient.Errors():
 			// We should not wrap a nil pointer if the pointer is of a subtype of `error`
@@ -258,14 +276,14 @@ func (k *kafkaSaramaProducer) run(ctx context.Context) error {
 }
 
 var (
-	newSaramaConfigImpl                                 = newSaramaConfig
+	NewSaramaConfigImpl                                 = newSaramaConfig
 	NewAdminClientImpl  kafka.ClusterAdminClientCreator = kafka.NewSaramaAdminClient
 )
 
 // NewKafkaSaramaProducer creates a kafka sarama producer
 func NewKafkaSaramaProducer(ctx context.Context, topic string, config *Config, opts map[string]string, errCh chan error) (*kafkaSaramaProducer, error) {
 	log.Info("Starting kafka sarama producer ...", zap.Reflect("config", config))
-	cfg, err := newSaramaConfigImpl(ctx, config)
+	cfg, err := NewSaramaConfigImpl(ctx, config)
 	if err != nil {
 		return nil, err
 	}
