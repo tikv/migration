@@ -198,6 +198,10 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 	err = sink.EmitChangedEvents(ctx, kv3)
 	c.Assert(err, check.IsNil)
 
+	// TODO: fix EmitCheckpointTs
+	// mock kafka broker processes 1 row resolvedTs event
+	// leader.Returns(prodSuccess)
+
 	checkpointTs1, err := sink.FlushChangedEvents(ctx, keyspanID1, kv1.CRTs)
 	c.Assert(err, check.IsNil)
 	c.Assert(checkpointTs1, check.Equals, kv1.CRTs)
