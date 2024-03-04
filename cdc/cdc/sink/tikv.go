@@ -434,7 +434,9 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 			}
 			continue
 		}
-		_ = batcher.Append(e.rawKVEntry) // TODO: handle error
+		if err := batcher.Append(e.rawKVEntry); err != nil {
+			return errors.Trace(err)
+		}
 
 		if batcher.ByteSize() >= defaultTiKVBatchBytesLimit {
 			if err := flushToTiKV(); err != nil {
