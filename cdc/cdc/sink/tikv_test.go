@@ -154,7 +154,7 @@ func TestTiKVSinkBatcher(t *testing.T) {
 	}()
 
 	statistics := NewStatistics(context.Background(), "TiKV", map[string]string{})
-	batcher := newTiKVBatcher(statistics)
+	batcher := NewTiKVBatcher(statistics)
 	keys := []string{
 		"a", "b", "c", "d", "e", "f",
 	}
@@ -183,8 +183,8 @@ func TestTiKVSinkBatcher(t *testing.T) {
 			ExpiredTs: expires[i],
 			CRTs:      uint64(i),
 		}
-		batcher.Append(entry0)
-		batcher.Append(entry1)
+		require.NoError(batcher.Append(entry0))
+		require.Error(batcher.Append(entry1))
 	}
 	require.Len(batcher.Batches, 3)
 	require.Equal(6, batcher.Count())

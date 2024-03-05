@@ -257,7 +257,7 @@ type innerBatch struct {
 	TTLs   []uint64
 }
 
-type tikvBatcher struct {
+type TikvBatcher struct {
 	Batches  []innerBatch
 	count    int
 	byteSize uint64
@@ -266,22 +266,26 @@ type tikvBatcher struct {
 	statistics *Statistics
 }
 
-func newTiKVBatcher(statistics *Statistics) *tikvBatcher {
-	b := &tikvBatcher{
+func NewTiKVBatcher(statistics *Statistics) *TikvBatcher {
+	b := &TikvBatcher{
 		statistics: statistics,
 	}
 	return b
 }
 
-func (b *tikvBatcher) Count() int {
+func (b *TikvBatcher) Count() int {
 	return b.count
 }
 
-func (b *tikvBatcher) ByteSize() uint64 {
+func (b *TikvBatcher) IsEmpty() bool {
+	return b.count == 0
+}
+
+func (b *TikvBatcher) ByteSize() uint64 {
 	return b.byteSize
 }
 
-func (b *tikvBatcher) getNow() uint64 {
+func (b *TikvBatcher) getNow() uint64 {
 	failpoint.Inject("tikvSinkGetNow", func(val failpoint.Value) {
 		now := uint64(val.(int))
 		failpoint.Return(now)
@@ -316,7 +320,7 @@ func ExtractRawKVEntry(entry *model.RawKVEntry, now uint64) (opType model.OpType
 	return
 }
 
-func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
+func (b *TikvBatcher) Append(entry *model.RawKVEntry) error {
 	if len(b.Batches) == 0 {
 		b.now = b.getNow()
 	}
@@ -324,8 +328,10 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	opType, key, value, ttl, err := ExtractRawKVEntry(entry, b.now)
 	if err != nil {
 		log.Error("failed to extract entry", zap.Any("event", entry), zap.Error(err))
-		b.statistics.AddInvalidKeyCount()
-		return
+		if b.statistics != nil {
+			b.statistics.AddInvalidKeyCount()
+		}
+		return errors.Trace(err)
 	}
 
 	// NOTE: do NOT separate PUT & DELETE operations into two batch.
@@ -353,9 +359,11 @@ func (b *tikvBatcher) Append(entry *model.RawKVEntry) {
 	if opType == model.OpTypePut {
 		b.byteSize += uint64(len(value)) + uint64(unsafe.Sizeof(ttl))
 	}
+
+	return nil
 }
 
-func (b *tikvBatcher) Reset() {
+func (b *TikvBatcher) Reset() {
 	b.Batches = b.Batches[:0]
 	b.count = 0
 	b.byteSize = 0
@@ -370,7 +378,7 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
 
-	batcher := newTiKVBatcher(k.statistics)
+	batcher := NewTiKVBatcher(k.statistics)
 
 	flushToTiKV := func() error {
 		return k.statistics.RecordBatchExecution(func() (int, error) {
@@ -426,7 +434,9 @@ func (k *tikvSink) runWorker(ctx context.Context, workerIdx uint32) error {
 			}
 			continue
 		}
-		batcher.Append(e.rawKVEntry)
+		if err := batcher.Append(e.rawKVEntry); err != nil {
+			return errors.Trace(err)
+		}
 
 		if batcher.ByteSize() >= defaultTiKVBatchBytesLimit {
 			if err := flushToTiKV(); err != nil {

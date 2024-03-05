@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	printStatusInterval  = 10 * time.Minute
+	printStatusInterval  = 30 * time.Second
 	flushMetricsInterval = 5 * time.Second
 )
 

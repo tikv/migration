@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"math/rand"
 	"net/url"
 	"os"
 	"os/signal"
@@ -44,7 +45,7 @@ import (
 )
 
 const (
-	downstreamRetryInterval = 500 * time.Millisecond
+	downstreamRetryIntervalMs int = 200
 )
 
 // Sarama configuration options
@@ -379,7 +380,7 @@ func (c *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	if sink == nil {
 		panic("sink should initialized")
 	}
-ClaimMessages:
+	kvs := make([]*model.RawKVEntry, 0)
 	for message := range claim.Messages() {
 		log.Debug("Message claimed", zap.Int32("partition", message.Partition), zap.ByteString("key", message.Key), zap.ByteString("value", message.Value))
 		batchDecoder, err := codec.NewJSONEventBatchDecoder(message.Key, message.Value)
@@ -387,7 +388,37 @@ ClaimMessages:
 			return errors.Trace(err)
 		}
 
+		// Return error only when the session is closed
+		emitChangedEvents := func() error {
+			if len(kvs) == 0 {
+				return nil
+			}
+			for {
+				err = sink.EmitChangedEvents(ctx, kvs...)
+				if err == nil {
+					log.Debug("emit changed events", zap.Any("kvs", kvs))
+					lastCRTs := sink.lastCRTs.Load()
+					lastKv := kvs[len(kvs)-1]
+					if lastCRTs < lastKv.CRTs {
+						sink.lastCRTs.Store(lastKv.CRTs)
+					}
+					kvs = kvs[:0]
+					return nil
+				}
+
+				log.Warn("emit row changed event failed", zap.Error(err))
+				if session.Context().Err() != nil {
+					log.Warn("session closed", zap.Error(session.Context().Err()))
+					return session.Context().Err()
+				}
+
+				sleepMs := downstreamRetryIntervalMs + rand.Intn(downstreamRetryIntervalMs)
+				time.Sleep(time.Duration(sleepMs) * time.Millisecond)
+			}
+		}
+
 		counter := 0
+	KvLoop:
 		for {
 			tp, hasNext, err := batchDecoder.HasNext()
 			if err != nil {
@@ -416,32 +447,21 @@ ClaimMessages:
 						zap.Uint64("globalResolvedTs", globalResolvedTs),
 						zap.Uint64("sinkResolvedTs", sink.resolvedTs.Load()),
 						zap.Int32("partition", partition))
-					break ClaimMessages
+					continue KvLoop
 				}
 
-				for {
-					err = sink.EmitChangedEvents(ctx, kv)
-					if err == nil {
-						log.Debug("emit changed events", zap.Any("kv", kv))
-						lastCRTs := sink.lastCRTs.Load()
-						if lastCRTs < kv.CRTs {
-							sink.lastCRTs.Store(kv.CRTs)
-						}
-						break
-					}
-
-					log.Warn("emit row changed event failed", zap.Error(err))
-					if session.Context().Err() != nil {
-						log.Warn("session closed", zap.Error(session.Context().Err()))
-						return nil
-					}
-					time.Sleep(downstreamRetryInterval)
-				}
+				kvs = append(kvs, kv)
 			case model.MqMessageTypeResolved:
 				ts, err := batchDecoder.NextResolvedEvent()
 				if err != nil {
 					log.Fatal("decode message value failed", zap.ByteString("value", message.Value))
 				}
+
+				if err := emitChangedEvents(); err != nil {
+					log.Info("session closed", zap.Error(err))
+					return nil
+				}
+
 				resolvedTs := sink.resolvedTs.Load()
 				if resolvedTs < ts {
 					log.Debug("update sink resolved ts",
@@ -450,13 +470,19 @@ ClaimMessages:
 					sink.resolvedTs.Store(ts)
 				}
 			}
-			session.MarkMessage(message, "")
 		}
 
 		if counter > kafkaMaxBatchSize {
 			log.Fatal("Open Protocol max-batch-size exceeded", zap.Int("max-batch-size", kafkaMaxBatchSize),
 				zap.Int("actual-batch-size", counter))
 		}
+
+		if err := emitChangedEvents(); err != nil {
+			log.Info("session closed", zap.Error(err))
+			return nil
+		}
+
+		session.MarkMessage(message, "")
 	}
 
 	return nil
