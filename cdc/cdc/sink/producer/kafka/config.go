@@ -50,6 +50,8 @@ type Config struct {
 	SaslScram       *security.SaslScram
 	// control whether to create topic
 	AutoCreate bool
+	// Whether to enable idempotent producer
+	Idempotent bool
 }
 
 // NewConfig returns a default Kafka configuration
@@ -63,6 +65,7 @@ func NewConfig() *Config {
 		Credential:        &security.Credential{},
 		SaslScram:         &security.SaslScram{},
 		AutoCreate:        true,
+		Idempotent:        true,
 	}
 }
 
@@ -230,6 +233,14 @@ func newSaramaConfig(ctx context.Context, c *Config) (*sarama.Config, error) {
 	// See: https://github.com/Shopify/sarama/issues/765
 	// and https://github.com/tikv/migration/cdc/issues/3352.
 	config.Metadata.Timeout = 1 * time.Minute
+
+	// See: https://docs.confluent.io/platform/current/installation/configuration/producer-configs.html#enable-idempotence
+	config.Producer.Idempotent = c.Idempotent
+	if c.Idempotent {
+		config.Net.MaxOpenRequests = 1
+	} else {
+		log.Warn("The idempotent producer is disabled, which may cause data reordering")
+	}
 
 	config.Producer.Partitioner = sarama.NewManualPartitioner
 	config.Producer.MaxMessageBytes = c.MaxMessageBytes

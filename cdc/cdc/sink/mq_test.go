@@ -60,6 +60,17 @@ func (s mqSinkSuite) TestKafkaSink(c *check.C) {
 	opts := map[string]string{}
 	errCh := make(chan error, 1)
 
+	newSaramaConfigImplBak := kafkap.NewSaramaConfigImpl
+	kafkap.NewSaramaConfigImpl = func(ctx context.Context, config *kafkap.Config) (*sarama.Config, error) {
+		// Idempotent requires Kafka version >= 0.11.0.0
+		config.Idempotent = false
+		cfg, err := newSaramaConfigImplBak(ctx, config)
+		c.Assert(err, check.IsNil)
+		return cfg, err
+	}
+	defer func() {
+		kafkap.NewSaramaConfigImpl = newSaramaConfigImplBak
+	}()
 	kafkap.NewAdminClientImpl = kafka.NewMockAdminClient
 	defer func() {
 		kafkap.NewAdminClientImpl = kafka.NewSaramaAdminClient
@@ -146,6 +157,8 @@ func (s mqSinkSuite) TestFlushChangedEvents(c *check.C) {
 
 	newSaramaConfigImplBak := kafkap.NewSaramaConfigImpl
 	kafkap.NewSaramaConfigImpl = func(ctx context.Context, config *kafkap.Config) (*sarama.Config, error) {
+		// Idempotent requires Kafka version >= 0.11.0.0
+		config.Idempotent = false
 		cfg, err := newSaramaConfigImplBak(ctx, config)
 		c.Assert(err, check.IsNil)
 		cfg.Producer.Flush.MaxMessages = 1
