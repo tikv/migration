@@ -14,6 +14,9 @@ on:
         description: git ref
         required: true
 
+env:
+  GO_VERSION: 1.21.4
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -29,13 +32,14 @@ jobs:
           - "linux"
         arch:
           - "amd64"
+          - "arm64"
     env:
       working-directory: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}
     steps:
       - name: Set up Go 1.18.1
         uses: actions/setup-go@v2
         with:
-          go-version: 1.18.1
+          go-version: '${{ env.GO_VERSION }}'
         id: go
 
       - name: Check out code into the Go module directory
@@ -70,6 +74,8 @@ jobs:
         run: |
           export GOPATH=${GITHUB_WORKSPACE}/go
           export PATH=$PATH:$GOPATH/bin
+          export GOOS=${{ matrix.os }}
+          export GOARCH=${{ matrix.arch }}
           if [ ! -z ${{ steps.check_staging.outputs.STAGING }} ]; then
             export REL_VER=${{ steps.check_staging.outputs.STAGING }}+staging
           else
