@@ -74,8 +74,8 @@ jobs:
         run: |
           export GOPATH=${GITHUB_WORKSPACE}/go
           export PATH=$PATH:$GOPATH/bin
-          export GOOS=${{ matrix.os }}
-          export GOARCH=${{ matrix.arch }}
+          export TARGET_OS=${{ matrix.os }}
+          export TARGET_ARCH=${{ matrix.arch }}
           if [ ! -z ${{ steps.check_staging.outputs.STAGING }} ]; then
             export REL_VER=${{ steps.check_staging.outputs.STAGING }}+staging
           else
