@@ -88,7 +88,7 @@ build:
 	CGO_ENABLED=1 $(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
 
 release:
-	CGO_ENABLED=1 $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
+	CGO_ENABLED=1 GOOS=$(TARGET_OS) GOARCH=$(TARGET_ARCH) $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
 
 build/rawkv-integration-test:
 	cd tests/rawkv && $(GO) build -mod=mod -o ../../bin/rawkv_test *.go
