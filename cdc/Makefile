@@ -191,6 +191,7 @@ clean:
 	rm -rf bin
 	rm -rf tools/bin
 	rm -rf scripts/bin
+	rm prepare_test_binaries
 
 install_test_python_dep:
 	@echo "install python requirments for test"
