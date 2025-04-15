@@ -125,7 +125,6 @@ SplitRegions:
 		}
 		for regionID, regionKeys := range splitKeyMap {
 			log.Info("get split keys for region", zap.Int("len", len(regionKeys)), zap.Uint64("region", regionID))
-			region := regionMap[regionID]
 
 			for i := 0; i < len(regionKeys); i += SplitBatchSize {
 				end := i + SplitBatchSize
@@ -133,6 +132,20 @@ SplitRegions:
 					end = len(regionKeys)
 				}
 				keys := regionKeys[i:end]
+
+				var region *RegionInfo
+				if i == 0 {
+					region = regionMap[regionID]
+				} else {
+					encodedKey := codec.EncodeBytes(nil, keys[0])
+					var errGetRegion error
+					region, errGetRegion = rs.client.GetRegion(ctx, encodedKey)
+					if errGetRegion != nil {
+						time.Sleep(interval)
+						log.Warn("get region failed, retry", logutil.Key("encodedKey", encodedKey), zap.Error(errGetRegion))
+						continue SplitRegions
+					}
+				}
 
 				log.Info("split regions",
 					logutil.Region(region.Region), logutil.Keys(keys), rtree.ZapRanges(ranges))
