@@ -32,6 +32,7 @@ const (
 	SplitRetryTimes       = 32
 	SplitRetryInterval    = 50 * time.Millisecond
 	SplitMaxRetryInterval = time.Second
+	SplitBatchSize        = 128
 
 	SplitCheckMaxRetryTimes = 64
 	SplitCheckInterval      = 8 * time.Millisecond
@@ -122,46 +123,55 @@ SplitRegions:
 		for _, region := range regions {
 			regionMap[region.Region.GetId()] = region
 		}
-		for regionID, keys := range splitKeyMap {
-			log.Info("get split keys for region", zap.Int("len", len(keys)), zap.Uint64("region", regionID))
-			var newRegions []*RegionInfo
+		for regionID, regionKeys := range splitKeyMap {
+			log.Info("get split keys for region", zap.Int("len", len(regionKeys)), zap.Uint64("region", regionID))
 			region := regionMap[regionID]
-			log.Info("split regions",
-				logutil.Region(region.Region), logutil.Keys(keys), rtree.ZapRanges(ranges))
-			newRegions, errSplit = rs.splitAndScatterRegions(ctx, region, keys)
-			if errSplit != nil {
-				if strings.Contains(errSplit.Error(), "no valid key") {
-					for _, key := range keys {
-						// Region start/end keys are encoded. split_region RPC
-						// requires raw keys (without encoding).
-						log.Error("split regions no valid key",
-							logutil.Key("startKey", region.Region.StartKey),
-							logutil.Key("endKey", region.Region.EndKey),
-							logutil.Key("key", codec.EncodeBytes(nil, key)),
-							rtree.ZapRanges(ranges))
+
+			for i := 0; i < len(regionKeys); i += SplitBatchSize {
+				end := i + SplitBatchSize
+				if end > len(regionKeys) {
+					end = len(regionKeys)
+				}
+				keys := regionKeys[i:end]
+
+				log.Info("split regions",
+					logutil.Region(region.Region), logutil.Keys(keys), rtree.ZapRanges(ranges))
+				var newRegions []*RegionInfo
+				newRegions, errSplit = rs.splitAndScatterRegions(ctx, region, keys)
+				if errSplit != nil {
+					if strings.Contains(errSplit.Error(), "no valid key") {
+						for _, key := range keys {
+							// Region start/end keys are encoded. split_region RPC
+							// requires raw keys (without encoding).
+							log.Error("split regions no valid key",
+								logutil.Key("startKey", region.Region.StartKey),
+								logutil.Key("endKey", region.Region.EndKey),
+								logutil.Key("key", codec.EncodeBytes(nil, key)),
+								rtree.ZapRanges(ranges))
+						}
+						return errors.Trace(errSplit)
 					}
-					return errors.Trace(errSplit)
+					interval = 2 * interval
+					if interval > SplitMaxRetryInterval {
+						interval = SplitMaxRetryInterval
+					}
+					time.Sleep(interval)
+					log.Warn("split regions failed, retry",
+						zap.Error(errSplit),
+						logutil.Region(region.Region),
+						logutil.Leader(region.Leader),
+						logutil.Keys(keys), rtree.ZapRanges(ranges))
+					continue SplitRegions
 				}
-				interval = 2 * interval
-				if interval > SplitMaxRetryInterval {
-					interval = SplitMaxRetryInterval
+				log.Info("scattered regions", zap.Int("count", len(newRegions)))
+				if len(newRegions) != len(keys) {
+					log.Warn("split key count and new region count mismatch",
+						zap.Int("new region count", len(newRegions)),
+						zap.Int("split key count", len(keys)))
 				}
-				time.Sleep(interval)
-				log.Warn("split regions failed, retry",
-					zap.Error(errSplit),
-					logutil.Region(region.Region),
-					logutil.Leader(region.Leader),
-					logutil.Keys(keys), rtree.ZapRanges(ranges))
-				continue SplitRegions
+				scatterRegions = append(scatterRegions, newRegions...)
+				onSplit(keys)
 			}
-			log.Info("scattered regions", zap.Int("count", len(newRegions)))
-			if len(newRegions) != len(keys) {
-				log.Warn("split key count and new region count mismatch",
-					zap.Int("new region count", len(newRegions)),
-					zap.Int("split key count", len(keys)))
-			}
-			scatterRegions = append(scatterRegions, newRegions...)
-			onSplit(keys)
 		}
 		break
 	}
