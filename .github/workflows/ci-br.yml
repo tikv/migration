@@ -80,8 +80,6 @@ jobs:
       - name: start tikv cluster
         run: |
           # start tikv
-          # Output the api version
-          echo "API_VERSION=${{ matrix.api_version }}" >> $GITHUB_ENV
           echo -e "\napi-version = ${{ matrix.api_version }}\n" >> /home/runner/work/migration/migration/.github/config/br_rawkv.toml
           /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.port 2379 --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &
           # The first run of `tiup` has to download all components so it'll take longer.
@@ -91,6 +89,8 @@ jobs:
             exit 1
           fi
           echo "PD_ADDR=127.0.0.1:2379" >> $GITHUB_ENV
+          # Output the api version
+          echo "API_VERSION=${{ matrix.api_version }}" >> $GITHUB_ENV
           # Log the output
           echo "$(cat raw.out)" >&2
       - name: run integration test
