@@ -22,13 +22,14 @@ PACKAGES    := go list ./...
 DIRECTORIES := $(PACKAGES) | sed 's|github.com/tikv/migration/br/||'
 
 # build & test
-BR_BIN_PATH    ?= bin/tikv-br
-TEST_BIN_PATH  ?= bin/tikv-br.test
-COVERAGE_DIR   ?= build
-TEST_PARALLEL  ?= 8
-PD_ADDR        ?= 127.0.0.1:2379
-BR_LOCAL_STORE ?= /tmp/backup_restore_test
-API_VERSION    ?= 1
+BR_BIN_PATH           ?= bin/tikv-br
+TEST_BIN_PATH         ?= bin/tikv-br.test
+COVERAGE_DIR          ?= build
+TEST_PARALLEL         ?= 8
+PD_ADDR               ?= 127.0.0.1:2379
+SPLIT_REGION_MAX_KEYS ?= 4
+BR_LOCAL_STORE        ?= /tmp/backup_restore_test
+API_VERSION           ?= 1
 
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
@@ -61,6 +62,7 @@ test: tools/bin/gocov tools/bin/gocov-xml
 test/integration: build/br-test build/rawkv-integration-test
 	./bin/rawkv_test --pd=${PD_ADDR} \
 		--br='${TEST_BIN_PATH}' \
+		--split-region-max-keys=${SPLIT_REGION_MAX_KEYS} \
 		--br-storage=${BR_LOCAL_STORE} \
 		--api-version=${API_VERSION}
 

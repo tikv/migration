@@ -24,6 +24,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var defaultSpliterCfg = restore.SpliterConfig{
+	GRPCMaxRecvMsgSize: 1024 * 1024,
+	SplitRegionMaxKeys: 16,
+}
+
 type TestClient struct {
 	mu                  sync.RWMutex
 	stores              map[uint64]*metapb.Store
@@ -276,7 +281,7 @@ func ScatterFinishInTimeImpl(t *testing.T, needEncodeKey bool) {
 	client := initTestClient()
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
-	regionSplitter := restore.NewRegionSplitter(client)
+	regionSplitter := restore.NewRegionSplitter(client, defaultSpliterCfg)
 
 	ctx := context.Background()
 	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
@@ -335,7 +340,7 @@ func TestSplitAndScatter(t *testing.T) {
 func runTestSplitAndScatterWith(t *testing.T, client *TestClient, needEncodeKey bool) {
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
-	regionSplitter := restore.NewRegionSplitter(client)
+	regionSplitter := restore.NewRegionSplitter(client, defaultSpliterCfg)
 
 	ctx := context.Background()
 	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"

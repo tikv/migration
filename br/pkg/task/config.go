@@ -63,6 +63,11 @@ type Config struct {
 	GRPCKeepaliveTime time.Duration `json:"grpc-keepalive-time" toml:"grpc-keepalive-time"`
 	// GrpcKeepaliveTimeout is the max time a grpc conn can keep idel before killed.
 	GRPCKeepaliveTimeout time.Duration `json:"grpc-keepalive-timeout" toml:"grpc-keepalive-timeout"`
+	// GRPCMaxRecvMsgSize is the max allowed size of a message received from tikv.
+	GRPCMaxRecvMsgSize uint `json:"grpc-max-recv-msg-size" toml:"grpc-max-recv-msg-size"`
+
+	// SplitRegionMaxKeys is the max number of keys in a single split region request.
+	SplitRegionMaxKeys uint `json:"split-region-max-keys" toml:"split-region-max-keys"`
 
 	CipherInfo backuppb.CipherInfo `json:"-" toml:"-"`
 }
@@ -164,7 +169,15 @@ func (cfg *Config) ParseFromFlags(flags *pflag.FlagSet) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
+	cfg.GRPCMaxRecvMsgSize, err = flags.GetUint(flagGrpcMaxRecvMsgSize)
+	if err != nil {
+		return errors.Trace(err)
+	}
 	cfg.EnableOpenTracing, err = flags.GetBool(flagEnableOpenTracing)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	cfg.SplitRegionMaxKeys, err = flags.GetUint(flagSplitRegionMaxKeys)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -211,5 +224,12 @@ func (cfg *Config) adjust() {
 	}
 	if cfg.ChecksumConcurrency == 0 {
 		cfg.ChecksumConcurrency = defaultChecksumConcurrency
+	}
+	if cfg.GRPCMaxRecvMsgSize == 0 {
+		cfg.GRPCMaxRecvMsgSize = defaultGRPCMaxRecvMsgSize
+	}
+
+	if cfg.SplitRegionMaxKeys == 0 {
+		cfg.SplitRegionMaxKeys = defaultSplitRegionMaxKeys
 	}
 }

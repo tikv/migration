@@ -1,10 +1,14 @@
 name: TiKV-BR
 on:
   push:
-    branches: main
+    branches:
+      - main
+      - br-release-*
     paths: br/**
   pull_request:
-    branches: main
+    branches:
+      - main
+      - br-release-*
     paths: br/**
 
 permissions:
@@ -64,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tikv_version: [nightly]
+        tikv_version: [v6.5.3]
         api_version: [1, 2]
     steps:
       - uses: actions/checkout@v2
@@ -77,11 +81,14 @@ jobs:
         run: |
           # start tikv
           echo -e "\napi-version = ${{ matrix.api_version }}\n" >> /home/runner/work/migration/migration/.github/config/br_rawkv.toml
-          /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &
+          /home/runner/.tiup/bin/tiup playground ${{ matrix.tikv_version }} --mode tikv-slim --kv 1 --without-monitor --kv.config /home/runner/work/migration/migration/.github/config/br_rawkv.toml --pd.port 2379 --pd.config /home/runner/work/migration/migration/.github/config/br_pd.toml &> raw.out 2>&1 &
           # The first run of `tiup` has to download all components so it'll take longer.
-          sleep 1m 30s
-          # Parse PD address from `tiup` output
-          echo "PD_ADDR=$(cat raw.out | grep -oP '(?<=PD client endpoints: \[)[0-9\.:]+(?=\])')" >> $GITHUB_ENV
+          timeout 180 tail -f raw.out | grep -q 'PD Endpoints'
+          if [ $? -ne 0 ]; then
+            echo "Failed to start TiKV cluster"
+            exit 1
+          fi
+          echo "PD_ADDR=127.0.0.1:2379" >> $GITHUB_ENV
           # Output the api version
           echo "API_VERSION=${{ matrix.api_version }}" >> $GITHUB_ENV
           # Log the output

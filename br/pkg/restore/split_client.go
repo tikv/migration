@@ -79,10 +79,11 @@ type SplitClient interface {
 
 // pdClient is a wrapper of pd client, can be used by RegionSplitter.
 type pdClient struct {
-	mu         sync.Mutex
-	client     pd.Client
-	tlsConf    *tls.Config
-	storeCache map[uint64]*metapb.Store
+	mu          sync.Mutex
+	client      pd.Client
+	tlsConf     *tls.Config
+	spliterConf SpliterConfig
+	storeCache  map[uint64]*metapb.Store
 
 	// FIXME when config changed during the lifetime of pdClient,
 	// 	this may mislead the scatter.
@@ -93,12 +94,13 @@ type pdClient struct {
 }
 
 // NewSplitClient returns a client used by RegionSplitter.
-func NewSplitClient(client pd.Client, tlsConf *tls.Config, isRawKv bool) SplitClient {
+func NewSplitClient(client pd.Client, tlsConf *tls.Config, spliterConf SpliterConfig, isRawKv bool) SplitClient {
 	cli := &pdClient{
-		client:     client,
-		tlsConf:    tlsConf,
-		storeCache: make(map[uint64]*metapb.Store),
-		isRawKv:    isRawKv,
+		client:      client,
+		tlsConf:     tlsConf,
+		spliterConf: spliterConf,
+		storeCache:  make(map[uint64]*metapb.Store),
+		isRawKv:     isRawKv,
 	}
 	return cli
 }
@@ -194,7 +196,12 @@ func (c *pdClient) SplitRegion(ctx context.Context, regionInfo *RegionInfo, key 
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	conn, err := grpc.Dial(store.GetAddress(), grpc.WithInsecure())
+	opt := grpc.WithInsecure()
+	if c.tlsConf != nil {
+		opt = grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf))
+	}
+	conn, err := grpc.Dial(store.GetAddress(), opt,
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(c.spliterConf.GRPCMaxRecvMsgSize)))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -318,7 +325,8 @@ func (c *pdClient) sendSplitRegionRequest(
 		if c.tlsConf != nil {
 			opt = grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf))
 		}
-		conn, err := grpc.Dial(store.GetAddress(), opt)
+		conn, err := grpc.Dial(store.GetAddress(), opt,
+			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(c.spliterConf.GRPCMaxRecvMsgSize)))
 		if err != nil {
 			return nil, multierr.Append(splitErrors, err)
 		}

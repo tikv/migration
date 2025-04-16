@@ -27,11 +27,12 @@ var (
 	maxMsgSize   = int(128 * units.MiB) // pd.ScanRegion may return a large response
 	maxBatchSize = uint(1024)           // max batch size with BatchPut
 
-	keyCnt        = flag.Uint("keycnt", 10000, "KeyCnt of testing")
-	pdAddr        = flag.String("pd", "127.0.0.1:2379", "Address of PD")
-	apiVersionInt = flag.Uint("api-version", 1, "Api version of tikv-server")
-	br            = flag.String("br", "br", "The br binary to be tested.")
-	brStorage     = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
+	keyCnt             = flag.Uint("keycnt", 10000, "KeyCnt of testing")
+	pdAddr             = flag.String("pd", "127.0.0.1:2379", "Address of PD")
+	splitRegionMaxKeys = flag.Uint("split-region-max-keys", 4, "Maximum number of keys in a split region")
+	apiVersionInt      = flag.Uint("api-version", 1, "Api version of tikv-server")
+	br                 = flag.String("br", "br", "The br binary to be tested.")
+	brStorage          = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
 )
 
 type RawKVBRTester struct {
@@ -149,6 +150,8 @@ func (t *RawKVBRTester) Checksum(ctx context.Context) (rawkv.RawChecksum, error)
 func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVersion, safeInterval int64) ([]byte, error) {
 	brCmd := NewTiKVBrCmd("backup raw")
 	brCmdStr := brCmd.Pd(t.pdAddr).
+		SplitRegionMaxKeys(*splitRegionMaxKeys).
+		GRPCMaxRecvMsgSize(uint(maxMsgSize)).
 		Storage(t.brStorage, true).
 		CheckReq(false).
 		DstApiVersion(dstAPIVersion.String()).
@@ -161,6 +164,8 @@ func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVer
 func (t *RawKVBRTester) Restore(ctx context.Context) ([]byte, error) {
 	brCmd := NewTiKVBrCmd("restore raw")
 	brCmdStr := brCmd.Pd(t.pdAddr).
+		SplitRegionMaxKeys(*splitRegionMaxKeys).
+		GRPCMaxRecvMsgSize(uint(maxMsgSize)).
 		Storage(t.brStorage, true).
 		CheckReq(false).
 		Checksum(true).
