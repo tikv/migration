@@ -1,10 +1,14 @@
 name: TiKV-BR
 on:
   push:
-    branches: main
+    branches:
+      - main
+      - br-release-*
     paths: br/**
   pull_request:
-    branches: main
+    branches:
+      - main
+      - br-release-*
     paths: br/**
 
 permissions:

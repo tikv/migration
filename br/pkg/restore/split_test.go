@@ -24,6 +24,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var defaultSpliterCfg = restore.SpliterConfig{
+	GRPCMaxRecvMsgSize: 1024 * 1024,
+	SplitRegionMaxKeys: 16,
+}
+
 type TestClient struct {
 	mu                  sync.RWMutex
 	stores              map[uint64]*metapb.Store
