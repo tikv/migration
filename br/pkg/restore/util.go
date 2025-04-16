@@ -109,13 +109,14 @@ func matchOldPrefix(key []byte, rewriteRules *RewriteRules) *import_sstpb.Rewrit
 func SplitRanges(
 	ctx context.Context,
 	client *Client,
+	spliterConf SpliterConfig,
 	ranges []rtree.Range,
 	rewriteRules *RewriteRules,
 	updateCh glue.Progress,
 	isRawKv bool,
 	needEncodeKey bool,
 ) error {
-	splitter := NewRegionSplitter(NewSplitClient(client.GetPDClient(), client.GetTLSConfig(), isRawKv))
+	splitter := NewRegionSplitter(NewSplitClient(client.GetPDClient(), client.GetTLSConfig(), spliterConf, isRawKv), spliterConf)
 
 	return splitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(keys [][]byte) {
 		updateCh.Inc()

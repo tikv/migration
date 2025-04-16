@@ -23,6 +23,11 @@ var defaultKeepaliveCfg = keepalive.ClientParameters{
 	Timeout: 10 * time.Second,
 }
 
+var defaultSpliterCfg = SpliterConfig{
+	GRPCMaxRecvMsgSize: 1024 * 1024,
+	SplitRegionMaxKeys: 16,
+}
+
 type fakePDClient struct {
 	pd.Client
 	stores []*metapb.Store
@@ -106,7 +111,7 @@ func TestSetSpeedLimit(t *testing.T) {
 	// 1. The cost of concurrent communication is expected to be less than the cost of serial communication.
 	client, err := NewRestoreClient(fakePDClient{
 		stores: mockStores,
-	}, nil, defaultKeepaliveCfg, true)
+	}, nil, defaultKeepaliveCfg, defaultSpliterCfg, true)
 	require.NoError(t, err)
 	client.fileImporter = NewFileImporter(nil, FakeImporterClient{}, nil, true, kvrpcpb.APIVersion_V2)
 	ctx := context.Background()

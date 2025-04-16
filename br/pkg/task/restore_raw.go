@@ -54,11 +54,12 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 		return errors.Errorf("Current tikv cluster version %s does not support checksum, please disable checksum", clusterVersion)
 	}
 
+	spliterCfg := GetSpliterConfig(&cfg.Config)
 	keepaliveCfg := GetKeepalive(&cfg.Config)
 	// sometimes we have pooled the connections.
 	// sending heartbeats in idle times is useful.
 	keepaliveCfg.PermitWithoutStream = true
-	client, err := restore.NewRestoreClient(mgr.GetPDClient(), mgr.GetTLSConfig(), keepaliveCfg, true)
+	client, err := restore.NewRestoreClient(mgr.GetPDClient(), mgr.GetTLSConfig(), keepaliveCfg, spliterCfg, true)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -122,7 +123,8 @@ func RunRestoreRaw(c context.Context, g glue.Glue, cmdName string, cfg *RestoreR
 	// RawKV restore does not need to rewrite keys.
 	if featureGate.IsEnabled(feature.SplitRegion) {
 		needEncodeKey := (cfg.DstAPIVersion == kvrpcpb.APIVersion_V2.String())
-		err = restore.SplitRanges(ctx, client, ranges, nil, updateCh, true, needEncodeKey)
+		spliterConf := GetSpliterConfig(&cfg.Config)
+		err = restore.SplitRanges(ctx, client, spliterConf, ranges, nil, updateCh, true, needEncodeKey)
 		if err != nil {
 			return errors.Trace(err)
 		}

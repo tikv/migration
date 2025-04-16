@@ -27,6 +27,16 @@ func (b *TiKVBrRunCmd) Pd(pd string) *TiKVBrRunCmd {
 	return b
 }
 
+func (b *TiKVBrRunCmd) SplitRegionMaxKeys(maxKeys uint) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--split-region-max-keys=%d", maxKeys))
+	return b
+}
+
+func (b *TiKVBrRunCmd) GRPCMaxRecvMsgSize(size uint) *TiKVBrRunCmd {
+	b.options = append(b.options, fmt.Sprintf("--grpc-max-recv-msg-size=%d", size))
+	return b
+}
+
 func (b *TiKVBrRunCmd) Storage(storage string, isLocal bool) *TiKVBrRunCmd {
 	b.options = append(b.options, fmt.Sprintf("--storage=%s", storage))
 	b.local = isLocal

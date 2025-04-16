@@ -33,17 +33,18 @@ var (
 	maxMsgSize   = int(128 * units.MiB) // pd.ScanRegion may return a large response
 	maxBatchSize = int(1024)            // max batch size with BatchPut
 
-	keyCnt         = flag.Uint("keycnt", 10000000, "KeyCnt of testing")
-	thread         = flag.Uint("thread", 500, "Thread of preloading data")
-	pdAddr         = flag.String("pd", "127.0.0.1:2379", "Address of PD")
-	apiVersionInt  = flag.Uint("api-version", 1, "Api version of tikv-server")
-	clusterVersion = flag.String("cluster-version", "v6.1.0", "Version of tikv cluster")
-	br             = flag.String("br", "br", "The br binary to be tested.")
-	brStorage      = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
-	coverageDir    = flag.String("coverage", "", "The coverage profile file dir of test.")
-	tlsCA          = flag.String("ca", "", "TLS CA for tikv cluster")
-	tlsCert        = flag.String("cert", "", "TLS CERT for tikv cluster")
-	tlsKey         = flag.String("key", "", "TLS KEY for tikv cluster")
+	keyCnt             = flag.Uint("keycnt", 10000000, "KeyCnt of testing")
+	thread             = flag.Uint("thread", 500, "Thread of preloading data")
+	pdAddr             = flag.String("pd", "127.0.0.1:2379", "Address of PD")
+	splitRegionMaxKeys = flag.Uint("split-region-max-keys", 4, "Maximum number of keys in a split region")
+	apiVersionInt      = flag.Uint("api-version", 1, "Api version of tikv-server")
+	clusterVersion     = flag.String("cluster-version", "v6.1.0", "Version of tikv cluster")
+	br                 = flag.String("br", "br", "The br binary to be tested.")
+	brStorage          = flag.String("br-storage", "local:///tmp/backup_restore_test", "The url to store SST files of backup/resotre.")
+	coverageDir        = flag.String("coverage", "", "The coverage profile file dir of test.")
+	tlsCA              = flag.String("ca", "", "TLS CA for tikv cluster")
+	tlsCert            = flag.String("cert", "", "TLS CERT for tikv cluster")
+	tlsKey             = flag.String("key", "", "TLS KEY for tikv cluster")
 )
 
 type RawKVBRTester struct {
@@ -217,6 +218,8 @@ func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVer
 		dstAPIVersionStr = dstAPIVersion.String()
 	}
 	brCmdStr := brCmd.Pd(t.pdAddr).
+		SplitRegionMaxKeys(*splitRegionMaxKeys).
+		GRPCMaxRecvMsgSize(uint(maxMsgSize)).
 		Storage(t.brStorage, true).
 		CheckReq(false).
 		DstApiVersion(dstAPIVersionStr).
@@ -235,6 +238,8 @@ func (t *RawKVBRTester) Backup(ctx context.Context, dstAPIVersion kvrpcpb.APIVer
 func (t *RawKVBRTester) Restore(ctx context.Context, startKey, endKey []byte) ([]byte, error) {
 	brCmd := NewTiKVBrCmd("restore raw")
 	brCmdStr := brCmd.Pd(t.pdAddr).
+		SplitRegionMaxKeys(*splitRegionMaxKeys).
+		GRPCMaxRecvMsgSize(uint(maxMsgSize)).
 		Storage(t.brStorage, true).
 		StartKey(startKey).
 		EndKey(endKey).
