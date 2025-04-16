@@ -28,6 +28,7 @@ import (
 	"github.com/tikv/migration/br/pkg/feature"
 	"github.com/tikv/migration/br/pkg/glue"
 	"github.com/tikv/migration/br/pkg/metautil"
+	"github.com/tikv/migration/br/pkg/restore"
 	"github.com/tikv/migration/br/pkg/storage"
 	"github.com/tikv/migration/br/pkg/utils"
 	pd "github.com/tikv/pd/client"
@@ -56,14 +57,19 @@ const (
 	flagGrpcKeepaliveTime = "grpc-keepalive-time"
 	// flagGrpcKeepaliveTimeout is the max time a grpc conn can keep idel before killed.
 	flagGrpcKeepaliveTimeout = "grpc-keepalive-timeout"
+	// flagGrpcMaxRecvMsgSize is the max allowed size of a message received from tikv.
+	flagGrpcMaxRecvMsgSize = "grpc-max-recv-msg-size"
 	// flagEnableOpenTracing is whether to enable opentracing
-	flagEnableOpenTracing = "enable-opentracing"
-	flagSkipCheckPath     = "skip-check-path"
+	flagEnableOpenTracing  = "enable-opentracing"
+	flagSkipCheckPath      = "skip-check-path"
+	flagSplitRegionMaxKeys = "split-region-max-keys"
 
 	defaultSwitchInterval       = 5 * time.Minute
 	defaultGRPCKeepaliveTime    = 10 * time.Second
 	defaultGRPCKeepaliveTimeout = 3 * time.Second
+	defaultGRPCMaxRecvMsgSize   = 32 * 1024 * 1024 // 32MB
 	defaultChecksumConcurrency  = 512
+	defaultSplitRegionMaxKeys   = 1024
 
 	flagCipherType    = "crypter.method"
 	flagCipherKey     = "crypter.key"
@@ -105,8 +111,11 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 		"the interval of pinging gRPC peer, must keep the same value with TiKV and PD")
 	flags.Duration(flagGrpcKeepaliveTimeout, defaultGRPCKeepaliveTimeout,
 		"the max time a gRPC connection can keep idle before killed, must keep the same value with TiKV and PD")
+	flags.Uint(flagGrpcMaxRecvMsgSize, defaultGRPCMaxRecvMsgSize,
+		"the max allowed size of a message received from TiKV")
 	_ = flags.MarkHidden(flagGrpcKeepaliveTime)
 	_ = flags.MarkHidden(flagGrpcKeepaliveTimeout)
+	_ = flags.MarkHidden(flagGrpcMaxRecvMsgSize)
 
 	flags.Bool(flagEnableOpenTracing, false,
 		"Set whether to enable opentracing during the backup/restore process")
@@ -115,6 +124,9 @@ func DefineCommonFlags(flags *pflag.FlagSet) {
 	_ = flags.MarkHidden(flagNoCreds)
 	flags.BoolP(flagSkipCheckPath, "", false, "Skip path verification")
 	_ = flags.MarkHidden(flagSkipCheckPath)
+	flags.Uint(flagSplitRegionMaxKeys, defaultSplitRegionMaxKeys,
+		"The max number of keys in a single split region request")
+	_ = flags.MarkHidden(flagSplitRegionMaxKeys)
 
 	flags.String(flagCipherType, "plaintext", "Encrypt/decrypt method, "+
 		"be one of plaintext|aes128-ctr|aes192-ctr|aes256-ctr case-insensitively, "+
@@ -330,6 +342,14 @@ func GetKeepalive(cfg *Config) keepalive.ClientParameters {
 	return keepalive.ClientParameters{
 		Time:    cfg.GRPCKeepaliveTime,
 		Timeout: cfg.GRPCKeepaliveTimeout,
+	}
+}
+
+// GetSpliterConfig get the spliter config.
+func GetSpliterConfig(cfg *Config) restore.SpliterConfig {
+	return restore.SpliterConfig{
+		GRPCMaxRecvMsgSize: int(cfg.GRPCMaxRecvMsgSize),
+		SplitRegionMaxKeys: int(cfg.SplitRegionMaxKeys),
 	}
 }
 

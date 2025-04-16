@@ -2,3 +2,8 @@
 [replication]
 enable-placement-rules = true
 max-replicas = 1
+
+[schedule]
+max-merge-region-size = 2
+max-merge-region-keys = 40000
+split-merge-interval = "10s"

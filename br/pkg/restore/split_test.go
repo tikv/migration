@@ -275,7 +275,7 @@ func ScatterFinishInTimeImpl(t *testing.T, needEncodeKey bool) {
 	client := initTestClient()
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
-	regionSplitter := NewRegionSplitter(client)
+	regionSplitter := NewRegionSplitter(client, defaultSpliterCfg)
 
 	ctx := context.Background()
 	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"
@@ -335,7 +335,7 @@ func TestSplitAndScatter(t *testing.T) {
 func runTestSplitAndScatterWith(t *testing.T, client *TestClient, needEncodeKey bool) {
 	ranges := initRanges()
 	rewriteRules := initRewriteRules()
-	regionSplitter := NewRegionSplitter(client)
+	regionSplitter := NewRegionSplitter(client, defaultSpliterCfg)
 
 	ctx := context.Background()
 	err := regionSplitter.Split(ctx, ranges, rewriteRules, needEncodeKey, func(key [][]byte) {}) // TODO: add test case for "isRawKV=true"

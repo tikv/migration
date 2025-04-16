@@ -32,7 +32,6 @@ const (
 	SplitRetryTimes       = 32
 	SplitRetryInterval    = 50 * time.Millisecond
 	SplitMaxRetryInterval = time.Second
-	SplitBatchSize        = 128
 
 	SplitCheckMaxRetryTimes = 64
 	SplitCheckInterval      = 8 * time.Millisecond
@@ -54,15 +53,23 @@ var (
 	ScanRegionAttemptTimes = 30
 )
 
+// SpliterConfig is the config for region split.
+type SpliterConfig struct {
+	GRPCMaxRecvMsgSize int
+	SplitRegionMaxKeys int
+}
+
 // RegionSplitter is a executor of region split by rules.
 type RegionSplitter struct {
 	client SplitClient
+	conf   SpliterConfig
 }
 
 // NewRegionSplitter returns a new RegionSplitter.
-func NewRegionSplitter(client SplitClient) *RegionSplitter {
+func NewRegionSplitter(client SplitClient, conf SpliterConfig) *RegionSplitter {
 	return &RegionSplitter{
 		client: client,
+		conf:   conf,
 	}
 }
 
@@ -126,8 +133,8 @@ SplitRegions:
 		for regionID, regionKeys := range splitKeyMap {
 			log.Info("get split keys for region", zap.Int("len", len(regionKeys)), zap.Uint64("region", regionID))
 
-			for i := 0; i < len(regionKeys); i += SplitBatchSize {
-				end := i + SplitBatchSize
+			for i := 0; i < len(regionKeys); i += rs.conf.SplitRegionMaxKeys {
+				end := i + rs.conf.SplitRegionMaxKeys
 				if end > len(regionKeys) {
 					end = len(regionKeys)
 				}
