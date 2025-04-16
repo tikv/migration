@@ -43,6 +43,7 @@ type Client struct {
 	workerPool    *utils.WorkerPool
 	tlsConf       *tls.Config
 	keepaliveConf keepalive.ClientParameters
+	spliterConf   SpliterConfig
 
 	backupMeta    *backuppb.BackupMeta
 	dstAPIVersion kvrpcpb.APIVersion
@@ -64,6 +65,7 @@ func NewRestoreClient(
 	pdClient pd.Client,
 	tlsConf *tls.Config,
 	keepaliveConf keepalive.ClientParameters,
+	spliterConf SpliterConfig,
 	isRawKv bool,
 ) (*Client, error) {
 	apiVerion, err := conn.GetTiKVApiVersion(context.Background(), pdClient, tlsConf)
@@ -72,9 +74,10 @@ func NewRestoreClient(
 	}
 	return &Client{
 		pdClient:      pdClient,
-		toolClient:    NewSplitClient(pdClient, tlsConf, isRawKv),
+		toolClient:    NewSplitClient(pdClient, tlsConf, spliterConf, isRawKv),
 		tlsConf:       tlsConf,
 		keepaliveConf: keepaliveConf,
+		spliterConf:   spliterConf,
 		switchCh:      make(chan struct{}),
 		dstAPIVersion: apiVerion,
 	}, nil
@@ -132,7 +135,7 @@ func (rc *Client) InitBackupMeta(
 	}
 	rc.backupMeta = backupMeta
 
-	metaClient := NewSplitClient(rc.pdClient, rc.tlsConf, rc.backupMeta.IsRawKv)
+	metaClient := NewSplitClient(rc.pdClient, rc.tlsConf, rc.spliterConf, rc.backupMeta.IsRawKv)
 	importCli := NewImportClient(metaClient, rc.tlsConf, rc.keepaliveConf)
 	rc.fileImporter = NewFileImporter(metaClient, importCli, backend, rc.backupMeta.IsRawKv,
 		rc.backupMeta.ApiVersion, rc.rateLimit)

@@ -7,6 +7,12 @@ pd-heartbeat-tick-interval = "2s"
 pd-store-heartbeat-tick-interval = "5s"
 split-region-check-tick-interval = "1s"
 
+# 10000000 keys & ~480MB data size in integration tests
+[coprocessor]
+region-split-size = "10MiB"
+region-split-keys = 200000
+batch-split-limit = 100
+
 [rocksdb]
 max-open-files = 10000
 
@@ -14,4 +20,5 @@ max-open-files = 10000
 max-open-files = 10000
 
 [storage]
+reserve-space = "0MiB"
 enable-ttl = true
