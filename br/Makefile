@@ -37,7 +37,23 @@ TLS_CA                ?=
 TLS_CERT              ?= 
 TLS_KEY               ?= 
 
-LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(shell git describe --tags --dirty --always)"
+RELEASE_VERSION ?=
+ifeq ($(RELEASE_VERSION),)
+	RELEASE_VERSION := br-v1.1-master
+	release_version_regex := ^br-v[0-9]\..*$$
+	release_branch_regex := "^br-[0-9]\.[0-9].*$$|^HEAD$$|^.*/*tags/br-v[0-9]\.[0-9]\..*$$"
+	ifneq ($(shell git rev-parse --abbrev-ref HEAD | egrep $(release_branch_regex)),)
+		# If we are in release branch, try to use tag version.
+		ifneq ($(shell git describe --tags --dirty | egrep $(release_version_regex)),)
+			RELEASE_VERSION := $(shell git describe --tags --dirty)
+		endif
+	else ifneq ($(shell git status --porcelain),)
+		# Add -dirty if the working tree is dirty for non release branch.
+		RELEASE_VERSION := $(RELEASE_VERSION)-dirty
+	endif
+endif
+
+LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.ReleaseVersion=$(RELEASE_VERSION)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.BuildTS=$(shell date -u '+%Y-%m-%d %H:%M:%S')"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitHash=$(shell git rev-parse HEAD)"
 LDFLAGS += -X "github.com/tikv/migration/br/pkg/version/build.GitBranch=$(shell git rev-parse --abbrev-ref HEAD)"
@@ -94,10 +110,10 @@ tools/bin/failpoint-ctl: tools/check/go.mod
 	cd tools/check && $(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
 
 build:
-	CGO_ENABLED=1 $(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
+	CGO_ENABLED=0 $(GO) build -tags codes -gcflags "all=-N -l" -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
 
 release:
-	CGO_ENABLED=1 GOOS=$(TARGET_OS) GOARCH=$(TARGET_ARCH) $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
+	CGO_ENABLED=0 GOOS=$(TARGET_OS) GOARCH=$(TARGET_ARCH) $(GO) build -tags codes -ldflags '$(LDFLAGS)' -o $(BR_BIN_PATH) cmd/br/*.go
 
 build/rawkv-integration-test:
 	cd tests/rawkv && $(GO) build -mod=mod -o ../../bin/rawkv_test *.go
