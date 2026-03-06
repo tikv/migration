@@ -5,7 +5,7 @@ on:
     paths: cdc/**
   pull_request:
     branches: main
-    # paths: cdc/**
+    paths: cdc/**
 
 permissions:
   contents: read
