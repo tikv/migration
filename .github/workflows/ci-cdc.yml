@@ -60,7 +60,7 @@ jobs:
       - name: install gocov
         shell: bash
         run: |
-          go install github.com/axw/gocov/gocov@latest
+          go install github.com/axw/gocov/gocov@v1.2.0
       - name: make unit_test_in_verify_ci
         shell: bash
         env:
