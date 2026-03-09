@@ -34,7 +34,7 @@ tools/bin/oapi-codegen: tools/check/go.mod
 	cd tools/check && $(GO) build -mod=mod -o ../bin/oapi-codegen github.com/deepmap/oapi-codegen/cmd/oapi-codegen
 
 gocov:
-	$(GO) install github.com/axw/gocov/gocov@latest
+	$(GO) install github.com/axw/gocov/gocov@v1.1.0
 
 gocov-xml:
 	$(GO) install github.com/AlekSi/gocov-xml@latest
